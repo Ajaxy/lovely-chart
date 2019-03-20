@@ -84,8 +84,7 @@ class LovelyChart {
 
   _setupViewport() {
     const canvasSize = this._canvas.getBoundingClientRect();
-    this._viewport = new Viewport(this._dataInfo, canvasSize);
-    this._viewport.onTransitionTick(this._onViewportUpdate.bind(this));
+    this._viewport = new Viewport(this._dataInfo, this._onViewportUpdate.bind(this));
   }
 
   _setupScales() {
