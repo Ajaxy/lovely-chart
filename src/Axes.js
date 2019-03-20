@@ -5,41 +5,33 @@ const GUTTER = 10;
 
 const MAX_ROW_HEIGHT = 50;
 
-class CanvasScales {
-  constructor(canvas, context) {
-    this._canvas = canvas;
+export class Axes {
+  constructor(context, dataInfo, plotSize) {
     this._context = context;
+    this._dataInfo = dataInfo;
+    this._plotSize = plotSize;
 
     // TODO Move out of here
     this._context.font = FONT;
   }
 
-  setData(data, dataInfo) {
-    this._data = data;
-    this._dataInfo = dataInfo;
+  draw(viewportState) {
+    // TODO perf maybe no need to redraw both
+    this._drawXAxis(viewportState);
+    this._drawYAxis(viewportState);
   }
 
-  setViewport(viewport) {
-    this._viewport = viewport;
-  }
-
-  draw() {
-    // TODO No need to redraw both
-    this._drawXScale();
-    this._drawYScale();
-  }
-
-  _drawXScale() {
+  _drawXAxis(viewportState) {
     const context = this._context;
-    const { width: canvasWidth, height: canvasHeight } = this._canvas.getBoundingClientRect();
-    const topOffset = canvasHeight - X_SCALE_HEIGHT / 2;
+    const { width: plotWidth, height: plotHeight } = this._plotSize;
+    const topOffset = plotHeight - X_SCALE_HEIGHT / 2;
 
     const labelsCount = this._dataInfo.xLabels.length;
-    const viewportPercent = this._viewport.end - this._viewport.begin;
+    const viewportPercent = viewportState.end - viewportState.begin;
 
     // TODO `viewport.xBeginIndex`, `viewport.xEndIndex`
     const viewportLabelsCount = labelsCount * viewportPercent;
-    const maxColumns = Math.floor(canvasWidth / MAX_COLUMN_WIDTH);
+    const maxColumns = Math.floor(plotWidth / MAX_COLUMN_WIDTH);
     const hiddenLabelsFactor = viewportLabelsCount / maxColumns;
     const scaleLevel = Math.ceil(Math.log2(hiddenLabelsFactor));
     const visibleLabelsMultiplicity = Math.pow(2, scaleLevel);
@@ -57,25 +49,24 @@ class CanvasScales {
       }
 
       const totalProgress = i / labelsCount;
-      const viewportProgress = (totalProgress - this._viewport.begin) / viewportPercent;
-      const leftOffset = viewportProgress * canvasWidth;
+      const viewportProgress = (totalProgress - viewportState.begin) / viewportPercent;
+      const leftOffset = viewportProgress * plotWidth;
       const alpha = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : alphaFactor;
 
-      // TODO May be faster to draw by `alphaFactor`, to not change canvas state every time
+      // TODO perf May be faster to draw by `alphaFactor`, to not change canvas state every time
       context.fillStyle = `rgba(150, 150, 150, ${alpha})`;
       context.fillText(label.text, leftOffset, topOffset);
     });
   }
 
-  _drawYScale() {
+  _drawYAxis(viewportState) {
     const context = this._context;
-    const viewport = this._viewport;
 
-    const { width: canvasWidth, height: canvasHeight } = this._canvas.getBoundingClientRect();
+    const { width: plotWidth, height: plotHeight } = this._plotSize;
     const leftOffset = GUTTER;
-    const availableHeight = canvasHeight - X_SCALE_HEIGHT;
+    const availableHeight = plotHeight - X_SCALE_HEIGHT;
 
-    const viewportLabelsCount = viewport.yMax - viewport.yMin;
+    const viewportLabelsCount = viewportState.yMax - viewportState.yMin;
 
     const maxRows = Math.floor(availableHeight / MAX_ROW_HEIGHT);
     const hiddenLabelsFactor = viewportLabelsCount / maxRows;
@@ -84,8 +75,8 @@ class CanvasScales {
 
     const rowHeight = availableHeight / viewportLabelsCount;
 
-    const firstVisibleValue = Math.floor(viewport.yMin / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
-    const lastVisibleValue = Math.ceil(viewport.yMax / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
+    const firstVisibleValue = Math.floor(viewportState.yMin / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
+    const lastVisibleValue = Math.ceil(viewportState.yMax / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
 
     context.textAlign = 'left';
     context.textBaseline = 'bottom';
@@ -103,11 +94,9 @@ class CanvasScales {
       context.fillText(i, leftOffset, topOffset - GUTTER);
 
       context.moveTo(GUTTER, topOffset);
-      context.lineTo(canvasWidth - GUTTER, topOffset);
+      context.lineTo(plotWidth - GUTTER, topOffset);
     }
 
     context.stroke();
   }
 }
-
-export default CanvasScales;

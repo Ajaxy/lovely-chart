@@ -1,25 +1,23 @@
-import CanvasScales from './CanvasScales';
-import { buildIntegerLabels, buildDayLabels } from './labels';
 import { mergeArrays, getMaxMinBy, toYByX } from './fast';
-import { createProjectionFn } from './createProjectionFn';
-import { drawChart } from './DatasetChart';
+import { buildIntegerLabels, buildDayLabels } from './labels';
 import { Viewport } from './Viewport';
+import { Axes } from './Axes';
+import { Minimap } from './Minimap';
+import { drawDataset } from './drawDataset';
+import { createProjectionFn } from './createProjectionFn';
 
 class LovelyChart {
   constructor(containerId, data) {
-    const container = document.getElementById(containerId);
-
-    if (!container) {
-      throw new Error('Container not found');
-    }
-
-    this._container = container;
     this._data = data;
 
+    this._setupContainer(containerId);
+
     this._analyzeData();
-    this._setupCanvas();
     this._setupViewport();
-    this._setupScales();
+
+    this._setupPlot();
+    // this._setupMinimap();
+    // this._setupTools();
   }
 
   _setViewport({ begin, end }) {
@@ -61,54 +59,67 @@ class LovelyChart {
     this._dataInfo = dataInfo;
   }
 
-  _setupCanvas() {
-    const dpr = window.devicePixelRatio || 1;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = this._container.clientWidth * dpr;
-    canvas.height = this._container.clientHeight * dpr;
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-
-    const context = canvas.getContext('2d');
-    context.scale(dpr, dpr);
-
-    this._container.appendChild(canvas);
-    this._canvas = canvas;
-    this._context = context;
-  }
-
-  _clearCanvas() {
-    this._context.clearRect(0, 0, this._canvas.width, this._canvas.height);
+  _setupContainer(containerId) {
+    this._container = document.getElementById(containerId);
+    this._container.className = 'lovely-chart';
   }
 
   _setupViewport() {
     this._viewport = new Viewport(this._dataInfo, this._onViewportUpdate.bind(this));
   }
 
-  _setupScales() {
-    this._scales = new CanvasScales(this._canvas, this._context);
-    this._scales.setData(this._data, this._dataInfo);
+  _setupPlot() {
+    const dpr = window.devicePixelRatio || 1;
+
+    const plot = document.createElement('canvas');
+    plot.width = this._container.clientWidth * dpr;
+    plot.height = this._container.clientHeight * dpr;
+    plot.style.width = '100%';
+    plot.style.height = '100%';
+
+    const context = plot.getContext('2d');
+    context.scale(dpr, dpr);
+
+    this._container.appendChild(plot);
+    this._plot = plot;
+    this._context = context;
+
+    this._setupAxes();
+  }
+
+  _clearPlotCanvas() {
+    this._context.clearRect(0, 0, this._plot.width, this._plot.height);
+  }
+
+  _setupAxes() {
+    this._axes = new Axes(this._context, this._dataInfo, this._getPlotSize());
+  }
+
+  _setupMinimap() {
+    // this._minimap = new Minimap();
+  }
+
+  _getPlotSize() {
+    return this._plot.getBoundingClientRect();
   }
 
   _onViewportUpdate(viewportState) {
-    this._clearCanvas();
+    this._clearPlotCanvas();
 
-    this._drawScales(viewportState);
-    this._drawPlots(viewportState);
+    this._drawAxes(viewportState);
+    this._drawDatasets(viewportState);
   }
 
-  _drawScales(viewportState) {
-    this._scales.setViewport(viewportState);
-    this._scales.draw();
+  _drawAxes(viewportState) {
+    this._axes.draw(viewportState);
   }
 
-  _drawPlots(viewportState) {
+  _drawDatasets(viewportState) {
     this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
-      drawChart(
+      drawDataset(
         this._context,
         valuesByLabelIndex,
-        createProjectionFn(viewportState, this._canvas.getBoundingClientRect()),
+        createProjectionFn(viewportState, this._getPlotSize()),
         this._data.options[i],
       );
     });

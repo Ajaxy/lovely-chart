@@ -1,13 +1,10 @@
 import LovelyChart from './LovelyChart';
 import { prepareData } from './prepareData';
-// import data from './data';
 
-const data = require('./chart_data.json');
+const data = require('../chart_data.json');
+const chart = new LovelyChart('container', prepareData(data[0]));
 
 setupViewportControls();
-
-const preparedData = prepareData(data[0]);
-const chart = new LovelyChart('container', preparedData);
 
 function setupViewportControls() {
   const beginElement = document.getElementById('viewport-begin');

@@ -1,4 +1,4 @@
-export function drawChart(context, valuesByLabelIndex, projectionFn, options) {
+export function drawDataset(context, valuesByLabelIndex, projectionFn, options) {
   context.strokeStyle = options.color;
   context.lineWidth = 2;
 
