@@ -1,7 +1,7 @@
 import CanvasScales from './CanvasScales';
 import { buildIntegerLabels, buildDayLabels } from './labels';
 import { mergeArrays, getMaxMinBy, toYByX } from './fast';
-import { getState } from './state';
+import { createProjectionFn } from './createProjectionFn';
 import { drawChart } from './DatasetChart';
 import { Viewport } from './Viewport';
 
@@ -83,7 +83,6 @@ class LovelyChart {
   }
 
   _setupViewport() {
-    const canvasSize = this._canvas.getBoundingClientRect();
     this._viewport = new Viewport(this._dataInfo, this._onViewportUpdate.bind(this));
   }
 
@@ -92,25 +91,26 @@ class LovelyChart {
     this._scales.setData(this._data, this._dataInfo);
   }
 
-  _onViewportUpdate(viewportData) {
+  _onViewportUpdate(viewportState) {
     this._clearCanvas();
 
-    this._drawScales(viewportData);
-    this._drawPlots(viewportData);
+    this._drawScales(viewportState);
+    this._drawPlots(viewportState);
   }
 
-  _drawScales(viewportData) {
-    this._scales.setViewport(viewportData);
+  _drawScales(viewportState) {
+    this._scales.setViewport(viewportState);
     this._scales.draw();
   }
 
-  _drawPlots(viewportData) {
-    const { datasetsByLabelIndex } = this._dataInfo;
-    const canvasSize = this._canvas.getBoundingClientRect();
-    const state = getState(viewportData, canvasSize);
-
-    datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
-      drawChart(this._canvas, this._context, valuesByLabelIndex, state, this._data.options[i]);
+  _drawPlots(viewportState) {
+    this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
+      drawChart(
+        this._context,
+        valuesByLabelIndex,
+        createProjectionFn(viewportState, this._canvas.getBoundingClientRect()),
+        this._data.options[i],
+      );
     });
   }
 }

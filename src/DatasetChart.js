@@ -1,12 +1,10 @@
-export function drawChart(canvas, context, valuesByLabelIndex, state, options) {
+export function drawChart(context, valuesByLabelIndex, projectionFn, options) {
   context.strokeStyle = options.color;
   context.lineWidth = 2;
 
-  // TODO for all
+  // TODO perf for all
   context.beginPath();
 
-  // TODO include only edges for optimization
-  // for (let i = state.labelFromIndex; i <= state.labelToIndex; i++) {
   for (let i = 0, l = valuesByLabelIndex.length; i <= l; i++) {
     const y = valuesByLabelIndex[i];
 
@@ -14,7 +12,7 @@ export function drawChart(canvas, context, valuesByLabelIndex, state, options) {
       continue;
     }
 
-    const { xPx, yPx } = state.getPixelCoords(i, y);
+    const { xPx, yPx } = projectionFn(i, y);
 
     if (i === 0) {
       context.moveTo(xPx, yPx);
