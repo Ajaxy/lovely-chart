@@ -3,6 +3,7 @@ import { buildIntegerLabels, buildDayLabels } from './labels';
 import { mergeArrays, getMaxMinBy, toYByX } from './fast';
 import { getState } from './state';
 import { drawChart } from './DatasetChart';
+import { Viewport } from './Viewport';
 
 class LovelyChart {
   constructor(containerId, data) {
@@ -16,59 +17,13 @@ class LovelyChart {
     this._data = data;
 
     this._analyzeData();
-
-    this._viewport = {
-      begin: 0,
-      end: 1,
-      yFrom: 0,
-      yTo: this._dataInfo.yLabels.length - 1,
-    };
-
     this._setupCanvas();
-    this._drawScales();
-    this._drawPlots();
+    this._setupViewport();
+    this._setupScales();
   }
 
-  _setViewport({ begin, end, yFrom, yTo }) {
-    const viewport = this._viewport;
-
-    // TODO Use for optimization
-    // let isXChanged = false;
-    // TODO Animate Y scale level change
-    // let isYChanged = false;
-
-    function findLastBefore(labels, value) {
-      return labels.find((label) => label.value >= label.value);
-    }
-
-    function findFirstAfter(labels, value) {
-
-    }
-
-    if (begin !== undefined) {
-      viewport.begin = begin;
-      // isXChanged = true;
-    }
-
-    if (end !== undefined) {
-      viewport.end = end;
-      // isXChanged = true;
-    }
-
-    // TODO Move outta here
-    const { datasetsByLabelIndex } = this._dataInfo;
-    const canvasSize = this._canvas.getBoundingClientRect();
-    const { yMin, yMax } = getState(this._viewport, datasetsByLabelIndex, this._dataInfo, canvasSize);
-
-    viewport.yFrom = yMin;
-    viewport.yTo = yMax;
-
-    this._clearCanvas();
-
-    this._scales.setViewport(viewport);
-    this._scales.draw();
-
-    this._drawPlots();
+  _setViewport({ begin, end }) {
+    this._viewport.update({ begin, end });
   }
 
   _analyzeData() {
@@ -127,20 +82,36 @@ class LovelyChart {
     this._context.clearRect(0, 0, this._canvas.width, this._canvas.height);
   }
 
-  _drawScales() {
+  _setupViewport() {
+    const canvasSize = this._canvas.getBoundingClientRect();
+    this._viewport = new Viewport(this._dataInfo, canvasSize);
+    this._viewport.onTransitionTick(this._onViewportUpdate.bind(this));
+  }
+
+  _setupScales() {
     this._scales = new CanvasScales(this._canvas, this._context);
     this._scales.setData(this._data, this._dataInfo);
-    this._scales.setViewport(this._viewport);
+  }
+
+  _onViewportUpdate(viewportData) {
+    this._clearCanvas();
+
+    this._drawScales(viewportData);
+    this._drawPlots(viewportData);
+  }
+
+  _drawScales(viewportData) {
+    this._scales.setViewport(viewportData);
     this._scales.draw();
   }
 
-  _drawPlots() {
+  _drawPlots(viewportData) {
     const { datasetsByLabelIndex } = this._dataInfo;
     const canvasSize = this._canvas.getBoundingClientRect();
-    const state = getState(this._viewport, datasetsByLabelIndex, this._dataInfo, canvasSize);
+    const state = getState(viewportData, canvasSize);
 
     datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
-      drawChart(this._canvas, this._context, valuesByLabelIndex, this._dataInfo, state, this._data.options[i]);
+      drawChart(this._canvas, this._context, valuesByLabelIndex, state, this._data.options[i]);
     });
   }
 }

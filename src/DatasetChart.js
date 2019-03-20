@@ -1,6 +1,6 @@
-export function drawChart(canvas, context, valuesByLabelIndex, _dataInfo, state, options) {
+export function drawChart(canvas, context, valuesByLabelIndex, state, options) {
   context.strokeStyle = options.color;
-  context.lineWidth = 3;
+  context.lineWidth = 2;
 
   // TODO for all
   context.beginPath();

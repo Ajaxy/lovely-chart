@@ -75,7 +75,7 @@ class CanvasScales {
     const leftOffset = GUTTER;
     const availableHeight = canvasHeight - X_SCALE_HEIGHT;
 
-    const viewportLabelsCount = viewport.yTo - viewport.yFrom;
+    const viewportLabelsCount = viewport.yMax - viewport.yMin;
 
     const maxRows = Math.floor(availableHeight / MAX_ROW_HEIGHT);
     const hiddenLabelsFactor = viewportLabelsCount / maxRows;
@@ -84,8 +84,8 @@ class CanvasScales {
 
     const rowHeight = availableHeight / viewportLabelsCount;
 
-    const firstVisibleValue = Math.floor(viewport.yFrom / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
-    const lastVisibleValue = Math.ceil(viewport.yTo / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
+    const firstVisibleValue = Math.floor(viewport.yMin / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
+    const lastVisibleValue = Math.ceil(viewport.yMax / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
 
     context.textAlign = 'left';
     context.textBaseline = 'bottom';
