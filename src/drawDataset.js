@@ -1,6 +1,6 @@
 export function drawDataset(context, valuesByLabelIndex, projectionFn, options) {
   context.strokeStyle = options.color;
-  context.lineWidth = 2;
+  context.lineWidth = options.lineWidth;
 
   // TODO perf for all
   context.beginPath();

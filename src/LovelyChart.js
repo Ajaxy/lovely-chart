@@ -5,6 +5,9 @@ import { Axes } from './Axes';
 import { Minimap } from './Minimap';
 import { drawDataset } from './drawDataset';
 import { createProjectionFn } from './createProjectionFn';
+import { X_SCALE_HEIGHT } from './constants';
+
+const WH_RATIO = (2 / 3);
 
 class LovelyChart {
   constructor(containerId, data) {
@@ -16,7 +19,7 @@ class LovelyChart {
     this._setupViewport();
 
     this._setupPlot();
-    // this._setupMinimap();
+    this._setupMinimap();
     // this._setupTools();
   }
 
@@ -71,11 +74,15 @@ class LovelyChart {
   _setupPlot() {
     const dpr = window.devicePixelRatio || 1;
 
+    const width = this._container.clientWidth;
+    const height = width * WH_RATIO;
+
     const plot = document.createElement('canvas');
-    plot.width = this._container.clientWidth * dpr;
-    plot.height = this._container.clientHeight * dpr;
+    plot.className = 'plot';
+    plot.width = width * dpr;
+    plot.height = height * dpr;
     plot.style.width = '100%';
-    plot.style.height = '100%';
+    plot.style.height = `${height}px`;
 
     const context = plot.getContext('2d');
     context.scale(dpr, dpr);
@@ -96,31 +103,42 @@ class LovelyChart {
   }
 
   _setupMinimap() {
-    // this._minimap = new Minimap();
+    this._minimap = new Minimap(this._container, this._dataInfo, this._data.options);
   }
 
   _getPlotSize() {
     return this._plot.getBoundingClientRect();
   }
 
-  _onViewportUpdate(viewportState) {
+  _onViewportUpdate(state) {
     this._clearPlotCanvas();
 
-    this._drawAxes(viewportState);
-    this._drawDatasets(viewportState);
+    this._drawAxes(state);
+    this._drawDatasets(state);
   }
 
-  _drawAxes(viewportState) {
-    this._axes.draw(viewportState);
+  _drawAxes(state) {
+    this._axes.draw(state);
   }
 
-  _drawDatasets(viewportState) {
+  _drawDatasets(state) {
+    const { width, height } = this._getPlotSize();
+    const availableSize = {
+      width,
+      height: height - X_SCALE_HEIGHT,
+    };
+
     this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
+      const options = {
+        color: this._data.options[i].color,
+        lineWidth: 2,
+      };
+
       drawDataset(
         this._context,
         valuesByLabelIndex,
-        createProjectionFn(viewportState, this._getPlotSize()),
-        this._data.options[i],
+        createProjectionFn(state, availableSize),
+        options,
       );
     });
   }

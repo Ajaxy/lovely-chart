@@ -1,19 +1,15 @@
-// TODO extract to constants.js
-const X_SCALE_HEIGHT = 30;
+export function createProjectionFn(state, availableSize) {
+  const xFactor = availableSize.width / state.xWidth;
+  const xShift = state.xShift * xFactor;
 
-export function createProjectionFn(viewportData, canvasSize) {
-  const xFactor = canvasSize.width / viewportData.xWidth;
-  const xShift = viewportData.xShift * xFactor;
-
-  const availableCanvasHeight = canvasSize.height - X_SCALE_HEIGHT;
-  const yFactor = availableCanvasHeight / viewportData.yMax;
-  const yShift = viewportData.yMin * yFactor;
+  const yFactor = availableSize.height / state.yMax;
+  const yShift = state.yMin * yFactor;
 
   return function (labelIndex, y) {
     // TODO perf test w/o `round`
     return {
       xPx: Math.round(labelIndex * xFactor - xShift),
-      yPx: Math.round(availableCanvasHeight - (y * yFactor - yShift)),
+      yPx: Math.round(availableSize.height - (y * yFactor - yShift)),
     };
   };
 }

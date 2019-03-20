@@ -15,19 +15,19 @@ export class Axes {
     this._context.font = FONT;
   }
 
-  draw(viewportState) {
+  draw(state) {
     // TODO perf maybe no need to redraw both
-    this._drawXAxis(viewportState);
-    this._drawYAxis(viewportState);
+    this._drawXAxis(state);
+    this._drawYAxis(state);
   }
 
-  _drawXAxis(viewportState) {
+  _drawXAxis(state) {
     const context = this._context;
     const { width: plotWidth, height: plotHeight } = this._plotSize;
     const topOffset = plotHeight - X_SCALE_HEIGHT / 2;
 
     const labelsCount = this._dataInfo.xLabels.length;
-    const viewportPercent = viewportState.end - viewportState.begin;
+    const viewportPercent = state.end - state.begin;
 
     // TODO `viewport.xBeginIndex`, `viewport.xEndIndex`
     const viewportLabelsCount = labelsCount * viewportPercent;
@@ -49,7 +49,7 @@ export class Axes {
       }
 
       const totalProgress = i / labelsCount;
-      const viewportProgress = (totalProgress - viewportState.begin) / viewportPercent;
+      const viewportProgress = (totalProgress - state.begin) / viewportPercent;
       const leftOffset = viewportProgress * plotWidth;
       const alpha = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : alphaFactor;
 
@@ -59,14 +59,14 @@ export class Axes {
     });
   }
 
-  _drawYAxis(viewportState) {
+  _drawYAxis(state) {
     const context = this._context;
 
     const { width: plotWidth, height: plotHeight } = this._plotSize;
     const leftOffset = GUTTER;
     const availableHeight = plotHeight - X_SCALE_HEIGHT;
 
-    const viewportLabelsCount = viewportState.yMax - viewportState.yMin;
+    const viewportLabelsCount = state.yMax - state.yMin;
 
     const maxRows = Math.floor(availableHeight / MAX_ROW_HEIGHT);
     const hiddenLabelsFactor = viewportLabelsCount / maxRows;
@@ -75,8 +75,8 @@ export class Axes {
 
     const rowHeight = availableHeight / viewportLabelsCount;
 
-    const firstVisibleValue = Math.floor(viewportState.yMin / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
-    const lastVisibleValue = Math.ceil(viewportState.yMax / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
+    const firstVisibleValue = Math.floor(state.yMin / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
+    const lastVisibleValue = Math.ceil(state.yMax / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
 
     context.textAlign = 'left';
     context.textBaseline = 'bottom';
