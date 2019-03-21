@@ -10,6 +10,17 @@ export function setupDrag(element, options) {
 
     captureEvent = e;
 
+    if (e.type === 'mousedown') {
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onRelease);
+    } else if (e.type === 'touchstart') {
+      document.addEventListener('touchmove', onMove);
+      document.addEventListener('touchend', onRelease);
+
+      // https://stackoverflow.com/questions/11287877/how-can-i-get-e-offsetx-on-mobile-ipad
+      e.offsetX = e.touches[0].pageX - e.touches[0].target.offsetLeft;
+    }
+
     if (options.draggingCursor) {
       document.body.classList.add(`cursor-${options.draggingCursor}`);
     }
@@ -21,11 +32,14 @@ export function setupDrag(element, options) {
     if (captureEvent) {
       e.preventDefault();
 
-      captureEvent = null;
-
       if (options.draggingCursor) {
         document.body.classList.remove(`cursor-${options.draggingCursor}`);
       }
+
+      document.addEventListener('touchmove', onMove);
+      document.addEventListener('touchend', onRelease);
+
+      captureEvent = null;
     }
   }
 
@@ -40,10 +54,5 @@ export function setupDrag(element, options) {
   }
 
   element.addEventListener('mousedown', onCapture);
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onRelease);
-
   element.addEventListener('touchstart', onCapture);
-  document.addEventListener('touchmove', onMove);
-  document.addEventListener('touchend', onRelease);
 }
