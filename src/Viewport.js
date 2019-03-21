@@ -30,8 +30,6 @@ export class Viewport {
     const prevState = this._state;
     this._state = calculateState(this._dataInfo, this._range);
 
-    // TODO also: transition._to != this._state.yMax
-
     const currentTargetYMax = this._transition ? this._transition.getTarget() : prevState.yMax;
 
     if (currentTargetYMax && currentTargetYMax !== this._state.yMax) {

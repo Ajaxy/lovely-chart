@@ -1,5 +1,6 @@
-const TRANSITION_DURATION = 300;
+const TRANSITION_DURATION = 200;
 
+// TODO ease-out
 export class Transition {
   constructor(from, to, callback) {
     this._from = from;
@@ -22,7 +23,7 @@ export class Transition {
   }
 
   getTarget() {
-    return this._current;
+    return this._to;
   }
 
   _tick() {
