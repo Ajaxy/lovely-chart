@@ -35,7 +35,6 @@ export class Viewport {
     const currentTargetYMax = this._transition ? this._transition.getTarget() : prevState.yMax;
 
     if (currentTargetYMax && currentTargetYMax !== this._state.yMax) {
-      console.log({ currentTargetYMax, _state: this._state.yMax });
       const currentYMax = this._transition ? this._transition.getCurrent() : prevState.yMax;
 
       if (this._transition) {

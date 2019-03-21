@@ -10,10 +10,13 @@ import { X_SCALE_HEIGHT } from './constants';
 const WH_RATIO = (2 / 3);
 
 class LovelyChart {
-  constructor(containerId, data) {
+  constructor(parentContainerId, data) {
     this._data = data;
 
-    this._setupContainer(containerId);
+    this._onViewportUpdate = this._onViewportUpdate.bind(this);
+    this._onRangeChange = this._onRangeChange.bind(this);
+
+    this._setupContainer(parentContainerId);
 
     this._analyzeData();
     this._setupViewport();
@@ -21,10 +24,6 @@ class LovelyChart {
     this._setupPlot();
     this._setupMinimap();
     // this._setupTools();
-  }
-
-  _setViewport({ begin, end }) {
-    this._viewport.update({ begin, end });
   }
 
   _analyzeData() {
@@ -62,13 +61,18 @@ class LovelyChart {
     this._dataInfo = dataInfo;
   }
 
-  _setupContainer(containerId) {
-    this._container = document.getElementById(containerId);
-    this._container.className = 'lovely-chart';
+  _setupContainer(parentContainerId) {
+    const container = document.createElement('div');
+    container.className = 'lovely-chart';
+
+    const parentContainer = document.getElementById(parentContainerId);
+    parentContainer.appendChild(container);
+
+    this._container = container;
   }
 
   _setupViewport() {
-    this._viewport = new Viewport(this._dataInfo, this._onViewportUpdate.bind(this));
+    this._viewport = new Viewport(this._dataInfo, this._onViewportUpdate);
   }
 
   _setupPlot() {
@@ -103,7 +107,7 @@ class LovelyChart {
   }
 
   _setupMinimap() {
-    this._minimap = new Minimap(this._container, this._dataInfo, this._data.options);
+    this._minimap = new Minimap(this._container, this._dataInfo, this._data.options, this._onRangeChange);
   }
 
   _getPlotSize() {
@@ -141,6 +145,10 @@ class LovelyChart {
         options,
       );
     });
+  }
+
+  _onRangeChange(range) {
+    this._viewport.update(range);
   }
 }
 

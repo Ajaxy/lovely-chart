@@ -29,7 +29,6 @@ export class Transition {
     // TODO reduce `this.` usage to minify code
 
     const progress = Math.min(1, (Date.now() - this._startedAt) / TRANSITION_DURATION);
-    console.log('transitionProgress', progress);
 
     this._current = this._from + (this._to - this._from) * progress;
     this._callback(this._current);
