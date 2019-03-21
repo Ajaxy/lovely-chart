@@ -35,7 +35,6 @@ export function prepareData(chartData) {
   });
 
   return {
-    xType: LovelyChart.XTypeDate,
     datasets,
     options,
   };

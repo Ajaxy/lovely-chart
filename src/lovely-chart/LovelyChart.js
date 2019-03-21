@@ -1,13 +1,11 @@
-import { mergeArrays, getMaxMinBy, toYByX } from './fast';
-import { buildIntegerLabels, buildDayLabels } from './labels';
 import { Viewport } from './Viewport';
 import { Axes } from './Axes';
 import { Minimap } from './Minimap';
+import { analyzeData } from './analyzeData';
 import { drawDataset } from './drawDataset';
 import { createProjectionFn } from './createProjectionFn';
-import { X_SCALE_HEIGHT } from './constants';
-
-const WH_RATIO = (2 / 3);
+import { setupCanvas } from './setupCanvas';
+import { X_AXIS_HEIGHT, PLOT_WH_RATIO } from './constants';
 
 export class LovelyChart {
   constructor(parentContainerId, data) {
@@ -19,46 +17,15 @@ export class LovelyChart {
     this._setupContainer(parentContainerId);
 
     this._analyzeData();
-    this._setupViewport();
 
+    this._setupViewport();
     this._setupPlot();
     this._setupMinimap();
     // this._setupTools();
   }
 
   _analyzeData() {
-    const { datasets } = this._data;
-
-    const merged = mergeArrays(datasets);
-    const { min: yMin, max: yMax } = getMaxMinBy(merged, 'y');
-
-    const firsts = datasets.map((dataset) => dataset[0]);
-    const lasts = datasets.map((dataset) => dataset[dataset.length - 1]);
-    const { min: xMin } = getMaxMinBy(firsts, 'x');
-    const { max: xMax } = getMaxMinBy(lasts, 'x');
-
-    const dataInfo = {
-      xLabels: [],
-      yMin,
-      yMax,
-      xMin,
-      xMax,
-    };
-
-    if (this._data.xType === LovelyChart.XTypeDate) {
-      dataInfo.xLabels = buildDayLabels(dataInfo.xMin, dataInfo.xMax);
-    } else {
-      dataInfo.xLabels = buildIntegerLabels(dataInfo.xMin, dataInfo.xMax);
-    }
-
-    dataInfo.yLabels = buildIntegerLabels(dataInfo.yMin, dataInfo.yMax);
-
-    dataInfo.datasetsByLabelIndex = datasets.map((dataset) => {
-      const valuesByLabel = toYByX(dataset);
-      return dataInfo.xLabels.map((label) => valuesByLabel[String(label.value)]);
-    });
-
-    this._dataInfo = dataInfo;
+    this._dataInfo = analyzeData(this._data);
   }
 
   _setupContainer(parentContainerId) {
@@ -76,23 +43,13 @@ export class LovelyChart {
   }
 
   _setupPlot() {
-    const dpr = window.devicePixelRatio || 1;
-
     const width = this._container.clientWidth;
-    const height = width * WH_RATIO;
+    const height = width * PLOT_WH_RATIO;
 
-    const plot = document.createElement('canvas');
-    plot.className = 'plot';
-    plot.width = width * dpr;
-    plot.height = height * dpr;
-    plot.style.width = '100%';
-    plot.style.height = `${height}px`;
+    const { canvas, context } = setupCanvas({ width, height });
 
-    const context = plot.getContext('2d');
-    context.scale(dpr, dpr);
-
-    this._container.appendChild(plot);
-    this._plot = plot;
+    this._container.appendChild(canvas);
+    this._plot = canvas;
     this._context = context;
 
     this._setupAxes();
@@ -129,7 +86,7 @@ export class LovelyChart {
     const { width, height } = this._getPlotSize();
     const availableSize = {
       width,
-      height: height - X_SCALE_HEIGHT,
+      height: height - X_AXIS_HEIGHT,
     };
 
     this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
@@ -151,6 +108,3 @@ export class LovelyChart {
     this._viewport.update(range);
   }
 }
-
-LovelyChart.XTypeInteger = 1;
-LovelyChart.XTypeDate = 2;

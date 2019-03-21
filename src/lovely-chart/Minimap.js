@@ -2,10 +2,8 @@ import { drawDataset } from './drawDataset';
 import { createProjectionFn } from './createProjectionFn';
 import { calculateState } from './calculateState';
 import { setupDrag } from './setupDrag';
-
-const MINIMAP_HEIGHT = 50;
-const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };
-const EAR_WIDTH = 5;
+import { setupCanvas } from './setupCanvas';
+import { DEFAULT_RANGE, MINIMAP_HEIGHT, MINIMAP_EAR_WIDTH, MINIMAP_RULER_HTML } from './constants';
 
 export class Minimap {
   constructor(container, dataInfo, dataOptions, rangeCallback) {
@@ -35,19 +33,9 @@ export class Minimap {
   }
 
   _setupCanvas() {
-    const dpr = window.devicePixelRatio || 1;
-
     const width = this._container.clientWidth;
-    const height = MINIMAP_HEIGHT;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    canvas.style.width = '100%';
-    canvas.style.height = `${height}px`;
-
-    const context = canvas.getContext('2d');
-    context.scale(dpr, dpr);
+    const { canvas, context } = setupCanvas({ width, height: MINIMAP_HEIGHT });
 
     this._canvas = canvas;
     this._context = context;
@@ -58,7 +46,7 @@ export class Minimap {
   _setupRuler() {
     const ruler = document.createElement('div');
     ruler.className = 'ruler';
-    ruler.innerHTML = '<div class="mask"></div><div class="slider"><div></div><div></div></div><div class="mask"></div>';
+    ruler.innerHTML = MINIMAP_RULER_HTML;
 
     const slider = ruler.children[1];
 
@@ -139,7 +127,7 @@ export class Minimap {
     const slider = this._ruler.children[1];
 
     const minX1 = 0;
-    const maxX1 = slider.offsetLeft + slider.offsetWidth - EAR_WIDTH * 2;
+    const maxX1 = slider.offsetLeft + slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
 
     const pointerMinimapOffset = this._dragCapturePointerMinimapOffset + dragOffsetX;
     const newX1 = Math.min(maxX1, Math.max(minX1, pointerMinimapOffset - captureEvent.offsetX));
@@ -152,7 +140,7 @@ export class Minimap {
     const containerWidth = this._container.clientWidth;
     const slider = this._ruler.children[1];
 
-    const minX2 = slider.offsetLeft + EAR_WIDTH * 2;
+    const minX2 = slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
     const maxX2 = containerWidth;
 
     const pointerMinimapOffset = this._dragCapturePointerMinimapOffset + dragOffsetX;

@@ -1,9 +1,10 @@
-const FONT = '10px Arial';
-const MAX_COLUMN_WIDTH = 50;
-const X_SCALE_HEIGHT = 30;
-const GUTTER = 10;
-
-const MAX_ROW_HEIGHT = 50;
+import {
+  GUTTER,
+  AXES_FONT,
+  AXES_MAX_COLUMN_WIDTH,
+  AXES_MAX_ROW_HEIGHT,
+  X_AXIS_HEIGHT,
+} from './constants';
 
 export class Axes {
   constructor(context, dataInfo, plotSize) {
@@ -12,7 +13,7 @@ export class Axes {
     this._plotSize = plotSize;
 
     // TODO Move out of here
-    this._context.font = FONT;
+    this._context.font = AXES_FONT;
   }
 
   draw(state) {
@@ -24,14 +25,14 @@ export class Axes {
   _drawXAxis(state) {
     const context = this._context;
     const { width: plotWidth, height: plotHeight } = this._plotSize;
-    const topOffset = plotHeight - X_SCALE_HEIGHT / 2;
+    const topOffset = plotHeight - X_AXIS_HEIGHT / 2;
 
     const labelsCount = this._dataInfo.xLabels.length;
     const viewportPercent = state.end - state.begin;
 
     // TODO `viewport.xBeginIndex`, `viewport.xEndIndex`
     const viewportLabelsCount = labelsCount * viewportPercent;
-    const maxColumns = Math.floor(plotWidth / MAX_COLUMN_WIDTH);
+    const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
     const hiddenLabelsFactor = viewportLabelsCount / maxColumns;
     const scaleLevel = Math.ceil(Math.log2(hiddenLabelsFactor));
     const visibleLabelsMultiplicity = Math.pow(2, scaleLevel);
@@ -64,11 +65,11 @@ export class Axes {
 
     const { width: plotWidth, height: plotHeight } = this._plotSize;
     const leftOffset = GUTTER;
-    const availableHeight = plotHeight - X_SCALE_HEIGHT;
+    const availableHeight = plotHeight - X_AXIS_HEIGHT;
 
     const viewportLabelsCount = state.yMax - state.yMin;
 
-    const maxRows = Math.floor(availableHeight / MAX_ROW_HEIGHT);
+    const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);
     const hiddenLabelsFactor = viewportLabelsCount / maxRows;
     const scaleLevel = Math.ceil(Math.sqrt(hiddenLabelsFactor / 2));
     const visibleLabelsMultiplicity = Math.pow(scaleLevel, 2) * 2;

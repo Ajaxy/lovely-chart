@@ -1,4 +1,4 @@
-const DAY_MS = 1000 * 60 * 60 * 24;
+import { DAY_MS } from './constants';
 
 export function buildIntegerLabels(from, to) {
   const labels = [];
@@ -6,7 +6,7 @@ export function buildIntegerLabels(from, to) {
   for (let i = from; i <= to; i += 1) {
     labels.push({
       value: i,
-      text: `${i}`
+      text: `${i}`,
     });
   }
 
@@ -26,7 +26,7 @@ export function buildDayLabels(timestampFrom, timestampTo) {
 
     labels.push({
       value: timestamp,
-      text: `${month} ${day}`
+      text: `${month} ${day}`,
     });
   }
 

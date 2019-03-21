@@ -1,4 +1,4 @@
-const TRANSITION_DURATION = 200;
+import { TRANSITION_DURATION } from './constants';
 
 // TODO ease-out
 export class Transition {
