@@ -6,10 +6,10 @@ export function createProjectionFn(state, availableSize) {
   const yShift = state.yMin * yFactor;
 
   return function (labelIndex, y) {
-    // TODO perf test w/o `round`
+    // TODO perf test with `round`
     return {
-      xPx: Math.round(labelIndex * xFactor - xShift),
-      yPx: Math.round(availableSize.height - (y * yFactor - yShift)),
+      xPx: labelIndex * xFactor - xShift,
+      yPx: availableSize.height - (y * yFactor - yShift),
     };
   };
 }

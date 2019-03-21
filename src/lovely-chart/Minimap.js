@@ -1,7 +1,7 @@
 import { drawDataset } from './drawDataset';
 import { createProjectionFn } from './createProjectionFn';
 import { calculateState } from './calculateState';
-import { setupDragListener } from './setupDragListener';
+import { setupDrag } from './setupDrag';
 
 const MINIMAP_HEIGHT = 50;
 const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };
@@ -61,9 +61,31 @@ export class Minimap {
     ruler.innerHTML = '<div class="mask"></div><div class="slider"><div></div><div></div></div><div class="mask"></div>';
 
     const slider = ruler.children[1];
-    setupDragListener(slider, { onCapture: this._onDragCapture, onDrag: this._onSliderDrag });
-    setupDragListener(slider.children[0], { onCapture: this._onDragCapture, onDrag: this._onLeftEarDrag });
-    setupDragListener(slider.children[1], { onCapture: this._onDragCapture, onDrag: this._onRightEarDrag });
+
+    setupDrag(
+      slider,
+      {
+        onCapture: this._onDragCapture,
+        onDrag: this._onSliderDrag,
+        draggingCursor: 'grabbing',
+      },
+    );
+    setupDrag(
+      slider.children[0],
+      {
+        onCapture: this._onDragCapture,
+        onDrag: this._onLeftEarDrag,
+        draggingCursor: 'ew-resize',
+      },
+    );
+    setupDrag(
+      slider.children[1],
+      {
+        onCapture: this._onDragCapture,
+        onDrag: this._onRightEarDrag,
+        draggingCursor: 'ew-resize',
+      },
+    );
 
     this._ruler = ruler;
 
@@ -97,12 +119,9 @@ export class Minimap {
   }
 
   _onSliderDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    if (captureEvent.target !== this._ruler.children[1]) {
-      return;
-    }
-
     const containerWidth = this._container.clientWidth;
     const slider = this._ruler.children[1];
+
     const minX1 = 0;
     const maxX1 = containerWidth - slider.offsetWidth;
 
@@ -116,12 +135,9 @@ export class Minimap {
   }
 
   _onLeftEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    if (captureEvent.target !== this._ruler.children[1].children[0]) {
-      return;
-    }
-
     const containerWidth = this._container.clientWidth;
     const slider = this._ruler.children[1];
+
     const minX1 = 0;
     const maxX1 = slider.offsetLeft + slider.offsetWidth - EAR_WIDTH * 2;
 
@@ -133,13 +149,9 @@ export class Minimap {
   }
 
   _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    // TODO WHY
-    if (captureEvent.target !== this._ruler.children[1].children[1]) {
-      return;
-    }
-
     const containerWidth = this._container.clientWidth;
     const slider = this._ruler.children[1];
+
     const minX2 = slider.offsetLeft + EAR_WIDTH * 2;
     const maxX2 = containerWidth;
 

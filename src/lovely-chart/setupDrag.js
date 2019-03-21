@@ -1,11 +1,20 @@
-export function setupDragListener(element, callbacks) {
+export function setupDrag(element, options) {
   let captureEvent = null;
 
   function onCapture(e) {
+    if (e.target !== element) {
+      return;
+    }
+
     e.preventDefault();
 
     captureEvent = e;
-    callbacks.onCapture && callbacks.onCapture(e);
+
+    if (options.draggingCursor) {
+      document.body.classList.add(`cursor-${options.draggingCursor}`);
+    }
+
+    options.onCapture && options.onCapture(e);
   }
 
   function onRelease(e) {
@@ -13,6 +22,10 @@ export function setupDragListener(element, callbacks) {
       e.preventDefault();
 
       captureEvent = null;
+
+      if (options.draggingCursor) {
+        document.body.classList.remove(`cursor-${options.draggingCursor}`);
+      }
     }
   }
 
@@ -20,7 +33,7 @@ export function setupDragListener(element, callbacks) {
     if (captureEvent) {
       e.preventDefault();
 
-      callbacks.onDrag(e, captureEvent, {
+      options.onDrag(e, captureEvent, {
         dragOffsetX: e.pageX - captureEvent.pageX,
       });
     }

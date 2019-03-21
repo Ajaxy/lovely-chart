@@ -135,7 +135,7 @@ export class LovelyChart {
     this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
       const options = {
         color: this._data.options[i].color,
-        lineWidth: 2,
+        lineWidth: 2.5,
       };
 
       drawDataset(
