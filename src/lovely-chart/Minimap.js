@@ -26,6 +26,7 @@ export class Minimap {
     const element = document.createElement('div');
 
     element.className = 'minimap';
+    element.style.height = `${MINIMAP_HEIGHT}px`;
     element.appendChild(this._setupCanvas());
     element.appendChild(this._setupRuler());
 
@@ -136,6 +137,7 @@ export class Minimap {
     this._updateRange({ begin });
   }
 
+  // TODO jumps
   _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
     const containerWidth = this._container.clientWidth;
     const slider = this._ruler.children[1];

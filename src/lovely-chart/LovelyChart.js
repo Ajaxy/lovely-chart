@@ -5,7 +5,7 @@ import { analyzeData } from './analyzeData';
 import { drawDataset } from './drawDataset';
 import { createProjectionFn } from './createProjectionFn';
 import { setupCanvas } from './setupCanvas';
-import { X_AXIS_HEIGHT, PLOT_WH_RATIO } from './constants';
+import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH } from './constants';
 
 export class LovelyChart {
   constructor(parentContainerId, data) {
@@ -92,7 +92,7 @@ export class LovelyChart {
     this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
       const options = {
         color: this._data.options[i].color,
-        lineWidth: 2.5,
+        lineWidth: DATASET_WIDTH,
       };
 
       drawDataset(

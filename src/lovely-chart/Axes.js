@@ -55,7 +55,7 @@ export class Axes {
       const alpha = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : alphaFactor;
 
       // TODO perf May be faster to draw by `alphaFactor`, to not change canvas state every time
-      context.fillStyle = `rgba(150, 150, 150, ${alpha})`;
+      context.fillStyle = `rgba(165, 165, 165, ${alpha})`;
       context.fillText(label.text, leftOffset, topOffset);
     });
   }
@@ -81,7 +81,7 @@ export class Axes {
 
     context.textAlign = 'left';
     context.textBaseline = 'bottom';
-    context.fillStyle = `rgba(150, 150, 150, 1)`;
+    context.fillStyle = `rgba(165, 165, 165, 1)`;
     context.strokeStyle = '#eeeeee';
     context.lineWidth = 1;
 
