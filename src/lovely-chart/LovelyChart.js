@@ -9,7 +9,7 @@ import { X_SCALE_HEIGHT } from './constants';
 
 const WH_RATIO = (2 / 3);
 
-class LovelyChart {
+export class LovelyChart {
   constructor(parentContainerId, data) {
     this._data = data;
 
@@ -154,7 +154,3 @@ class LovelyChart {
 
 LovelyChart.XTypeInteger = 1;
 LovelyChart.XTypeDate = 2;
-// No support
-// LovelyChart.XTypeFloat = 3;
-
-export default LovelyChart;

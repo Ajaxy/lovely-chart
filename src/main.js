@@ -1,8 +1,10 @@
-import LovelyChart from './LovelyChart';
 import { prepareData } from './prepareData';
+import { LovelyChart } from './lovely-chart/LovelyChart';
 
-const data = require('../chart_data.json');
-
-data.forEach((chartData) => {
-  new LovelyChart('container', prepareData(chartData));
-});
+fetch('./chart_data.json')
+  .then((response) => response.json())
+  .then((data) => {
+    data.forEach((chartData) => {
+      new LovelyChart('container', prepareData(chartData));
+    });
+  });

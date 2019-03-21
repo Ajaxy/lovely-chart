@@ -1,4 +1,4 @@
-import LovelyChart from './LovelyChart';
+import { LovelyChart } from './lovely-chart/LovelyChart';
 
 const LABELS_KEY = 'x';
 
