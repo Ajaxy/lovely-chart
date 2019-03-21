@@ -2,7 +2,7 @@
   margin-bottom: 50px;
 }
 
-.lovely-chart .plot {
+.lovely-chart > canvas {
   margin-top: 10px;
 }
 

@@ -1,17 +1,4 @@
-import { DAY_MS } from './constants';
-
-export function buildIntegerLabels(from, to) {
-  const labels = [];
-
-  for (let i = from; i <= to; i += 1) {
-    labels.push({
-      value: i,
-      text: `${i}`,
-    });
-  }
-
-  return labels;
-}
+import { DAY_MS, MONTHS } from './constants';
 
 export function buildDayLabels(timestampFrom, timestampTo) {
   timestampFrom = roundToDay(timestampFrom);
@@ -22,7 +9,7 @@ export function buildDayLabels(timestampFrom, timestampTo) {
   for (let timestamp = timestampFrom; timestamp <= timestampTo; timestamp += DAY_MS) {
     const date = new Date(timestamp);
     const day = date.getDate();
-    const month = date.toLocaleString('en-us', { month: 'short' });
+    const month = MONTHS[date.getMonth()];
 
     labels.push({
       value: timestamp,
@@ -36,4 +23,3 @@ export function buildDayLabels(timestampFrom, timestampTo) {
 function roundToDay(timestamp) {
   return timestamp - (timestamp % DAY_MS);
 }
-

@@ -12,10 +12,7 @@ export class Viewport {
     };
     this._state = {};
 
-    this._state = calculateState(this._dataInfo, this._range);
-
     this._runCallback = this._runCallback.bind(this);
-    this._runCallback();
   }
 
   update({ begin, end }) {

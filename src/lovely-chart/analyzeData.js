@@ -1,5 +1,5 @@
 import { getMaxMinBy, mergeArrays, toYByX } from './fast';
-import { buildDayLabels, buildIntegerLabels } from './labels';
+import { buildDayLabels } from './buildDayLabels';
 
 export function analyzeData(data) {
   const { datasets } = data;
@@ -22,7 +22,6 @@ export function analyzeData(data) {
   };
 
   dataInfo.xLabels = buildDayLabels(dataInfo.xMin, dataInfo.xMax);
-  dataInfo.yLabels = buildIntegerLabels(dataInfo.yMin, dataInfo.yMax);
 
   dataInfo.datasetsByLabelIndex = datasets.map((dataset) => {
     const valuesByLabel = toYByX(dataset);
