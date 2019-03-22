@@ -7,7 +7,7 @@ export const GUTTER = 10;
 export const DATASET_WIDTH = 2;
 
 export const AXES_FONT = '10px "Helvetica Neue", Helvetica, Arial, sans-serif';
-export const AXES_MAX_COLUMN_WIDTH = 35;
+export const AXES_MAX_COLUMN_WIDTH = 45;
 export const AXES_MAX_ROW_HEIGHT = 50;
 export const X_AXIS_HEIGHT = 30;
 
@@ -21,4 +21,4 @@ export const DPR = window.devicePixelRatio || 1;
 export const DAY_MS = 1000 * 60 * 60 * 24;
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-export const TRANSITION_DURATION = 200;
+export const TRANSITION_DURATION = 300;

@@ -18,8 +18,8 @@ export class Minimap {
     this._onRightEarDrag = this._onRightEarDrag.bind(this);
 
     this._setupLayout();
-    this._drawDatasets();
     this._updateRange(DEFAULT_RANGE);
+    this._drawDatasets();
   }
 
   _setupLayout() {
@@ -84,7 +84,7 @@ export class Minimap {
   }
 
   _drawDatasets() {
-    const state = calculateState(this._dataInfo);
+    const state = calculateState(this._dataInfo, this._getCanvasSize(), { begin: 0, end: 1 });
 
     this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
       const options = {
@@ -92,6 +92,7 @@ export class Minimap {
         lineWidth: 1,
       };
 
+      // TODO console 12 times
       drawDataset(
         this._context,
         valuesByLabelIndex,

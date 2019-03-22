@@ -1,8 +1,9 @@
 import { getMaxMinBy, mergeArrays, toYByX } from './fast';
 import { buildDayLabels } from './buildDayLabels';
 
+// TODO Use original data
 export function analyzeData(data) {
-  const { datasets } = data;
+  const { datasets, options } = data;
 
   const merged = mergeArrays(datasets);
   const { min: yMin, max: yMax } = getMaxMinBy(merged, 'y');
@@ -19,6 +20,7 @@ export function analyzeData(data) {
     yMax,
     xMin,
     xMax,
+    options
   };
 
   dataInfo.xLabels = buildDayLabels(dataInfo.xMin, dataInfo.xMax);

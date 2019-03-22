@@ -17,8 +17,8 @@ export class LovelyChart {
     this._analyzeData();
 
     this._setupContainer(parentContainerId);
-    this._setupViewport();
     this._setupPlotCanvas();
+    this._setupViewport();
     this._setupAxes();
     this._setupMinimap();
     this._setupTools();
@@ -39,7 +39,7 @@ export class LovelyChart {
   }
 
   _setupViewport() {
-    this._viewport = new Viewport(this._dataInfo, this._onViewportUpdate);
+    this._viewport = new Viewport(this._dataInfo, this._getPlotSize(), this._onViewportUpdate);
   }
 
   _setupPlotCanvas() {
@@ -94,6 +94,7 @@ export class LovelyChart {
       const options = {
         color: this._data.options[i].color,
         lineWidth: DATASET_WIDTH,
+        opacity: 1,
       };
 
       drawDataset(
@@ -106,7 +107,7 @@ export class LovelyChart {
   }
 
   _onRangeChange(range) {
-    this._viewport.update(range);
+    this._viewport.update({ range });
   }
 
   // _onFilterChange(filter) {

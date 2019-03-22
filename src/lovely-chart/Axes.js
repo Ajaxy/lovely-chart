@@ -1,10 +1,4 @@
-import {
-  GUTTER,
-  AXES_FONT,
-  AXES_MAX_COLUMN_WIDTH,
-  AXES_MAX_ROW_HEIGHT,
-  X_AXIS_HEIGHT,
-} from './constants';
+import { GUTTER, AXES_FONT, X_AXIS_HEIGHT } from './constants';
 
 export class Axes {
   constructor(context, dataInfo, plotSize) {
@@ -30,21 +24,15 @@ export class Axes {
     const labelsCount = this._dataInfo.xLabels.length;
     const viewportPercent = state.end - state.begin;
 
-    // TODO `viewport.xBeginIndex`, `viewport.xEndIndex`
-    const viewportLabelsCount = labelsCount * viewportPercent;
-    const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
-    const hiddenLabelsFactor = viewportLabelsCount / maxColumns;
-    const scaleLevel = Math.ceil(Math.log2(hiddenLabelsFactor));
+    const scaleLevel = Math.floor(state.xAxisScale);
     const visibleLabelsMultiplicity = Math.pow(2, scaleLevel);
-
-    const prevLevelExcess = (hiddenLabelsFactor / (visibleLabelsMultiplicity / 2) - 1);
-    const alphaFactor = prevLevelExcess ? 1 - prevLevelExcess : 0;
+    const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
 
     context.textAlign = 'center';
     context.textBaseline = 'middle';
 
+    // TODO Draw only visible
     this._dataInfo.xLabels.forEach((label, i) => {
-      // TODO Use `viewport.xFrom` and `label.value`
       if (i % visibleLabelsMultiplicity !== 0) {
         return;
       }
@@ -52,28 +40,38 @@ export class Axes {
       const totalProgress = i / labelsCount;
       const viewportProgress = (totalProgress - state.begin) / viewportPercent;
       const leftOffset = viewportProgress * plotWidth;
-      const alpha = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : alphaFactor;
+      const opacity = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;
 
-      // TODO perf May be faster to draw by `alphaFactor`, to not change canvas state every time
-      context.fillStyle = `rgba(165, 165, 165, ${alpha})`;
+      // TODO perf May be faster to draw by `opacityFactor`, to not change canvas state every time
+      context.fillStyle = `rgba(165, 165, 165, ${opacity})`;
       context.fillText(label.text, leftOffset, topOffset);
     });
   }
 
   _drawYAxis(state) {
-    const context = this._context;
+    const scaleLevel = state.yAxisScale;
 
+    if (scaleLevel % 1 === 0) {
+      this._drawYAxisScaled(state, scaleLevel);
+    } else {
+      const lower = Math.floor(scaleLevel);
+      this._drawYAxisScaled(state, lower, 1 - (scaleLevel - lower));
+
+      const upper = Math.ceil(scaleLevel);
+      this._drawYAxisScaled(state, upper, 1 - (upper - scaleLevel));
+    }
+  }
+
+  // TODO version
+  _drawYAxisScaled(state, scaleLevel, opacity = 1) {
+    const context = this._context;
     const { width: plotWidth, height: plotHeight } = this._plotSize;
     const leftOffset = GUTTER;
-    const availableHeight = plotHeight - X_AXIS_HEIGHT;
 
     const viewportLabelsCount = state.yMax - state.yMin;
-
-    const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);
-    const hiddenLabelsFactor = viewportLabelsCount / maxRows;
-    const scaleLevel = Math.ceil(Math.sqrt(hiddenLabelsFactor / 2));
     const visibleLabelsMultiplicity = Math.pow(scaleLevel, 2) * 2;
 
+    const availableHeight = plotHeight - X_AXIS_HEIGHT;
     const rowHeight = availableHeight / viewportLabelsCount;
 
     const firstVisibleValue = Math.floor(state.yMin / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
@@ -81,8 +79,8 @@ export class Axes {
 
     context.textAlign = 'left';
     context.textBaseline = 'bottom';
-    context.fillStyle = `rgba(165, 165, 165, 1)`;
-    context.strokeStyle = '#eeeeee';
+    context.fillStyle = `rgba(165, 165, 165, ${opacity})`;
+    context.strokeStyle = `rgba(238, 238, 238, ${opacity})`;
     context.lineWidth = 1;
 
     context.beginPath();
@@ -91,7 +89,7 @@ export class Axes {
       const viewportIndex = i - firstVisibleValue;
       const topOffset = availableHeight - viewportIndex * rowHeight;
 
-      // TODO We do not user label value/text here
+      // TODO We do not user label value/text here (remove them)
       context.fillText(i, leftOffset, topOffset - GUTTER);
 
       context.moveTo(GUTTER, topOffset);

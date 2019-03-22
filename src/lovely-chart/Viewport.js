@@ -1,40 +1,36 @@
 import { TransitionManager } from './TransitionManager';
 import { calculateState } from './calculateState';
 
-const ANIMATE_PROPS = ['yMax'];
+const ANIMATE_PROPS = ['yMax', 'xAxisScale', 'yAxisScale'];
 
 export class Viewport {
-  constructor(dataInfo, callback) {
+  constructor(dataInfo, plotSize, callback) {
     this._dataInfo = dataInfo;
+    this._plotSize = plotSize;
     this._callback = callback;
 
-    this._range = {
-      begin: 0,
-      end: 1,
-    };
+    // TODO don't save range
+    this._range = { begin: 0, end: 1 };
+    this._filter = this._buildDefaultFilter();
     this._state = {};
 
     this._runCallback = this._runCallback.bind(this);
+
     this._transitions = new TransitionManager(this._runCallback);
   }
 
-  update({ begin, end }) {
-    if (begin !== undefined) {
-      this._range.begin = begin;
-    }
-
-    if (end !== undefined) {
-      this._range.end = end;
-    }
+  update({ range = {}, filter = {} }) {
+    Object.assign(this._range, range);
+    Object.assign(this._filter, filter);
 
     const prevState = this._state;
-    this._state = calculateState(this._dataInfo, this._range);
+    this._state = calculateState(this._dataInfo, this._plotSize, this._range, this._filter);
 
     ANIMATE_PROPS.forEach((prop) => {
       const transition = this._transitions.get(prop);
       const currentTarget = transition ? transition.to : prevState[prop];
 
-      if (currentTarget && currentTarget !== this._state[prop]) {
+      if (currentTarget !== undefined && currentTarget !== this._state[prop]) {
         const current = transition ? transition.current : prevState[prop];
 
         if (transition) {
@@ -45,8 +41,17 @@ export class Viewport {
       }
     });
 
-    // TODO only needed if no transitions
     requestAnimationFrame(this._runCallback);
+  }
+
+  _buildDefaultFilter() {
+    const filter = {};
+
+    this._dataInfo.options.forEach(({ name }) => {
+      filter[name] = true;
+    });
+
+    return filter;
   }
 
   _runCallback() {
