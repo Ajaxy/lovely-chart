@@ -45,7 +45,6 @@
   min-width: 10px;
   cursor: grab;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
-
 }
 
 .lovely-chart .minimap .ruler .slider > div {
@@ -65,6 +64,7 @@
   float: right;
 }
 
+/* TODO make higher */
 @media (pointer: coarse) {
   .lovely-chart .minimap .ruler .slider > div:after {
     content: '';

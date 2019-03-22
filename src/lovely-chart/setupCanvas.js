@@ -1,6 +1,6 @@
 import { DPR } from './constants';
 
-export function setupCanvas({ width, height }) {
+export function setupCanvas(container, { width, height }) {
   const canvas = document.createElement('canvas');
 
   canvas.width = width * DPR;
@@ -10,6 +10,8 @@ export function setupCanvas({ width, height }) {
 
   const context = canvas.getContext('2d');
   context.scale(DPR, DPR);
+
+  container.appendChild(canvas);
 
   return { canvas, context };
 }

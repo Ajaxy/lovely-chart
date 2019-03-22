@@ -27,24 +27,24 @@ export class Minimap {
 
     element.className = 'minimap';
     element.style.height = `${MINIMAP_HEIGHT}px`;
-    element.appendChild(this._setupCanvas());
-    element.appendChild(this._setupRuler());
+
+    this._setupCanvas(element);
+    this._setupRuler(element);
 
     this._container.appendChild(element);
   }
 
-  _setupCanvas() {
-    const width = this._container.clientWidth;
-
-    const { canvas, context } = setupCanvas({ width, height: MINIMAP_HEIGHT });
+  _setupCanvas(element) {
+    const { canvas, context } = setupCanvas(element, {
+      width: this._container.clientWidth,
+      height: MINIMAP_HEIGHT,
+    });
 
     this._canvas = canvas;
     this._context = context;
-
-    return canvas;
   }
 
-  _setupRuler() {
+  _setupRuler(element) {
     const ruler = document.createElement('div');
     ruler.className = 'ruler';
     ruler.innerHTML = MINIMAP_RULER_HTML;
@@ -59,6 +59,7 @@ export class Minimap {
         draggingCursor: 'grabbing',
       },
     );
+
     setupDrag(
       slider.children[0],
       {
@@ -67,6 +68,7 @@ export class Minimap {
         draggingCursor: 'ew-resize',
       },
     );
+
     setupDrag(
       slider.children[1],
       {
@@ -78,7 +80,7 @@ export class Minimap {
 
     this._ruler = ruler;
 
-    return ruler;
+    element.appendChild(ruler);
   }
 
   _drawDatasets() {

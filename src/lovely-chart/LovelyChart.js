@@ -14,14 +14,14 @@ export class LovelyChart {
     this._onViewportUpdate = this._onViewportUpdate.bind(this);
     this._onRangeChange = this._onRangeChange.bind(this);
 
-    this._setupContainer(parentContainerId);
-
     this._analyzeData();
 
+    this._setupContainer(parentContainerId);
     this._setupViewport();
-    this._setupPlot();
+    this._setupPlotCanvas();
+    this._setupAxes();
     this._setupMinimap();
-    // this._setupTools();
+    this._setupTools();
   }
 
   _analyzeData() {
@@ -42,17 +42,14 @@ export class LovelyChart {
     this._viewport = new Viewport(this._dataInfo, this._onViewportUpdate);
   }
 
-  _setupPlot() {
-    const width = this._container.clientWidth;
-    const height = width * PLOT_WH_RATIO;
+  _setupPlotCanvas() {
+    const { canvas, context } = setupCanvas(this._container, {
+      width: this._container.clientWidth,
+      height: this._container.clientWidth * PLOT_WH_RATIO,
+    });
 
-    const { canvas, context } = setupCanvas({ width, height });
-
-    this._container.appendChild(canvas);
     this._plot = canvas;
     this._context = context;
-
-    this._setupAxes();
   }
 
   _clearPlotCanvas() {
@@ -65,6 +62,10 @@ export class LovelyChart {
 
   _setupMinimap() {
     this._minimap = new Minimap(this._container, this._dataInfo, this._data.options, this._onRangeChange);
+  }
+
+  _setupTools() {
+    // this._tools = new Tools(this._container, this._dataInfo, this._data.options, this._onFilterChange);
   }
 
   _getPlotSize() {
@@ -107,4 +108,7 @@ export class LovelyChart {
   _onRangeChange(range) {
     this._viewport.update(range);
   }
+
+  // _onFilterChange(filter) {
+  // }
 }
