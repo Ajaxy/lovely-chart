@@ -1,5 +1,7 @@
-import { Transition } from './Transition';
+import { TransitionManager } from './TransitionManager';
 import { calculateState } from './calculateState';
+
+const ANIMATE_PROPS = ['yMax'];
 
 export class Viewport {
   constructor(dataInfo, callback) {
@@ -13,6 +15,7 @@ export class Viewport {
     this._state = {};
 
     this._runCallback = this._runCallback.bind(this);
+    this._transitions = new TransitionManager(this._runCallback);
   }
 
   update({ begin, end }) {
@@ -27,37 +30,30 @@ export class Viewport {
     const prevState = this._state;
     this._state = calculateState(this._dataInfo, this._range);
 
-    const currentTargetYMax = this._transition ? this._transition.getTarget() : prevState.yMax;
+    ANIMATE_PROPS.forEach((prop) => {
+      const transition = this._transitions.get(prop);
+      const currentTarget = transition ? transition.to : prevState[prop];
 
-    if (currentTargetYMax && currentTargetYMax !== this._state.yMax) {
-      const currentYMax = this._transition ? this._transition.getCurrent() : prevState.yMax;
+      if (currentTarget && currentTarget !== this._state[prop]) {
+        const current = transition ? transition.current : prevState[prop];
 
-      if (this._transition) {
-        this._transition.cancel();
-        this._transition = null;
+        if (transition) {
+          this._transitions.remove(prop);
+        }
+
+        this._transitions.add(prop, current, this._state[prop]);
       }
+    });
 
-      this._transition = new Transition(currentYMax, this._state.yMax, this._runCallback);
-    }
-
-    this._runCallback();
+    // TODO only needed if no transitions
+    requestAnimationFrame(this._runCallback);
   }
 
   _runCallback() {
-    requestAnimationFrame(() => this._callback({
+    this._callback({
       ...this._range,
       ...this._state,
-      ...this._getTransitionState(),
-    }));
-  }
-
-  _getTransitionState() {
-    if (!this._transition) {
-      return {};
-    }
-
-    return {
-      yMax: this._transition.getCurrent(),
-    };
+      ...this._transitions.getState(),
+    });
   }
 }
