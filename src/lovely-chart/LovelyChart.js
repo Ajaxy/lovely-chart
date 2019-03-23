@@ -74,38 +74,36 @@ export class LovelyChart {
     return this._plot.getBoundingClientRect();
   }
 
-  _onStateUpdate(state) {
-    this._clearPlotCanvas();
-
-    this._drawAxes(state);
-    this._drawDatasets(state);
-    // TODO perf only for `yMinTotal, yMaxTotal, opacity#*`
-    this._minimap.update(state);
-    this._tooltip.update(state);
-  }
-
-  _drawAxes(state) {
-    this._axes.draw(state);
-  }
-
-  _drawDatasets(state) {
+  _getAvailablePlotSize() {
     const { width, height } = this._getPlotSize();
-    const availableSize = {
+
+    return {
       width: width - GUTTER * 2,
       height: height - X_AXIS_HEIGHT,
     };
+  }
 
+  _onStateUpdate(state) {
+    const projection = createProjection(state, this._getAvailablePlotSize(), { leftMargin: GUTTER });
+
+    this._clearPlotCanvas();
+
+    this._axes.update(state, projection);
+    this._drawDatasets(state, projection);
+    // TODO perf only for `yMinTotal, yMaxTotal, opacity#*`
+    this._minimap.update(state);
+    this._tooltip.update(state, projection);
+  }
+
+  _drawDatasets(state, projection) {
     this._data.datasets.forEach(({ key, color, values }) => {
-      drawDataset(
-        this._context,
-        values,
-        createProjection(state, availableSize, { leftMargin: GUTTER }).toPixels,
-        {
-          color,
-          opacity: state[`opacity#${key}`],
-          lineWidth: DATASET_WIDTH,
-        },
-      );
+      const options = {
+        color,
+        opacity: state[`opacity#${key}`],
+        lineWidth: DATASET_WIDTH,
+      };
+
+      drawDataset(this._context, values, projection, options);
     });
   }
 

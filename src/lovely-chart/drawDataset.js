@@ -1,4 +1,4 @@
-export function drawDataset(context, valuesByLabelIndex, projectionFn, options) {
+export function drawDataset(context, values, projection, options) {
   context.save();
 
   context.strokeStyle = options.color;
@@ -8,14 +8,14 @@ export function drawDataset(context, valuesByLabelIndex, projectionFn, options) 
 
   context.beginPath();
 
-  for (let i = 0, l = valuesByLabelIndex.length; i <= l; i++) {
-    const y = valuesByLabelIndex[i];
+  for (let i = 0, l = values.length; i <= l; i++) {
+    const y = values[i];
 
     if (y === undefined) {
       continue;
     }
 
-    const { xPx, yPx } = projectionFn(i, y);
+    const { xPx, yPx } = projection.toPixels(i, y);
 
     if (i === 0) {
       context.moveTo(xPx, yPx);

@@ -1,6 +1,5 @@
 import { setupCanvas } from './setupCanvas';
-import { BALLOON_OFFSET, GUTTER, SKIN_DAY_BG, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
-import { createProjection } from './createProjection';
+import { BALLOON_OFFSET, SKIN_DAY_BG, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 
 export class Tooltip {
   constructor(container, data, plotSize) {
@@ -14,8 +13,9 @@ export class Tooltip {
     this._setupLayout();
   }
 
-  update(state) {
+  update(state, projection) {
     this._state = state;
+    this._projection = projection;
     this._drawStatistics();
   }
 
@@ -77,13 +77,7 @@ export class Tooltip {
     const clientX = this._clientX;
     const state = this._state;
 
-    const { width, height } = this._plotSize;
-    const availableSize = {
-      width: width - GUTTER * 2,
-      height: height - X_AXIS_HEIGHT,
-    };
-
-    const { findClosesLabelIndex, toPixels } = createProjection(state, availableSize, { leftMargin: GUTTER });
+    const { findClosesLabelIndex, toPixels } = this._projection;
     const labelIndex = findClosesLabelIndex(clientX);
 
     if (labelIndex < 0 || labelIndex >= this._data.xLabels.length) {
@@ -93,7 +87,7 @@ export class Tooltip {
     this._clearCanvas();
 
     const { xPx } = toPixels(labelIndex, 0);
-    this._drawLine(xPx, height - X_AXIS_HEIGHT);
+    this._drawLine(xPx, this._plotSize.height - X_AXIS_HEIGHT);
 
     const statistics = this._data.datasets
       .filter(({ key }) => state.filter[key])
@@ -107,7 +101,7 @@ export class Tooltip {
       this._drawCircle(toPixels(labelIndex, value), color);
     });
 
-    this._updateBalloon(statistics, xPx, labelIndex, availableSize);
+    this._updateBalloon(statistics, xPx, labelIndex);
   }
 
   _drawCircle({ xPx, yPx }, color) {
@@ -135,7 +129,7 @@ export class Tooltip {
     context.stroke();
   }
 
-  _updateBalloon(statistics, xPx, labelIndex, availableSize) {
+  _updateBalloon(statistics, xPx, labelIndex) {
     const balloon = this._balloon;
 
     const label = this._data.xLabels[labelIndex];
@@ -145,7 +139,7 @@ export class Tooltip {
       `<div class="dataset" style="color: ${color}"><div>${value}</div><div>${name}</div></div>`
     )).join('');
 
-    const left = Math.max(BALLOON_OFFSET, Math.min(xPx, availableSize.width - balloon.offsetWidth + BALLOON_OFFSET));
+    const left = Math.max(BALLOON_OFFSET, Math.min(xPx, this._plotSize.width - balloon.offsetWidth + BALLOON_OFFSET));
     balloon.style.left = `${left}px`;
     balloon.classList.add('shown');
   }

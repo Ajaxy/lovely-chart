@@ -7,19 +7,15 @@ export class Axes {
     this._plotSize = plotSize;
   }
 
-  draw(state) {
+  update(state, projection) {
     this._context.font = AXES_FONT;
-    this._drawXAxis(state);
-    this._drawYAxis(state);
+    this._drawXAxis(state, projection);
+    this._drawYAxis(state, projection);
   }
 
-  _drawXAxis(state) {
+  _drawXAxis(state, projection) {
     const context = this._context;
-    const { width: plotWidth, height: plotHeight } = this._plotSize;
-    const topOffset = plotHeight - X_AXIS_HEIGHT / 2;
-
-    const labelsCount = this._data.xLabels.length;
-    const viewportPercent = state.end - state.begin;
+    const topOffset = this._plotSize.height - X_AXIS_HEIGHT / 2;
 
     const scaleLevel = Math.floor(state.xAxisScale);
     const visibleLabelsMultiplicity = Math.pow(2, scaleLevel);
@@ -34,42 +30,33 @@ export class Axes {
         return;
       }
 
-      const totalProgress = i / (labelsCount - 1);
-      const viewportProgress = (totalProgress - state.begin) / viewportPercent;
-      const leftOffset = viewportProgress * plotWidth;
       const opacity = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;
-
       // TODO perf May be faster to draw by `opacityFactor`, to not change canvas state every time
       context.fillStyle = `rgba(180, 180, 180, ${opacity})`;
-      context.fillText(label.text, leftOffset, topOffset);
+
+      const { xPx } = projection.toPixels(i, 0);
+      context.fillText(label.text, xPx, topOffset);
     });
   }
 
-  _drawYAxis(state) {
+  _drawYAxis(state, projection) {
     const scaleLevel = state.yAxisScale;
 
     if (scaleLevel % 1 === 0) {
-      this._drawYAxisScaled(state, scaleLevel);
+      this._drawYAxisScaled(state, projection, scaleLevel);
     } else {
       const lower = Math.floor(scaleLevel);
-      this._drawYAxisScaled(state, lower, 1 - (scaleLevel - lower));
+      this._drawYAxisScaled(state, projection, lower, 1 - (scaleLevel - lower));
 
       const upper = Math.ceil(scaleLevel);
-      this._drawYAxisScaled(state, upper, 1 - (upper - scaleLevel));
+      this._drawYAxisScaled(state, projection, upper, 1 - (upper - scaleLevel));
     }
   }
 
-  _drawYAxisScaled(state, scaleLevel, opacity = 1) {
+  _drawYAxisScaled(state, projection, scaleLevel, opacity = 1) {
     const context = this._context;
-    const { width: plotWidth, height: plotHeight } = this._plotSize;
-    const leftOffset = GUTTER;
 
-    const viewportLabelsCount = state.yMax - state.yMin;
     const visibleLabelsMultiplicity = Math.pow(scaleLevel, 2) * 2;
-
-    const availableHeight = plotHeight - X_AXIS_HEIGHT;
-    const rowHeight = availableHeight / viewportLabelsCount;
-
     const firstVisibleValue = Math.floor(state.yMin / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
     const lastVisibleValue = Math.ceil(state.yMax / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
 
@@ -81,15 +68,13 @@ export class Axes {
 
     context.beginPath();
 
-    for (let i = firstVisibleValue; i <= lastVisibleValue; i += visibleLabelsMultiplicity) {
-      const viewportIndex = i - firstVisibleValue;
-      const topOffset = availableHeight - viewportIndex * rowHeight;
+    for (let value = firstVisibleValue; value <= lastVisibleValue; value += visibleLabelsMultiplicity) {
+      const { yPx } = projection.toPixels(0, value);
 
       // TODO start using K, M
-      context.fillText(i, leftOffset, topOffset - GUTTER / 2);
-
-      context.moveTo(GUTTER, topOffset);
-      context.lineTo(plotWidth - GUTTER, topOffset);
+      context.fillText(value, GUTTER, yPx - GUTTER / 2);
+      context.moveTo(GUTTER, yPx);
+      context.lineTo(this._plotSize.width - GUTTER, yPx);
     }
 
     context.stroke();

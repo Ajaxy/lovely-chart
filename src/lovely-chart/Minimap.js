@@ -98,6 +98,7 @@ export class Minimap {
   _drawDatasets(state = {}) {
     this._data.datasets.forEach(({ key, color, values }) => {
       const opacity = state[`opacity#${key}`];
+      // By video prototype hiding dataset does not expand.
       const shouldUseYTotal = this._shouldUseYTotal(state, key);
       const bounds = {
         xOffset: 0,
@@ -105,18 +106,15 @@ export class Minimap {
         yMin: shouldUseYTotal ? this._data.yMin : state.yMinFiltered,
         yMax: shouldUseYTotal ? this._data.yMax : state.yMaxFiltered,
       };
+      const projection = createProjection(bounds, this._getCanvasSize());
+      const options = {
+        color,
+        opacity,
+        lineWidth: 1,
+      };
 
       // TODO console 12 times
-      drawDataset(
-        this._context,
-        values,
-        createProjection(bounds, this._getCanvasSize()).toPixels,
-        {
-          color,
-          opacity,
-          lineWidth: 1,
-        },
-      );
+      drawDataset(this._context, values, projection, options);
     });
   }
 
@@ -187,7 +185,6 @@ export class Minimap {
     this._rangeCallback({ begin, end });
   }
 
-  // By video prototype hiding dataset does not expand.
   _shouldUseYTotal(state, key) {
     if (state.filter) {
       const opacity = state[`opacity#${key}`];
