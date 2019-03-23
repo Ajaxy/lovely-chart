@@ -1,20 +1,19 @@
-export function createProjection(bounds, availableSize) {
+export function createProjection(bounds, availableSize, { leftMargin = 0 } = {}) {
   const xFactor = availableSize.width / bounds.xWidth;
-  const xShift = bounds.xShift * xFactor;
-
+  const xOffset = bounds.xOffset * xFactor;
   const yFactor = availableSize.height / bounds.yMax;
-  const yShift = bounds.yMin * yFactor;
+  const yOffset = bounds.yMin * yFactor;
 
   return {
     toPixels(labelIndex, y) {
       return {
-        xPx: labelIndex * xFactor - xShift,
-        yPx: availableSize.height - (y * yFactor - yShift),
+        xPx: labelIndex * xFactor - xOffset + leftMargin,
+        yPx: availableSize.height - (y * yFactor - yOffset),
       };
     },
 
     findClosesLabelIndex(xPx) {
-      return Math.round((xPx + xShift) / xFactor);
+      return Math.round((xPx - leftMargin + xOffset) / xFactor);
     },
   };
 }

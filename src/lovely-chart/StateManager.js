@@ -72,7 +72,7 @@ export class StateManager {
 
 function calculateState(data, viewportSize, range, filter, prevState) {
   const { begin, end } = range;
-  const totalXWidth = data.xLabels.length;
+  const totalXWidth = data.xLabels.length - 1;
   const labelFromIndex = Math.max(0, Math.floor(totalXWidth * begin));
   const labelToIndex = Math.min(totalXWidth - 1, Math.ceil(totalXWidth * end));
 
@@ -94,7 +94,7 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   }
 
   return {
-    xShift: begin * totalXWidth,
+    xOffset: begin * totalXWidth,
     xWidth: (end - begin) * totalXWidth,
     yMinFiltered,
     yMaxFiltered,

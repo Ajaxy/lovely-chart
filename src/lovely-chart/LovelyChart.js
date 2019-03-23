@@ -7,7 +7,7 @@ import { analyzeData } from './analyzeData';
 import { drawDataset } from './drawDataset';
 import { createProjection } from './createProjection';
 import { setupCanvas } from './setupCanvas';
-import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH } from './constants';
+import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH, GUTTER } from './constants';
 
 export class LovelyChart {
   constructor(parentContainerId, data) {
@@ -91,7 +91,7 @@ export class LovelyChart {
   _drawDatasets(state) {
     const { width, height } = this._getPlotSize();
     const availableSize = {
-      width,
+      width: width - GUTTER * 2,
       height: height - X_AXIS_HEIGHT,
     };
 
@@ -99,7 +99,7 @@ export class LovelyChart {
       drawDataset(
         this._context,
         values,
-        createProjection(state, availableSize).toPixels,
+        createProjection(state, availableSize, { leftMargin: GUTTER }).toPixels,
         {
           color,
           opacity: state[`opacity#${key}`],

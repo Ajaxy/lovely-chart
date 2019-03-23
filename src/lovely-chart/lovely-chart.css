@@ -28,7 +28,6 @@
   width: 100%;
   height: 100%;
   white-space: nowrap;
-  overflow: hidden;
   -webkit-user-select: none;
 
   user-select: none;
@@ -73,10 +72,19 @@
   .lovely-chart .minimap .ruler .slider > div:after {
     content: '';
     position: absolute;
-    top: 0;
-    bottom: 0;
-    left: -10px;
-    right: -10px;
+    top: -10px;
+    bottom: -10px;
+    z-index: 1;
+  }
+
+  .lovely-chart .minimap .ruler .slider > div:first-child:after {
+    left: -15px;
+    right: -5px;
+  }
+
+  .lovely-chart .minimap .ruler .slider > div:last-child:after {
+    left: -5px;
+    right: -15px;
   }
 }
 

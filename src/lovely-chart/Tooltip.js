@@ -79,12 +79,16 @@ export class Tooltip {
 
     const { width, height } = this._plotSize;
     const availableSize = {
-      width,
+      width: width - GUTTER * 2,
       height: height - X_AXIS_HEIGHT,
     };
 
-    const { findClosesLabelIndex, toPixels } = createProjection(state, availableSize);
+    const { findClosesLabelIndex, toPixels } = createProjection(state, availableSize, { leftMargin: GUTTER });
     const labelIndex = findClosesLabelIndex(clientX);
+
+    if (labelIndex < 0 || labelIndex >= this._data.xLabels.length) {
+      return;
+    }
 
     this._clearCanvas();
 

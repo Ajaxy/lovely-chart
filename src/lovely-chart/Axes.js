@@ -34,7 +34,7 @@ export class Axes {
         return;
       }
 
-      const totalProgress = i / labelsCount;
+      const totalProgress = i / (labelsCount - 1);
       const viewportProgress = (totalProgress - state.begin) / viewportPercent;
       const leftOffset = viewportProgress * plotWidth;
       const opacity = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;

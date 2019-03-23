@@ -100,7 +100,7 @@ export class Minimap {
       const opacity = state[`opacity#${key}`];
       const shouldUseYTotal = this._shouldUseYTotal(state, key);
       const bounds = {
-        xShift: 0,
+        xOffset: 0,
         xWidth: this._data.xLabels.length,
         yMin: shouldUseYTotal ? this._data.yMin : state.yMinFiltered,
         yMax: shouldUseYTotal ? this._data.yMax : state.yMaxFiltered,
@@ -125,7 +125,7 @@ export class Minimap {
   }
 
   _onDragCapture(e) {
-    this._dragCapturePointerMinimapOffset = e.offsetX + e.target.offsetLeft;
+    this._capturedMinimapOffset = e.offsetX + e.target.offsetLeft;
   }
 
   _onSliderDrag(moveEvent, captureEvent, { dragOffsetX }) {
@@ -135,7 +135,7 @@ export class Minimap {
     const minX1 = 0;
     const maxX1 = minimapWidth - slider.offsetWidth;
 
-    const pointerMinimapOffset = this._dragCapturePointerMinimapOffset + dragOffsetX;
+    const pointerMinimapOffset = this._capturedMinimapOffset + dragOffsetX;
     const newX1 = Math.min(maxX1, Math.max(minX1, pointerMinimapOffset - captureEvent.offsetX));
     const newX2 = newX1 + slider.offsetWidth;
     const begin = newX1 / minimapWidth;
@@ -151,7 +151,7 @@ export class Minimap {
     const minX1 = 0;
     const maxX1 = slider.offsetLeft + slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
 
-    const pointerMinimapOffset = this._dragCapturePointerMinimapOffset + dragOffsetX;
+    const pointerMinimapOffset = this._capturedMinimapOffset + dragOffsetX;
     const newX1 = Math.min(maxX1, Math.max(minX1, pointerMinimapOffset - captureEvent.offsetX));
     const begin = newX1 / minimapWidth;
 
@@ -166,8 +166,8 @@ export class Minimap {
     const minX2 = slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
     const maxX2 = minimapWidth;
 
-    const pointerMinimapOffset = this._dragCapturePointerMinimapOffset + dragOffsetX;
-    const newX2 = Math.min(maxX2, Math.max(minX2, pointerMinimapOffset - captureEvent.offsetX));
+    const pointerMinimapOffset = this._capturedMinimapOffset + dragOffsetX;
+    const newX2 = Math.max(minX2, Math.min((pointerMinimapOffset - captureEvent.offsetX) + MINIMAP_EAR_WIDTH, maxX2));
     const end = newX2 / minimapWidth;
 
     this._updateRange({ end });

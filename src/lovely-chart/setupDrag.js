@@ -6,6 +6,7 @@ export function setupDrag(element, options) {
       return;
     }
 
+    e.preventDefault();
     captureEvent = e;
 
     if (e.type === 'mousedown') {
