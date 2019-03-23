@@ -1,9 +1,9 @@
 import { TOOLS_CHECKBOX_HTML } from './constants';
 
 export class Tools {
-  constructor(container, dataInfo, filterCallback) {
+  constructor(container, data, filterCallback) {
     this._container = container;
-    this._dataInfo = dataInfo;
+    this._data = data;
     this._filterCallback = filterCallback;
 
     this._updateFilter = this._updateFilter.bind(this);
@@ -16,7 +16,7 @@ export class Tools {
     const element = document.createElement('div');
     element.className = 'tools';
 
-    this._dataInfo.options.forEach(({ key, name, color }) => {
+    this._data.datasets.forEach(({ key, name, color }) => {
       const control = document.createElement('a');
       control.href = '#';
       control.dataset.key = key;

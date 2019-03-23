@@ -5,8 +5,8 @@ import { mergeArrays } from './fast';
 const ANIMATE_PROPS = ['yMax', 'xAxisScale', 'yAxisScale'];
 
 export class StateManager {
-  constructor(dataInfo, viewportSize, callback) {
-    this._dataInfo = dataInfo;
+  constructor(data, viewportSize, callback) {
+    this._data = data;
     this._viewportSize = viewportSize;
     this._callback = callback;
 
@@ -26,7 +26,7 @@ export class StateManager {
     Object.assign(this._filter, filter);
 
     const prevState = this._state;
-    this._state = calculateState(this._dataInfo, this._viewportSize, this._range, this._filter);
+    this._state = calculateState(this._data, this._viewportSize, this._range, this._filter);
 
     this._animateProps.forEach((prop) => {
       const transition = this._transitions.get(prop);
@@ -49,15 +49,15 @@ export class StateManager {
   _buildAnimateProps() {
     return mergeArrays([
       ANIMATE_PROPS,
-      this._dataInfo.options.map(({ key }) => `opacity#${key}`),
+      this._data.datasets.map(({ key }) => `opacity#${key}`),
     ]);
   }
 
   _buildDefaultFilter() {
     const filter = {};
 
-    this._dataInfo.options.forEach(({ name }) => {
-      filter[name] = true;
+    this._data.datasets.forEach(({ key }) => {
+      filter[key] = true;
     });
 
     return filter;

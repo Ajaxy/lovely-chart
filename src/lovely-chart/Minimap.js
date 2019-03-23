@@ -5,9 +5,9 @@ import { setupCanvas } from './setupCanvas';
 import { DEFAULT_RANGE, MINIMAP_HEIGHT, MINIMAP_EAR_WIDTH, MINIMAP_RULER_HTML, MINIMAP_MARGIN } from './constants';
 
 export class Minimap {
-  constructor(container, dataInfo, rangeCallback) {
+  constructor(container, data, rangeCallback) {
     this._container = container;
-    this._dataInfo = dataInfo;
+    this._data = data;
     this._rangeCallback = rangeCallback;
 
     this._onDragCapture = this._onDragCapture.bind(this);
@@ -89,23 +89,21 @@ export class Minimap {
   _drawDatasets() {
     const bounds = {
       xShift: 0,
-      xWidth: this._dataInfo.xLabels.length,
-      yMin: this._dataInfo.yMin,
-      yMax: this._dataInfo.yMax
+      xWidth: this._data.xLabels.length,
+      yMin: this._data.yMin,
+      yMax: this._data.yMax,
     };
 
-    this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
-      const options = {
-        color: this._dataInfo.options[i].color,
-        lineWidth: 1,
-      };
-
+    this._data.datasets.forEach(({ color, values }) => {
       // TODO console 12 times
       drawDataset(
         this._context,
-        valuesByLabelIndex,
+        values,
         createProjectionFn(bounds, this._getCanvasSize()),
-        options,
+        {
+          color,
+          lineWidth: 1,
+        },
       );
     });
   }

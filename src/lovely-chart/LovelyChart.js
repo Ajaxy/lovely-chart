@@ -6,17 +6,15 @@ import { analyzeData } from './analyzeData';
 import { drawDataset } from './drawDataset';
 import { createProjectionFn } from './createProjectionFn';
 import { setupCanvas } from './setupCanvas';
-import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH, GUTTER } from './constants';
+import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH } from './constants';
 
 export class LovelyChart {
   constructor(parentContainerId, data) {
-    this._data = data;
+    this._data = analyzeData(data);
 
     this._onStateUpdate = this._onStateUpdate.bind(this);
     this._onRangeChange = this._onRangeChange.bind(this);
     this._onFilterChange = this._onFilterChange.bind(this);
-
-    this._analyzeData();
 
     this._setupContainer(parentContainerId);
     this._setupPlotCanvas();
@@ -24,10 +22,6 @@ export class LovelyChart {
     this._setupAxes();
     this._setupMinimap();
     this._setupTools();
-  }
-
-  _analyzeData() {
-    this._dataInfo = analyzeData(this._data);
   }
 
   _setupContainer(parentContainerId) {
@@ -41,7 +35,7 @@ export class LovelyChart {
   }
 
   _setupStateManager() {
-    this._stateManager = new StateManager(this._dataInfo, this._getPlotSize(), this._onStateUpdate);
+    this._stateManager = new StateManager(this._data, this._getPlotSize(), this._onStateUpdate);
   }
 
   _setupPlotCanvas() {
@@ -59,15 +53,15 @@ export class LovelyChart {
   }
 
   _setupAxes() {
-    this._axes = new Axes(this._context, this._dataInfo, this._getPlotSize());
+    this._axes = new Axes(this._context, this._data, this._getPlotSize());
   }
 
   _setupMinimap() {
-    this._minimap = new Minimap(this._container, this._dataInfo, this._onRangeChange);
+    this._minimap = new Minimap(this._container, this._data, this._onRangeChange);
   }
 
   _setupTools() {
-    this._tools = new Tools(this._container, this._dataInfo, this._onFilterChange);
+    this._tools = new Tools(this._container, this._data, this._onFilterChange);
   }
 
   _getPlotSize() {
@@ -93,18 +87,16 @@ export class LovelyChart {
       height: height - X_AXIS_HEIGHT,
     };
 
-    this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
-      const options = {
-        color: this._data.options[i].color,
-        lineWidth: DATASET_WIDTH,
-        opacity: state[`opacity#${this._dataInfo.options[i].key}`],
-      };
-
+    this._data.datasets.forEach(({ key, color, values }, i) => {
       drawDataset(
         this._context,
-        valuesByLabelIndex,
+        values,
         createProjectionFn(state, availableSize),
-        options,
+        {
+          color,
+          opacity: state[`opacity#${key}`],
+          lineWidth: DATASET_WIDTH,
+        },
       );
     });
   }

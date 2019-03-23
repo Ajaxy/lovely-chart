@@ -1,34 +1,38 @@
 import { getMaxMin, mergeArrays } from './fast';
 import { AXES_MAX_COLUMN_WIDTH, AXES_MAX_ROW_HEIGHT, X_AXIS_HEIGHT } from './constants';
 
-export function calculateState(dataInfo, viewportSize, range = {}, filter) {
+export function calculateState(data, viewportSize, range = {}, filter) {
   const { begin, end } = range;
-  const totalXWidth = dataInfo.xLabels.length;
+  const totalXWidth = data.xLabels.length;
   const labelFromIndex = Math.max(0, Math.floor(totalXWidth * begin));
   const labelToIndex = Math.min(totalXWidth - 1, Math.ceil(totalXWidth * end));
-  const viewportDatasets = dataInfo.datasetsByLabelIndex
-    .filter((_, i) => !filter || filter[dataInfo.options[i].key])
-    .map((dataset) => dataset.slice(labelFromIndex, labelToIndex));
 
-  const merged = mergeArrays(viewportDatasets);
-  const effective = merged.filter((value) => value !== undefined);
-  const { max: yMax = dataInfo.yMax } = getMaxMin(effective);
-  const yMin = 0; // TODO maybe needed real
+  const filteredDatasets = filter ? data.datasets.filter(({ key }) => filter[key]) : data.datasets;
+  const filteredValues = filteredDatasets.map(({ values }) => values);
+  const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex));
 
-  const datasetOpacity = {};
+  const { min: yMinTotal = 0, max: yMaxTotal = data.yMax } = getMaxMin(mergeArrays(filteredValues));
+  const { max: yMaxViewport = data.yMax } = getMaxMin(mergeArrays(viewportValues));
+  const yMinViewport = 0; // TODO maybe needed real
 
-  filter && dataInfo.options.forEach(({ key }) => {
-    datasetOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
-  });
+  const datasetsOpacity = {};
+
+  if (filter) {
+    data.datasets.forEach(({ key }) => {
+      datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
+    });
+  }
 
   return {
     xShift: begin * totalXWidth,
     xWidth: (end - begin) * totalXWidth,
-    yMin,
-    yMax,
-    xAxisScale: calculateXAxisScale(dataInfo.xLabels.length, viewportSize.width, begin, end),
-    yAxisScale: calculateYAxisScale(viewportSize.height, yMax, yMin),
-    ...datasetOpacity,
+    yMinTotal,
+    yMaxTotal,
+    yMin: yMinViewport,
+    yMax: yMaxViewport,
+    xAxisScale: calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end),
+    yAxisScale: calculateYAxisScale(viewportSize.height, yMinViewport, yMaxViewport),
+    ...datasetsOpacity,
   };
 }
 
@@ -41,7 +45,7 @@ function calculateXAxisScale(labelsCount, plotWidth, begin, end) {
   return Math.ceil(Math.log2(hiddenLabelsFactor));
 }
 
-function calculateYAxisScale(plotHeight, yMax, yMin) {
+function calculateYAxisScale(plotHeight, yMin, yMax) {
   const availableHeight = plotHeight - X_AXIS_HEIGHT;
   const viewportLabelsCount = yMax - yMin;
   const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);

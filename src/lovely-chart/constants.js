@@ -1,3 +1,5 @@
+export const LABELS_KEY = 'x';
+
 export const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };
 
 export const PLOT_WH_RATIO = 0.9;

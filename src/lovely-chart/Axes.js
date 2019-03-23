@@ -1,9 +1,9 @@
 import { GUTTER, AXES_FONT, X_AXIS_HEIGHT } from './constants';
 
 export class Axes {
-  constructor(context, dataInfo, plotSize) {
+  constructor(context, data, plotSize) {
     this._context = context;
-    this._dataInfo = dataInfo;
+    this._data = data;
     this._plotSize = plotSize;
 
     // TODO Move out of here
@@ -21,7 +21,7 @@ export class Axes {
     const { width: plotWidth, height: plotHeight } = this._plotSize;
     const topOffset = plotHeight - X_AXIS_HEIGHT / 2;
 
-    const labelsCount = this._dataInfo.xLabels.length;
+    const labelsCount = this._data.xLabels.length;
     const viewportPercent = state.end - state.begin;
 
     const scaleLevel = Math.floor(state.xAxisScale);
@@ -32,7 +32,7 @@ export class Axes {
     context.textBaseline = 'middle';
 
     // TODO Draw only visible
-    this._dataInfo.xLabels.forEach((label, i) => {
+    this._data.xLabels.forEach((label, i) => {
       if (i % visibleLabelsMultiplicity !== 0) {
         return;
       }

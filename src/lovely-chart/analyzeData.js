@@ -1,34 +1,69 @@
-import { getMaxMinBy, mergeArrays, toYByX } from './fast';
+import { ensureSorted, getMaxMin } from './fast';
 import { buildDayLabels } from './buildDayLabels';
+import { LABELS_KEY } from './constants';
 
-// TODO Use original data
-export function analyzeData(data) {
-  const { datasets, options } = data;
+function prepareDatasets(chartData) {
+  const { columns, names, colors } = chartData;
 
-  const merged = mergeArrays(datasets);
-  const { min: yMin, max: yMax } = getMaxMinBy(merged, 'y');
+  let labels = [];
+  const datasets = [];
 
-  const firsts = datasets.map((dataset) => dataset[0]);
-  const lasts = datasets.map((dataset) => dataset[dataset.length - 1]);
+  columns.forEach((values) => {
+    const key = values.shift();
 
-  const { min: xMin } = getMaxMinBy(firsts, 'x');
-  const { max: xMax } = getMaxMinBy(lasts, 'x');
+    if (key === LABELS_KEY) {
+      labels = values;
+      // TODO sort
+      ensureSorted(labels);
+      return;
+    }
 
-  const dataInfo = {
-    xLabels: [],
-    yMin,
-    yMax,
-    xMin,
-    xMax,
-    options
-  };
-
-  dataInfo.xLabels = buildDayLabels(dataInfo.xMin, dataInfo.xMax);
-
-  dataInfo.datasetsByLabelIndex = datasets.map((dataset) => {
-    const valuesByLabel = toYByX(dataset);
-    return dataInfo.xLabels.map((label) => valuesByLabel[String(label.value)]);
+    datasets.push({
+      key,
+      color: colors[key],
+      name: names[key],
+      values,
+    });
   });
 
-  return dataInfo;
+  datasets.forEach((dataset) => {
+    dataset.labels = labels;
+  });
+
+  return { datasets };
+}
+
+export function analyzeData(data) {
+  const { datasets } = prepareDatasets(data);
+
+  let totalYMin = Infinity;
+  let totalYMax = -Infinity;
+
+  datasets.forEach((dataset) => {
+    const { min: yMin, max: yMax } = getMaxMin(dataset.values);
+
+    if (yMin < totalYMin) {
+      totalYMin = yMin;
+    }
+
+    if (yMax > totalYMax) {
+      totalYMax = yMax;
+    }
+
+    dataset.yMin = yMin;
+    dataset.yMax = yMax;
+  });
+
+  const firstlLabels = datasets.map((dataset) => dataset.labels[0]);
+  const lastLabels = datasets.map((dataset) => dataset.labels[dataset.labels.length - 1]);
+  const firstDate = Math.min.apply(null, firstlLabels);
+  const lastDate = Math.max.apply(null, lastLabels);
+  const xLabels = buildDayLabels(firstDate, lastDate);
+
+  return {
+    datasets,
+    yMin: totalYMin,
+    yMax: totalYMax,
+    xLabels,
+  };
 }
