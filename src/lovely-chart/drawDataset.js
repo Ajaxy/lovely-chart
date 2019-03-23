@@ -1,9 +1,10 @@
 export function drawDataset(context, valuesByLabelIndex, projectionFn, options) {
-  // context.save();
+  context.save();
 
   context.strokeStyle = options.color;
   context.lineWidth = options.lineWidth;
-  // context.globalAlpha = options.opacity;
+  // TODO perf slow?
+  context.globalAlpha = options.opacity;
 
   // TODO perf for all
   context.beginPath();
@@ -26,5 +27,5 @@ export function drawDataset(context, valuesByLabelIndex, projectionFn, options) 
 
   context.stroke();
 
-  // context.restore();
+  context.restore();
 }

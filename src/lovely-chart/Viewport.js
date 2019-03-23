@@ -1,5 +1,6 @@
 import { TransitionManager } from './TransitionManager';
 import { calculateState } from './calculateState';
+import { mergeArrays } from './fast';
 
 const ANIMATE_PROPS = ['yMax', 'xAxisScale', 'yAxisScale'];
 
@@ -9,12 +10,13 @@ export class Viewport {
     this._plotSize = plotSize;
     this._callback = callback;
 
+    this._runCallback = this._runCallback.bind(this);
+
     // TODO don't save range
     this._range = { begin: 0, end: 1 };
     this._filter = this._buildDefaultFilter();
+    this._animateProps = this._buildAnimateProps();
     this._state = {};
-
-    this._runCallback = this._runCallback.bind(this);
 
     this._transitions = new TransitionManager(this._runCallback);
   }
@@ -26,7 +28,7 @@ export class Viewport {
     const prevState = this._state;
     this._state = calculateState(this._dataInfo, this._plotSize, this._range, this._filter);
 
-    ANIMATE_PROPS.forEach((prop) => {
+    this._animateProps.forEach((prop) => {
       const transition = this._transitions.get(prop);
       const currentTarget = transition ? transition.to : prevState[prop];
 
@@ -42,6 +44,13 @@ export class Viewport {
     });
 
     requestAnimationFrame(this._runCallback);
+  }
+
+  _buildAnimateProps() {
+    return mergeArrays([
+      ANIMATE_PROPS,
+      this._dataInfo.options.map(({ key }) => `opacity#${key}`),
+    ]);
   }
 
   _buildDefaultFilter() {

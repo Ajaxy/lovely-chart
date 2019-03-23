@@ -6,12 +6,13 @@ export const GUTTER = 10;
 
 export const DATASET_WIDTH = 2;
 
-export const AXES_FONT = '10px "Helvetica Neue", Helvetica, Arial, sans-serif';
+export const AXES_FONT = '300 10px Helvetica, Arial, sans-serif';
 export const AXES_MAX_COLUMN_WIDTH = 45;
 export const AXES_MAX_ROW_HEIGHT = 50;
 export const X_AXIS_HEIGHT = 30;
 
 export const MINIMAP_HEIGHT = 40;
+export const MINIMAP_MARGIN = 10;
 export const MINIMAP_EAR_WIDTH = 5;
 export const MINIMAP_RULER_HTML
   = '<div class="mask"></div><div class="slider"><div></div><div></div></div><div class="mask"></div>';

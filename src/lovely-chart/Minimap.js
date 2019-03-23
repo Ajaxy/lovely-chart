@@ -3,13 +3,12 @@ import { createProjectionFn } from './createProjectionFn';
 import { calculateState } from './calculateState';
 import { setupDrag } from './setupDrag';
 import { setupCanvas } from './setupCanvas';
-import { DEFAULT_RANGE, MINIMAP_HEIGHT, MINIMAP_EAR_WIDTH, MINIMAP_RULER_HTML } from './constants';
+import { DEFAULT_RANGE, MINIMAP_HEIGHT, MINIMAP_EAR_WIDTH, MINIMAP_RULER_HTML, MINIMAP_MARGIN } from './constants';
 
 export class Minimap {
-  constructor(container, dataInfo, dataOptions, rangeCallback) {
+  constructor(container, dataInfo, rangeCallback) {
     this._container = container;
     this._dataInfo = dataInfo;
-    this._dataOptions = dataOptions;
     this._rangeCallback = rangeCallback;
 
     this._onDragCapture = this._onDragCapture.bind(this);
@@ -24,6 +23,7 @@ export class Minimap {
 
   _setupLayout() {
     const element = document.createElement('div');
+    this._element = element;
 
     element.className = 'minimap';
     element.style.height = `${MINIMAP_HEIGHT}px`;
@@ -34,11 +34,15 @@ export class Minimap {
     this._container.appendChild(element);
   }
 
-  _setupCanvas(element) {
-    const { canvas, context } = setupCanvas(element, {
-      width: this._container.clientWidth,
+  _getSize() {
+    return {
+      width: this._container.offsetWidth - MINIMAP_MARGIN * 2,
       height: MINIMAP_HEIGHT,
-    });
+    };
+  }
+
+  _setupCanvas(element) {
+    const { canvas, context } = setupCanvas(element, this._getSize());
 
     this._canvas = canvas;
     this._context = context;
@@ -88,7 +92,7 @@ export class Minimap {
 
     this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
       const options = {
-        color: this._dataOptions[i].color,
+        color: this._dataInfo.options[i].color,
         lineWidth: 1,
       };
 
@@ -111,23 +115,23 @@ export class Minimap {
   }
 
   _onSliderDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const containerWidth = this._container.clientWidth;
+    const { width: minimapWidth } = this._getSize();
     const slider = this._ruler.children[1];
 
     const minX1 = 0;
-    const maxX1 = containerWidth - slider.offsetWidth;
+    const maxX1 = minimapWidth - slider.offsetWidth;
 
     const pointerMinimapOffset = this._dragCapturePointerMinimapOffset + dragOffsetX;
     const newX1 = Math.min(maxX1, Math.max(minX1, pointerMinimapOffset - captureEvent.offsetX));
     const newX2 = newX1 + slider.offsetWidth;
-    const begin = newX1 / containerWidth;
-    const end = newX2 / containerWidth;
+    const begin = newX1 / minimapWidth;
+    const end = newX2 / minimapWidth;
 
     this._updateRange({ begin, end });
   }
 
   _onLeftEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const containerWidth = this._container.clientWidth;
+    const { width: minimapWidth } = this._getSize();
     const slider = this._ruler.children[1];
 
     const minX1 = 0;
@@ -135,22 +139,22 @@ export class Minimap {
 
     const pointerMinimapOffset = this._dragCapturePointerMinimapOffset + dragOffsetX;
     const newX1 = Math.min(maxX1, Math.max(minX1, pointerMinimapOffset - captureEvent.offsetX));
-    const begin = newX1 / containerWidth;
+    const begin = newX1 / minimapWidth;
 
     this._updateRange({ begin });
   }
 
   // TODO jumps
   _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const containerWidth = this._container.clientWidth;
+    const { width: minimapWidth } = this._getSize();
     const slider = this._ruler.children[1];
 
     const minX2 = slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
-    const maxX2 = containerWidth;
+    const maxX2 = minimapWidth;
 
     const pointerMinimapOffset = this._dragCapturePointerMinimapOffset + dragOffsetX;
     const newX2 = Math.min(maxX2, Math.max(minX2, pointerMinimapOffset - captureEvent.offsetX));
-    const end = newX2 / containerWidth;
+    const end = newX2 / minimapWidth;
 
     this._updateRange({ end });
   }

@@ -9,6 +9,7 @@
 .lovely-chart .minimap {
   position: relative;
   background: white;
+  margin: 0 10px;
 }
 
 .lovely-chart .minimap canvas {
@@ -74,6 +75,61 @@
     left: -10px;
     right: -10px;
   }
+}
+
+.lovely-chart .tools {
+  padding: 16px 10px;
+}
+
+.lovely-chart a.checkbox {
+  border: 1px solid #eeeeee;
+  padding: 7px;
+  display: inline-block;
+  border-radius: 18px;
+  text-decoration: none;
+  margin-right: 16px;
+}
+
+.lovely-chart a.checkbox span {
+  display: inline-block;
+}
+
+.lovely-chart a.checkbox .circle {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  vertical-align: middle;
+  position: relative;
+  transition: border-width 250ms ease-out;
+}
+
+.lovely-chart a.checkbox.checked .circle {
+  border-width: 10px;
+}
+
+.lovely-chart a.checkbox .circle:after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  content: '';
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  margin-top: -5px;
+  background-image: url(./icon-ok.svg);
+  background-size: 100%;
+}
+
+.lovely-chart a.checkbox .label {
+  font: 13px Helvetica, Arial, sans-serif;
+  font-weight: 300;
+  color: #555;
+  line-height: 20px;
+  padding: 0 7px 0 10px;
+  vertical-align: middle;
 }
 
 body.cursor-ew-resize, body.cursor-ew-resize * {

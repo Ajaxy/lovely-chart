@@ -43,7 +43,7 @@ export class Axes {
       const opacity = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;
 
       // TODO perf May be faster to draw by `opacityFactor`, to not change canvas state every time
-      context.fillStyle = `rgba(165, 165, 165, ${opacity})`;
+      context.fillStyle = `rgba(180, 180, 180, ${opacity})`;
       context.fillText(label.text, leftOffset, topOffset);
     });
   }
@@ -79,9 +79,9 @@ export class Axes {
 
     context.textAlign = 'left';
     context.textBaseline = 'bottom';
-    context.fillStyle = `rgba(165, 165, 165, ${opacity})`;
+    context.fillStyle = `rgba(180, 180, 180, ${opacity})`;
     context.strokeStyle = `rgba(238, 238, 238, ${opacity})`;
-    context.lineWidth = 1;
+    context.lineWidth = 0.5;
 
     context.beginPath();
 
@@ -90,7 +90,8 @@ export class Axes {
       const topOffset = availableHeight - viewportIndex * rowHeight;
 
       // TODO We do not user label value/text here (remove them)
-      context.fillText(i, leftOffset, topOffset - GUTTER);
+      // TODO start using K, M
+      context.fillText(i, leftOffset, topOffset - GUTTER / 2);
 
       context.moveTo(GUTTER, topOffset);
       context.lineTo(plotWidth - GUTTER, topOffset);

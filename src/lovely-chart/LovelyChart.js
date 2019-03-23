@@ -1,11 +1,12 @@
 import { Viewport } from './Viewport';
 import { Axes } from './Axes';
 import { Minimap } from './Minimap';
+import { Tools } from './Tools';
 import { analyzeData } from './analyzeData';
 import { drawDataset } from './drawDataset';
 import { createProjectionFn } from './createProjectionFn';
 import { setupCanvas } from './setupCanvas';
-import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH } from './constants';
+import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH, GUTTER } from './constants';
 
 export class LovelyChart {
   constructor(parentContainerId, data) {
@@ -13,6 +14,7 @@ export class LovelyChart {
 
     this._onViewportUpdate = this._onViewportUpdate.bind(this);
     this._onRangeChange = this._onRangeChange.bind(this);
+    this._onFilterChange = this._onFilterChange.bind(this);
 
     this._analyzeData();
 
@@ -61,11 +63,11 @@ export class LovelyChart {
   }
 
   _setupMinimap() {
-    this._minimap = new Minimap(this._container, this._dataInfo, this._data.options, this._onRangeChange);
+    this._minimap = new Minimap(this._container, this._dataInfo, this._onRangeChange);
   }
 
   _setupTools() {
-    // this._tools = new Tools(this._container, this._dataInfo, this._data.options, this._onFilterChange);
+    this._tools = new Tools(this._container, this._dataInfo, this._onFilterChange);
   }
 
   _getPlotSize() {
@@ -94,7 +96,7 @@ export class LovelyChart {
       const options = {
         color: this._data.options[i].color,
         lineWidth: DATASET_WIDTH,
-        opacity: 1,
+        opacity: state[`opacity#${this._dataInfo.options[i].key}`],
       };
 
       drawDataset(
@@ -110,6 +112,7 @@ export class LovelyChart {
     this._viewport.update({ range });
   }
 
-  // _onFilterChange(filter) {
-  // }
+  _onFilterChange(filter) {
+    this._viewport.update({ filter });
+  }
 }

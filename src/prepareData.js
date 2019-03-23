@@ -20,6 +20,7 @@ export function prepareData(chartData) {
 
     valueColumns.push(values);
     options.push({
+      key,
       color: colors[key],
       name: names[key],
     });

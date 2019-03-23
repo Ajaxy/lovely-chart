@@ -1,24 +1,24 @@
 import { getMaxMin, mergeArrays } from './fast';
 import { AXES_MAX_COLUMN_WIDTH, AXES_MAX_ROW_HEIGHT, X_AXIS_HEIGHT } from './constants';
 
-export function calculateState(dataInfo, plotSize, range = {}, filter = {}) {
+export function calculateState(dataInfo, plotSize, range = {}, filter) {
   const { begin, end } = range;
   const totalXWidth = dataInfo.xLabels.length;
   const labelFromIndex = Math.max(0, Math.floor(totalXWidth * begin));
   const labelToIndex = Math.min(totalXWidth - 1, Math.ceil(totalXWidth * end));
   const viewportDatasets = dataInfo.datasetsByLabelIndex
-  // .filter((_, i) => filter[dataInfo.options[i].name])
+    .filter((_, i) => !filter || filter[dataInfo.options[i].key])
     .map((dataset) => dataset.slice(labelFromIndex, labelToIndex));
 
   const merged = mergeArrays(viewportDatasets);
   const effective = merged.filter((value) => value !== undefined);
-  const { max: yMax } = getMaxMin(effective);
+  const { max: yMax = dataInfo.yMax } = getMaxMin(effective);
   const yMin = 0; // TODO maybe needed real
 
   const datasetOpacity = {};
 
-  dataInfo.options.forEach(({ name }) => {
-    datasetOpacity[name] = filter[name] ? 1 : 0;
+  filter && dataInfo.options.forEach(({ key }) => {
+    datasetOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
   });
 
   return {
@@ -27,9 +27,9 @@ export function calculateState(dataInfo, plotSize, range = {}, filter = {}) {
     yMin,
     yMax,
     yHeight: yMax - yMin,
-    datasetOpacity,
     xAxisScale: calculateXAxisScale(dataInfo.xLabels.length, plotSize.width, begin, end),
     yAxisScale: calculateYAxisScale(plotSize.height, yMax, yMin),
+    ...datasetOpacity,
   };
 }
 
