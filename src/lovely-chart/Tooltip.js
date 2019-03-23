@@ -1,4 +1,4 @@
-import { setupCanvas } from './setupCanvas';
+import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, SKIN_DAY_BG, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 
 export class Tooltip {
@@ -44,11 +44,6 @@ export class Tooltip {
     this._context = context;
   }
 
-  // TODO extract
-  _clearCanvas() {
-    this._context.clearRect(0, 0, this._canvas.width, this._canvas.height);
-  }
-
   _setupBalloon(element) {
     const balloon = document.createElement('div');
     balloon.className = 'balloon';
@@ -58,14 +53,14 @@ export class Tooltip {
   }
 
   _onMouseMove(e) {
-    // e.preventDefault();
     this._clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+    // TODO throttle until next raf
     this._drawStatistics();
   }
 
   _onMouseLeave() {
     this._clientX = null;
-    this._clearCanvas();
+    clearCanvas(this._canvas, this._context);
     this._hideBalloon();
   }
 
@@ -84,7 +79,7 @@ export class Tooltip {
       return;
     }
 
-    this._clearCanvas();
+    clearCanvas(this._canvas, this._context);
 
     const { xPx } = toPixels(labelIndex, 0);
     this._drawLine(xPx, this._plotSize.height - X_AXIS_HEIGHT);

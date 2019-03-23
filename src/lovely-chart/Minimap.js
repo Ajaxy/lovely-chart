@@ -1,7 +1,7 @@
+import { setupCanvas, clearCanvas } from './canvas';
 import { drawDataset } from './drawDataset';
 import { createProjection } from './createProjection';
 import { setupDrag } from './setupDrag';
-import { setupCanvas } from './setupCanvas';
 import { DEFAULT_RANGE, MINIMAP_HEIGHT, MINIMAP_EAR_WIDTH, MINIMAP_RULER_HTML, MINIMAP_MARGIN } from './constants';
 
 export class Minimap {
@@ -20,7 +20,7 @@ export class Minimap {
   }
 
   update(state) {
-    this._clearCanvas();
+    clearCanvas(this._canvas, this._context)
     this._drawDatasets(state);
   }
 
@@ -49,10 +49,6 @@ export class Minimap {
 
     this._canvas = canvas;
     this._context = context;
-  }
-
-  _clearCanvas() {
-    this._context.clearRect(0, 0, this._canvas.width, this._canvas.height);
   }
 
   _setupRuler(element) {
@@ -98,6 +94,7 @@ export class Minimap {
     this._data.datasets.forEach(({ key, color, values }) => {
       const opacity = state[`opacity#${key}`];
       // By video prototype hiding dataset does not expand.
+      // TODO lags on the last chart
       const shouldUseYTotal = this._shouldUseYTotal(state, key);
       const bounds = {
         xOffset: 0,
@@ -172,7 +169,7 @@ export class Minimap {
     this._range = Object.assign(this._range || {}, range);
     const { begin, end } = this._range;
 
-    // TODO perf remove raf
+    // TODO throttle until next raf
     requestAnimationFrame(() => {
       this._ruler.children[0].style.width = `${begin * 100}%`;
       this._ruler.children[1].style.width = `${(end - begin) * 100}%`;

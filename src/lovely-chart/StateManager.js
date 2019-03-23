@@ -42,6 +42,7 @@ export class StateManager {
       }
     });
 
+    // TODO perf raf
     requestAnimationFrame(this._runCallback);
   }
 
@@ -80,6 +81,7 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const filteredValues = filteredDatasets.map(({ values }) => values);
   const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex));
 
+  // TODO consider canvas margin
   const { max: yMaxFiltered = prevState.yMaxFiltered } = getMaxMin(mergeArrays(filteredValues));
   const yMinFiltered = 0; // TODO maybe needed real
   const { max: yMaxViewport = prevState.yMax } = getMaxMin(mergeArrays(viewportValues));

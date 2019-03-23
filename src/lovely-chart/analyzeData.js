@@ -13,7 +13,6 @@ function prepareDatasets(chartData) {
 
     if (key === LABELS_KEY) {
       labels = values;
-      // TODO sort
       ensureSorted(labels);
       return;
     }
