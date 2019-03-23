@@ -2,9 +2,10 @@ import { StateManager } from './StateManager';
 import { Axes } from './Axes';
 import { Minimap } from './Minimap';
 import { Tools } from './Tools';
+import { Tooltip } from './Tooltip';
 import { analyzeData } from './analyzeData';
 import { drawDataset } from './drawDataset';
-import { createProjectionFn } from './createProjectionFn';
+import { createProjection } from './createProjection';
 import { setupCanvas } from './setupCanvas';
 import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH } from './constants';
 
@@ -22,6 +23,7 @@ export class LovelyChart {
     this._setupAxes();
     this._setupMinimap();
     this._setupTools();
+    this._setupTooltip();
   }
 
   _setupContainer(parentContainerId) {
@@ -64,6 +66,10 @@ export class LovelyChart {
     this._tools = new Tools(this._container, this._data, this._onFilterChange);
   }
 
+  _setupTooltip() {
+    this._tooltip = new Tooltip(this._container, this._data, this._getPlotSize());
+  }
+
   _getPlotSize() {
     return this._plot.getBoundingClientRect();
   }
@@ -75,6 +81,7 @@ export class LovelyChart {
     this._drawDatasets(state);
     // TODO perf only for `yMinTotal, yMaxTotal, opacity#*`
     this._minimap.update(state);
+    this._tooltip.update(state);
   }
 
   _drawAxes(state) {
@@ -88,11 +95,11 @@ export class LovelyChart {
       height: height - X_AXIS_HEIGHT,
     };
 
-    this._data.datasets.forEach(({ key, color, values }, i) => {
+    this._data.datasets.forEach(({ key, color, values }) => {
       drawDataset(
         this._context,
         values,
-        createProjectionFn(state, availableSize),
+        createProjection(state, availableSize).toPixels,
         {
           color,
           opacity: state[`opacity#${key}`],

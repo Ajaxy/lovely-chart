@@ -1,8 +1,13 @@
 .lovely-chart {
+  font: 300 13px Helvetica, Arial, sans-serif;
+  color: #000000;
+  position: relative;
   margin-bottom: 50px;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
 
-.lovely-chart > canvas {
+.lovely-chart > canvas, .lovely-chart .tooltip canvas {
   margin-top: 10px;
 }
 
@@ -45,7 +50,6 @@
   border-bottom: 1px solid rgba(219, 229, 247, 0.65);
   min-width: 10px;
   cursor: grab;
-  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
 
 .lovely-chart .minimap .ruler .slider > div {
@@ -54,7 +58,6 @@
   height: 100%;
   cursor: ew-resize;
   position: relative;
-  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
 
 .lovely-chart .minimap .ruler .slider > div:first-child {
@@ -115,21 +118,68 @@
   top: 50%;
   left: 50%;
   content: '';
-  width: 10px;
-  height: 10px;
-  margin-left: -5px;
-  margin-top: -5px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-top: -6px;
   background-image: url(./icon-ok.svg);
   background-size: 100%;
 }
 
 .lovely-chart a.checkbox .label {
-  font: 13px Helvetica, Arial, sans-serif;
   font-weight: 300;
   color: #555;
   line-height: 20px;
   padding: 0 7px 0 10px;
   vertical-align: middle;
+}
+
+.lovely-chart .tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.lovely-chart .tooltip .balloon {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  margin-left: -20px;
+  background: white;
+  border: 1px solid #eeeeee;
+  padding: 5px 10px;
+  border-radius: 5px;
+  box-shadow: 0 1px 1px 0 rgba(238, 238, 238, 0.5);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+
+.lovely-chart .tooltip .balloon.shown {
+  opacity: 1;
+}
+
+.lovely-chart .tooltip .balloon .title {
+  font-size: 12.5px;
+}
+
+.lovely-chart .tooltip .balloon .legend {
+  margin-top: 10px;
+}
+
+.lovely-chart .tooltip .balloon .legend .dataset {
+  display: inline-block;
+  margin-right: 20px;
+}
+
+.lovely-chart .tooltip .balloon .legend .dataset > div:first-child {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.lovely-chart .tooltip .balloon .legend .dataset > div:last-child {
+  margin-top: 2px;
+  font-size: 11px;
 }
 
 body.cursor-ew-resize, body.cursor-ew-resize * {

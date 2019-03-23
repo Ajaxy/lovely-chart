@@ -1,5 +1,5 @@
 import { drawDataset } from './drawDataset';
-import { createProjectionFn } from './createProjectionFn';
+import { createProjection } from './createProjection';
 import { setupDrag } from './setupDrag';
 import { setupCanvas } from './setupCanvas';
 import { DEFAULT_RANGE, MINIMAP_HEIGHT, MINIMAP_EAR_WIDTH, MINIMAP_RULER_HTML, MINIMAP_MARGIN } from './constants';
@@ -110,7 +110,7 @@ export class Minimap {
       drawDataset(
         this._context,
         values,
-        createProjectionFn(bounds, this._getCanvasSize()),
+        createProjection(bounds, this._getCanvasSize()).toPixels,
         {
           color,
           opacity,

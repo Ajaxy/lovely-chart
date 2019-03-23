@@ -23,5 +23,10 @@ export const DPR = window.devicePixelRatio || 1;
 
 export const DAY_MS = 1000 * 60 * 60 * 24;
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+export const BALLOON_OFFSET = 20;
 
 export const TRANSITION_DURATION = 300;
+
+export const SKIN_DAY_BG = '#ffffff';

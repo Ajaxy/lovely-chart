@@ -6,8 +6,6 @@ export function setupDrag(element, options) {
       return;
     }
 
-    e.preventDefault();
-
     captureEvent = e;
 
     if (e.type === 'mousedown') {
@@ -16,6 +14,7 @@ export function setupDrag(element, options) {
     } else if (e.type === 'touchstart') {
       document.addEventListener('touchmove', onMove);
       document.addEventListener('touchend', onRelease);
+      document.addEventListener('touchcancel', onRelease);
 
       // https://stackoverflow.com/questions/11287877/how-can-i-get-e-offsetx-on-mobile-ipad
       e.offsetX = e.touches[0].pageX - e.touches[0].target.offsetLeft;
@@ -28,16 +27,17 @@ export function setupDrag(element, options) {
     options.onCapture && options.onCapture(e);
   }
 
-  function onRelease(e) {
+  function onRelease() {
     if (captureEvent) {
-      e.preventDefault();
-
       if (options.draggingCursor) {
         document.body.classList.remove(`cursor-${options.draggingCursor}`);
       }
 
-      document.addEventListener('touchmove', onMove);
-      document.addEventListener('touchend', onRelease);
+      document.removeEventListener('mouseup', onRelease);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('touchcancel', onRelease);
+      document.removeEventListener('touchend', onRelease);
+      document.removeEventListener('touchmove', onMove);
 
       captureEvent = null;
     }
@@ -45,8 +45,6 @@ export function setupDrag(element, options) {
 
   function onMove(e) {
     if (captureEvent) {
-      e.preventDefault();
-
       options.onDrag(e, captureEvent, {
         dragOffsetX: e.pageX - captureEvent.pageX,
       });
