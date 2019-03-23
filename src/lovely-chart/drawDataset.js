@@ -1,4 +1,6 @@
-export function drawDataset(context, values, projection, options) {
+export function drawDataset(context, values, projection, options, bounds) {
+  const { from = 0, to = values.length } = bounds || {};
+
   context.save();
 
   context.strokeStyle = options.color;
@@ -8,14 +10,8 @@ export function drawDataset(context, values, projection, options) {
 
   context.beginPath();
 
-  for (let i = 0, l = values.length; i <= l; i++) {
-    const y = values[i];
-
-    if (y === undefined) {
-      continue;
-    }
-
-    const { xPx, yPx } = projection.toPixels(i, y);
+  for (let i = from; i <= to; i++) {
+    const { xPx, yPx } = projection.toPixels(i, values[i]);
 
     if (i === 0) {
       context.moveTo(xPx, yPx);

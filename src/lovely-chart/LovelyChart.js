@@ -7,7 +7,7 @@ import { analyzeData } from './analyzeData';
 import { drawDataset } from './drawDataset';
 import { createProjection } from './createProjection';
 import { setupCanvas } from './setupCanvas';
-import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH, GUTTER } from './constants';
+import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH, GUTTER, EDGE_POINTS_BUDGET } from './constants';
 
 export class LovelyChart {
   constructor(parentContainerId, data) {
@@ -96,6 +96,11 @@ export class LovelyChart {
   }
 
   _drawDatasets(state, projection) {
+    const bounds = {
+      from: state.labelFromIndex - EDGE_POINTS_BUDGET,
+      to: state.labelToIndex + EDGE_POINTS_BUDGET,
+    };
+
     this._data.datasets.forEach(({ key, color, values }) => {
       const options = {
         color,
@@ -103,7 +108,7 @@ export class LovelyChart {
         lineWidth: DATASET_WIDTH,
       };
 
-      drawDataset(this._context, values, projection, options);
+      drawDataset(this._context, values, projection, options, bounds);
     });
   }
 

@@ -17,7 +17,6 @@ export class Minimap {
 
     this._setupLayout();
     this._updateRange(DEFAULT_RANGE);
-    this._drawDatasets();
   }
 
   update(state) {
@@ -113,7 +112,6 @@ export class Minimap {
         lineWidth: 1,
       };
 
-      // TODO console 12 times
       drawDataset(this._context, values, projection, options);
     });
   }
@@ -156,7 +154,6 @@ export class Minimap {
     this._updateRange({ begin });
   }
 
-  // TODO jumps and maybe wrong X2
   _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
     const { width: minimapWidth } = this._getSize();
     const slider = this._ruler.children[1];

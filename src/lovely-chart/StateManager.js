@@ -102,6 +102,8 @@ function calculateState(data, viewportSize, range, filter, prevState) {
     yMax: yMaxViewport,
     xAxisScale: calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end),
     yAxisScale: calculateYAxisScale(viewportSize.height, yMinViewport, yMaxViewport),
+    labelFromIndex,
+    labelToIndex,
     ...datasetsOpacity,
     ...range,
     filter,

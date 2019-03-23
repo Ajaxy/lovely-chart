@@ -1,4 +1,4 @@
-import { GUTTER, AXES_FONT, X_AXIS_HEIGHT } from './constants';
+import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, EDGE_POINTS_BUDGET } from './constants';
 
 export class Axes {
   constructor(context, data, plotSize) {
@@ -24,10 +24,14 @@ export class Axes {
     context.textAlign = 'center';
     context.textBaseline = 'middle';
 
-    // TODO perf Draw only visible
-    this._data.xLabels.forEach((label, i) => {
+    for (let i = state.labelFromIndex - EDGE_POINTS_BUDGET; i <= state.labelToIndex + EDGE_POINTS_BUDGET; i++) {
       if (i % visibleLabelsMultiplicity !== 0) {
-        return;
+        continue;
+      }
+
+      const label = this._data.xLabels[i];
+      if (!label) {
+        continue;
       }
 
       const opacity = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;
@@ -36,7 +40,7 @@ export class Axes {
 
       const { xPx } = projection.toPixels(i, 0);
       context.fillText(label.text, xPx, topOffset);
-    });
+    }
   }
 
   _drawYAxis(state, projection) {

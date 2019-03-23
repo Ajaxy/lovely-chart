@@ -34,7 +34,6 @@ export class Tools {
   _updateFilter(e) {
     if (e) {
       e.preventDefault();
-
       e.currentTarget.classList.toggle('checked');
     }
 

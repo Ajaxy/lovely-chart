@@ -67,7 +67,6 @@
   float: right;
 }
 
-/* TODO make higher */
 @media (pointer: coarse) {
   .lovely-chart .minimap .ruler .slider > div:after {
     content: '';
