@@ -2,7 +2,7 @@ import { TransitionManager } from './TransitionManager';
 import { calculateState } from './calculateState';
 import { mergeArrays } from './fast';
 
-const ANIMATE_PROPS = ['yMax', 'xAxisScale', 'yAxisScale'];
+const ANIMATE_PROPS = ['yMax', 'xAxisScale', 'yAxisScale', 'yMinFiltered', 'yMaxFiltered'];
 
 export class StateManager {
   constructor(data, viewportSize, callback) {
@@ -12,7 +12,6 @@ export class StateManager {
 
     this._runCallback = this._runCallback.bind(this);
 
-    // TODO don't save range
     this._range = { begin: 0, end: 1 };
     this._filter = this._buildDefaultFilter();
     this._animateProps = this._buildAnimateProps();
@@ -26,7 +25,7 @@ export class StateManager {
     Object.assign(this._filter, filter);
 
     const prevState = this._state;
-    this._state = calculateState(this._data, this._viewportSize, this._range, this._filter);
+    this._state = calculateState(this._data, this._viewportSize, this._range, this._filter, prevState);
 
     this._animateProps.forEach((prop) => {
       const transition = this._transitions.get(prop);
@@ -65,7 +64,6 @@ export class StateManager {
 
   _runCallback() {
     this._callback({
-      ...this._range,
       ...this._state,
       ...this._transitions.getState(),
     });

@@ -20,6 +20,11 @@ export class Minimap {
     this._drawDatasets();
   }
 
+  update(state) {
+    this._clearCanvas();
+    this._drawDatasets(state);
+  }
+
   _setupLayout() {
     const element = document.createElement('div');
     this._element = element;
@@ -45,6 +50,10 @@ export class Minimap {
 
     this._canvas = canvas;
     this._context = context;
+  }
+
+  _clearCanvas() {
+    this._context.clearRect(0, 0, this._canvas.width, this._canvas.height);
   }
 
   _setupRuler(element) {
@@ -86,15 +95,17 @@ export class Minimap {
     element.appendChild(ruler);
   }
 
-  _drawDatasets() {
-    const bounds = {
-      xShift: 0,
-      xWidth: this._data.xLabels.length,
-      yMin: this._data.yMin,
-      yMax: this._data.yMax,
-    };
+  _drawDatasets(state = {}) {
+    this._data.datasets.forEach(({ key, color, values }) => {
+      const opacity = state[`opacity#${key}`];
+      const shouldUseYTotal = this._shouldUseYTotal(state, key);
+      const bounds = {
+        xShift: 0,
+        xWidth: this._data.xLabels.length,
+        yMin: shouldUseYTotal ? this._data.yMin : state.yMinFiltered,
+        yMax: shouldUseYTotal ? this._data.yMax : state.yMaxFiltered,
+      };
 
-    this._data.datasets.forEach(({ color, values }) => {
       // TODO console 12 times
       drawDataset(
         this._context,
@@ -102,6 +113,7 @@ export class Minimap {
         createProjectionFn(bounds, this._getCanvasSize()),
         {
           color,
+          opacity,
           lineWidth: 1,
         },
       );
@@ -173,5 +185,18 @@ export class Minimap {
     });
 
     this._rangeCallback({ begin, end });
+  }
+
+  // By video prototype hiding dataset does not expand.
+  _shouldUseYTotal(state, key) {
+    if (state.filter) {
+      const opacity = state[`opacity#${key}`];
+      const totalShown = Object.values(state.filter).filter((v) => v === true).length;
+      const currentShowing = state.filter[key];
+      const othersShown = currentShowing ? totalShown > 1 : totalShown > 0;
+      return opacity < 1 && othersShown;
+    }
+
+    return false;
   }
 }

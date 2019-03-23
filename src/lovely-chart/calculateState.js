@@ -1,7 +1,7 @@
 import { getMaxMin, mergeArrays } from './fast';
 import { AXES_MAX_COLUMN_WIDTH, AXES_MAX_ROW_HEIGHT, X_AXIS_HEIGHT } from './constants';
 
-export function calculateState(data, viewportSize, range = {}, filter) {
+export function calculateState(data, viewportSize, range, filter, prevState) {
   const { begin, end } = range;
   const totalXWidth = data.xLabels.length;
   const labelFromIndex = Math.max(0, Math.floor(totalXWidth * begin));
@@ -11,8 +11,9 @@ export function calculateState(data, viewportSize, range = {}, filter) {
   const filteredValues = filteredDatasets.map(({ values }) => values);
   const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex));
 
-  const { min: yMinTotal = 0, max: yMaxTotal = data.yMax } = getMaxMin(mergeArrays(filteredValues));
-  const { max: yMaxViewport = data.yMax } = getMaxMin(mergeArrays(viewportValues));
+  const { max: yMaxFiltered = prevState.yMaxFiltered } = getMaxMin(mergeArrays(filteredValues));
+  const yMinFiltered = 0; // TODO maybe needed real
+  const { max: yMaxViewport = prevState.yMax } = getMaxMin(mergeArrays(viewportValues));
   const yMinViewport = 0; // TODO maybe needed real
 
   const datasetsOpacity = {};
@@ -24,10 +25,12 @@ export function calculateState(data, viewportSize, range = {}, filter) {
   }
 
   return {
+    range,
+    filter,
     xShift: begin * totalXWidth,
     xWidth: (end - begin) * totalXWidth,
-    yMinTotal,
-    yMaxTotal,
+    yMinFiltered,
+    yMaxFiltered,
     yMin: yMinViewport,
     yMax: yMaxViewport,
     xAxisScale: calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end),

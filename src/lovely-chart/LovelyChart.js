@@ -73,7 +73,8 @@ export class LovelyChart {
 
     this._drawAxes(state);
     this._drawDatasets(state);
-    // this._minimap.drawDatasets(state);
+    // TODO perf only for `yMinTotal, yMaxTotal, opacity#*`
+    this._minimap.update(state);
   }
 
   _drawAxes(state) {
