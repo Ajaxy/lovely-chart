@@ -6,7 +6,6 @@ export function drawDataset(context, valuesByLabelIndex, projectionFn, options) 
   // TODO perf slow?
   context.globalAlpha = options.opacity;
 
-  // TODO perf for all
   context.beginPath();
 
   for (let i = 0, l = valuesByLabelIndex.length; i <= l; i++) {

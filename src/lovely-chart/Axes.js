@@ -5,13 +5,10 @@ export class Axes {
     this._context = context;
     this._data = data;
     this._plotSize = plotSize;
-
-    // TODO Move out of here
-    this._context.font = AXES_FONT;
   }
 
   draw(state) {
-    // TODO perf maybe no need to redraw both
+    this._context.font = AXES_FONT;
     this._drawXAxis(state);
     this._drawYAxis(state);
   }
@@ -31,7 +28,7 @@ export class Axes {
     context.textAlign = 'center';
     context.textBaseline = 'middle';
 
-    // TODO Draw only visible
+    // TODO perf Draw only visible
     this._data.xLabels.forEach((label, i) => {
       if (i % visibleLabelsMultiplicity !== 0) {
         return;
@@ -62,7 +59,6 @@ export class Axes {
     }
   }
 
-  // TODO version
   _drawYAxisScaled(state, scaleLevel, opacity = 1) {
     const context = this._context;
     const { width: plotWidth, height: plotHeight } = this._plotSize;
@@ -89,7 +85,6 @@ export class Axes {
       const viewportIndex = i - firstVisibleValue;
       const topOffset = availableHeight - viewportIndex * rowHeight;
 
-      // TODO We do not user label value/text here (remove them)
       // TODO start using K, M
       context.fillText(i, leftOffset, topOffset - GUTTER / 2);
 

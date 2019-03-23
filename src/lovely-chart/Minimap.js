@@ -158,7 +158,7 @@ export class Minimap {
     this._updateRange({ begin });
   }
 
-  // TODO jumps
+  // TODO jumps and maybe wrong X2
   _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
     const { width: minimapWidth } = this._getSize();
     const slider = this._ruler.children[1];
