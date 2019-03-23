@@ -1,7 +1,7 @@
 import { getMaxMin, mergeArrays } from './fast';
 import { AXES_MAX_COLUMN_WIDTH, AXES_MAX_ROW_HEIGHT, X_AXIS_HEIGHT } from './constants';
 
-export function calculateState(dataInfo, plotSize, range = {}, filter) {
+export function calculateState(dataInfo, viewportSize, range = {}, filter) {
   const { begin, end } = range;
   const totalXWidth = dataInfo.xLabels.length;
   const labelFromIndex = Math.max(0, Math.floor(totalXWidth * begin));
@@ -26,9 +26,8 @@ export function calculateState(dataInfo, plotSize, range = {}, filter) {
     xWidth: (end - begin) * totalXWidth,
     yMin,
     yMax,
-    yHeight: yMax - yMin,
-    xAxisScale: calculateXAxisScale(dataInfo.xLabels.length, plotSize.width, begin, end),
-    yAxisScale: calculateYAxisScale(plotSize.height, yMax, yMin),
+    xAxisScale: calculateXAxisScale(dataInfo.xLabels.length, viewportSize.width, begin, end),
+    yAxisScale: calculateYAxisScale(viewportSize.height, yMax, yMin),
     ...datasetOpacity,
   };
 }

@@ -4,10 +4,10 @@ import { mergeArrays } from './fast';
 
 const ANIMATE_PROPS = ['yMax', 'xAxisScale', 'yAxisScale'];
 
-export class Viewport {
-  constructor(dataInfo, plotSize, callback) {
+export class StateManager {
+  constructor(dataInfo, viewportSize, callback) {
     this._dataInfo = dataInfo;
-    this._plotSize = plotSize;
+    this._viewportSize = viewportSize;
     this._callback = callback;
 
     this._runCallback = this._runCallback.bind(this);
@@ -26,7 +26,7 @@ export class Viewport {
     Object.assign(this._filter, filter);
 
     const prevState = this._state;
-    this._state = calculateState(this._dataInfo, this._plotSize, this._range, this._filter);
+    this._state = calculateState(this._dataInfo, this._viewportSize, this._range, this._filter);
 
     this._animateProps.forEach((prop) => {
       const transition = this._transitions.get(prop);

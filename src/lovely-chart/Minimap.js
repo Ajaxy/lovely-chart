@@ -1,6 +1,5 @@
 import { drawDataset } from './drawDataset';
 import { createProjectionFn } from './createProjectionFn';
-import { calculateState } from './calculateState';
 import { setupDrag } from './setupDrag';
 import { setupCanvas } from './setupCanvas';
 import { DEFAULT_RANGE, MINIMAP_HEIGHT, MINIMAP_EAR_WIDTH, MINIMAP_RULER_HTML, MINIMAP_MARGIN } from './constants';
@@ -88,7 +87,12 @@ export class Minimap {
   }
 
   _drawDatasets() {
-    const state = calculateState(this._dataInfo, this._getCanvasSize(), { begin: 0, end: 1 });
+    const bounds = {
+      xShift: 0,
+      xWidth: this._dataInfo.xLabels.length,
+      yMin: this._dataInfo.yMin,
+      yMax: this._dataInfo.yMax
+    };
 
     this._dataInfo.datasetsByLabelIndex.forEach((valuesByLabelIndex, i) => {
       const options = {
@@ -100,7 +104,7 @@ export class Minimap {
       drawDataset(
         this._context,
         valuesByLabelIndex,
-        createProjectionFn(state, this._getCanvasSize()),
+        createProjectionFn(bounds, this._getCanvasSize()),
         options,
       );
     });

@@ -1,4 +1,4 @@
-import { Viewport } from './Viewport';
+import { StateManager } from './StateManager';
 import { Axes } from './Axes';
 import { Minimap } from './Minimap';
 import { Tools } from './Tools';
@@ -12,7 +12,7 @@ export class LovelyChart {
   constructor(parentContainerId, data) {
     this._data = data;
 
-    this._onViewportUpdate = this._onViewportUpdate.bind(this);
+    this._onStateUpdate = this._onStateUpdate.bind(this);
     this._onRangeChange = this._onRangeChange.bind(this);
     this._onFilterChange = this._onFilterChange.bind(this);
 
@@ -20,7 +20,7 @@ export class LovelyChart {
 
     this._setupContainer(parentContainerId);
     this._setupPlotCanvas();
-    this._setupViewport();
+    this._setupStateManager();
     this._setupAxes();
     this._setupMinimap();
     this._setupTools();
@@ -40,8 +40,8 @@ export class LovelyChart {
     this._container = container;
   }
 
-  _setupViewport() {
-    this._viewport = new Viewport(this._dataInfo, this._getPlotSize(), this._onViewportUpdate);
+  _setupStateManager() {
+    this._stateManager = new StateManager(this._dataInfo, this._getPlotSize(), this._onStateUpdate);
   }
 
   _setupPlotCanvas() {
@@ -74,11 +74,12 @@ export class LovelyChart {
     return this._plot.getBoundingClientRect();
   }
 
-  _onViewportUpdate(state) {
+  _onStateUpdate(state) {
     this._clearPlotCanvas();
 
     this._drawAxes(state);
     this._drawDatasets(state);
+    // this._minimap.drawDatasets(state);
   }
 
   _drawAxes(state) {
@@ -109,10 +110,10 @@ export class LovelyChart {
   }
 
   _onRangeChange(range) {
-    this._viewport.update({ range });
+    this._stateManager.update({ range });
   }
 
   _onFilterChange(filter) {
-    this._viewport.update({ filter });
+    this._stateManager.update({ filter });
   }
 }

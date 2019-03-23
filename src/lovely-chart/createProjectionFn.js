@@ -1,9 +1,9 @@
-export function createProjectionFn(state, availableSize) {
-  const xFactor = availableSize.width / state.xWidth;
-  const xShift = state.xShift * xFactor;
+export function createProjectionFn(bounds, availableSize) {
+  const xFactor = availableSize.width / bounds.xWidth;
+  const xShift = bounds.xShift * xFactor;
 
-  const yFactor = availableSize.height / state.yMax;
-  const yShift = state.yMin * yFactor;
+  const yFactor = availableSize.height / bounds.yMax;
+  const yShift = bounds.yMin * yFactor;
 
   return function (labelIndex, y) {
     // TODO perf test with `round`
