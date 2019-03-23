@@ -1,5 +1,6 @@
 import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, SKIN_DAY_BG, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
+import { humanize } from './format';
 
 export class Tooltip {
   constructor(container, data, plotSize) {
@@ -131,7 +132,7 @@ export class Tooltip {
     const date = new Date(label.value);
     balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
     balloon.children[1].innerHTML = statistics.map(({ name, color, value }) => (
-      `<div class="dataset" style="color: ${color}"><div>${value}</div><div>${name}</div></div>`
+      `<div class="dataset" style="color: ${color}"><div>${humanize(value, 2)}</div><div>${name}</div></div>`
     )).join('');
 
     const left = Math.max(BALLOON_OFFSET, Math.min(xPx, this._plotSize.width - balloon.offsetWidth + BALLOON_OFFSET));

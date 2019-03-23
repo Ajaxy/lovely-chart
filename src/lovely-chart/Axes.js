@@ -1,4 +1,5 @@
 import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, EDGE_POINTS_BUDGET } from './constants';
+import { humanize } from './format';
 
 export class Axes {
   constructor(context, data, plotSize) {
@@ -75,8 +76,7 @@ export class Axes {
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += visibleLabelsMultiplicity) {
       const { yPx } = projection.toPixels(0, value);
 
-      // TODO start using K, M
-      context.fillText(value, GUTTER, yPx - GUTTER / 2);
+      context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
       context.moveTo(GUTTER, yPx);
       context.lineTo(this._plotSize.width - GUTTER, yPx);
     }

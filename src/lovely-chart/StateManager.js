@@ -83,9 +83,9 @@ function calculateState(data, viewportSize, range, filter, prevState) {
 
   // TODO consider canvas margin
   const { max: yMaxFiltered = prevState.yMaxFiltered } = getMaxMin(mergeArrays(filteredValues));
-  const yMinFiltered = 0; // TODO maybe needed real
+  const yMinFiltered = 0;
   const { max: yMaxViewport = prevState.yMax } = getMaxMin(mergeArrays(viewportValues));
-  const yMinViewport = 0; // TODO maybe needed real
+  const yMinViewport = 0;
 
   const datasetsOpacity = {};
 

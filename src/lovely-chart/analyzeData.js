@@ -1,5 +1,5 @@
 import { ensureSorted, getMaxMin } from './fast';
-import { buildDayLabels } from './buildDayLabels';
+import { buildDayLabels } from './format';
 import { LABELS_KEY } from './constants';
 
 function prepareDatasets(chartData) {

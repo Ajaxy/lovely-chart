@@ -23,3 +23,20 @@ export function buildDayLabels(timestampFrom, timestampTo) {
 function roundToDay(timestamp) {
   return timestamp - (timestamp % DAY_MS);
 }
+
+export function humanize(value, decimals = 1) {
+  if (value >= 1e6) {
+    return keepThreeDigits(value / 1e6, decimals) + 'M';
+  } else if (value >= 1e3) {
+    return keepThreeDigits(value / 1e3, decimals) + 'K';
+  }
+
+  return value;
+}
+
+function keepThreeDigits(value, decimals) {
+  return value
+    .toFixed(decimals)
+    .replace(/(\d{3,})\.\d+/, '$1')
+    .replace(/\.0+$/, '');
+}
