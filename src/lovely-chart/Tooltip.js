@@ -55,7 +55,12 @@ export class Tooltip {
   }
 
   _onMouseMove(e) {
-    this._offsetX = e.type === 'touchmove' ? e.touches[0].offsetX : e.offsetX;
+    if (e.type === 'touchmove') {
+      this._element.removeEventListener('mousemove', this._onMouseMove);
+      this._offsetX = e.touches[0].pageX - e.touches[0].target.offsetLeft;
+    } else {
+      this._offsetX = e.offsetX;
+    }
     // TODO throttle until next raf
     this._drawStatistics();
   }
