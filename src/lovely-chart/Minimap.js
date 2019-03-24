@@ -114,8 +114,8 @@ export function createMinimap(container, data, rangeCallback) {
 
     _data.datasets.forEach(({ key, color, values }) => {
       const opacity = state[`opacity#${key}`];
-      // TODO By video prototype hiding dataset does not expand, which causes lags on charts with 3+ datasets.
-      const shouldUseYTotal = _shouldUseYTotal(state, key);
+      // By video prototype hiding dataset does not expand, which is not possible with 3+ datasets.
+      const shouldUseYTotal = _data.datasets.length === 2 && _shouldUseYTotal(state, key);
       const bounds = {
         xOffset: 0,
         xWidth: _data.xLabels.length,
