@@ -71,12 +71,12 @@ export function createStateManager(data, viewportSize, callback) {
 function calculateState(data, viewportSize, range, filter, prevState) {
   const { begin, end } = range;
   const totalXWidth = data.xLabels.length - 1;
-  const labelFromIndex = Math.max(0, Math.floor(totalXWidth * begin));
-  const labelToIndex = Math.min(totalXWidth - 1, Math.ceil(totalXWidth * end));
+  const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
+  const labelToIndex = Math.min(totalXWidth, Math.floor(totalXWidth * end));
 
   const filteredDatasets = data.datasets.filter(({ key }) => filter[key]);
   const filteredValues = filteredDatasets.map(({ values }) => values);
-  const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex));
+  const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
 
   // TODO consider canvas margin
   const { max: yMaxFiltered = prevState.yMaxFiltered } = getMaxMin(mergeArrays(filteredValues));

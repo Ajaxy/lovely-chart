@@ -11,6 +11,7 @@ export const AXES_FONT = '300 10px Helvetica, Arial, sans-serif';
 export const AXES_MAX_COLUMN_WIDTH = 45;
 export const AXES_MAX_ROW_HEIGHT = 50;
 export const X_AXIS_HEIGHT = 30;
+export const X_AXIS_START_FROM = 1;
 
 export const MINIMAP_HEIGHT = 40;
 export const MINIMAP_MARGIN = 10;

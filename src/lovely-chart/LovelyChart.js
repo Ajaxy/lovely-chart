@@ -66,13 +66,13 @@ export function createLovelyChart(parentContainerId, data) {
     const { width, height } = _getPlotSize();
 
     return {
-      width: width - GUTTER * 2,
+      width,
       height: height - X_AXIS_HEIGHT,
     };
   }
 
   function _onStateUpdate(state) {
-    const projection = createProjection(state, _getAvailablePlotSize(), { leftMargin: GUTTER });
+    const projection = createProjection(state, _getAvailablePlotSize(), { xPadding: GUTTER });
 
     clearCanvas(_plot, _context);
 

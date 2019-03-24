@@ -1,4 +1,11 @@
-import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, EDGE_POINTS_BUDGET } from './constants';
+import {
+  GUTTER,
+  AXES_FONT,
+  X_AXIS_HEIGHT,
+  EDGE_POINTS_BUDGET,
+  X_AXIS_START_FROM,
+  AXES_MAX_COLUMN_WIDTH,
+} from './constants';
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
 
@@ -24,8 +31,8 @@ export function createAxes(context, data, plotSize) {
     _context.textAlign = 'center';
     _context.textBaseline = 'middle';
 
-    for (let i = state.labelFromIndex - EDGE_POINTS_BUDGET; i <= state.labelToIndex + EDGE_POINTS_BUDGET; i++) {
-      if (i % visibleLabelsMultiplicity !== 0) {
+    for (let i = Math.floor(state.labelFromIndex) - EDGE_POINTS_BUDGET; i <= state.labelToIndex + EDGE_POINTS_BUDGET; i++) {
+      if ((i - X_AXIS_START_FROM) % visibleLabelsMultiplicity !== 0) {
         continue;
       }
 
@@ -34,11 +41,16 @@ export function createAxes(context, data, plotSize) {
         continue;
       }
 
-      const opacity = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;
-      // TODO perf May be faster to draw by `opacityFactor`, to not change canvas state every time
-      _context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
-
       const { xPx } = projection.toPixels(i, 0);
+
+
+      let opacity = (i - X_AXIS_START_FROM) % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;
+      const edgeOffset = Math.min(xPx + GUTTER, _plotSize.width - xPx);
+      if (opacity === 1 && edgeOffset <= GUTTER * 4) {
+        opacity = Math.min(1, edgeOffset / (GUTTER * 4));
+      }
+
+      _context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
       _context.fillText(label.text, xPx, topOffset);
     }
   }
