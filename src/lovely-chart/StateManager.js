@@ -1,5 +1,5 @@
 import { createTransitionManager } from './TransitionManager';
-import { getMaxMin, mergeArrays } from './fast';
+import { createThrottledUntilRaf, getMaxMin, mergeArrays } from './fast';
 import { AXES_MAX_COLUMN_WIDTH, AXES_MAX_ROW_HEIGHT, X_AXIS_HEIGHT, ANIMATE_PROPS } from './constants';
 import { buildSkinState } from './skin';
 
@@ -12,6 +12,7 @@ export function createStateManager(data, viewportSize, callback) {
   const _filter = _buildDefaultFilter();
   const _animateProps = _buildAnimateProps();
   const _transitions = createTransitionManager(_runCallback);
+  const _runCallbackOnRaf = createThrottledUntilRaf(_runCallback);
 
   let _state = {};
 
@@ -37,8 +38,9 @@ export function createStateManager(data, viewportSize, callback) {
       }
     });
 
-    // TODO perf raf
-    requestAnimationFrame(_runCallback);
+    if (!_transitions.isRunning()) {
+      _runCallbackOnRaf();
+    }
   }
 
   function _buildAnimateProps() {

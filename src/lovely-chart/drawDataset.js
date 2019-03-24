@@ -5,7 +5,6 @@ export function drawDataset(context, values, projection, options, bounds) {
 
   context.strokeStyle = options.color;
   context.lineWidth = options.lineWidth;
-  // TODO perf slow?
   context.globalAlpha = options.opacity;
 
   context.beginPath();

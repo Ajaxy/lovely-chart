@@ -23,7 +23,7 @@ export function createTransitionManager(onTick) {
   function remove(prop) {
     delete _transitions[prop];
 
-    if (!_isActual()) {
+    if (!isRunning()) {
       cancelAnimationFrame(_nextFrame);
       _nextFrame = null;
     }
@@ -43,6 +43,10 @@ export function createTransitionManager(onTick) {
     return state;
   }
 
+  function isRunning() {
+    return Boolean(Object.keys(_transitions).length);
+  }
+
   function _tick() {
     const state = {};
 
@@ -60,14 +64,10 @@ export function createTransitionManager(onTick) {
 
     _onTick(state);
 
-    if (_isActual()) {
+    if (isRunning()) {
       _nextFrame = requestAnimationFrame(_tick);
     }
   }
 
-  function _isActual() {
-    return Object.keys(_transitions).length;
-  }
-
-  return { add, remove, get, getState };
+  return { add, remove, get, getState, isRunning };
 }

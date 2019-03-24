@@ -3,6 +3,7 @@ import { drawDataset } from './drawDataset';
 import { createProjection } from './createProjection';
 import { setupDrag } from './setupDrag';
 import { DEFAULT_RANGE, MINIMAP_HEIGHT, MINIMAP_EAR_WIDTH, MINIMAP_RULER_HTML, MINIMAP_MARGIN } from './constants';
+import { createThrottledUntilRaf } from './fast';
 
 export function createMinimap(container, data, rangeCallback) {
   const _container = container;
@@ -16,13 +17,21 @@ export function createMinimap(container, data, rangeCallback) {
   let _slider;
   let _capturedOffset;
   let _range;
+  let _state;
+
+  const _updateRulerOnRaf = createThrottledUntilRaf(_updateRuler);
 
   _setupLayout();
   _updateRange(DEFAULT_RANGE);
 
-  function update(state) {
+  function update(newState) {
+    if (!_isStateChanged(newState)) {
+      return;
+    }
+
+    _state = newState;
     clearCanvas(_canvas, _context);
-    _drawDatasets(state);
+    _drawDatasets(newState);
   }
 
   function _setupLayout() {
@@ -88,13 +97,23 @@ export function createMinimap(container, data, rangeCallback) {
     _element.appendChild(_ruler);
   }
 
+  function _isStateChanged(newState) {
+    if (!_state) {
+      return true;
+    }
+
+    const keys = _data.datasets.map(({ key }) => `opacity#${key}`);
+    keys.push('yMaxFiltered');
+
+    return keys.some((key) => _state[key] !== newState[key]);
+  }
+
   function _drawDatasets(state = {}) {
     const canvasSize = _getCanvasSize();
 
     _data.datasets.forEach(({ key, color, values }) => {
       const opacity = state[`opacity#${key}`];
-      // By video prototype hiding dataset does not expand.
-      // TODO lags on the last chart
+      // TODO By video prototype hiding dataset does not expand, which causes lags on charts with 3+ datasets.
       const shouldUseYTotal = _shouldUseYTotal(state, key);
       const bounds = {
         xOffset: 0,
@@ -161,16 +180,15 @@ export function createMinimap(container, data, rangeCallback) {
 
   function _updateRange(range) {
     _range = Object.assign(_range || {}, range);
+    _updateRulerOnRaf();
+    _rangeCallback(_range);
+  }
+
+  function _updateRuler() {
     const { begin, end } = _range;
-
-    // TODO throttle until next raf
-    requestAnimationFrame(() => {
-      _ruler.children[0].style.width = `${begin * 100}%`;
-      _ruler.children[1].style.width = `${(end - begin) * 100}%`;
-      _ruler.children[2].style.width = `${(1 - end) * 100}%`;
-    });
-
-    _rangeCallback({ begin, end });
+    _ruler.children[0].style.width = `${begin * 100}%`;
+    _ruler.children[1].style.width = `${(end - begin) * 100}%`;
+    _ruler.children[2].style.width = `${(1 - end) * 100}%`;
   }
 
   function _shouldUseYTotal(state, key) {

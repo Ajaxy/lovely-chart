@@ -2,6 +2,7 @@ import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
+import { createThrottledUntilRaf } from './fast';
 
 export function createTooltip(container, data, plotSize) {
   const _container = container;
@@ -15,6 +16,8 @@ export function createTooltip(container, data, plotSize) {
   let _context;
   let _balloon;
   let _offsetX;
+
+  const _drawStatisticsOnRaf = createThrottledUntilRaf(_drawStatistics);
 
   _setupLayout();
 
@@ -59,8 +62,8 @@ export function createTooltip(container, data, plotSize) {
 
   function _onMouseMove(e) {
     _offsetX = e.type === 'touchmove' ? e.touches[0].pageX - getPageOffset(e.touches[0].target) : e.offsetX;
-    // TODO throttle until next raf
-    _drawStatistics();
+
+    _drawStatisticsOnRaf();
   }
 
   function _onMouseLeave(e) {

@@ -31,3 +31,18 @@ export function ensureSorted(array) {
 export function mergeArrays(arrays) {
   return [].concat.apply([], arrays);
 }
+
+export function createThrottledUntilRaf(fn) {
+  let waiting = false;
+
+  return function () {
+    if (!waiting) {
+      waiting = true;
+
+      requestAnimationFrame(() => {
+        waiting = false;
+        fn();
+      });
+    }
+  };
+}

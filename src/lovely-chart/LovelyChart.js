@@ -78,7 +78,6 @@ export function createLovelyChart(parentContainerId, data) {
 
     _axes.update(state, projection);
     _drawDatasets(state, projection);
-    // TODO perf only for `yMinTotal, yMaxTotal, opacity#*`
     _minimap.update(state);
     _tooltip.update(state, projection);
   }
@@ -110,3 +109,7 @@ export function createLovelyChart(parentContainerId, data) {
 
   return { redraw };
 }
+
+window.LovelyChart = {
+  create: createLovelyChart,
+};
