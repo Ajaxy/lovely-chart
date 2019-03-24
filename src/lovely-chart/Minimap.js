@@ -16,8 +16,9 @@ export function createMinimap(container, data, rangeCallback) {
   let _ruler;
   let _slider;
   let _capturedOffset;
-  let _range;
+  let _range = {};
   let _state;
+  let _pauseTimeout = null;
 
   const _updateRulerOnRaf = createThrottledUntilRaf(_updateRuler);
 
@@ -179,9 +180,22 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _updateRange(range) {
-    _range = Object.assign(_range || {}, range);
+    const nextRange = Object.assign({}, _range, range);
+    if (nextRange.begin === _range.begin && nextRange.end === _range.end) {
+      return;
+    }
+
+    _range = nextRange;
     _updateRulerOnRaf();
     _rangeCallback(_range);
+
+    if (_pauseTimeout) {
+      clearTimeout(_pauseTimeout);
+      _pauseTimeout = null;
+    }
+    _pauseTimeout = setTimeout(() => {
+      _rangeCallback(_range);
+    }, 50);
   }
 
   function _updateRuler() {

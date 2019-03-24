@@ -49,3 +49,5 @@ const SKIN_STATE_PROPS = mergeArrays(Object.keys(SKINS.day).map((key) => (
 )));
 
 export const ANIMATE_PROPS = ['yMax', 'xAxisScale', 'yAxisScale', 'yMaxFiltered', ...SKIN_STATE_PROPS];
+
+export const PREDICTION_FACTOR = 15;
