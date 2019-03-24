@@ -1,8 +1,8 @@
 import { TRANSITION_DURATION } from './constants';
 
-// TODO ease-out
-function linearTransition(from, to, progress) {
-  return from + (to - from) * progress;
+function transition(t) {
+  // easeOutSine
+  return Math.sin(Math.PI / 2 * t);
 }
 
 export class TransitionManager {
@@ -15,8 +15,8 @@ export class TransitionManager {
     this._tick = this._tick.bind(this);
   }
 
-  add(prop, from, to, fn = linearTransition) {
-    this._transitions[prop] = { from, to, fn, current: from, startedAt: Date.now() };
+  add(prop, from, to) {
+    this._transitions[prop] = { from, to, current: from, startedAt: Date.now() };
 
     if (!this._nextFrame) {
       this._nextFrame = requestAnimationFrame(this._tick);
@@ -50,9 +50,9 @@ export class TransitionManager {
     const state = {};
 
     Object.keys(this._transitions).forEach((prop) => {
-      const { startedAt, from, to, fn } = this._transitions[prop];
+      const { startedAt, from, to } = this._transitions[prop];
       const progress = Math.min(1, (Date.now() - startedAt) / TRANSITION_DURATION);
-      const current = fn(from, to, progress);
+      const current = from + (to - from) * transition(progress);
       this._transitions[prop].current = current;
       state[prop] = current;
 
