@@ -4,14 +4,19 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "dev": "parcel src/index.html && cp src/chart_data.json dist/",
-    "build": "parcel build src/index.html --no-source-maps --public-url=./ && cp src/chart_data.json dist/",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "prebuild": "rm -rf ./dist",
+    "dev": "cp src/chart_data.json dist/ && parcel src/index.html",
+    "prod": "rm -rf docs/ && gulp prod"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "parcel": "^1.12.1"
+    "gulp": "^4.0.0",
+    "gulp-concat": "^2.6.1",
+    "gulp-jsclosure": "0.0.1",
+    "gulp-replace": "^1.0.0",
+    "gulp-terser": "^1.1.7",
+    "merge-stream": "^1.0.1"
   }
 }
