@@ -1,4 +1,6 @@
 // https://jsperf.com/finding-maximum-element-in-an-array
+import { SKIN } from './constants';
+
 export function getMaxMin(array) {
   const length = array.length;
   let max = array[0];

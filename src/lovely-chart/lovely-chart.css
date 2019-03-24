@@ -1,8 +1,9 @@
 .lovely-chart {
   font: 300 13px Helvetica, Arial, sans-serif;
-  color: #000000;
+  color: #222222;
   position: relative;
   margin-bottom: 50px;
+  text-align: left;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
@@ -19,6 +20,11 @@
 
 .lovely-chart .minimap canvas {
   background: white;
+  transition: background-color 300ms ease;
+}
+
+body.skin-night .lovely-chart .minimap canvas {
+  background: #242F3E;
 }
 
 .lovely-chart .minimap .ruler {
@@ -38,6 +44,11 @@
   width: 33.3%;
   height: 100%;
   background: rgba(245, 250, 255, 0.65);
+  transition: background-color 300ms ease;
+}
+
+body.skin-night .lovely-chart .minimap .ruler .mask {
+  background: rgba(31, 42, 56, 0.65);
 }
 
 .lovely-chart .minimap .ruler .slider {
@@ -49,6 +60,11 @@
   border-bottom: 1px solid rgba(219, 229, 247, 0.65);
   min-width: 10px;
   cursor: grab;
+  transition: border-color 300ms ease;
+}
+
+body.skin-night .lovely-chart .minimap .ruler .slider {
+  border-color: rgba(78, 106, 130, 0.65);
 }
 
 .lovely-chart .minimap .ruler .slider > div {
@@ -57,6 +73,11 @@
   height: 100%;
   cursor: ew-resize;
   position: relative;
+  transition: background-color 300ms ease;
+}
+
+body.skin-night .lovely-chart .minimap .ruler .slider > div {
+  background: rgba(78, 106, 130, 0.65);
 }
 
 .lovely-chart .minimap .ruler .slider > div:first-child {
@@ -92,12 +113,17 @@
 }
 
 .lovely-chart a.checkbox {
-  border: 1px solid #eeeeee;
-  padding: 7px;
+  border: 1px solid #E6ECF0;
+  padding: 6px;
   display: inline-block;
   border-radius: 18px;
   text-decoration: none;
   margin-right: 16px;
+  transition: border-color 300ms ease;
+}
+
+body.skin-night .lovely-chart a.checkbox {
+  border-color: #344658;
 }
 
 .lovely-chart a.checkbox span {
@@ -113,7 +139,7 @@
   border: 1px solid transparent;
   vertical-align: middle;
   position: relative;
-  transition: border-width 250ms ease-out;
+  transition: border-width 300ms ease;
 }
 
 .lovely-chart a.checkbox.checked .circle {
@@ -131,6 +157,12 @@
   margin-top: -6px;
   background-image: url(./icon-ok.svg);
   background-size: 100%;
+  opacity: 0;
+  transition: border-width 300ms ease, opacity 150ms ease;
+}
+
+.lovely-chart a.checkbox.checked .circle:after {
+  opacity: 1;
 }
 
 .lovely-chart a.checkbox .label {
@@ -139,6 +171,11 @@
   line-height: 20px;
   padding: 0 7px 0 10px;
   vertical-align: middle;
+  transition: color 300ms ease;
+}
+
+body.skin-night .lovely-chart a.checkbox .label {
+  color: white;
 }
 
 .lovely-chart .tooltip {
@@ -153,13 +190,18 @@
   left: 0;
   margin-left: -20px;
   background: white;
-  border: 1px solid #eeeeee;
   padding: 5px 10px;
   border-radius: 5px;
-  box-shadow: 0 1px 1px 0 rgba(238, 238, 238, 0.5);
+  box-shadow: 0 1px 2px 1px rgba(211, 211, 211, 0.5);
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 200ms ease-out;
+  transition: opacity 200ms ease, background-color 300ms ease;
+}
+
+body.skin-night .lovely-chart .tooltip .balloon {
+  color: white;
+  background: #253241;
+  box-shadow: 0 1px 2px 1px rgba(26, 34, 44, 0.5);
 }
 
 .lovely-chart .tooltip .balloon.shown {

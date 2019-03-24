@@ -1,3 +1,5 @@
+import { mergeArrays } from './fast';
+
 export const LABELS_KEY = 'x';
 export const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };
 export const PLOT_WH_RATIO = 0.9;
@@ -26,4 +28,23 @@ export const BALLOON_OFFSET = 20;
 
 export const TRANSITION_DURATION = 300;
 
-export const SKIN_DAY_BG = '#ffffff';
+export const SKINS = {
+  day: {
+    bg: [255, 255, 255],
+    axesText: [150, 162, 170],
+    yAxisRulers: [242, 244, 245],
+    tooltipTail: [223, 230, 235],
+  },
+  night: {
+    bg: [36, 47, 62],
+    axesText: [84, 103, 120],
+    yAxisRulers: [41, 53, 68],
+    tooltipTail: [59, 74, 90],
+  },
+};
+
+const SKIN_STATE_PROPS = mergeArrays(Object.keys(SKINS.day).map((key) => (
+  ['R', 'G', 'B'].map((channel) => `colorChannels#${key}#${channel}`)
+)));
+
+export const ANIMATE_PROPS = ['yMax', 'xAxisScale', 'yAxisScale', 'yMinFiltered', 'yMaxFiltered', ...SKIN_STATE_PROPS];

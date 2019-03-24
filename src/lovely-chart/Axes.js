@@ -1,5 +1,6 @@
 import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, EDGE_POINTS_BUDGET } from './constants';
 import { humanize } from './format';
+import { buildRgbaFromState } from './skin';
 
 export class Axes {
   constructor(context, data, plotSize) {
@@ -37,7 +38,7 @@ export class Axes {
 
       const opacity = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;
       // TODO perf May be faster to draw by `opacityFactor`, to not change canvas state every time
-      context.fillStyle = `rgba(180, 180, 180, ${opacity})`;
+      context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
 
       const { xPx } = projection.toPixels(i, 0);
       context.fillText(label.text, xPx, topOffset);
@@ -67,8 +68,8 @@ export class Axes {
 
     context.textAlign = 'left';
     context.textBaseline = 'bottom';
-    context.fillStyle = `rgba(180, 180, 180, ${opacity})`;
-    context.strokeStyle = `rgba(238, 238, 238, ${opacity})`;
+    context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
+    context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
     context.lineWidth = 0.5;
 
     context.beginPath();

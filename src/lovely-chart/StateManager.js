@@ -1,8 +1,7 @@
 import { TransitionManager } from './TransitionManager';
 import { getMaxMin, mergeArrays } from './fast';
-import { AXES_MAX_COLUMN_WIDTH, AXES_MAX_ROW_HEIGHT, X_AXIS_HEIGHT } from './constants';
-
-const ANIMATE_PROPS = ['yMax', 'xAxisScale', 'yAxisScale', 'yMinFiltered', 'yMaxFiltered'];
+import { AXES_MAX_COLUMN_WIDTH, AXES_MAX_ROW_HEIGHT, X_AXIS_HEIGHT, ANIMATE_PROPS } from './constants';
+import { buildSkinState } from './skin';
 
 export class StateManager {
   constructor(data, viewportSize, callback) {
@@ -20,7 +19,7 @@ export class StateManager {
     this._transitions = new TransitionManager(this._runCallback);
   }
 
-  update({ range = {}, filter = {} }) {
+  update({ range = {}, filter = {} } = {}) {
     Object.assign(this._range, range);
     Object.assign(this._filter, filter);
 
@@ -77,7 +76,7 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const labelFromIndex = Math.max(0, Math.floor(totalXWidth * begin));
   const labelToIndex = Math.min(totalXWidth - 1, Math.ceil(totalXWidth * end));
 
-  const filteredDatasets = filter ? data.datasets.filter(({ key }) => filter[key]) : data.datasets;
+  const filteredDatasets = data.datasets.filter(({ key }) => filter[key]);
   const filteredValues = filteredDatasets.map(({ values }) => values);
   const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex));
 
@@ -88,12 +87,9 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const yMinViewport = 0;
 
   const datasetsOpacity = {};
-
-  if (filter) {
-    data.datasets.forEach(({ key }) => {
-      datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
-    });
-  }
+  data.datasets.forEach(({ key }) => {
+    datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
+  });
 
   return {
     xOffset: begin * totalXWidth,
@@ -107,6 +103,7 @@ function calculateState(data, viewportSize, range, filter, prevState) {
     labelFromIndex,
     labelToIndex,
     ...datasetsOpacity,
+    ...buildSkinState(),
     ...range,
     filter,
   };

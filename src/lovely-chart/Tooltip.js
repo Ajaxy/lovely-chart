@@ -1,6 +1,7 @@
 import { setupCanvas, clearCanvas } from './canvas';
-import { BALLOON_OFFSET, SKIN_DAY_BG, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
+import { BALLOON_OFFSET, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { humanize } from './format';
+import { buildRgbaFromState } from './skin';
 
 export class Tooltip {
   constructor(container, data, plotSize) {
@@ -54,27 +55,27 @@ export class Tooltip {
   }
 
   _onMouseMove(e) {
-    this._clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+    this._offsetX = e.type === 'touchmove' ? e.touches[0].offsetX : e.offsetX;
     // TODO throttle until next raf
     this._drawStatistics();
   }
 
   _onMouseLeave() {
-    this._clientX = null;
+    this._offsetX = null;
     clearCanvas(this._canvas, this._context);
     this._hideBalloon();
   }
 
   _drawStatistics() {
-    if (!this._clientX || !this._state) {
+    if (!this._offsetX || !this._state) {
       return;
     }
 
-    const clientX = this._clientX;
+    const offsetX = this._offsetX;
     const state = this._state;
 
     const { findClosesLabelIndex, toPixels } = this._projection;
-    const labelIndex = findClosesLabelIndex(clientX);
+    const labelIndex = findClosesLabelIndex(offsetX);
 
     if (labelIndex < 0 || labelIndex >= this._data.xLabels.length) {
       return;
@@ -83,7 +84,7 @@ export class Tooltip {
     clearCanvas(this._canvas, this._context);
 
     const { xPx } = toPixels(labelIndex, 0);
-    this._drawLine(xPx, this._plotSize.height - X_AXIS_HEIGHT);
+    this._drawTail(xPx, this._plotSize.height - X_AXIS_HEIGHT, buildRgbaFromState(state, 'tooltipTail'));
 
     const statistics = this._data.datasets
       .filter(({ key }) => state.filter[key])
@@ -94,17 +95,17 @@ export class Tooltip {
       }));
 
     statistics.forEach(({ value, color }) => {
-      this._drawCircle(toPixels(labelIndex, value), color);
+      this._drawCircle(toPixels(labelIndex, value), color, buildRgbaFromState(state, 'bg'));
     });
 
     this._updateBalloon(statistics, xPx, labelIndex);
   }
 
-  _drawCircle({ xPx, yPx }, color) {
+  _drawCircle({ xPx, yPx }, strokeColor, fillColor) {
     const context = this._context;
 
-    context.strokeStyle = color;
-    context.fillStyle = SKIN_DAY_BG;
+    context.strokeStyle = strokeColor;
+    context.fillStyle = fillColor;
     context.lineWidth = 2;
 
     context.beginPath();
@@ -113,10 +114,10 @@ export class Tooltip {
     context.stroke();
   }
 
-  _drawLine(xPx, height) {
+  _drawTail(xPx, height, color) {
     const context = this._context;
 
-    context.strokeStyle = '#dddddd';
+    context.strokeStyle = color;
     context.lineWidth = 1;
 
     context.beginPath();

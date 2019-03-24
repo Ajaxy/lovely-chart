@@ -22,6 +22,10 @@ export class LovelyChart {
     this._setupComponents();
   }
 
+  redraw() {
+    this._stateManager.update();
+  }
+
   _setupContainer(parentContainerId) {
     const container = document.createElement('div');
     container.className = 'lovely-chart';

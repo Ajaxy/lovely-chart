@@ -5,23 +5,55 @@
   <meta name="viewport"
         content="width=device-width, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <title>Lovely Chart</title>
+  <title>Lovely Charts</title>
   <link rel="stylesheet" href="lovely-chart/lovely-chart.css"/>
   <script defer src="./main.js"></script>
   <style>
-    body, html {
+    body {
+      font: 300 13px Helvetica, Arial, sans-serif;
       margin: 0;
       padding: 0;
+      color: #222222;
       background: white;
+      transition: background-color 300ms ease;
+      text-align: center;
+    }
+
+    body.skin-night {
+      color: white;
+      background: #242F3E;
+    }
+
+    h2 {
+      padding-left: 10px;
     }
 
     #container {
+      display: inline-block;
       width: 100%;
       max-width: 480px;
+      text-align: left;
     }
+
+    a#skin-switcher {
+      display: block;
+      padding: 30px 0 50px 0;
+      text-align: center;
+      font-size: 18px;
+      color: #108BE3;
+      text-decoration: none;
+    }
+
+    a#skin-switcher:hover, a#skin-switcher:active, a#skin-switcher:visited {
+      color: rgba(16, 139, 227, 0.71);
+    }
+
   </style>
 </head>
 <body>
-<div id="container"></div>
+<div id="container">
+  <h2>Followers</h2>
+</div>
+<a href="#" id="skin-switcher">Switch to Night Mode</a>
 </body>
 </html>
