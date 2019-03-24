@@ -56,7 +56,10 @@ export function createLovelyChart(parentContainerId, data) {
   }
 
   function _getPlotSize() {
-    return _plot.getBoundingClientRect();
+    return {
+      width: _plot.offsetWidth,
+      height: _plot.offsetHeight,
+    };
   }
 
   function _getAvailablePlotSize() {

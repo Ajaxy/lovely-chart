@@ -60,7 +60,8 @@ export function createTooltip(container, data, plotSize) {
   function _onMouseMove(e) {
     if (e.type === 'touchmove') {
       _element.removeEventListener('mousemove', _onMouseMove);
-      _offsetX = e.touches[0].pageX - e.touches[0].target.offsetLeft;
+
+      _offsetX = e.touches[0].pageX - getPageOffset(e.touches[0].target);
     } else {
       _offsetX = e.offsetX;
     }
@@ -148,4 +149,14 @@ export function createTooltip(container, data, plotSize) {
   }
 
   return { update };
+}
+
+function getPageOffset(el) {
+  let pageOffset = el.offsetLeft;
+
+  while (el = el.parentNode && el.offsetLeft) {
+    pageOffset += el.offsetLeft;
+  }
+
+  return pageOffset;
 }

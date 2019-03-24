@@ -13,7 +13,8 @@ export function createMinimap(container, data, rangeCallback) {
   let _canvas;
   let _context;
   let _ruler;
-  let _capturedMinimapOffset;
+  let _slider;
+  let _capturedOffset;
   let _range;
 
   _setupLayout();
@@ -55,10 +56,10 @@ export function createMinimap(container, data, rangeCallback) {
     _ruler.className = 'ruler';
     _ruler.innerHTML = MINIMAP_RULER_HTML;
 
-    const slider = _ruler.children[1];
+    _slider = _ruler.children[1];
 
     setupDrag(
-      slider,
+      _slider,
       {
         onCapture: _onDragCapture,
         onDrag: _onSliderDrag,
@@ -67,7 +68,7 @@ export function createMinimap(container, data, rangeCallback) {
     );
 
     setupDrag(
-      slider.children[0],
+      _slider.children[0],
       {
         onCapture: _onDragCapture,
         onDrag: _onLeftEarDrag,
@@ -76,7 +77,7 @@ export function createMinimap(container, data, rangeCallback) {
     );
 
     setupDrag(
-      slider.children[1],
+      _slider.children[1],
       {
         onCapture: _onDragCapture,
         onDrag: _onRightEarDrag,
@@ -88,6 +89,8 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _drawDatasets(state = {}) {
+    const canvasSize = _getCanvasSize();
+
     _data.datasets.forEach(({ key, color, values }) => {
       const opacity = state[`opacity#${key}`];
       // By video prototype hiding dataset does not expand.
@@ -99,7 +102,7 @@ export function createMinimap(container, data, rangeCallback) {
         yMin: shouldUseYTotal ? _data.yMin : state.yMinFiltered,
         yMax: shouldUseYTotal ? _data.yMax : state.yMaxFiltered,
       };
-      const projection = createProjection(bounds, _getCanvasSize());
+      const projection = createProjection(bounds, canvasSize);
       const options = {
         color,
         opacity,
@@ -111,23 +114,21 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _getCanvasSize() {
-    return _canvas.getBoundingClientRect();
+    return { width: _canvas.offsetWidth, height: _canvas.offsetHeight };
   }
 
   function _onDragCapture(e) {
-    _capturedMinimapOffset = e.offsetX + e.target.offsetLeft;
+    _capturedOffset = e.target.offsetLeft;
   }
 
   function _onSliderDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const { width: minimapWidth } = _getSize();
-    const slider = _ruler.children[1];
+    const minimapWidth = _canvas.offsetWidth;
 
     const minX1 = 0;
-    const maxX1 = minimapWidth - slider.offsetWidth;
+    const maxX1 = minimapWidth - _slider.offsetWidth;
 
-    const pointerMinimapOffset = _capturedMinimapOffset + dragOffsetX;
-    const newX1 = Math.min(maxX1, Math.max(minX1, pointerMinimapOffset - captureEvent.offsetX));
-    const newX2 = newX1 + slider.offsetWidth;
+    const newX1 = Math.max(minX1, Math.min(_capturedOffset + dragOffsetX, maxX1));
+    const newX2 = newX1 + _slider.offsetWidth;
     const begin = newX1 / minimapWidth;
     const end = newX2 / minimapWidth;
 
@@ -135,28 +136,24 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _onLeftEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const { width: minimapWidth } = _getSize();
-    const slider = _ruler.children[1];
+    const minimapWidth = _canvas.offsetWidth;
 
     const minX1 = 0;
-    const maxX1 = slider.offsetLeft + slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
+    const maxX1 = _slider.offsetLeft + _slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
 
-    const pointerMinimapOffset = _capturedMinimapOffset + dragOffsetX;
-    const newX1 = Math.min(maxX1, Math.max(minX1, pointerMinimapOffset - captureEvent.offsetX));
+    const newX1 = Math.min(maxX1, Math.max(minX1, _capturedOffset + dragOffsetX));
     const begin = newX1 / minimapWidth;
 
     _updateRange({ begin });
   }
 
   function _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const { width: minimapWidth } = _getSize();
-    const slider = _ruler.children[1];
+    const minimapWidth = _canvas.offsetWidth;
 
-    const minX2 = slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
+    const minX2 = _slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
     const maxX2 = minimapWidth;
 
-    const pointerMinimapOffset = _capturedMinimapOffset + dragOffsetX;
-    const newX2 = Math.max(minX2, Math.min((pointerMinimapOffset - captureEvent.offsetX) + MINIMAP_EAR_WIDTH, maxX2));
+    const newX2 = Math.max(minX2, Math.min(_capturedOffset + MINIMAP_EAR_WIDTH + dragOffsetX, maxX2));
     const end = newX2 / minimapWidth;
 
     _updateRange({ end });
