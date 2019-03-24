@@ -2,86 +2,84 @@ import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, EDGE_POINTS_BUDGET } from './constant
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
 
-export class Axes {
-  constructor(context, data, plotSize) {
-    this._context = context;
-    this._data = data;
-    this._plotSize = plotSize;
+export function createAxes(context, data, plotSize) {
+  const _context = context;
+  const _data = data;
+  const _plotSize = plotSize;
+
+  function update(state, projection) {
+    _context.font = AXES_FONT;
+
+    _drawXAxis(state, projection);
+    _drawYAxis(state, projection);
   }
 
-  update(state, projection) {
-    this._context.font = AXES_FONT;
-    this._drawXAxis(state, projection);
-    this._drawYAxis(state, projection);
-  }
-
-  _drawXAxis(state, projection) {
-    const context = this._context;
-    const topOffset = this._plotSize.height - X_AXIS_HEIGHT / 2;
+  function _drawXAxis(state, projection) {
+    const topOffset = _plotSize.height - X_AXIS_HEIGHT / 2;
 
     const scaleLevel = Math.floor(state.xAxisScale);
     const visibleLabelsMultiplicity = Math.pow(2, scaleLevel);
     const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
 
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
+    _context.textAlign = 'center';
+    _context.textBaseline = 'middle';
 
     for (let i = state.labelFromIndex - EDGE_POINTS_BUDGET; i <= state.labelToIndex + EDGE_POINTS_BUDGET; i++) {
       if (i % visibleLabelsMultiplicity !== 0) {
         continue;
       }
 
-      const label = this._data.xLabels[i];
+      const label = _data.xLabels[i];
       if (!label) {
         continue;
       }
 
       const opacity = i % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;
       // TODO perf May be faster to draw by `opacityFactor`, to not change canvas state every time
-      context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
+      _context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
 
       const { xPx } = projection.toPixels(i, 0);
-      context.fillText(label.text, xPx, topOffset);
+      _context.fillText(label.text, xPx, topOffset);
     }
   }
 
-  _drawYAxis(state, projection) {
+  function _drawYAxis(state, projection) {
     const scaleLevel = state.yAxisScale;
 
     if (scaleLevel % 1 === 0) {
-      this._drawYAxisScaled(state, projection, scaleLevel);
+      _drawYAxisScaled(state, projection, scaleLevel);
     } else {
       const lower = Math.floor(scaleLevel);
-      this._drawYAxisScaled(state, projection, lower, 1 - (scaleLevel - lower));
+      _drawYAxisScaled(state, projection, lower, 1 - (scaleLevel - lower));
 
       const upper = Math.ceil(scaleLevel);
-      this._drawYAxisScaled(state, projection, upper, 1 - (upper - scaleLevel));
+      _drawYAxisScaled(state, projection, upper, 1 - (upper - scaleLevel));
     }
   }
 
-  _drawYAxisScaled(state, projection, scaleLevel, opacity = 1) {
-    const context = this._context;
-
+  function _drawYAxisScaled(state, projection, scaleLevel, opacity = 1) {
     const visibleLabelsMultiplicity = Math.pow(scaleLevel, 2) * 2;
     const firstVisibleValue = Math.floor(state.yMin / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
     const lastVisibleValue = Math.ceil(state.yMax / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
 
-    context.textAlign = 'left';
-    context.textBaseline = 'bottom';
-    context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
-    context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
-    context.lineWidth = 0.5;
+    _context.textAlign = 'left';
+    _context.textBaseline = 'bottom';
+    _context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
+    _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
+    _context.lineWidth = 0.5;
 
-    context.beginPath();
+    _context.beginPath();
 
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += visibleLabelsMultiplicity) {
       const { yPx } = projection.toPixels(0, value);
 
-      context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
-      context.moveTo(GUTTER, yPx);
-      context.lineTo(this._plotSize.width - GUTTER, yPx);
+      _context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
+      _context.moveTo(GUTTER, yPx);
+      _context.lineTo(_plotSize.width - GUTTER, yPx);
     }
 
-    context.stroke();
+    _context.stroke();
   }
+
+  return { update };
 }

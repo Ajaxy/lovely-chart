@@ -1,65 +1,66 @@
-import { StateManager } from './StateManager';
-import { Axes } from './Axes';
-import { Minimap } from './Minimap';
-import { Tools } from './Tools';
-import { Tooltip } from './Tooltip';
+import { createStateManager } from './StateManager';
+import { createAxes } from './Axes';
+import { createMinimap } from './Minimap';
+import { createTools } from './Tools';
+import { createTooltip } from './Tooltip';
 import { analyzeData } from './analyzeData';
 import { drawDataset } from './drawDataset';
 import { createProjection } from './createProjection';
 import { setupCanvas, clearCanvas } from './canvas';
 import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH, GUTTER, EDGE_POINTS_BUDGET } from './constants';
 
-export class LovelyChart {
-  constructor(parentContainerId, data) {
-    this._data = analyzeData(data);
+export function createLovelyChart(parentContainerId, data) {
+  const _data = analyzeData(data);
 
-    this._onStateUpdate = this._onStateUpdate.bind(this);
-    this._onRangeChange = this._onRangeChange.bind(this);
-    this._onFilterChange = this._onFilterChange.bind(this);
+  let _container;
+  let _plot;
+  let _context;
 
-    this._setupContainer(parentContainerId);
-    this._setupPlotCanvas();
-    this._setupComponents();
+  let _axes;
+  let _stateManager;
+  let _minimap;
+  let _tooltip;
+
+  _setupContainer(parentContainerId);
+  _setupPlotCanvas();
+  _setupComponents();
+
+  function redraw() {
+    _stateManager.update();
   }
 
-  redraw() {
-    this._stateManager.update();
-  }
-
-  _setupContainer(parentContainerId) {
-    const container = document.createElement('div');
-    container.className = 'lovely-chart';
+  function _setupContainer(parentContainerId) {
+    _container = document.createElement('div');
+    _container.className = 'lovely-chart';
 
     const parentContainer = document.getElementById(parentContainerId);
-    parentContainer.appendChild(container);
-
-    this._container = container;
+    parentContainer.appendChild(_container);
   }
 
-  _setupPlotCanvas() {
-    const { canvas, context } = setupCanvas(this._container, {
-      width: this._container.clientWidth,
-      height: this._container.clientWidth * PLOT_WH_RATIO,
+  function _setupPlotCanvas() {
+    const { canvas, context } = setupCanvas(_container, {
+      width: _container.clientWidth,
+      height: _container.clientWidth * PLOT_WH_RATIO,
     });
 
-    this._plot = canvas;
-    this._context = context;
+    _plot = canvas;
+    _context = context;
   }
 
-  _setupComponents() {
-    this._axes = new Axes(this._context, this._data, this._getPlotSize());
-    this._stateManager = new StateManager(this._data, this._getPlotSize(), this._onStateUpdate);
-    this._minimap = new Minimap(this._container, this._data, this._onRangeChange);
-    this._tooltip = new Tooltip(this._container, this._data, this._getPlotSize());
-    new Tools(this._container, this._data, this._onFilterChange);
+  function _setupComponents() {
+    _axes = createAxes(_context, _data, _getPlotSize());
+    _stateManager = createStateManager(_data, _getPlotSize(), _onStateUpdate);
+    _minimap = createMinimap(_container, _data, _onRangeChange);
+    _tooltip = createTooltip(_container, _data, _getPlotSize());
+    createTools(_container, _data, _onFilterChange);
   }
 
-  _getPlotSize() {
-    return this._plot.getBoundingClientRect();
+  function _getPlotSize() {
+    return _plot.getBoundingClientRect();
   }
 
-  _getAvailablePlotSize() {
-    const { width, height } = this._getPlotSize();
+  function _getAvailablePlotSize() {
+    const { width, height } = _getPlotSize();
 
     return {
       width: width - GUTTER * 2,
@@ -67,40 +68,42 @@ export class LovelyChart {
     };
   }
 
-  _onStateUpdate(state) {
-    const projection = createProjection(state, this._getAvailablePlotSize(), { leftMargin: GUTTER });
+  function _onStateUpdate(state) {
+    const projection = createProjection(state, _getAvailablePlotSize(), { leftMargin: GUTTER });
 
-    clearCanvas(this._plot, this._context);
+    clearCanvas(_plot, _context);
 
-    this._axes.update(state, projection);
-    this._drawDatasets(state, projection);
+    _axes.update(state, projection);
+    _drawDatasets(state, projection);
     // TODO perf only for `yMinTotal, yMaxTotal, opacity#*`
-    this._minimap.update(state);
-    this._tooltip.update(state, projection);
+    _minimap.update(state);
+    _tooltip.update(state, projection);
   }
 
-  _drawDatasets(state, projection) {
+  function _drawDatasets(state, projection) {
     const bounds = {
       from: state.labelFromIndex - EDGE_POINTS_BUDGET,
       to: state.labelToIndex + EDGE_POINTS_BUDGET,
     };
 
-    this._data.datasets.forEach(({ key, color, values }) => {
+    _data.datasets.forEach(({ key, color, values }) => {
       const options = {
         color,
         opacity: state[`opacity#${key}`],
         lineWidth: DATASET_WIDTH,
       };
 
-      drawDataset(this._context, values, projection, options, bounds);
+      drawDataset(_context, values, projection, options, bounds);
     });
   }
 
-  _onRangeChange(range) {
-    this._stateManager.update({ range });
+  function _onRangeChange(range) {
+    _stateManager.update({ range });
   }
 
-  _onFilterChange(filter) {
-    this._stateManager.update({ filter });
+  function _onFilterChange(filter) {
+    _stateManager.update({ filter });
   }
+
+  return { redraw };
 }

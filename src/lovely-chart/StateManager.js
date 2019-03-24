@@ -1,73 +1,71 @@
-import { TransitionManager } from './TransitionManager';
+import { createTransitionManager } from './TransitionManager';
 import { getMaxMin, mergeArrays } from './fast';
 import { AXES_MAX_COLUMN_WIDTH, AXES_MAX_ROW_HEIGHT, X_AXIS_HEIGHT, ANIMATE_PROPS } from './constants';
 import { buildSkinState } from './skin';
 
-export class StateManager {
-  constructor(data, viewportSize, callback) {
-    this._data = data;
-    this._viewportSize = viewportSize;
-    this._callback = callback;
+export function createStateManager(data, viewportSize, callback) {
+  const _data = data;
+  const _viewportSize = viewportSize;
+  const _callback = callback;
 
-    this._runCallback = this._runCallback.bind(this);
+  const _range = { begin: 0, end: 1 };
+  const _filter = _buildDefaultFilter();
+  const _animateProps = _buildAnimateProps();
+  const _transitions = createTransitionManager(_runCallback);
 
-    this._range = { begin: 0, end: 1 };
-    this._filter = this._buildDefaultFilter();
-    this._animateProps = this._buildAnimateProps();
-    this._state = {};
+  let _state = {};
 
-    this._transitions = new TransitionManager(this._runCallback);
-  }
+  function update({ range = {}, filter = {} } = {}) {
+    Object.assign(_range, range);
+    Object.assign(_filter, filter);
 
-  update({ range = {}, filter = {} } = {}) {
-    Object.assign(this._range, range);
-    Object.assign(this._filter, filter);
+    const prevState = _state;
+    _state = calculateState(_data, _viewportSize, _range, _filter, prevState);
 
-    const prevState = this._state;
-    this._state = calculateState(this._data, this._viewportSize, this._range, this._filter, prevState);
-
-    this._animateProps.forEach((prop) => {
-      const transition = this._transitions.get(prop);
+    _animateProps.forEach((prop) => {
+      const transition = _transitions.get(prop);
       const currentTarget = transition ? transition.to : prevState[prop];
 
-      if (currentTarget !== undefined && currentTarget !== this._state[prop]) {
+      if (currentTarget !== undefined && currentTarget !== _state[prop]) {
         const current = transition ? transition.current : prevState[prop];
 
         if (transition) {
-          this._transitions.remove(prop);
+          _transitions.remove(prop);
         }
 
-        this._transitions.add(prop, current, this._state[prop]);
+        _transitions.add(prop, current, _state[prop]);
       }
     });
 
     // TODO perf raf
-    requestAnimationFrame(this._runCallback);
+    requestAnimationFrame(_runCallback);
   }
 
-  _buildAnimateProps() {
+  function _buildAnimateProps() {
     return mergeArrays([
       ANIMATE_PROPS,
-      this._data.datasets.map(({ key }) => `opacity#${key}`),
+      _data.datasets.map(({ key }) => `opacity#${key}`),
     ]);
   }
 
-  _buildDefaultFilter() {
+  function _buildDefaultFilter() {
     const filter = {};
 
-    this._data.datasets.forEach(({ key }) => {
+    _data.datasets.forEach(({ key }) => {
       filter[key] = true;
     });
 
     return filter;
   }
 
-  _runCallback() {
-    this._callback({
-      ...this._state,
-      ...this._transitions.getState(),
+  function _runCallback() {
+    _callback({
+      ..._state,
+      ..._transitions.getState(),
     });
   }
+
+  return { update };
 }
 
 function calculateState(data, viewportSize, range, filter, prevState) {

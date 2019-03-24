@@ -4,65 +4,64 @@ import { createProjection } from './createProjection';
 import { setupDrag } from './setupDrag';
 import { DEFAULT_RANGE, MINIMAP_HEIGHT, MINIMAP_EAR_WIDTH, MINIMAP_RULER_HTML, MINIMAP_MARGIN } from './constants';
 
-export class Minimap {
-  constructor(container, data, rangeCallback) {
-    this._container = container;
-    this._data = data;
-    this._rangeCallback = rangeCallback;
+export function createMinimap(container, data, rangeCallback) {
+  const _container = container;
+  const _data = data;
+  const _rangeCallback = rangeCallback;
 
-    this._onDragCapture = this._onDragCapture.bind(this);
-    this._onSliderDrag = this._onSliderDrag.bind(this);
-    this._onLeftEarDrag = this._onLeftEarDrag.bind(this);
-    this._onRightEarDrag = this._onRightEarDrag.bind(this);
+  let _element;
+  let _canvas;
+  let _context;
+  let _ruler;
+  let _capturedMinimapOffset;
+  let _range;
 
-    this._setupLayout();
-    this._updateRange(DEFAULT_RANGE);
+  _setupLayout();
+  _updateRange(DEFAULT_RANGE);
+
+  function update(state) {
+    clearCanvas(_canvas, _context);
+    _drawDatasets(state);
   }
 
-  update(state) {
-    clearCanvas(this._canvas, this._context)
-    this._drawDatasets(state);
+  function _setupLayout() {
+    _element = document.createElement('div');
+
+    _element.className = 'minimap';
+    _element.style.height = `${MINIMAP_HEIGHT}px`;
+
+    _setupCanvas();
+    _setupRuler();
+
+    _container.appendChild(_element);
   }
 
-  _setupLayout() {
-    const element = document.createElement('div');
-    this._element = element;
-
-    element.className = 'minimap';
-    element.style.height = `${MINIMAP_HEIGHT}px`;
-
-    this._setupCanvas(element);
-    this._setupRuler(element);
-
-    this._container.appendChild(element);
-  }
-
-  _getSize() {
+  function _getSize() {
     return {
-      width: this._container.offsetWidth - MINIMAP_MARGIN * 2,
+      width: _container.offsetWidth - MINIMAP_MARGIN * 2,
       height: MINIMAP_HEIGHT,
     };
   }
 
-  _setupCanvas(element) {
-    const { canvas, context } = setupCanvas(element, this._getSize());
+  function _setupCanvas() {
+    const { canvas, context } = setupCanvas(_element, _getSize());
 
-    this._canvas = canvas;
-    this._context = context;
+    _canvas = canvas;
+    _context = context;
   }
 
-  _setupRuler(element) {
-    const ruler = document.createElement('div');
-    ruler.className = 'ruler';
-    ruler.innerHTML = MINIMAP_RULER_HTML;
+  function _setupRuler() {
+    _ruler = document.createElement('div');
+    _ruler.className = 'ruler';
+    _ruler.innerHTML = MINIMAP_RULER_HTML;
 
-    const slider = ruler.children[1];
+    const slider = _ruler.children[1];
 
     setupDrag(
       slider,
       {
-        onCapture: this._onDragCapture,
-        onDrag: this._onSliderDrag,
+        onCapture: _onDragCapture,
+        onDrag: _onSliderDrag,
         draggingCursor: 'grabbing',
       },
     );
@@ -70,8 +69,8 @@ export class Minimap {
     setupDrag(
       slider.children[0],
       {
-        onCapture: this._onDragCapture,
-        onDrag: this._onLeftEarDrag,
+        onCapture: _onDragCapture,
+        onDrag: _onLeftEarDrag,
         draggingCursor: 'ew-resize',
       },
     );
@@ -79,107 +78,105 @@ export class Minimap {
     setupDrag(
       slider.children[1],
       {
-        onCapture: this._onDragCapture,
-        onDrag: this._onRightEarDrag,
+        onCapture: _onDragCapture,
+        onDrag: _onRightEarDrag,
         draggingCursor: 'ew-resize',
       },
     );
 
-    this._ruler = ruler;
-
-    element.appendChild(ruler);
+    _element.appendChild(_ruler);
   }
 
-  _drawDatasets(state = {}) {
-    this._data.datasets.forEach(({ key, color, values }) => {
+  function _drawDatasets(state = {}) {
+    _data.datasets.forEach(({ key, color, values }) => {
       const opacity = state[`opacity#${key}`];
       // By video prototype hiding dataset does not expand.
       // TODO lags on the last chart
-      const shouldUseYTotal = this._shouldUseYTotal(state, key);
+      const shouldUseYTotal = _shouldUseYTotal(state, key);
       const bounds = {
         xOffset: 0,
-        xWidth: this._data.xLabels.length,
-        yMin: shouldUseYTotal ? this._data.yMin : state.yMinFiltered,
-        yMax: shouldUseYTotal ? this._data.yMax : state.yMaxFiltered,
+        xWidth: _data.xLabels.length,
+        yMin: shouldUseYTotal ? _data.yMin : state.yMinFiltered,
+        yMax: shouldUseYTotal ? _data.yMax : state.yMaxFiltered,
       };
-      const projection = createProjection(bounds, this._getCanvasSize());
+      const projection = createProjection(bounds, _getCanvasSize());
       const options = {
         color,
         opacity,
         lineWidth: 1,
       };
 
-      drawDataset(this._context, values, projection, options);
+      drawDataset(_context, values, projection, options);
     });
   }
 
-  _getCanvasSize() {
-    return this._canvas.getBoundingClientRect();
+  function _getCanvasSize() {
+    return _canvas.getBoundingClientRect();
   }
 
-  _onDragCapture(e) {
-    this._capturedMinimapOffset = e.offsetX + e.target.offsetLeft;
+  function _onDragCapture(e) {
+    _capturedMinimapOffset = e.offsetX + e.target.offsetLeft;
   }
 
-  _onSliderDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const { width: minimapWidth } = this._getSize();
-    const slider = this._ruler.children[1];
+  function _onSliderDrag(moveEvent, captureEvent, { dragOffsetX }) {
+    const { width: minimapWidth } = _getSize();
+    const slider = _ruler.children[1];
 
     const minX1 = 0;
     const maxX1 = minimapWidth - slider.offsetWidth;
 
-    const pointerMinimapOffset = this._capturedMinimapOffset + dragOffsetX;
+    const pointerMinimapOffset = _capturedMinimapOffset + dragOffsetX;
     const newX1 = Math.min(maxX1, Math.max(minX1, pointerMinimapOffset - captureEvent.offsetX));
     const newX2 = newX1 + slider.offsetWidth;
     const begin = newX1 / minimapWidth;
     const end = newX2 / minimapWidth;
 
-    this._updateRange({ begin, end });
+    _updateRange({ begin, end });
   }
 
-  _onLeftEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const { width: minimapWidth } = this._getSize();
-    const slider = this._ruler.children[1];
+  function _onLeftEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
+    const { width: minimapWidth } = _getSize();
+    const slider = _ruler.children[1];
 
     const minX1 = 0;
     const maxX1 = slider.offsetLeft + slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
 
-    const pointerMinimapOffset = this._capturedMinimapOffset + dragOffsetX;
+    const pointerMinimapOffset = _capturedMinimapOffset + dragOffsetX;
     const newX1 = Math.min(maxX1, Math.max(minX1, pointerMinimapOffset - captureEvent.offsetX));
     const begin = newX1 / minimapWidth;
 
-    this._updateRange({ begin });
+    _updateRange({ begin });
   }
 
-  _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const { width: minimapWidth } = this._getSize();
-    const slider = this._ruler.children[1];
+  function _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
+    const { width: minimapWidth } = _getSize();
+    const slider = _ruler.children[1];
 
     const minX2 = slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
     const maxX2 = minimapWidth;
 
-    const pointerMinimapOffset = this._capturedMinimapOffset + dragOffsetX;
+    const pointerMinimapOffset = _capturedMinimapOffset + dragOffsetX;
     const newX2 = Math.max(minX2, Math.min((pointerMinimapOffset - captureEvent.offsetX) + MINIMAP_EAR_WIDTH, maxX2));
     const end = newX2 / minimapWidth;
 
-    this._updateRange({ end });
+    _updateRange({ end });
   }
 
-  _updateRange(range) {
-    this._range = Object.assign(this._range || {}, range);
-    const { begin, end } = this._range;
+  function _updateRange(range) {
+    _range = Object.assign(_range || {}, range);
+    const { begin, end } = _range;
 
     // TODO throttle until next raf
     requestAnimationFrame(() => {
-      this._ruler.children[0].style.width = `${begin * 100}%`;
-      this._ruler.children[1].style.width = `${(end - begin) * 100}%`;
-      this._ruler.children[2].style.width = `${(1 - end) * 100}%`;
+      _ruler.children[0].style.width = `${begin * 100}%`;
+      _ruler.children[1].style.width = `${(end - begin) * 100}%`;
+      _ruler.children[2].style.width = `${(1 - end) * 100}%`;
     });
 
-    this._rangeCallback({ begin, end });
+    _rangeCallback({ begin, end });
   }
 
-  _shouldUseYTotal(state, key) {
+  function _shouldUseYTotal(state, key) {
     if (state.filter) {
       const opacity = state[`opacity#${key}`];
       const totalShown = Object.values(state.filter).filter((v) => v === true).length;
@@ -190,4 +187,6 @@ export class Minimap {
 
     return false;
   }
+
+  return { update };
 }

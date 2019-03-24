@@ -3,95 +3,98 @@ import { BALLOON_OFFSET, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
 
-export class Tooltip {
-  constructor(container, data, plotSize) {
-    this._container = container;
-    this._data = data;
-    this._plotSize = plotSize;
+// TODO fix balloon mouseover
+export function createTooltip(container, data, plotSize) {
+  const _container = container;
+  const _data = data;
+  const _plotSize = plotSize;
 
-    this._onMouseMove = this._onMouseMove.bind(this);
-    this._onMouseLeave = this._onMouseLeave.bind(this);
+  let _state;
+  let _projection;
+  let _element;
+  let _canvas;
+  let _context;
+  let _balloon;
+  let _offsetX;
 
-    this._setupLayout();
+  _setupLayout();
+
+  function update(state, projection) {
+    _state = state;
+    _projection = projection;
+    _drawStatistics();
   }
 
-  update(state, projection) {
-    this._state = state;
-    this._projection = projection;
-    this._drawStatistics();
+  function _setupLayout() {
+    _element = document.createElement('div');
+    _element.className = 'tooltip';
+
+    _setupCanvas();
+    _setupBalloon();
+
+    _element.addEventListener('mousemove', _onMouseMove);
+    _element.addEventListener('touchmove', _onMouseMove);
+
+    _element.addEventListener('mouseout', _onMouseLeave);
+    _element.addEventListener('touchend', _onMouseLeave);
+    _element.addEventListener('touchcancel', _onMouseLeave);
+
+    _container.appendChild(_element);
   }
 
-  _setupLayout() {
-    const element = document.createElement('div');
-    element.className = 'tooltip';
+  function _setupCanvas() {
+    const { canvas, context } = setupCanvas(_element, _plotSize);
 
-    this._setupCanvas(element);
-    this._setupBalloon(element);
-
-    element.addEventListener('mousemove', this._onMouseMove);
-    element.addEventListener('touchmove', this._onMouseMove);
-
-    element.addEventListener('mouseout', this._onMouseLeave);
-    element.addEventListener('touchend', this._onMouseLeave);
-    element.addEventListener('touchcancel', this._onMouseLeave);
-
-    this._container.appendChild(element);
-    this._element = element;
+    _canvas = canvas;
+    _context = context;
   }
 
-  _setupCanvas(element) {
-    const { canvas, context } = setupCanvas(element, this._plotSize);
+  function _setupBalloon() {
+    _balloon = document.createElement('div');
+    _balloon.className = 'balloon';
+    _balloon.innerHTML = '<div class="title"></div><div class="legend"></div>';
 
-    this._canvas = canvas;
-    this._context = context;
+    _element.appendChild(_balloon);
   }
 
-  _setupBalloon(element) {
-    const balloon = document.createElement('div');
-    balloon.className = 'balloon';
-    balloon.innerHTML = '<div class="title"></div><div class="legend"></div>';
-    element.appendChild(balloon);
-    this._balloon = balloon;
-  }
-
-  _onMouseMove(e) {
+  function _onMouseMove(e) {
     if (e.type === 'touchmove') {
-      this._element.removeEventListener('mousemove', this._onMouseMove);
-      this._offsetX = e.touches[0].pageX - e.touches[0].target.offsetLeft;
+      _element.removeEventListener('mousemove', _onMouseMove);
+      _offsetX = e.touches[0].pageX - e.touches[0].target.offsetLeft;
     } else {
-      this._offsetX = e.offsetX;
+      _offsetX = e.offsetX;
     }
     // TODO throttle until next raf
-    this._drawStatistics();
+    _drawStatistics();
   }
 
-  _onMouseLeave() {
-    this._offsetX = null;
-    clearCanvas(this._canvas, this._context);
-    this._hideBalloon();
+  function _onMouseLeave() {
+    _offsetX = null;
+    clearCanvas(_canvas, _context);
+    _hideBalloon();
   }
 
-  _drawStatistics() {
-    if (!this._offsetX || !this._state) {
+  function _drawStatistics() {
+    if (!_offsetX || !_state) {
       return;
     }
 
-    const offsetX = this._offsetX;
-    const state = this._state;
+    const offsetX = _offsetX;
+    const state = _state;
 
-    const { findClosesLabelIndex, toPixels } = this._projection;
+    const { findClosesLabelIndex, toPixels } = _projection;
     const labelIndex = findClosesLabelIndex(offsetX);
 
-    if (labelIndex < 0 || labelIndex >= this._data.xLabels.length) {
+    if (labelIndex < 0 || labelIndex >= _data.xLabels.length) {
       return;
     }
 
-    clearCanvas(this._canvas, this._context);
+    clearCanvas(_canvas, _context);
 
     const { xPx } = toPixels(labelIndex, 0);
-    this._drawTail(xPx, this._plotSize.height - X_AXIS_HEIGHT, buildRgbaFromState(state, 'tooltipTail'));
+    _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, buildRgbaFromState(state, 'tooltipTail'));
 
-    const statistics = this._data.datasets
+    const statistics = _data.datasets
       .filter(({ key }) => state.filter[key])
       .map(({ name, color, values }) => ({
         name,
@@ -100,53 +103,49 @@ export class Tooltip {
       }));
 
     statistics.forEach(({ value, color }) => {
-      this._drawCircle(toPixels(labelIndex, value), color, buildRgbaFromState(state, 'bg'));
+      _drawCircle(toPixels(labelIndex, value), color, buildRgbaFromState(state, 'bg'));
     });
 
-    this._updateBalloon(statistics, xPx, labelIndex);
+    _updateBalloon(statistics, xPx, labelIndex);
   }
 
-  _drawCircle({ xPx, yPx }, strokeColor, fillColor) {
-    const context = this._context;
+  function _drawCircle({ xPx, yPx }, strokeColor, fillColor) {
+    _context.strokeStyle = strokeColor;
+    _context.fillStyle = fillColor;
+    _context.lineWidth = 2;
 
-    context.strokeStyle = strokeColor;
-    context.fillStyle = fillColor;
-    context.lineWidth = 2;
-
-    context.beginPath();
-    context.arc(xPx, yPx, 4, 0, 2 * Math.PI);
-    context.fill();
-    context.stroke();
+    _context.beginPath();
+    _context.arc(xPx, yPx, 4, 0, 2 * Math.PI);
+    _context.fill();
+    _context.stroke();
   }
 
-  _drawTail(xPx, height, color) {
-    const context = this._context;
+  function _drawTail(xPx, height, color) {
+    _context.strokeStyle = color;
+    _context.lineWidth = 1;
 
-    context.strokeStyle = color;
-    context.lineWidth = 1;
-
-    context.beginPath();
-    context.moveTo(xPx, 0);
-    context.lineTo(xPx, height);
-    context.stroke();
+    _context.beginPath();
+    _context.moveTo(xPx, 0);
+    _context.lineTo(xPx, height);
+    _context.stroke();
   }
 
-  _updateBalloon(statistics, xPx, labelIndex) {
-    const balloon = this._balloon;
-
-    const label = this._data.xLabels[labelIndex];
+  function _updateBalloon(statistics, xPx, labelIndex) {
+    const label = _data.xLabels[labelIndex];
     const date = new Date(label.value);
-    balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
-    balloon.children[1].innerHTML = statistics.map(({ name, color, value }) => (
+    _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
+    _balloon.children[1].innerHTML = statistics.map(({ name, color, value }) => (
       `<div class="dataset" style="color: ${color}"><div>${humanize(value, 2)}</div><div>${name}</div></div>`
     )).join('');
 
-    const left = Math.max(BALLOON_OFFSET, Math.min(xPx, this._plotSize.width - balloon.offsetWidth + BALLOON_OFFSET));
-    balloon.style.left = `${left}px`;
-    balloon.classList.add('shown');
+    const left = Math.max(BALLOON_OFFSET, Math.min(xPx, _plotSize.width - _balloon.offsetWidth + BALLOON_OFFSET));
+    _balloon.style.left = `${left}px`;
+    _balloon.classList.add('shown');
   }
 
-  _hideBalloon() {
-    this._balloon.classList.remove('shown');
+  function _hideBalloon() {
+    _balloon.classList.remove('shown');
   }
+
+  return { update };
 }

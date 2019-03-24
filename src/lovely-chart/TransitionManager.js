@@ -5,70 +5,69 @@ function transition(t) {
   return Math.sin(Math.PI / 2 * t);
 }
 
-export class TransitionManager {
-  constructor(onTick) {
-    this._onTick = onTick;
+export function createTransitionManager(onTick) {
+  const _onTick = onTick;
 
-    this._transitions = {};
-    this._nextFrame = null;
+  const _transitions = {};
 
-    this._tick = this._tick.bind(this);
-  }
+  let _nextFrame = null;
 
-  add(prop, from, to) {
-    this._transitions[prop] = { from, to, current: from, startedAt: Date.now() };
+  function add(prop, from, to) {
+    _transitions[prop] = { from, to, current: from, startedAt: Date.now() };
 
-    if (!this._nextFrame) {
-      this._nextFrame = requestAnimationFrame(this._tick);
+    if (!_nextFrame) {
+      _nextFrame = requestAnimationFrame(_tick);
     }
   }
 
-  remove(prop) {
-    delete this._transitions[prop];
+  function remove(prop) {
+    delete _transitions[prop];
 
-    if (!this._isActual()) {
-      cancelAnimationFrame(this._nextFrame);
-      this._nextFrame = null;
+    if (!_isActual()) {
+      cancelAnimationFrame(_nextFrame);
+      _nextFrame = null;
     }
   }
 
-  get(prop) {
-    return this._transitions[prop];
+  function get(prop) {
+    return _transitions[prop];
   }
 
-  getState() {
+  function getState() {
     const state = {};
 
-    Object.keys(this._transitions).forEach((prop) => {
-      state[prop] = this._transitions[prop].current;
+    Object.keys(_transitions).forEach((prop) => {
+      state[prop] = _transitions[prop].current;
     });
 
     return state;
   }
 
-  _tick() {
+  function _tick() {
     const state = {};
 
-    Object.keys(this._transitions).forEach((prop) => {
-      const { startedAt, from, to } = this._transitions[prop];
+    Object.keys(_transitions).forEach((prop) => {
+      const { startedAt, from, to } = _transitions[prop];
       const progress = Math.min(1, (Date.now() - startedAt) / TRANSITION_DURATION);
       const current = from + (to - from) * transition(progress);
-      this._transitions[prop].current = current;
+      _transitions[prop].current = current;
       state[prop] = current;
 
       if (progress === 1) {
-        this.remove(prop);
+        remove(prop);
       }
     });
 
-    this._onTick(state);
+    _onTick(state);
 
-    if (this._isActual()) {
-      this._nextFrame = requestAnimationFrame(this._tick);
+    if (_isActual()) {
+      _nextFrame = requestAnimationFrame(_tick);
     }
   }
 
-  _isActual() {
-    return Object.keys(this._transitions).length;
+  function _isActual() {
+    return Object.keys(_transitions).length;
   }
+
+  return { add, remove, get, getState };
 }

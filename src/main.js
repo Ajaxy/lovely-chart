@@ -1,9 +1,9 @@
-import { LovelyChart } from './lovely-chart/LovelyChart';
+import { createLovelyChart } from './lovely-chart/LovelyChart';
 
 fetch('./chart_data.json')
   .then((response) => response.json())
   .then((data) => {
-    const charts = data.map((chartData) => new LovelyChart('container', chartData));
+    const charts = data.map((chartData) => createLovelyChart('container', chartData));
 
     document.getElementById('skin-switcher').addEventListener('click', (e) => {
       e.preventDefault();
