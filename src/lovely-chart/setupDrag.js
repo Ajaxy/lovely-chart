@@ -18,7 +18,10 @@ export function setupDrag(element, options) {
       document.addEventListener('touchcancel', onRelease);
 
       // https://stackoverflow.com/questions/11287877/how-can-i-get-e-offsetx-on-mobile-ipad
-      e.pageX = e.touches[0].pageX;
+      // Android does not have this value, and iOS has it but as read-only.
+      if (e.pageX === undefined) {
+        e.pageX = e.touches[0].pageX;
+      }
     }
 
     if (options.draggingCursor) {
@@ -46,7 +49,7 @@ export function setupDrag(element, options) {
 
   function onMove(e) {
     if (captureEvent) {
-      if (e.type === 'touchmove') {
+      if (e.type === 'touchmove' && e.pageX === undefined) {
         e.pageX = e.touches[0].pageX;
       }
 

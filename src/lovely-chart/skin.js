@@ -21,7 +21,7 @@ export function buildRgbaFromState(state, key, opacity = 1) {
 }
 
 function getColorFromState(state, key) {
-  return ['R', 'G', 'B'].map((channel) => state[`colorChannels#${key}#${channel}`]);
+  return ['R', 'G', 'B'].map((channel) => Math.round(state[`colorChannels#${key}#${channel}`]));
 }
 
 function buildRgba([r, g, b], a = 1) {

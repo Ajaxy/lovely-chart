@@ -78,7 +78,6 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const filteredValues = filteredDatasets.map(({ values }) => values);
   const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
 
-  // TODO consider canvas margin
   const { max: yMaxFiltered = prevState.yMaxFiltered } = getMaxMin(mergeArrays(filteredValues));
   const yMinFiltered = 0;
   const { max: yMaxViewport = prevState.yMax } = getMaxMin(mergeArrays(viewportValues));

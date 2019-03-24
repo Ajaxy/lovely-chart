@@ -4,7 +4,6 @@ import {
   X_AXIS_HEIGHT,
   EDGE_POINTS_BUDGET,
   X_AXIS_START_FROM,
-  AXES_MAX_COLUMN_WIDTH,
 } from './constants';
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';

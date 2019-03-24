@@ -3,7 +3,6 @@ import { BALLOON_OFFSET, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
 
-// TODO fix balloon mouseover
 export function createTooltip(container, data, plotSize) {
   const _container = container;
   const _data = data;
@@ -36,6 +35,7 @@ export function createTooltip(container, data, plotSize) {
     _element.addEventListener('touchmove', _onMouseMove);
 
     _element.addEventListener('mouseout', _onMouseLeave);
+    _element.addEventListener('mouseup', _onMouseLeave);
     _element.addEventListener('touchend', _onMouseLeave);
     _element.addEventListener('touchcancel', _onMouseLeave);
 
@@ -58,18 +58,17 @@ export function createTooltip(container, data, plotSize) {
   }
 
   function _onMouseMove(e) {
-    if (e.type === 'touchmove') {
-      _element.removeEventListener('mousemove', _onMouseMove);
-
-      _offsetX = e.touches[0].pageX - getPageOffset(e.touches[0].target);
-    } else {
-      _offsetX = e.offsetX;
-    }
+    _offsetX = e.type === 'touchmove' ? e.touches[0].pageX - getPageOffset(e.touches[0].target) : e.offsetX;
     // TODO throttle until next raf
     _drawStatistics();
   }
 
-  function _onMouseLeave() {
+  function _onMouseLeave(e) {
+    if (e) {
+      // Prevent further `mousemove` on touch devices.
+      e.preventDefault();
+    }
+
     _offsetX = null;
     clearCanvas(_canvas, _context);
     _hideBalloon();
