@@ -82,12 +82,12 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
   const labelToIndex = Math.min(totalXWidth, Math.floor(totalXWidth * end));
 
-  const [predictedLabelFromIndex, predictedLabelToIndex]
-    = calculatePredictions(totalXWidth, begin, end, prevState, labelFromIndex, labelToIndex);
+  // const [predictedLabelFromIndex, predictedLabelToIndex]
+  //   = calculatePredictions(totalXWidth, begin, end, prevState, labelFromIndex, labelToIndex);
 
   const filteredDatasets = data.datasets.filter(({ key }) => filter[key]);
   const filteredValues = filteredDatasets.map(({ values }) => values);
-  const viewportValues = filteredValues.map((values) => values.slice(predictedLabelFromIndex, predictedLabelToIndex + 1));
+  const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
   const { max: yMaxFiltered = prevState.yMaxFiltered } = getMaxMin(mergeArrays(filteredValues));
   const yMinFiltered = 0;
   const { max: yMaxViewport = prevState.yMax } = getMaxMin(mergeArrays(viewportValues));
