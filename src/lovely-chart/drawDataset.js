@@ -6,6 +6,7 @@ export function drawDataset(context, values, projection, options, bounds) {
   context.strokeStyle = options.color;
   context.lineWidth = options.lineWidth;
   context.globalAlpha = options.opacity;
+  context.lineJoin = 'round';
 
   context.beginPath();
 
