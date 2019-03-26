@@ -45,8 +45,8 @@ export function createAxes(context, data, plotSize) {
 
       let opacity = (i - X_AXIS_START_FROM) % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;
       const edgeOffset = Math.min(xPx + GUTTER, _plotSize.width - xPx);
-      if (opacity === 1 && edgeOffset <= GUTTER * 4) {
-        opacity = Math.min(1, edgeOffset / (GUTTER * 4));
+      if (edgeOffset <= GUTTER * 4) {
+        opacity = Math.min(1, opacity, edgeOffset / (GUTTER * 4));
       }
 
       _context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
