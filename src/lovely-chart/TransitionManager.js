@@ -12,8 +12,15 @@ export function createTransitionManager(onTick) {
 
   let _nextFrame = null;
 
-  function add(prop, from, to) {
-    _transitions[prop] = { from, to, current: from, startedAt: Date.now() };
+  function add(prop, from, to, originalTransition) {
+    _transitions[prop] = {
+      from,
+      to,
+      current: from,
+      origin: originalTransition,
+      startedAt: Date.now(),
+      progress: 0
+    };
 
     if (!_nextFrame) {
       _nextFrame = requestAnimationFrame(_tick);
@@ -37,7 +44,14 @@ export function createTransitionManager(onTick) {
     const state = {};
 
     Object.keys(_transitions).forEach((prop) => {
-      state[prop] = _transitions[prop].current;
+      const { current, from, to, progress, origin } = _transitions[prop];
+      state[prop] = current;
+      state[`${prop}From`] = from;
+      state[`${prop}To`] = to;
+      state[`${prop}Progress`] = progress;
+      state[`${prop}OriginalFrom`] = origin ? origin.from : from;
+      state[`${prop}TotalProgress`]
+        = origin && origin.progress ? (origin.progress + progress) / (origin.progress + 1) : progress;
     });
 
     return state;
@@ -55,6 +69,7 @@ export function createTransitionManager(onTick) {
       const progress = Math.min(1, (Date.now() - startedAt) / TRANSITION_DURATION);
       const current = from + (to - from) * transition(progress);
       _transitions[prop].current = current;
+      _transitions[prop].progress = progress;
       state[prop] = current;
 
       if (progress === 1) {

@@ -56,16 +56,13 @@ export function createAxes(context, data, plotSize) {
   }
 
   function _drawYAxis(state, projection) {
-    const scaleLevel = state.yAxisScale;
+    const { yAxisScale, yAxisScaleOriginalFrom, yAxisScaleTo, yAxisScaleTotalProgress } = state;
 
-    if (scaleLevel % 1 === 0) {
-      _drawYAxisScaled(state, projection, scaleLevel);
+    if (!yAxisScaleTotalProgress || yAxisScaleTotalProgress % 1 === 0) {
+      _drawYAxisScaled(state, projection, yAxisScale);
     } else {
-      const lower = Math.floor(scaleLevel);
-      _drawYAxisScaled(state, projection, lower, 1 - (scaleLevel - lower));
-
-      const upper = Math.ceil(scaleLevel);
-      _drawYAxisScaled(state, projection, upper, 1 - (upper - scaleLevel));
+      _drawYAxisScaled(state, projection, yAxisScaleOriginalFrom, 1 - yAxisScaleTotalProgress);
+      _drawYAxisScaled(state, projection, yAxisScaleTo, yAxisScaleTotalProgress);
     }
   }
 
@@ -84,13 +81,13 @@ export function createAxes(context, data, plotSize) {
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += visibleLabelsMultiplicity) {
       const { yPx } = projection.toPixels(0, value);
 
-      if (yPx > _plotSize.height + PLOT_TOP_PADDING - X_AXIS_HEIGHT) {
+      if (yPx > _plotSize.height - X_AXIS_HEIGHT) {
         continue;
       }
 
       let textOpacity = opacity;
-      if (yPx - PLOT_TOP_PADDING <= GUTTER * 2) {
-        textOpacity = Math.min(1, opacity, (yPx - PLOT_TOP_PADDING) / (GUTTER * 2));
+      if (yPx - GUTTER <= GUTTER * 2) {
+        textOpacity = Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2));
       }
 
       _context.fillStyle = buildRgbaFromState(state, 'axesText', textOpacity);

@@ -35,12 +35,13 @@ export function createStateManager(data, viewportSize, callback) {
 
       if (currentTarget !== undefined && currentTarget !== _state[prop]) {
         const current = transition ? transition.current : prevState[prop];
+        const originalTransition = transition && transition.origin || transition;
 
         if (transition) {
           _transitions.remove(prop);
         }
 
-        _transitions.add(prop, current, _state[prop]);
+        _transitions.add(prop, current, _state[prop], originalTransition);
       }
     });
 
@@ -81,17 +82,14 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const totalXWidth = data.xLabels.length - 1;
   const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
   const labelToIndex = Math.min(totalXWidth, Math.floor(totalXWidth * end));
-
-  // const [predictedLabelFromIndex, predictedLabelToIndex]
-  //   = calculatePredictions(totalXWidth, begin, end, prevState, labelFromIndex, labelToIndex);
-
   const filteredDatasets = data.datasets.filter(({ key }) => filter[key]);
   const filteredValues = filteredDatasets.map(({ values }) => values);
   const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
-  const { max: yMaxFiltered = prevState.yMaxFiltered } = getMaxMin(mergeArrays(filteredValues));
-  const yMinFiltered = 0;
-  const { max: yMaxViewport = prevState.yMax } = getMaxMin(mergeArrays(viewportValues));
-  const yMinViewport = 0;
+  const { min: yMinFiltered = prevState.yMinFiltered, max: yMaxFiltered = prevState.yMaxFiltered }
+    = getMaxMin(mergeArrays(filteredValues));
+  const { min: yMinViewportReal = prevState.yMin, max: yMaxViewport = prevState.yMax }
+    = getMaxMin(mergeArrays(viewportValues));
+  const yMinViewport = yMinFiltered / yMaxFiltered > 0.5 ? yMinViewportReal : 0;
 
   const datasetsOpacity = {};
   data.datasets.forEach(({ key }) => {
@@ -114,22 +112,6 @@ function calculateState(data, viewportSize, range, filter, prevState) {
     ...range,
     filter,
   };
-}
-
-function calculatePredictions(totalXWidth, begin, end, prevState, labelFromIndex, labelToIndex) {
-  const progress = end - begin;
-  const dBegin = Math.max(-0.35, Math.min((begin - prevState.begin) * PREDICTION_FACTOR, 0.35));
-  const dEnd = Math.max(-0.35, Math.min((end - prevState.end) * PREDICTION_FACTOR, 0.35));
-  const predictedBegin = Math.max(0, Math.min(begin + dBegin, 1 - progress));
-  const predictedEnd = Math.max(progress, Math.min(end + dEnd, 1));
-  const predictedLabelFromIndex = Math.abs(dBegin) > 0.1 ?
-    Math.max(0, Math.ceil(totalXWidth * predictedBegin)) :
-    labelFromIndex;
-  const predictedLabelToIndex = Math.abs(dEnd) > 0.1 ?
-    Math.max(0, Math.ceil(totalXWidth * predictedEnd)) :
-    labelToIndex;
-
-  return [predictedLabelFromIndex, predictedLabelToIndex];
 }
 
 function calculateXAxisScale(labelsCount, plotWidth, begin, end) {
