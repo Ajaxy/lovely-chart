@@ -4,6 +4,7 @@
   position: relative;
   margin-bottom: 50px;
   text-align: left;
+  overflow: hidden;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
