@@ -6,6 +6,7 @@ export const PLOT_WH_RATIO = 0.9;
 export const GUTTER = 10;
 export const DATASET_WIDTH = 2;
 export const EDGE_POINTS_BUDGET = 10;
+export const PLOT_TOP_PADDING = 10;
 
 export const AXES_FONT = '300 10px Helvetica, Arial, sans-serif';
 export const AXES_MAX_COLUMN_WIDTH = 45;

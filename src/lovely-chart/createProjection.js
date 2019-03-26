@@ -1,4 +1,4 @@
-export function createProjection(bounds, availableSize, { xPadding = 0 } = {}) {
+export function createProjection(bounds, availableSize, { xPadding = 0, yPadding = 0 } = {}) {
   let width = availableSize.width;
 
   if (bounds.begin === 0) {
@@ -16,7 +16,7 @@ export function createProjection(bounds, availableSize, { xPadding = 0 } = {}) {
     xOffset -= xPadding;
   }
 
-  const yFactor = availableSize.height / bounds.yMax;
+  const yFactor = (availableSize.height - yPadding) / (bounds.yMax - bounds.yMin);
   const yOffset = bounds.yMin * yFactor;
 
   return {

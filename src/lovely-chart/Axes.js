@@ -4,6 +4,7 @@ import {
   X_AXIS_HEIGHT,
   EDGE_POINTS_BUDGET,
   X_AXIS_START_FROM,
+  PLOT_TOP_PADDING,
 } from './constants';
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
@@ -75,7 +76,6 @@ export function createAxes(context, data, plotSize) {
 
     _context.textAlign = 'left';
     _context.textBaseline = 'bottom';
-    _context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
     _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
     _context.lineWidth = 0.5;
 
@@ -84,6 +84,16 @@ export function createAxes(context, data, plotSize) {
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += visibleLabelsMultiplicity) {
       const { yPx } = projection.toPixels(0, value);
 
+      if (yPx > _plotSize.height + PLOT_TOP_PADDING - X_AXIS_HEIGHT) {
+        continue;
+      }
+
+      let textOpacity = opacity;
+      if (yPx - PLOT_TOP_PADDING <= GUTTER * 2) {
+        textOpacity = Math.min(1, opacity, (yPx - PLOT_TOP_PADDING) / (GUTTER * 2));
+      }
+
+      _context.fillStyle = buildRgbaFromState(state, 'axesText', textOpacity);
       _context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
       _context.moveTo(GUTTER, yPx);
       _context.lineTo(_plotSize.width - GUTTER, yPx);

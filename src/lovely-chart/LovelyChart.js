@@ -7,7 +7,7 @@ import { analyzeData } from './analyzeData';
 import { drawDataset } from './drawDataset';
 import { createProjection } from './createProjection';
 import { setupCanvas, clearCanvas } from './canvas';
-import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH, GUTTER, EDGE_POINTS_BUDGET } from './constants';
+import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH, GUTTER, EDGE_POINTS_BUDGET, PLOT_TOP_PADDING } from './constants';
 
 export function createLovelyChart(parentContainerId, data) {
   const _data = analyzeData(data);
@@ -72,7 +72,10 @@ export function createLovelyChart(parentContainerId, data) {
   }
 
   function _onStateUpdate(state) {
-    const projection = createProjection(state, _getAvailablePlotSize(), { xPadding: GUTTER });
+    const projection = createProjection(state, _getAvailablePlotSize(), {
+      xPadding: GUTTER,
+      yPadding: PLOT_TOP_PADDING,
+    });
 
     clearCanvas(_plot, _context);
 

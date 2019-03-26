@@ -115,14 +115,14 @@ export function createMinimap(container, data, rangeCallback) {
     _data.datasets.forEach(({ key, color, values }) => {
       const opacity = state[`opacity#${key}`];
       // By video prototype hiding dataset does not expand, which is not possible with 3+ datasets.
-      const shouldUseYTotal = _data.datasets.length === 2 && _shouldUseYTotal(state, key);
+      const shouldUseYTotal = state.yMinFiltered === 0 && _data.datasets.length === 2 && _shouldUseYTotal(state, key);
       const bounds = {
         xOffset: 0,
         xWidth: _data.xLabels.length,
         yMin: shouldUseYTotal ? _data.yMin : state.yMinFiltered,
         yMax: shouldUseYTotal ? _data.yMax : state.yMaxFiltered,
       };
-      const projection = createProjection(bounds, canvasSize);
+      const projection = createProjection(bounds, canvasSize, { yPadding: 1 });
       const options = {
         color,
         opacity,
