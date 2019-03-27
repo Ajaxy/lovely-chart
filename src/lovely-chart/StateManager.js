@@ -85,11 +85,12 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const filteredDatasets = data.datasets.filter(({ key }) => filter[key]);
   const filteredValues = filteredDatasets.map(({ values }) => values);
   const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
-  const { min: yMinFiltered = prevState.yMinFiltered, max: yMaxFiltered = prevState.yMaxFiltered }
+  const { min: yMinFilteredReal = prevState.yMinFiltered, max: yMaxFiltered = prevState.yMaxFiltered }
     = getMaxMin(mergeArrays(filteredValues));
+  const yMinFiltered = yMinFilteredReal / yMaxFiltered > 0.5 ? yMinFilteredReal : 0;
   const { min: yMinViewportReal = prevState.yMin, max: yMaxViewport = prevState.yMax }
     = getMaxMin(mergeArrays(viewportValues));
-  const yMinViewport = yMinFiltered / yMaxFiltered > 0.5 ? yMinViewportReal : 0;
+  const yMinViewport = yMinFilteredReal / yMaxFiltered > 0.5 ? yMinViewportReal : 0;
 
   const datasetsOpacity = {};
   data.datasets.forEach(({ key }) => {
