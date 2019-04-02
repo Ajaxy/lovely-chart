@@ -68,10 +68,11 @@ export function createStateManager(data, viewportSize, callback) {
   }
 
   function _runCallback() {
-    _callback({
-      ..._state,
-      ..._transitions.getState(),
-    });
+    _callback(Object.assign(
+      {},
+      _state,
+      _transitions.getState(),
+    ));
   }
 
   return { update };
@@ -97,22 +98,24 @@ function calculateState(data, viewportSize, range, filter, prevState) {
     datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
   });
 
-  return {
-    xOffset: begin * totalXWidth,
-    xWidth: (end - begin) * totalXWidth,
-    yMinFiltered,
-    yMaxFiltered,
-    yMin: yMinViewport,
-    yMax: yMaxViewport,
-    xAxisScale: calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end),
-    yAxisScale: calculateYAxisScale(viewportSize.height, yMinViewport, yMaxViewport),
-    labelFromIndex,
-    labelToIndex,
-    ...datasetsOpacity,
-    ...buildSkinState(),
-    ...range,
-    filter,
-  };
+  return Object.assign(
+    {
+      xOffset: begin * totalXWidth,
+      xWidth: (end - begin) * totalXWidth,
+      yMinFiltered,
+      yMaxFiltered,
+      yMin: yMinViewport,
+      yMax: yMaxViewport,
+      xAxisScale: calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end),
+      yAxisScale: calculateYAxisScale(viewportSize.height, yMinViewport, yMaxViewport),
+      labelFromIndex,
+      labelToIndex,
+      filter,
+    },
+    datasetsOpacity,
+    buildSkinState(),
+    range,
+  );
 }
 
 function calculateXAxisScale(labelsCount, plotWidth, begin, end) {
@@ -133,6 +136,6 @@ function calculateYAxisScale(plotHeight, yMin, yMax) {
   return Math.ceil(
     step <= 288
       ? Math.sqrt(step / 2)
-      : 10 * Math.floor(Math.log10(step) - 1) + step / Math.pow(10, Math.floor(Math.log10(step)))
-    );
+      : 10 * Math.floor(Math.log10(step) - 1) + step / Math.pow(10, Math.floor(Math.log10(step))),
+  );
 }
