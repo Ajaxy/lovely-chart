@@ -83,8 +83,7 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const totalXWidth = data.xLabels.length - 1;
   const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
   const labelToIndex = Math.min(totalXWidth, Math.floor(totalXWidth * end));
-  const filteredDatasets = data.datasets.filter(({ key }) => filter[key]);
-  const filteredValues = filteredDatasets.map(({ values }) => values);
+  const filteredValues = data.datasets.filter(({ key }) => filter[key]).map(({ values }) => values);
   const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
   const { min: yMinFilteredReal = prevState.yMinFiltered, max: yMaxFiltered = prevState.yMaxFiltered }
     = getMaxMin(mergeArrays(filteredValues));
@@ -92,6 +91,9 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const { min: yMinViewportReal = prevState.yMin, max: yMaxViewport = prevState.yMax }
     = getMaxMin(mergeArrays(viewportValues));
   const yMinViewport = yMinFilteredReal / yMaxFiltered > 0.5 ? yMinViewportReal : 0;
+
+  const xAxisScale = calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end);
+  const yAxisScale = calculateYAxisScale(viewportSize.height, yMinViewport, yMaxViewport);
 
   const datasetsOpacity = {};
   data.datasets.forEach(({ key }) => {
@@ -106,8 +108,8 @@ function calculateState(data, viewportSize, range, filter, prevState) {
       yMaxFiltered,
       yMin: yMinViewport,
       yMax: yMaxViewport,
-      xAxisScale: calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end),
-      yAxisScale: calculateYAxisScale(viewportSize.height, yMinViewport, yMaxViewport),
+      xAxisScale,
+      yAxisScale,
       labelFromIndex,
       labelToIndex,
       filter,
@@ -119,8 +121,7 @@ function calculateState(data, viewportSize, range, filter, prevState) {
 }
 
 function calculateXAxisScale(labelsCount, plotWidth, begin, end) {
-  const viewportPercent = end - begin;
-  const viewportLabelsCount = labelsCount * viewportPercent;
+  const viewportLabelsCount = labelsCount * (end - begin);
   const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
   const step = viewportLabelsCount / maxColumns;
 
