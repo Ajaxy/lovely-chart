@@ -119,16 +119,20 @@ function calculateXAxisScale(labelsCount, plotWidth, begin, end) {
   const viewportPercent = end - begin;
   const viewportLabelsCount = labelsCount * viewportPercent;
   const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
-  const hiddenLabelsFactor = viewportLabelsCount / maxColumns;
+  const step = viewportLabelsCount / maxColumns;
 
-  return Math.ceil(Math.log2(hiddenLabelsFactor));
+  return Math.ceil(Math.log2(step));
 }
 
 function calculateYAxisScale(plotHeight, yMin, yMax) {
   const availableHeight = plotHeight - X_AXIS_HEIGHT;
   const viewportLabelsCount = yMax - yMin;
   const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);
-  const hiddenLabelsFactor = viewportLabelsCount / maxRows;
+  const step = viewportLabelsCount / maxRows;
 
-  return Math.ceil(Math.sqrt(hiddenLabelsFactor / 2));
+  return Math.ceil(
+    step <= 288
+      ? Math.sqrt(step / 2)
+      : 10 * Math.floor(Math.log10(step) - 1) + step / Math.pow(10, Math.floor(Math.log10(step)))
+    );
 }

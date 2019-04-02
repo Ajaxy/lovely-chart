@@ -25,14 +25,14 @@ export function createAxes(context, data, plotSize) {
     const topOffset = _plotSize.height - X_AXIS_HEIGHT / 2;
 
     const scaleLevel = Math.floor(state.xAxisScale);
-    const visibleLabelsMultiplicity = Math.pow(2, scaleLevel);
+    const step = Math.pow(2, scaleLevel);
     const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
 
     _context.textAlign = 'center';
     _context.textBaseline = 'middle';
 
     for (let i = Math.floor(state.labelFromIndex) - EDGE_POINTS_BUDGET; i <= state.labelToIndex + EDGE_POINTS_BUDGET; i++) {
-      if ((i - X_AXIS_START_FROM) % visibleLabelsMultiplicity !== 0) {
+      if ((i - X_AXIS_START_FROM) % step !== 0) {
         continue;
       }
 
@@ -44,7 +44,7 @@ export function createAxes(context, data, plotSize) {
       const { xPx } = projection.toPixels(i, 0);
 
 
-      let opacity = (i - X_AXIS_START_FROM) % (visibleLabelsMultiplicity * 2) === 0 ? 1 : opacityFactor;
+      let opacity = (i - X_AXIS_START_FROM) % (step * 2) === 0 ? 1 : opacityFactor;
       const edgeOffset = Math.min(xPx + GUTTER, _plotSize.width - xPx);
       if (edgeOffset <= GUTTER * 4) {
         opacity = Math.min(1, opacity, edgeOffset / (GUTTER * 4));
@@ -67,9 +67,11 @@ export function createAxes(context, data, plotSize) {
   }
 
   function _drawYAxisScaled(state, projection, scaleLevel, opacity = 1) {
-    const visibleLabelsMultiplicity = Math.pow(scaleLevel, 2) * 2;
-    const firstVisibleValue = Math.floor(state.yMin / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
-    const lastVisibleValue = Math.ceil(state.yMax / visibleLabelsMultiplicity) * visibleLabelsMultiplicity;
+    const step = scaleLevel <= 13
+      ? Math.pow(scaleLevel, 2) * 2
+      : ((scaleLevel % 10) || 1) * Math.pow(10, Math.floor(scaleLevel / 10) + 1);
+    const firstVisibleValue = Math.floor(state.yMin / step) * step;
+    const lastVisibleValue = Math.ceil(state.yMax / step) * step;
 
     _context.textAlign = 'left';
     _context.textBaseline = 'bottom';
@@ -78,7 +80,7 @@ export function createAxes(context, data, plotSize) {
 
     _context.beginPath();
 
-    for (let value = firstVisibleValue; value <= lastVisibleValue; value += visibleLabelsMultiplicity) {
+    for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
       const { yPx } = projection.toPixels(0, value);
 
       if (yPx > _plotSize.height - X_AXIS_HEIGHT) {
