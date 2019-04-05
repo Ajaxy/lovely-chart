@@ -4,6 +4,8 @@ import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
 import { createThrottledUntilRaf } from './fast';
 
+const BALLOON_SHADOW_WIDTH = 1;
+
 export function createTooltip(container, data, plotSize) {
   const _container = container;
   const _data = data;
@@ -34,8 +36,9 @@ export function createTooltip(container, data, plotSize) {
     _setupCanvas();
     _setupBalloon();
 
-    _element.addEventListener('mousemove', _onMouseMove);
-    _element.addEventListener('touchmove', _onMouseMove);
+    _element.addEventListener('mousemove', _onMouseEnter);
+    _element.addEventListener('touchmove', _onMouseEnter);
+    _element.addEventListener('touchstart', _onMouseEnter);
 
     _element.addEventListener('mouseout', _onMouseLeave);
     _element.addEventListener('mouseup', _onMouseLeave);
@@ -60,8 +63,8 @@ export function createTooltip(container, data, plotSize) {
     _element.appendChild(_balloon);
   }
 
-  function _onMouseMove(e) {
-    _offsetX = e.type === 'touchmove' ? e.touches[0].pageX - getPageOffset(e.touches[0].target) : e.offsetX;
+  function _onMouseEnter(e) {
+    _offsetX = e.type.startsWith('touch') ? e.touches[0].pageX - getPageOffset(e.touches[0].target) : e.offsetX;
 
     _drawStatisticsOnRaf();
   }
@@ -141,7 +144,10 @@ export function createTooltip(container, data, plotSize) {
       `<div class="dataset" style="color: ${color}"><div>${humanize(value, 2)}</div><div>${name}</div></div>`
     )).join('');
 
-    const left = Math.max(BALLOON_OFFSET, Math.min(xPx, _plotSize.width - _balloon.offsetWidth + BALLOON_OFFSET));
+    const left = Math.max(
+      BALLOON_OFFSET + BALLOON_SHADOW_WIDTH,
+      Math.min(xPx, _plotSize.width - (_balloon.offsetWidth + BALLOON_SHADOW_WIDTH) + BALLOON_OFFSET),
+    );
     _balloon.style.left = `${left}px`;
     _balloon.classList.add('shown');
   }
