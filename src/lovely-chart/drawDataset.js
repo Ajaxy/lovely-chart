@@ -1,5 +1,16 @@
-export function drawDataset(context, values, projection, options, bounds) {
+import { simplify } from './simplify';
+
+export function drawDataset(context, values, projection, options, bounds, simplifierDelta) {
   const { from = 0, to = values.length } = bounds || {};
+
+  const pixels = [];
+  for (let i = from; i <= to; i++) {
+    const { xPx, yPx } = projection.toPixels(i, values[i]);
+    pixels.push([xPx, yPx]);
+  }
+
+  const simplifierFn = simplify(pixels);
+  const { points: simplifiedPixels } = simplifierFn(simplifierDelta);
 
   context.save();
 
@@ -10,15 +21,13 @@ export function drawDataset(context, values, projection, options, bounds) {
 
   context.beginPath();
 
-  for (let i = from; i <= to; i++) {
-    const { xPx, yPx } = projection.toPixels(i, values[i]);
-
+  simplifiedPixels.forEach(([xPx, yPx], i) => {
     if (i === 0) {
       context.moveTo(xPx, yPx);
     } else {
       context.lineTo(xPx, yPx);
     }
-  }
+  });
 
   context.stroke();
 

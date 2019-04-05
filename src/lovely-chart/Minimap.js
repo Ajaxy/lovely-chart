@@ -2,8 +2,16 @@ import { setupCanvas, clearCanvas } from './canvas';
 import { drawDataset } from './drawDataset';
 import { createProjection } from './createProjection';
 import { setupDrag } from './setupDrag';
-import { DEFAULT_RANGE, MINIMAP_HEIGHT, MINIMAP_EAR_WIDTH, MINIMAP_RULER_HTML, MINIMAP_MARGIN } from './constants';
+import {
+  DEFAULT_RANGE,
+  MINIMAP_HEIGHT,
+  MINIMAP_EAR_WIDTH,
+  MINIMAP_RULER_HTML,
+  MINIMAP_MARGIN,
+  SIMPLIFIER_DELTA_MINIMAP,
+} from './constants';
 import { createThrottledUntilRaf } from './fast';
+import { simplify } from './simplify';
 
 export function createMinimap(container, data, rangeCallback) {
   const _container = container;
@@ -129,7 +137,7 @@ export function createMinimap(container, data, rangeCallback) {
         lineWidth: 1,
       };
 
-      drawDataset(_context, values, projection, options);
+      drawDataset(_context, values, projection, options, {}, SIMPLIFIER_DELTA_MINIMAP);
     });
   }
 

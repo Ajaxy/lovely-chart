@@ -7,7 +7,15 @@ import { analyzeData } from './analyzeData';
 import { drawDataset } from './drawDataset';
 import { createProjection } from './createProjection';
 import { setupCanvas, clearCanvas } from './canvas';
-import { X_AXIS_HEIGHT, PLOT_WH_RATIO, DATASET_WIDTH, GUTTER, EDGE_POINTS_BUDGET, PLOT_TOP_PADDING } from './constants';
+import {
+  X_AXIS_HEIGHT,
+  PLOT_WH_RATIO,
+  DATASET_WIDTH,
+  GUTTER,
+  EDGE_POINTS_BUDGET,
+  PLOT_TOP_PADDING,
+  SIMPLIFIER_DELTA_PLOT,
+} from './constants';
 
 export function createLovelyChart(parentContainerId, data) {
   const _data = analyzeData(data);
@@ -87,8 +95,8 @@ export function createLovelyChart(parentContainerId, data) {
 
   function _drawDatasets(state, projection) {
     const bounds = {
-      from: state.labelFromIndex - EDGE_POINTS_BUDGET,
-      to: state.labelToIndex + EDGE_POINTS_BUDGET,
+      from: Math.max(0, state.labelFromIndex - EDGE_POINTS_BUDGET),
+      to: Math.min(state.labelToIndex + EDGE_POINTS_BUDGET, _data.xLabels.length - 1),
     };
 
     _data.datasets.forEach(({ key, color, values }) => {
@@ -98,7 +106,7 @@ export function createLovelyChart(parentContainerId, data) {
         lineWidth: DATASET_WIDTH,
       };
 
-      drawDataset(_context, values, projection, options, bounds);
+      drawDataset(_context, values, projection, options, bounds, SIMPLIFIER_DELTA_PLOT);
     });
   }
 
