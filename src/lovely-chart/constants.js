@@ -53,5 +53,6 @@ export const ANIMATE_PROPS = ['yMax', 'yMin', 'xAxisScale', 'yAxisScale', 'yMaxF
 
 export const PREDICTION_FACTOR = 15;
 
+export const SIMPLIFIER_MIN_POINTS = 100;
 export const SIMPLIFIER_DELTA_PLOT = 2;
 export const SIMPLIFIER_DELTA_MINIMAP = 1;

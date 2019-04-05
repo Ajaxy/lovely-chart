@@ -1,16 +1,19 @@
 import { simplify } from './simplify';
+import { SIMPLIFIER_MIN_POINTS } from './constants';
 
 export function drawDataset(context, values, projection, options, bounds, simplifierDelta) {
   const { from = 0, to = values.length } = bounds || {};
 
-  const pixels = [];
+  let pixels = [];
   for (let i = from; i <= to; i++) {
     const { xPx, yPx } = projection.toPixels(i, values[i]);
     pixels.push([xPx, yPx]);
   }
 
-  const simplifierFn = simplify(pixels);
-  const { points: simplifiedPixels } = simplifierFn(simplifierDelta);
+  if (pixels.length >= SIMPLIFIER_MIN_POINTS) {
+    const simplifierFn = simplify(pixels);
+    pixels = simplifierFn(simplifierDelta).points;
+  }
 
   context.save();
 
@@ -21,7 +24,7 @@ export function drawDataset(context, values, projection, options, bounds, simpli
 
   context.beginPath();
 
-  simplifiedPixels.forEach(([xPx, yPx], i) => {
+  pixels.forEach(([xPx, yPx], i) => {
     if (i === 0) {
       context.moveTo(xPx, yPx);
     } else {
