@@ -76,7 +76,7 @@ export function createAxes(context, data, plotSize) {
     _context.textAlign = 'left';
     _context.textBaseline = 'bottom';
     _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
-    _context.lineWidth = 0.5;
+    _context.lineWidth = 1;
 
     _context.beginPath();
 
