@@ -119,7 +119,7 @@ body.skin-night .lovely-chart .minimap .ruler .slider > div {
   display: inline-block;
   border-radius: 18px;
   text-decoration: none;
-  margin: 0 10px 10px 0;
+  margin: 0 9px 10px 0;
   transition: border-color 300ms ease-out;
 }
 
