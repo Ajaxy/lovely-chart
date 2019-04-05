@@ -6,7 +6,7 @@
   "scripts": {
     "prebuild": "rm -rf ./dist",
     "dev": "cp src/chart_data.json dist/ && parcel src/index.html",
-    "prod": "rm -rf docs/ && gulp prod"
+    "prod": "rm -rf docs/ && gulp prod && uglifycss src/snow.css > docs/snow.css && uglifycss src/lovely-chart/lovely-chart.css > docs/lovely-chart/lovely-chart.css"
   },
   "keywords": [],
   "author": "",
