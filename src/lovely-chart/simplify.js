@@ -1,13 +1,4 @@
 export const simplify = (() => {
-  /**
-   * @ignore
-   * производит грубое упрощение полигональной фигуры
-   * алгорим не определен для данных заданых с высокой(субпиксельной) точностью
-   * @name graphics.generator.simplify
-   * @param {Number[][]} points вершины
-   * @param {Number[]} indexes индексы вершин
-   * @param {Number} delta - некая дельта отклонения кривой определяющая точность( 0.00001 - 0.5 )
-   */
   function simplify(points, indexes, fixedPoints) {
     if (points.length < 6) {
       return function () {
@@ -27,8 +18,7 @@ export const simplify = (() => {
         removed = [];
 
       let delta2 = delta * delta,
-        markers = worker(delta2),
-        lastPoint = points[0];
+        markers = worker(delta2);
 
       for (let i = 0, l = points.length; i < l; i++) {
         if (markers[i] >= delta2 || i == 0 || i == l - 1) {
@@ -185,14 +175,6 @@ export const simplify = (() => {
 
   }
 
-  /**
-   * @ignore
-   * растояние от точки до отрезка
-   * @param {Number[]} p точка
-   * @param {Number[]} v1 - начало отрезка
-   * @param {Number[]} v2 - конец отрезка
-   * @returns "{Object}
-   "*/
   function pointToSegmentDistanceSquare(p, v1, v2, dv, dvlen_1) {
 
     let t;
@@ -213,29 +195,6 @@ export const simplify = (() => {
       b = +p[1] - vy;
 
     return +a * a + b * b;
-  }
-
-  let IndexArray = window.Uint8Array ? Uint8Array : Array,
-    FloatArray = window.Float32Array ? Float32Array : Array;
-
-
-  function getDeltaShifts(points) {
-    let deltaSet = [0],
-      vectors = [
-        [0, 0],
-      ];
-    for (let i = 1, l = points.length, lastPosition; i < l; i++) {
-      let position = [
-        points[i - 1][0] - lastPosition[0],
-        points[i - 1][1] - lastPosition[1],
-      ];
-      vectors[i] = position;
-      deltaSet[i] = position[0] * position[0] + position[1] * position[1];
-    }
-    return {
-      delta: deltaSet,
-      vectors: vectors,
-    };
   }
 
   return simplify;
