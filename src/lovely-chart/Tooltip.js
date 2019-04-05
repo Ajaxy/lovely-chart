@@ -154,11 +154,5 @@ export function createTooltip(container, data, plotSize) {
 }
 
 function getPageOffset(el) {
-  let pageOffset = el.offsetLeft;
-
-  while (el = el.parentNode && el.offsetLeft) {
-    pageOffset += el.offsetLeft;
-  }
-
-  return pageOffset;
+  return el.getBoundingClientRect().left;
 }
