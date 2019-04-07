@@ -7,6 +7,7 @@ import {
   ANIMATE_PROPS,
 } from './constants';
 import { buildSkinState } from './skin';
+import { xStepToScaleLevel, yStepToScaleLevel } from './formulas';
 
 export function createStateManager(data, viewportSize, callback) {
   const _data = data;
@@ -119,7 +120,7 @@ function calculateXAxisScale(labelsCount, plotWidth, begin, end) {
   const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
   const step = viewportLabelsCount / maxColumns;
 
-  return Math.ceil(Math.log2(step));
+  return xStepToScaleLevel(step);
 }
 
 function calculateYAxisScale(plotHeight, yMin, yMax) {
@@ -128,9 +129,5 @@ function calculateYAxisScale(plotHeight, yMin, yMax) {
   const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);
   const step = viewportLabelsCount / maxRows;
 
-  return Math.ceil(
-    step <= 288
-      ? Math.sqrt(step / 2)
-      : 10 * Math.floor(Math.log10(step) - 1) + step / Math.pow(10, Math.floor(Math.log10(step))),
-  );
+  return yStepToScaleLevel(step);
 }

@@ -8,6 +8,7 @@ import {
 } from './constants';
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
+import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
 
 export function createAxes(context, data, plotSize) {
   const _context = context;
@@ -25,13 +26,13 @@ export function createAxes(context, data, plotSize) {
     const topOffset = _plotSize.height - X_AXIS_HEIGHT / 2;
 
     const scaleLevel = Math.floor(state.xAxisScale);
-    const step = Math.pow(2, scaleLevel);
+    const step = xScaleLevelToStep(scaleLevel);
     const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
 
     _context.textAlign = 'center';
     _context.textBaseline = 'middle';
 
-    for (let i = Math.floor(state.labelFromIndex) - EDGE_POINTS_BUDGET; i <= state.labelToIndex + EDGE_POINTS_BUDGET; i++) {
+    for (let i = state.labelFromIndex - EDGE_POINTS_BUDGET; i <= state.labelToIndex + EDGE_POINTS_BUDGET; i++) {
       if ((i - X_AXIS_START_FROM) % step !== 0) {
         continue;
       }
@@ -44,10 +45,7 @@ export function createAxes(context, data, plotSize) {
       const [xPx] = projection.toPixels(i, 0);
 
       let opacity = (i - X_AXIS_START_FROM) % (step * 2) === 0 ? 1 : opacityFactor;
-      const edgeOffset = Math.min(xPx + GUTTER, _plotSize.width - xPx);
-      if (edgeOffset <= GUTTER * 4) {
-        opacity = Math.min(1, opacity, edgeOffset / (GUTTER * 4));
-      }
+      opacity = applyYEdgeOpacity(opacity, xPx, _plotSize.width);
 
       _context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
       _context.fillText(label.text, xPx, topOffset);
@@ -65,9 +63,7 @@ export function createAxes(context, data, plotSize) {
   }
 
   function _drawYAxisScaled(state, projection, scaleLevel, opacity = 1) {
-    const step = scaleLevel <= 13
-      ? Math.pow(scaleLevel, 2) * 2
-      : ((scaleLevel % 10) || 1) * Math.pow(10, Math.floor(scaleLevel / 10) + 1);
+    const step = yScaleLevelToStep(scaleLevel);
     const firstVisibleValue = Math.floor(state.yMin / step) * step;
     const lastVisibleValue = Math.ceil(state.yMax / step) * step;
 
@@ -85,10 +81,7 @@ export function createAxes(context, data, plotSize) {
         continue;
       }
 
-      let textOpacity = opacity;
-      if (yPx - GUTTER <= GUTTER * 2) {
-        textOpacity = Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2));
-      }
+      const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
       _context.fillStyle = buildRgbaFromState(state, 'axesText', textOpacity);
       _context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
