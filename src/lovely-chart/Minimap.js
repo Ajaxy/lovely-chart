@@ -120,13 +120,11 @@ export function createMinimap(container, data, rangeCallback) {
 
     _data.datasets.forEach(({ key, color, values }) => {
       const opacity = state[`opacity#${key}`];
-      // By video prototype hiding dataset does not expand, which is not possible with 3+ datasets.
-      const shouldUseYTotal = state.yMinFiltered === 0 && _data.datasets.length === 2 && _shouldUseYTotal(state, key);
       const bounds = {
         xOffset: 0,
         xWidth: _data.xLabels.length,
-        yMin: shouldUseYTotal ? _data.yMin : state.yMinFiltered,
-        yMax: shouldUseYTotal ? _data.yMax : state.yMaxFiltered,
+        yMin: state.yMinFiltered,
+        yMax: state.yMaxFiltered,
       };
       const projection = createProjection(bounds, canvasSize, { yPadding: 1 });
       const options = {
@@ -209,18 +207,6 @@ export function createMinimap(container, data, rangeCallback) {
     _ruler.children[0].style.width = `${begin * 100}%`;
     _ruler.children[1].style.width = `${(end - begin) * 100}%`;
     _ruler.children[2].style.width = `${(1 - end) * 100}%`;
-  }
-
-  function _shouldUseYTotal(state, key) {
-    if (state.filter) {
-      const opacity = state[`opacity#${key}`];
-      const totalShown = Object.values(state.filter).filter((v) => v === true).length;
-      const currentShowing = state.filter[key];
-      const othersShown = currentShowing ? totalShown > 1 : totalShown > 0;
-      return opacity < 1 && othersShown;
-    }
-
-    return false;
   }
 
   return { update };
