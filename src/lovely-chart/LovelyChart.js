@@ -14,7 +14,6 @@ import {
   GUTTER,
   EDGE_POINTS_BUDGET,
   PLOT_TOP_PADDING,
-  SIMPLIFIER_DELTA_PLOT,
 } from './constants';
 
 export function createLovelyChart(parentContainerId, data) {
@@ -106,7 +105,7 @@ export function createLovelyChart(parentContainerId, data) {
         lineWidth: DATASET_WIDTH,
       };
 
-      drawDataset(_context, values, projection, options, bounds, SIMPLIFIER_DELTA_PLOT);
+      drawDataset(_context, values, projection, options, bounds);
     });
   }
 

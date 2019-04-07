@@ -52,7 +52,3 @@ const SKIN_STATE_PROPS = mergeArrays(Object.keys(SKINS.day).map((key) => (
 export const ANIMATE_PROPS = ['yMax', 'yMin', 'xAxisScale', 'yAxisScale', 'yMaxFiltered', 'yMinFiltered', ...SKIN_STATE_PROPS];
 
 export const PREDICTION_FACTOR = 15;
-
-export const SIMPLIFIER_MIN_POINTS = 100;
-export const SIMPLIFIER_DELTA_PLOT = 2;
-export const SIMPLIFIER_DELTA_MINIMAP = 1;

@@ -8,10 +8,8 @@ import {
   MINIMAP_EAR_WIDTH,
   MINIMAP_RULER_HTML,
   MINIMAP_MARGIN,
-  SIMPLIFIER_DELTA_MINIMAP,
 } from './constants';
 import { createThrottledUntilRaf } from './fast';
-import { simplify } from './simplify';
 
 export function createMinimap(container, data, rangeCallback) {
   const _container = container;
@@ -137,7 +135,7 @@ export function createMinimap(container, data, rangeCallback) {
         lineWidth: 1,
       };
 
-      drawDataset(_context, values, projection, options, {}, SIMPLIFIER_DELTA_MINIMAP);
+      drawDataset(_context, values, projection, options);
     });
   }
 
