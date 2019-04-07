@@ -21,10 +21,10 @@ export function createProjection(bounds, availableSize, { xPadding = 0, yPadding
 
   return {
     toPixels(labelIndex, y) {
-      return {
-        xPx: labelIndex * xFactor - xOffset,
-        yPx: availableSize.height - (y * yFactor - yOffset),
-      };
+      return [
+        labelIndex * xFactor - xOffset,
+        availableSize.height - (y * yFactor - yOffset),
+      ];
     },
 
     findClosesLabelIndex(xPx) {

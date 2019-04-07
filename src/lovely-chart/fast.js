@@ -30,6 +30,14 @@ export function mergeArrays(arrays) {
   return [].concat.apply([], arrays);
 }
 
+export function proxyMerge(obj1, obj2) {
+  return new Proxy({}, {
+    get: (obj, prop) => {
+      return obj2[prop] !== undefined ? obj2[prop] : obj1[prop];
+    },
+  });
+}
+
 export function createThrottledUntilRaf(fn) {
   let waiting = false;
 

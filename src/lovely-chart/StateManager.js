@@ -1,11 +1,10 @@
 import { createTransitionManager } from './TransitionManager';
-import { createThrottledUntilRaf, getMaxMin, mergeArrays } from './fast';
+import { createThrottledUntilRaf, getMaxMin, mergeArrays, proxyMerge } from './fast';
 import {
   AXES_MAX_COLUMN_WIDTH,
   AXES_MAX_ROW_HEIGHT,
   X_AXIS_HEIGHT,
   ANIMATE_PROPS,
-  PREDICTION_FACTOR,
 } from './constants';
 import { buildSkinState } from './skin';
 
@@ -68,11 +67,7 @@ export function createStateManager(data, viewportSize, callback) {
   }
 
   function _runCallback() {
-    _callback(Object.assign(
-      {},
-      _state,
-      _transitions.getState(),
-    ));
+    _callback(proxyMerge(_state, _transitions.getState()));
   }
 
   return { update };

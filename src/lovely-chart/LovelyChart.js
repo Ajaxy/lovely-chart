@@ -9,11 +9,11 @@ import { createProjection } from './createProjection';
 import { setupCanvas, clearCanvas } from './canvas';
 import {
   X_AXIS_HEIGHT,
-  PLOT_WH_RATIO,
-  DATASET_WIDTH,
   GUTTER,
   EDGE_POINTS_BUDGET,
   PLOT_TOP_PADDING,
+  PLOT_HEIGHT,
+  PLOT_LINE_WIDTH,
 } from './constants';
 
 export function createLovelyChart(parentContainerId, data) {
@@ -22,6 +22,7 @@ export function createLovelyChart(parentContainerId, data) {
   let _container;
   let _plot;
   let _context;
+  let _plotSize;
 
   let _axes;
   let _stateManager;
@@ -47,30 +48,27 @@ export function createLovelyChart(parentContainerId, data) {
   function _setupPlotCanvas() {
     const { canvas, context } = setupCanvas(_container, {
       width: _container.clientWidth,
-      height: _container.clientWidth * PLOT_WH_RATIO,
+      height: PLOT_HEIGHT,
     });
 
     _plot = canvas;
     _context = context;
-  }
-
-  function _setupComponents() {
-    _axes = createAxes(_context, _data, _getPlotSize());
-    _stateManager = createStateManager(_data, _getPlotSize(), _onStateUpdate);
-    _minimap = createMinimap(_container, _data, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _getPlotSize());
-    createTools(_container, _data, _onFilterChange);
-  }
-
-  function _getPlotSize() {
-    return {
+    _plotSize = {
       width: _plot.offsetWidth,
       height: _plot.offsetHeight,
     };
   }
 
+  function _setupComponents() {
+    _axes = createAxes(_context, _data, _plotSize);
+    _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
+    _minimap = createMinimap(_container, _data, _onRangeChange);
+    _tooltip = createTooltip(_container, _data, _plotSize);
+    createTools(_container, _data, _onFilterChange);
+  }
+
   function _getAvailablePlotSize() {
-    const { width, height } = _getPlotSize();
+    const { width, height } = _plotSize;
 
     return {
       width,
@@ -102,7 +100,7 @@ export function createLovelyChart(parentContainerId, data) {
       const options = {
         color,
         opacity: state[`opacity#${key}`],
-        lineWidth: DATASET_WIDTH,
+        lineWidth: PLOT_LINE_WIDTH,
       };
 
       drawDataset(_context, values, projection, options, bounds);

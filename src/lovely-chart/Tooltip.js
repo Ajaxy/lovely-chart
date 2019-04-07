@@ -97,7 +97,7 @@ export function createTooltip(container, data, plotSize) {
 
     clearCanvas(_canvas, _context);
 
-    const { xPx } = toPixels(labelIndex, 0);
+    const [xPx] = toPixels(labelIndex, 0);
     _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, buildRgbaFromState(state, 'tooltipTail'));
 
     const statistics = _data.datasets
@@ -115,7 +115,7 @@ export function createTooltip(container, data, plotSize) {
     _updateBalloon(statistics, xPx, labelIndex);
   }
 
-  function _drawCircle({ xPx, yPx }, strokeColor, fillColor) {
+  function _drawCircle([xPx, yPx], strokeColor, fillColor) {
     _context.strokeStyle = strokeColor;
     _context.fillStyle = fillColor;
     _context.lineWidth = 2;

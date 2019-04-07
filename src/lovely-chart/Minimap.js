@@ -8,6 +8,7 @@ import {
   MINIMAP_EAR_WIDTH,
   MINIMAP_RULER_HTML,
   MINIMAP_MARGIN,
+  MINIMAP_LINE_WIDTH,
 } from './constants';
 import { createThrottledUntilRaf } from './fast';
 
@@ -19,6 +20,7 @@ export function createMinimap(container, data, rangeCallback) {
   let _element;
   let _canvas;
   let _context;
+  let _canvasSize;
   let _ruler;
   let _slider;
   let _capturedOffset;
@@ -51,6 +53,11 @@ export function createMinimap(container, data, rangeCallback) {
     _setupRuler();
 
     _container.appendChild(_element);
+
+    _canvasSize = {
+      width: _canvas.offsetWidth,
+      height: _canvas.offsetHeight,
+    };
   }
 
   function _getSize() {
@@ -116,8 +123,6 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _drawDatasets(state = {}) {
-    const canvasSize = _getCanvasSize();
-
     _data.datasets.forEach(({ key, color, values }) => {
       const opacity = state[`opacity#${key}`];
       const bounds = {
@@ -126,19 +131,15 @@ export function createMinimap(container, data, rangeCallback) {
         yMin: state.yMinFiltered,
         yMax: state.yMaxFiltered,
       };
-      const projection = createProjection(bounds, canvasSize, { yPadding: 1 });
+      const projection = createProjection(bounds, _canvasSize, { yPadding: 1 });
       const options = {
         color,
         opacity,
-        lineWidth: 1,
+        lineWidth: MINIMAP_LINE_WIDTH,
       };
 
       drawDataset(_context, values, projection, options);
     });
-  }
-
-  function _getCanvasSize() {
-    return { width: _canvas.offsetWidth, height: _canvas.offsetHeight };
   }
 
   function _onDragCapture(e) {
