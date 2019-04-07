@@ -76,13 +76,17 @@ export function createStateManager(data, viewportSize, callback) {
 function calculateState(data, viewportSize, range, filter, prevState) {
   const { begin, end } = range;
   const totalXWidth = data.xLabels.length - 1;
+
   const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
-  const labelToIndex = Math.min(totalXWidth, Math.floor(totalXWidth * end));
+  const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
+
   const filteredValues = data.datasets.filter(({ key }) => filter[key]).map(({ values }) => values);
   const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
+
   const { min: yMinFilteredReal = prevState.yMinFiltered, max: yMaxFiltered = prevState.yMaxFiltered }
     = getMaxMin(mergeArrays(filteredValues));
   const yMinFiltered = yMinFilteredReal / yMaxFiltered > 0.5 ? yMinFilteredReal : 0;
+
   const { min: yMinViewportReal = prevState.yMin, max: yMaxViewport = prevState.yMax }
     = getMaxMin(mergeArrays(viewportValues));
   const yMinViewport = yMinFilteredReal / yMaxFiltered > 0.5 ? yMinViewportReal : 0;
@@ -105,8 +109,8 @@ function calculateState(data, viewportSize, range, filter, prevState) {
       yMax: yMaxViewport,
       xAxisScale,
       yAxisScale,
-      labelFromIndex,
-      labelToIndex,
+      labelFromIndex: Math.max(0, labelFromIndex - 1),
+      labelToIndex: Math.min(labelToIndex + 1, totalXWidth),
       filter,
     },
     datasetsOpacity,
@@ -118,16 +122,14 @@ function calculateState(data, viewportSize, range, filter, prevState) {
 function calculateXAxisScale(labelsCount, plotWidth, begin, end) {
   const viewportLabelsCount = labelsCount * (end - begin);
   const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
-  const step = viewportLabelsCount / maxColumns;
 
-  return xStepToScaleLevel(step);
+  return xStepToScaleLevel(viewportLabelsCount / maxColumns);
 }
 
 function calculateYAxisScale(plotHeight, yMin, yMax) {
   const availableHeight = plotHeight - X_AXIS_HEIGHT;
   const viewportLabelsCount = yMax - yMin;
   const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);
-  const step = viewportLabelsCount / maxRows;
 
-  return yStepToScaleLevel(step);
+  return yStepToScaleLevel(viewportLabelsCount / maxRows);
 }

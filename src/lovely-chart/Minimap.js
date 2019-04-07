@@ -127,7 +127,7 @@ export function createMinimap(container, data, rangeCallback) {
       const opacity = state[`opacity#${key}`];
       const bounds = {
         xOffset: 0,
-        xWidth: _data.xLabels.length,
+        xWidth: _data.xLabels.length - 1,
         yMin: state.yMinFiltered,
         yMax: state.yMaxFiltered,
       };
@@ -138,7 +138,10 @@ export function createMinimap(container, data, rangeCallback) {
         lineWidth: MINIMAP_LINE_WIDTH,
       };
 
-      drawDataset(_context, values, projection, options);
+      drawDataset(_context, values, projection, options, {
+        from: 0,
+        to: values.length - 1,
+      });
     });
   }
 

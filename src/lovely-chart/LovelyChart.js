@@ -92,8 +92,8 @@ export function createLovelyChart(parentContainerId, data) {
 
   function _drawDatasets(state, projection) {
     const bounds = {
-      from: Math.max(0, state.labelFromIndex - EDGE_POINTS_BUDGET),
-      to: Math.min(state.labelToIndex + EDGE_POINTS_BUDGET, _data.xLabels.length - 1),
+      from: state.labelFromIndex,
+      to: state.labelToIndex,
     };
 
     _data.datasets.forEach(({ key, color, values }) => {

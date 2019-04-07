@@ -1,6 +1,4 @@
-export function drawDataset(context, values, projection, options, bounds) {
-  const { from = 0, to = values.length } = bounds || {};
-
+export function drawDataset(context, values, projection, options, { from, to }) {
   context.beginPath();
 
   for (let i = from; i <= to; i++) {

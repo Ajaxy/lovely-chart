@@ -1,11 +1,4 @@
-import {
-  GUTTER,
-  AXES_FONT,
-  X_AXIS_HEIGHT,
-  EDGE_POINTS_BUDGET,
-  X_AXIS_START_FROM,
-  PLOT_TOP_PADDING,
-} from './constants';
+import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants';
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
 import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
@@ -24,7 +17,6 @@ export function createAxes(context, data, plotSize) {
 
   function _drawXAxis(state, projection) {
     const topOffset = _plotSize.height - X_AXIS_HEIGHT / 2;
-
     const scaleLevel = Math.floor(state.xAxisScale);
     const step = xScaleLevelToStep(scaleLevel);
     const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
@@ -32,19 +24,16 @@ export function createAxes(context, data, plotSize) {
     _context.textAlign = 'center';
     _context.textBaseline = 'middle';
 
-    for (let i = state.labelFromIndex - EDGE_POINTS_BUDGET; i <= state.labelToIndex + EDGE_POINTS_BUDGET; i++) {
-      if ((i - X_AXIS_START_FROM) % step !== 0) {
+    for (let i = state.labelFromIndex; i <= state.labelToIndex; i++) {
+      const shiftedI = i - X_AXIS_SHIFT_START;
+
+      if (shiftedI % step !== 0) {
         continue;
       }
 
       const label = _data.xLabels[i];
-      if (!label) {
-        continue;
-      }
-
       const [xPx] = projection.toPixels(i, 0);
-
-      let opacity = (i - X_AXIS_START_FROM) % (step * 2) === 0 ? 1 : opacityFactor;
+      let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
       opacity = applyYEdgeOpacity(opacity, xPx, _plotSize.width);
 
       _context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
@@ -76,11 +65,6 @@ export function createAxes(context, data, plotSize) {
 
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
       const [, yPx] = projection.toPixels(0, value);
-
-      if (yPx > _plotSize.height - X_AXIS_HEIGHT) {
-        continue;
-      }
-
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
       _context.fillStyle = buildRgbaFromState(state, 'axesText', textOpacity);
