@@ -34,13 +34,12 @@ export function createStateManager(data, viewportSize, callback) {
 
       if (currentTarget !== undefined && currentTarget !== _state[prop]) {
         const current = transition ? transition.current : prevState[prop];
-        const originalTransition = transition && transition.origin || transition;
 
         if (transition) {
           _transitions.remove(prop);
         }
 
-        _transitions.add(prop, current, _state[prop], originalTransition);
+        _transitions.add(prop, current, _state[prop]);
       }
     });
 

@@ -55,13 +55,12 @@ export function createAxes(context, data, plotSize) {
   }
 
   function _drawYAxis(state, projection) {
-    const { yAxisScale, yAxisScaleOriginalFrom, yAxisScaleTo, yAxisScaleTotalProgress } = state;
+    const { yAxisScale, yAxisScaleFrom, yAxisScaleTo, yAxisScaleProgress = 0 } = state;
 
-    if (!yAxisScaleTotalProgress || yAxisScaleTotalProgress % 1 === 0) {
-      _drawYAxisScaled(state, projection, yAxisScale);
-    } else {
-      _drawYAxisScaled(state, projection, yAxisScaleOriginalFrom, 1 - yAxisScaleTotalProgress);
-      _drawYAxisScaled(state, projection, yAxisScaleTo, yAxisScaleTotalProgress);
+    _drawYAxisScaled(state, projection, Math.round(yAxisScaleFrom || yAxisScale), 1 - yAxisScaleProgress);
+
+    if (yAxisScaleProgress > 0) {
+      _drawYAxisScaled(state, projection, yAxisScaleTo, yAxisScaleProgress);
     }
   }
 
