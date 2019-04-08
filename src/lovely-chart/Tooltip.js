@@ -3,6 +3,7 @@ import { BALLOON_OFFSET, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
 import { createThrottledUntilRaf } from './fast';
+import { createElement } from './minifiers';
 
 const BALLOON_SHADOW_WIDTH = 1;
 
@@ -32,20 +33,20 @@ export function createTooltip(container, data, plotSize) {
   }
 
   function _setupLayout() {
-    _element = document.createElement('div');
+    _element = createElement('div');
     _element.className = 'tooltip';
 
     _setupCanvas();
     _setupBalloon();
 
-    _element.addEventListener('mousemove', _onMouseEnter);
-    _element.addEventListener('touchmove', _onMouseEnter);
-    _element.addEventListener('touchstart', _onMouseEnter);
+    addEventListener(_element, 'mousemove', _onMouseEnter);
+    addEventListener(_element,'touchmove', _onMouseEnter);
+    addEventListener(_element,'touchstart', _onMouseEnter);
 
-    _element.addEventListener('mouseout', _onMouseLeave);
-    _element.addEventListener('mouseup', _onMouseLeave);
-    _element.addEventListener('touchend', _onMouseLeave);
-    _element.addEventListener('touchcancel', _onMouseLeave);
+    addEventListener(_element,'mouseout', _onMouseLeave);
+    addEventListener(_element,'mouseup', _onMouseLeave);
+    addEventListener(_element,'touchend', _onMouseLeave);
+    addEventListener(_element,'touchcancel', _onMouseLeave);
 
     _container.appendChild(_element);
   }
@@ -58,7 +59,7 @@ export function createTooltip(container, data, plotSize) {
   }
 
   function _setupBalloon() {
-    _balloon = document.createElement('div');
+    _balloon = createElement('div');
     _balloon.className = 'balloon';
     _balloon.innerHTML = '<div class="title"></div><div class="legend"></div>';
 

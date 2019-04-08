@@ -11,6 +11,7 @@ import {
   MINIMAP_LINE_WIDTH,
 } from './constants';
 import { createThrottledUntilRaf } from './fast';
+import { createElement } from './minifiers';
 
 export function createMinimap(container, data, rangeCallback) {
   const _container = container;
@@ -44,7 +45,7 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _setupLayout() {
-    _element = document.createElement('div');
+    _element = createElement('div');
 
     _element.className = 'minimap';
     _element.style.height = `${MINIMAP_HEIGHT}px`;
@@ -75,7 +76,7 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _setupRuler() {
-    _ruler = document.createElement('div');
+    _ruler = createElement('div');
     _ruler.className = 'ruler';
     _ruler.innerHTML = MINIMAP_RULER_HTML;
 

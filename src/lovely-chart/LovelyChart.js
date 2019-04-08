@@ -14,6 +14,7 @@ import {
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
 } from './constants';
+import { createElement } from './minifiers';
 
 export function createLovelyChart(parentContainerId, dataOptions) {
   let _data;
@@ -41,7 +42,7 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   }
 
   function _setupContainer(parentContainerId) {
-    _container = document.createElement('div');
+    _container = createElement('div');
     _container.className = 'lovely-chart';
 
     const parentContainer = document.getElementById(parentContainerId);
