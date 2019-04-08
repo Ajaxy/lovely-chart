@@ -83,48 +83,49 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   }
 
   function _onStateUpdate(state) {
-    const { width, height } = _plotSize;
-
     const projection = createProjection({
-        xOffset: state.xOffset,
-        xWidth: state.xWidth,
-        yMin: state.yMinViewport,
-        yMax: state.yMaxViewport,
-      },
-      {
-        width,
-        height: height - X_AXIS_HEIGHT,
-      },
-      {
-        xPadding: GUTTER,
-        yPadding: PLOT_TOP_PADDING,
-      },
-    );
+      begin: state.begin,
+      end: state.end,
+      xOffset: state.xOffset,
+      xWidth: state.xWidth,
+      yMin: state.yMinViewport,
+      yMax: state.yMaxViewport,
+      availableWidth: _plotSize.width,
+      availableHeight: _plotSize.height - X_AXIS_HEIGHT,
+      xPadding: GUTTER,
+      yPadding: PLOT_TOP_PADDING,
+    });
+
+    const secondaryProjection = _data.hasSecondYAxis && projection.copy({
+      yMin: state.yMinViewportSecond,
+      yMax: state.yMaxViewportSecond,
+    });
 
     clearCanvas(_plot, _context);
 
-    _axes.drawYAxis(state, projection);
-    _drawDatasets(state, projection);
+    _axes.drawYAxis(state, projection, secondaryProjection);
+    _drawDatasets(state, projection, secondaryProjection);
     // TODO isChanged
     _axes.drawXAxis(state, projection);
     _minimap.update(state);
-    _tooltip.update(state, projection);
+    _tooltip.update(state, projection, secondaryProjection);
   }
 
-  function _drawDatasets(state, projection) {
-    const bounds = {
+  function _drawDatasets(state, projection, secondaryProjection) {
+    const range = {
       from: state.labelFromIndex,
       to: state.labelToIndex,
     };
 
-    _data.datasets.forEach(({ key, color, values }) => {
+    _data.datasets.forEach(({ key, color, values, hasOwnYAxis }) => {
+      const datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
       const options = {
         color,
         opacity: state[`opacity#${key}`],
         lineWidth: PLOT_LINE_WIDTH,
       };
 
-      drawDataset(_context, values, projection, options, bounds);
+      drawDataset(_context, values, datasetProjection, options, range);
     });
   }
 

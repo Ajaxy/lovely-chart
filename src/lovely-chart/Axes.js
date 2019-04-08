@@ -1,6 +1,6 @@
 import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants';
 import { humanize } from './format';
-import { buildRgbaFromState } from './skin';
+import { buildRgbaFromState, hexToRgba } from './skin';
 import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
 
 export function createAxes(context, data, plotSize) {
@@ -37,26 +37,75 @@ export function createAxes(context, data, plotSize) {
     }
   }
 
-  function drawYAxis(state, projection) {
+  function drawYAxis(state, projection, secondaryProjection) {
     const { yAxisScale, yAxisScaleFrom, yAxisScaleTo, yAxisScaleProgress = 0 } = state;
+    const color = secondaryProjection && _data.datasets[0].color;
 
-    _drawYAxisScaled(state, projection, Math.round(yAxisScaleFrom || yAxisScale), 1 - yAxisScaleProgress);
+    _drawYAxisScaled(
+      state,
+      projection,
+      Math.round(yAxisScaleFrom || yAxisScale),
+      state.yMinViewport,
+      state.yMaxViewport,
+      1 - yAxisScaleProgress,
+      color,
+    );
 
     if (yAxisScaleProgress > 0) {
-      _drawYAxisScaled(state, projection, yAxisScaleTo, yAxisScaleProgress);
+      _drawYAxisScaled(
+        state,
+        projection,
+        yAxisScaleTo,
+        state.yMinViewport,
+        state.yMaxViewport,
+        yAxisScaleProgress,
+        color,
+      );
+    }
+
+    if (secondaryProjection) {
+      const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
+      const secondaryColor = _data.datasets[_data.datasets.length - 1].color;
+
+      _drawYAxisScaled(
+        state,
+        secondaryProjection,
+        Math.round(yAxisScaleSecondFrom || yAxisScaleSecond),
+        state.yMinViewportSecond,
+        state.yMaxViewportSecond,
+        1 - yAxisScaleSecondProgress,
+        secondaryColor,
+        true,
+      );
+
+      if (yAxisScaleSecondProgress > 0) {
+        _drawYAxisScaled(
+          state,
+          secondaryProjection,
+          yAxisScaleSecondTo,
+          state.yMinViewportSecond,
+          state.yMaxViewportSecond,
+          yAxisScaleSecondProgress,
+          secondaryColor,
+          true,
+        );
+      }
     }
   }
 
-  function _drawYAxisScaled(state, projection, scaleLevel, opacity = 1) {
+  function _drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, color = null, isSecondary = false) {
     const step = yScaleLevelToStep(scaleLevel);
-    const firstVisibleValue = Math.ceil(state.yMinViewport / step) * step;
-    const lastVisibleValue = Math.floor(state.yMaxViewport / step) * step;
+    const firstVisibleValue = Math.ceil(yMin / step) * step;
+    const lastVisibleValue = Math.floor(yMax / step) * step;
 
     _context.font = AXES_FONT;
-    _context.textAlign = 'left';
+    _context.textAlign = isSecondary ? 'right' : 'left';
     _context.textBaseline = 'bottom';
-    _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
-    _context.lineWidth = 1;
+
+    if (!isSecondary) {
+      _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
+      _context.lineWidth = 1;
+    }
 
     _context.beginPath();
 
@@ -64,11 +113,18 @@ export function createAxes(context, data, plotSize) {
       const [, yPx] = projection.toPixels(0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
-      _context.fillStyle = buildRgbaFromState(state, 'axesText', textOpacity);
-      _context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
-      _context.moveTo(GUTTER, yPx);
-      _context.lineTo(_plotSize.width - GUTTER, yPx);
+      // TODO perf
+      _context.fillStyle = color ? hexToRgba(color, textOpacity) : buildRgbaFromState(state, 'axesText', textOpacity);
+
+      if (!isSecondary) {
+        _context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
+        _context.moveTo(GUTTER, yPx);
+        _context.lineTo(_plotSize.width - GUTTER, yPx);
+      } else {
+        _context.fillText(humanize(value), _plotSize.width - GUTTER, yPx - GUTTER / 2);
+      }
     }
+
 
     _context.stroke();
   }

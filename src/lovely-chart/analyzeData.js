@@ -3,12 +3,12 @@ import { buildDayLabels } from './format';
 import { LABELS_KEY } from './constants';
 
 function prepareDatasets(chartData) {
-  const { columns, names, colors } = chartData;
+  const { columns, names, colors, y_scaled: hasSecondYAxis } = chartData;
 
   let labels = [];
   const datasets = [];
 
-  columns.forEach((values) => {
+  columns.forEach((values, i) => {
     const key = values.shift();
 
     if (key === LABELS_KEY) {
@@ -22,6 +22,7 @@ function prepareDatasets(chartData) {
       color: colors[key],
       name: names[key],
       values,
+      hasOwnYAxis: hasSecondYAxis && i === columns.length - 1,
     });
   });
 
@@ -65,5 +66,6 @@ export function analyzeData(data) {
     yMin: totalYMin,
     yMax: totalYMax,
     xLabels,
+    hasSecondYAxis: data.y_scaled,
   };
 }

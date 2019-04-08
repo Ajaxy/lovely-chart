@@ -81,19 +81,12 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
   const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
 
-  const filteredValues = data.datasets.filter(({ key }) => filter[key]).map(({ values }) => values);
-  const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
-
-  const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
-    = getMaxMin(mergeArrays(filteredValues));
-  const yMinMinimap = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
-
-  const { min: yMinViewportReal = prevState.yMinViewport, max: yMaxViewport = prevState.yMaxViewport }
-    = getMaxMin(mergeArrays(viewportValues));
-  const yMinViewport = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
-
   const xAxisScale = calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end);
-  const yAxisScale = calculateYAxisScale(viewportSize.height, yMinViewport, yMaxViewport);
+
+  const yRanges = calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+  const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
+  const yAxisScaleSecond = data.hasSecondYAxis &&
+    calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
 
   const datasetsOpacity = {};
   data.datasets.forEach(({ key }) => {
@@ -104,20 +97,64 @@ function calculateState(data, viewportSize, range, filter, prevState) {
     {
       xOffset: begin * totalXWidth,
       xWidth: (end - begin) * totalXWidth,
-      yMinViewport,
-      yMaxViewport,
-      yMinMinimap,
-      yMaxMinimap,
       xAxisScale,
       yAxisScale,
+      yAxisScaleSecond,
       labelFromIndex: Math.max(0, labelFromIndex - 1),
       labelToIndex: Math.min(labelToIndex + 1, totalXWidth),
       filter,
     },
+    yRanges,
     datasetsOpacity,
     buildSkinState(),
     range,
   );
+}
+
+function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {
+  const secondaryYAxisDataset = data.hasSecondYAxis && data.datasets.slice(-1)[0];
+
+  const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
+  const filteredValues = filteredDatasets.map(({ values }) => values);
+  const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
+
+  const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
+    = getMaxMin(mergeArrays(filteredValues));
+  const yMinMinimap = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
+
+  const { min: yMinViewportReal = prevState.yMinViewport, max: yMaxViewport = prevState.yMaxViewport }
+    = getMaxMin(mergeArrays(viewportValues));
+  const yMinViewport = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
+
+  let yMinViewportSecond = null;
+  let yMaxViewportSecond = null;
+  let yMinMinimapSecond = null;
+  let yMaxMinimapSecond = null;
+
+  if (secondaryYAxisDataset && filter[secondaryYAxisDataset.key]) {
+    const minimapMaxMin = getMaxMin(secondaryYAxisDataset.values);
+    const yMinMinimapRealSecond = minimapMaxMin.min || prevState.yMinMinimapSecond;
+    yMaxMinimapSecond = minimapMaxMin.max || prevState.yMaxMinimapSecond;
+    yMinMinimapSecond =
+      yMinMinimapRealSecond / yMaxMinimapSecond > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapRealSecond : 0;
+
+    const viewportMaxMin = getMaxMin(secondaryYAxisDataset.values.slice(labelFromIndex, labelToIndex + 1));
+    const yMinViewportRealSecond = viewportMaxMin.min || prevState.yMinViewportSecond;
+    yMaxViewportSecond = viewportMaxMin.max || prevState.yMaxViewportSecond;
+    yMinViewportSecond =
+      yMinMinimapRealSecond / yMaxMinimapSecond > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportRealSecond : 0;
+  }
+
+  return {
+    yMinViewport,
+    yMaxViewport,
+    yMinMinimap,
+    yMaxMinimap,
+    yMinViewportSecond,
+    yMaxViewportSecond,
+    yMinMinimapSecond,
+    yMaxMinimapSecond,
+  };
 }
 
 function calculateXAxisScale(labelsCount, plotWidth, begin, end) {

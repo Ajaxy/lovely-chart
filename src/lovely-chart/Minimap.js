@@ -123,25 +123,31 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _drawDatasets(state = {}) {
-    _data.datasets.forEach(({ key, color, values }) => {
-      const opacity = state[`opacity#${key}`];
-      const bounds = {
-        xOffset: 0,
-        xWidth: _data.xLabels.length - 1,
-        yMin: state.yMinMinimap,
-        yMax: state.yMaxMinimap,
-      };
-      const projection = createProjection(bounds, _canvasSize, { yPadding: 1 });
+    const projection = createProjection({
+      xOffset: 0,
+      xWidth: _data.xLabels.length - 1,
+      yMin: state.yMinMinimap,
+      yMax: state.yMaxMinimap,
+      availableWidth: _canvasSize.width,
+      availableHeight: _canvasSize.height,
+      yPadding: 1,
+    });
+
+    _data.datasets.forEach(({ key, color, values, hasOwnYAxis }) => {
+      const datasetProjection = hasOwnYAxis
+        ? projection.copy({ yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond })
+        : projection;
       const options = {
         color,
-        opacity,
+        opacity: state[`opacity#${key}`],
         lineWidth: MINIMAP_LINE_WIDTH,
       };
-
-      drawDataset(_context, values, projection, options, {
+      const range = {
         from: 0,
         to: values.length - 1,
-      });
+      };
+
+      drawDataset(_context, values, datasetProjection, options, range);
     });
   }
 

@@ -1,10 +1,10 @@
-export function drawDataset(context, values, projection, options, { from, to }) {
+export function drawDataset(context, values, projection, options, range) {
   context.beginPath();
 
-  for (let i = from; i <= to; i++) {
+  for (let i = range.from; i <= range.to; i++) {
     const [xPx, yPx] = projection.toPixels(i, values[i]);
 
-    if (i === from) {
+    if (i === range.from) {
       context.moveTo(xPx, yPx);
     } else {
       context.lineTo(xPx, yPx);

@@ -13,6 +13,7 @@ export function createTooltip(container, data, plotSize) {
 
   let _state;
   let _projection;
+  let _secondaryProjection;
   let _element;
   let _canvas;
   let _context;
@@ -23,9 +24,10 @@ export function createTooltip(container, data, plotSize) {
 
   _setupLayout();
 
-  function update(state, projection) {
+  function update(state, projection, secondaryProjection) {
     _state = state;
     _projection = projection;
+    _secondaryProjection = secondaryProjection;
     _drawStatistics();
   }
 
@@ -88,8 +90,7 @@ export function createTooltip(container, data, plotSize) {
     const offsetX = _offsetX;
     const state = _state;
 
-    const { findClosesLabelIndex, toPixels } = _projection;
-    const labelIndex = findClosesLabelIndex(offsetX);
+    const labelIndex = _projection.findClosesLabelIndex(offsetX);
 
     if (labelIndex < 0 || labelIndex >= _data.xLabels.length) {
       return;
@@ -97,19 +98,21 @@ export function createTooltip(container, data, plotSize) {
 
     clearCanvas(_canvas, _context);
 
-    const [xPx] = toPixels(labelIndex, 0);
+    const [xPx] = _projection.toPixels(labelIndex, 0);
     _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, buildRgbaFromState(state, 'tooltipTail'));
 
     const statistics = _data.datasets
       .filter(({ key }) => state.filter[key])
-      .map(({ name, color, values }) => ({
+      .map(({ name, color, values, hasOwnYAxis }) => ({
         name,
         color,
         value: values[labelIndex],
+        hasOwnYAxis,
       }));
 
-    statistics.forEach(({ value, color }) => {
-      _drawCircle(toPixels(labelIndex, value), color, buildRgbaFromState(state, 'bg'));
+    statistics.forEach(({ value, color, hasOwnYAxis }) => {
+      const projection = hasOwnYAxis ? _secondaryProjection : _projection;
+      _drawCircle(projection.toPixels(labelIndex, value), color, buildRgbaFromState(state, 'bg'));
     });
 
     _updateBalloon(statistics, xPx, labelIndex);
