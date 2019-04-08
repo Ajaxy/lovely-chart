@@ -31,6 +31,7 @@ export const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const BALLOON_OFFSET = 20;
 
+// TODO perf
 export const TRANSITION_DURATION = 300;
 
 export const SKINS = {

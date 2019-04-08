@@ -9,6 +9,14 @@ document.addEventListener('DOMContentLoaded', () => {
     charts.push(LovelyChart.create('container', { dataSource }));
   });
 
+  fetch('./data/chart_data.json')
+    .then((response) => response.json())
+    .then((data) => {
+      data.forEach((chartData) => charts.push(
+        LovelyChart.create('container', chartData),
+      ));
+    });
+
   document.getElementById('skin-switcher').addEventListener('click', (e) => {
     e.preventDefault();
 
