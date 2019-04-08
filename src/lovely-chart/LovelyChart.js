@@ -66,6 +66,7 @@ export function createLovelyChart(parentContainerId, dataOptions) {
     const { dataSource } = dataOptions;
 
     if (dataSource) {
+      // TODO spinner
       return fetch(`${dataSource}/overview.json`)
         .then((response) => response.json());
     } else {
@@ -98,8 +99,10 @@ export function createLovelyChart(parentContainerId, dataOptions) {
 
     clearCanvas(_plot, _context);
 
-    _axes.update(state, projection);
+    _axes.drawYAxis(state, projection);
     _drawDatasets(state, projection);
+    // TODO isChanged
+    _axes.drawXAxis(state, projection);
     _minimap.update(state);
     _tooltip.update(state, projection);
   }
