@@ -12,11 +12,11 @@
   "license": "ISC",
   "devDependencies": {
     "gulp": "^4.0.0",
+    "gulp-babel-minify": "^0.5.0",
     "gulp-concat": "^2.6.1",
     "gulp-jsclosure": "0.0.1",
     "gulp-jsonminify": "^1.1.0",
     "gulp-replace": "^1.0.0",
-    "gulp-terser": "^1.1.7",
     "gulp-uglifycss": "^1.1.0",
     "merge-stream": "^1.0.1"
   }

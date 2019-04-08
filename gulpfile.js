@@ -4,7 +4,7 @@ const merge = require('merge-stream');
 const concat = require('gulp-concat');
 const replace = require('gulp-replace');
 const jsclosure = require('gulp-jsclosure');
-const minifyJs = require('gulp-terser');
+const minifyJs = require('gulp-babel-minify');
 const minifyCss = require('gulp-uglifycss');
 const minifyJson = require('gulp-jsonminify');
 
