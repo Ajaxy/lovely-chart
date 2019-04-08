@@ -52,4 +52,4 @@ const SKIN_STATE_PROPS = mergeArrays(Object.keys(SKINS.day).map((key) => (
   ['R', 'G', 'B'].map((channel) => `colorChannels#${key}#${channel}`)
 )));
 
-export const ANIMATE_PROPS = ['yMax', 'yMin', 'xAxisScale', 'yAxisScale', 'yMaxFiltered', 'yMinFiltered', ...SKIN_STATE_PROPS];
+export const ANIMATE_PROPS = ['yMinViewport', 'yMaxViewport', 'yMinMinimap', 'yMaxMinimap', 'xAxisScale', 'yAxisScale', ...SKIN_STATE_PROPS];

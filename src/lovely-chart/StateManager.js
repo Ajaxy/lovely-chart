@@ -84,13 +84,13 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const filteredValues = data.datasets.filter(({ key }) => filter[key]).map(({ values }) => values);
   const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
 
-  const { min: yMinFilteredReal = prevState.yMinFiltered, max: yMaxFiltered = prevState.yMaxFiltered }
+  const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
     = getMaxMin(mergeArrays(filteredValues));
-  const yMinFiltered = yMinFilteredReal / yMaxFiltered > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinFilteredReal : 0;
+  const yMinMinimap = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
 
-  const { min: yMinViewportReal = prevState.yMin, max: yMaxViewport = prevState.yMax }
+  const { min: yMinViewportReal = prevState.yMinViewport, max: yMaxViewport = prevState.yMaxViewport }
     = getMaxMin(mergeArrays(viewportValues));
-  const yMinViewport = yMinFilteredReal / yMaxFiltered > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
+  const yMinViewport = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
 
   const xAxisScale = calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end);
   const yAxisScale = calculateYAxisScale(viewportSize.height, yMinViewport, yMaxViewport);
@@ -104,10 +104,10 @@ function calculateState(data, viewportSize, range, filter, prevState) {
     {
       xOffset: begin * totalXWidth,
       xWidth: (end - begin) * totalXWidth,
-      yMinFiltered,
-      yMaxFiltered,
-      yMin: yMinViewport,
-      yMax: yMaxViewport,
+      yMinViewport,
+      yMaxViewport,
+      yMinMinimap,
+      yMaxMinimap,
       xAxisScale,
       yAxisScale,
       labelFromIndex: Math.max(0, labelFromIndex - 1),

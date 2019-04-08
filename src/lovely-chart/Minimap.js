@@ -117,7 +117,7 @@ export function createMinimap(container, data, rangeCallback) {
     }
 
     const keys = _data.datasets.map(({ key }) => `opacity#${key}`);
-    keys.push('yMaxFiltered');
+    keys.push('yMaxMinimap');
 
     return keys.some((key) => _state[key] !== newState[key]);
   }
@@ -128,8 +128,8 @@ export function createMinimap(container, data, rangeCallback) {
       const bounds = {
         xOffset: 0,
         xWidth: _data.xLabels.length - 1,
-        yMin: state.yMinFiltered,
-        yMax: state.yMaxFiltered,
+        yMin: state.yMinMinimap,
+        yMax: state.yMaxMinimap,
       };
       const projection = createProjection(bounds, _canvasSize, { yPadding: 1 });
       const options = {

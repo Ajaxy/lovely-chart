@@ -82,20 +82,24 @@ export function createLovelyChart(parentContainerId, dataOptions) {
     createTools(_container, _data, _onFilterChange);
   }
 
-  function _getAvailablePlotSize() {
+  function _onStateUpdate(state) {
     const { width, height } = _plotSize;
 
-    return {
-      width,
-      height: height - X_AXIS_HEIGHT,
-    };
-  }
-
-  function _onStateUpdate(state) {
-    const projection = createProjection(state, _getAvailablePlotSize(), {
-      xPadding: GUTTER,
-      yPadding: PLOT_TOP_PADDING,
-    });
+    const projection = createProjection({
+        xOffset: state.xOffset,
+        xWidth: state.xWidth,
+        yMin: state.yMinViewport,
+        yMax: state.yMaxViewport,
+      },
+      {
+        width,
+        height: height - X_AXIS_HEIGHT,
+      },
+      {
+        xPadding: GUTTER,
+        yPadding: PLOT_TOP_PADDING,
+      },
+    );
 
     clearCanvas(_plot, _context);
 

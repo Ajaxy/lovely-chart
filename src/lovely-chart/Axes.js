@@ -49,8 +49,8 @@ export function createAxes(context, data, plotSize) {
 
   function _drawYAxisScaled(state, projection, scaleLevel, opacity = 1) {
     const step = yScaleLevelToStep(scaleLevel);
-    const firstVisibleValue = Math.ceil(state.yMin / step) * step;
-    const lastVisibleValue = Math.floor(state.yMax / step) * step;
+    const firstVisibleValue = Math.ceil(state.yMinViewport / step) * step;
+    const lastVisibleValue = Math.floor(state.yMaxViewport / step) * step;
 
     _context.font = AXES_FONT;
     _context.textAlign = 'left';
