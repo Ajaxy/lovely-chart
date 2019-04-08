@@ -84,8 +84,10 @@ export function createLovelyChart(parentContainerId, data) {
 
     clearCanvas(_plot, _context);
 
-    _axes.update(state, projection);
+    _axes.drawYAxis(state, projection);
     _drawDatasets(state, projection);
+    // TODO isChanged
+    _axes.drawXAxis(state, projection);
     _minimap.update(state);
     _tooltip.update(state, projection);
   }

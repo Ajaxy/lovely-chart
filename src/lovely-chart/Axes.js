@@ -8,19 +8,15 @@ export function createAxes(context, data, plotSize) {
   const _data = data;
   const _plotSize = plotSize;
 
-  function update(state, projection) {
-    _context.font = AXES_FONT;
+  function drawXAxis(state, projection) {
+    _context.clearRect(0, _plotSize.height - X_AXIS_HEIGHT, plotSize.width, X_AXIS_HEIGHT);
 
-    _drawXAxis(state, projection);
-    _drawYAxis(state, projection);
-  }
-
-  function _drawXAxis(state, projection) {
     const topOffset = _plotSize.height - X_AXIS_HEIGHT / 2;
     const scaleLevel = Math.floor(state.xAxisScale);
     const step = xScaleLevelToStep(scaleLevel);
     const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
 
+    _context.font = AXES_FONT;
     _context.textAlign = 'center';
     _context.textBaseline = 'middle';
 
@@ -41,7 +37,7 @@ export function createAxes(context, data, plotSize) {
     }
   }
 
-  function _drawYAxis(state, projection) {
+  function drawYAxis(state, projection) {
     const { yAxisScale, yAxisScaleFrom, yAxisScaleTo, yAxisScaleProgress = 0 } = state;
 
     _drawYAxisScaled(state, projection, Math.round(yAxisScaleFrom || yAxisScale), 1 - yAxisScaleProgress);
@@ -53,9 +49,10 @@ export function createAxes(context, data, plotSize) {
 
   function _drawYAxisScaled(state, projection, scaleLevel, opacity = 1) {
     const step = yScaleLevelToStep(scaleLevel);
-    const firstVisibleValue = Math.floor(state.yMin / step) * step;
-    const lastVisibleValue = Math.ceil(state.yMax / step) * step;
+    const firstVisibleValue = Math.ceil(state.yMin / step) * step;
+    const lastVisibleValue = Math.floor(state.yMax / step) * step;
 
+    _context.font = AXES_FONT;
     _context.textAlign = 'left';
     _context.textBaseline = 'bottom';
     _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
@@ -76,5 +73,5 @@ export function createAxes(context, data, plotSize) {
     _context.stroke();
   }
 
-  return { update };
+  return { drawXAxis, drawYAxis };
 }

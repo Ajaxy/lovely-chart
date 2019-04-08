@@ -5,6 +5,7 @@ import {
   AXES_MAX_ROW_HEIGHT,
   X_AXIS_HEIGHT,
   ANIMATE_PROPS,
+  Y_AXIS_ZERO_BASED_THRESHOLD,
 } from './constants';
 import { buildSkinState } from './skin';
 import { xStepToScaleLevel, yStepToScaleLevel } from './formulas';
@@ -85,11 +86,11 @@ function calculateState(data, viewportSize, range, filter, prevState) {
 
   const { min: yMinFilteredReal = prevState.yMinFiltered, max: yMaxFiltered = prevState.yMaxFiltered }
     = getMaxMin(mergeArrays(filteredValues));
-  const yMinFiltered = yMinFilteredReal / yMaxFiltered > 0.5 ? yMinFilteredReal : 0;
+  const yMinFiltered = yMinFilteredReal / yMaxFiltered > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinFilteredReal : 0;
 
   const { min: yMinViewportReal = prevState.yMin, max: yMaxViewport = prevState.yMax }
     = getMaxMin(mergeArrays(viewportValues));
-  const yMinViewport = yMinFilteredReal / yMaxFiltered > 0.5 ? yMinViewportReal : 0;
+  const yMinViewport = yMinFilteredReal / yMaxFiltered > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
 
   const xAxisScale = calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end);
   const yAxisScale = calculateYAxisScale(viewportSize.height, yMinViewport, yMaxViewport);
