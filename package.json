@@ -4,9 +4,8 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "prebuild": "rm -rf ./dist",
-    "dev": "cp src/chart_data.json dist/ && parcel src/index.html",
-    "prod": "rm -rf docs/ && gulp prod && uglifycss src/snow.css > docs/snow.css && uglifycss src/lovely-chart/lovely-chart.css > docs/lovely-chart/lovely-chart.css"
+    "dev": "rm -rf dist/* && cp -r ./data dist/ && parcel src/index.html",
+    "prod": "rm -rf docs/ && gulp prod"
   },
   "keywords": [],
   "author": "",
@@ -15,8 +14,10 @@
     "gulp": "^4.0.0",
     "gulp-concat": "^2.6.1",
     "gulp-jsclosure": "0.0.1",
+    "gulp-jsonminify": "^1.1.0",
     "gulp-replace": "^1.0.0",
     "gulp-terser": "^1.1.7",
+    "gulp-uglifycss": "^1.1.0",
     "merge-stream": "^1.0.1"
   }
 }

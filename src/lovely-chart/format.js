@@ -34,6 +34,7 @@ export function humanize(value, decimals = 1) {
   return value;
 }
 
+// TODO perf
 function keepThreeDigits(value, decimals) {
   return value
     .toFixed(decimals)

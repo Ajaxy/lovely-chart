@@ -1,3 +1,59 @@
+body {
+  font: 300 13px Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 10px 0 50px 0;
+  color: #222222;
+  background: white;
+  transition: background-color 300ms ease-out;
+  text-align: center;
+}
+
+body.skin-night {
+  color: white;
+  background: #242F3E;
+}
+
+h2 {
+  padding-left: 10px;
+}
+
+#container {
+  display: inline-block;
+  width: 100%;
+  max-width: 480px;
+  text-align: left;
+}
+
+a#skin-switcher {
+  display: block;
+  text-align: center;
+  font-size: 18px;
+  color: #108BE3;
+  text-decoration: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  margin-bottom: 50px;
+}
+
+#killer {
+  display: inline-block;
+  width: 100%;
+  max-width: 480px;
+  text-align: center;
+  transition: color 300ms ease-out;
+}
+
+body.skin-night #killer {
+  color: white;
+}
+
+#killer .circle {
+  border-color: #BAEFFB;
+}
+
+a#skin-switcher:hover, a#skin-switcher:active, a#skin-switcher:visited {
+  color: rgba(16, 139, 227, 0.71);
+}
+
 @keyframes flake-fall {
   0% {
     top: -15%;

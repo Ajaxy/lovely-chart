@@ -10,14 +10,13 @@ import { setupCanvas, clearCanvas } from './canvas';
 import {
   X_AXIS_HEIGHT,
   GUTTER,
-  EDGE_POINTS_BUDGET,
   PLOT_TOP_PADDING,
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
 } from './constants';
 
-export function createLovelyChart(parentContainerId, data) {
-  const _data = analyzeData(data);
+export function createLovelyChart(parentContainerId, dataOptions) {
+  let _data;
 
   let _container;
   let _plot;
@@ -31,7 +30,11 @@ export function createLovelyChart(parentContainerId, data) {
 
   _setupContainer(parentContainerId);
   _setupPlotCanvas();
-  _setupComponents();
+
+  _fetchData(dataOptions).then((data) => {
+    _data = analyzeData(data);
+    _setupComponents();
+  });
 
   function redraw() {
     _stateManager.update();
@@ -57,6 +60,17 @@ export function createLovelyChart(parentContainerId, data) {
       width: _plot.offsetWidth,
       height: _plot.offsetHeight,
     };
+  }
+
+  function _fetchData(dataOptions) {
+    const { dataSource } = dataOptions;
+
+    if (dataSource) {
+      return fetch(`${dataSource}/overview.json`)
+        .then((response) => response.json());
+    } else {
+      return Promise.resolve(dataOptions);
+    }
   }
 
   function _setupComponents() {
