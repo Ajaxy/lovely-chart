@@ -102,10 +102,7 @@ export function createAxes(context, data, plotSize) {
     _context.textAlign = isSecondary ? 'right' : 'left';
     _context.textBaseline = 'bottom';
 
-    if (!isSecondary) {
-      _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
-      _context.lineWidth = 1;
-    }
+    _context.lineWidth = 1;
 
     _context.beginPath();
 
@@ -118,13 +115,26 @@ export function createAxes(context, data, plotSize) {
 
       if (!isSecondary) {
         _context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
-        _context.moveTo(GUTTER, yPx);
-        _context.lineTo(_plotSize.width - GUTTER, yPx);
       } else {
         _context.fillText(humanize(value), _plotSize.width - GUTTER, yPx - GUTTER / 2);
       }
-    }
 
+      if (color) {
+        _context.strokeStyle = hexToRgba(color, opacity);
+
+        if (isSecondary) {
+          _context.moveTo(_plotSize.width - GUTTER, yPx);
+          _context.lineTo(_plotSize.width - GUTTER * 2, yPx);
+        } else {
+          _context.moveTo(GUTTER, yPx);
+          _context.lineTo(GUTTER * 2, yPx);
+        }
+      } else {
+        _context.moveTo(GUTTER, yPx);
+        _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
+        _context.lineTo(_plotSize.width - GUTTER, yPx);
+      }
+    }
 
     _context.stroke();
   }

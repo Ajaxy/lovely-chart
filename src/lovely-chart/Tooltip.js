@@ -1,9 +1,9 @@
 import { setupCanvas, clearCanvas } from './canvas';
-import { BALLOON_OFFSET, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
+import { BALLOON_OFFSET, GUTTER, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { humanize } from './format';
 import { buildRgbaFromState } from './skin';
 import { createThrottledUntilRaf } from './fast';
-import { createElement } from './minifiers';
+import { addEventListener, createElement } from './minifiers';
 
 const BALLOON_SHADOW_WIDTH = 1;
 
@@ -20,6 +20,7 @@ export function createTooltip(container, data, plotSize) {
   let _context;
   let _balloon;
   let _offsetX;
+  let _offsetY;
 
   const _drawStatisticsOnRaf = createThrottledUntilRaf(_drawStatistics);
 
@@ -40,13 +41,13 @@ export function createTooltip(container, data, plotSize) {
     _setupBalloon();
 
     addEventListener(_element, 'mousemove', _onMouseEnter);
-    addEventListener(_element,'touchmove', _onMouseEnter);
-    addEventListener(_element,'touchstart', _onMouseEnter);
+    addEventListener(_element, 'touchmove', _onMouseEnter);
+    addEventListener(_element, 'touchstart', _onMouseEnter);
 
-    addEventListener(_element,'mouseout', _onMouseLeave);
-    addEventListener(_element,'mouseup', _onMouseLeave);
-    addEventListener(_element,'touchend', _onMouseLeave);
-    addEventListener(_element,'touchcancel', _onMouseLeave);
+    addEventListener(_element, 'mouseout', _onMouseLeave);
+    addEventListener(_element, 'mouseup', _onMouseLeave);
+    addEventListener(_element, 'touchend', _onMouseLeave);
+    addEventListener(_element, 'touchcancel', _onMouseLeave);
 
     _container.appendChild(_element);
   }
@@ -67,7 +68,15 @@ export function createTooltip(container, data, plotSize) {
   }
 
   function _onMouseEnter(e) {
-    _offsetX = e.type.startsWith('touch') ? e.touches[0].pageX - getPageOffset(e.touches[0].target) : e.offsetX;
+    _offsetX = e.offsetX;
+    _offsetY = e.offsetY;
+
+    if (e.type.startsWith('touch')) {
+      const pageOffset = getPageOffset(e.touches[0].currentTarget);
+
+      _offsetX = e.touches[0].pageX - pageOffset.left;
+      _offsetY = e.touches[0].pageY - pageOffset.top;
+    }
 
     _drawStatisticsOnRaf();
   }
@@ -100,7 +109,12 @@ export function createTooltip(container, data, plotSize) {
     clearCanvas(_canvas, _context);
 
     const [xPx] = _projection.toPixels(labelIndex, 0);
-    _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, buildRgbaFromState(state, 'tooltipTail'));
+    const lineColor = buildRgbaFromState(state, 'tooltipTail');
+    _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, lineColor);
+
+    if (_secondaryProjection && _offsetY <= _plotSize.height - X_AXIS_HEIGHT) {
+      _drawHorizontalRuler(_offsetY, _plotSize.width, lineColor);
+    }
 
     const statistics = _data.datasets
       .filter(({ key }) => state.filter[key])
@@ -113,6 +127,7 @@ export function createTooltip(container, data, plotSize) {
 
     statistics.forEach(({ value, color, hasOwnYAxis }) => {
       const projection = hasOwnYAxis ? _secondaryProjection : _projection;
+      // TODO animate
       _drawCircle(projection.toPixels(labelIndex, value), color, buildRgbaFromState(state, 'bg'));
     });
 
@@ -140,6 +155,16 @@ export function createTooltip(container, data, plotSize) {
     _context.stroke();
   }
 
+  function _drawHorizontalRuler(y, width, color) {
+    _context.strokeStyle = color;
+    _context.lineWidth = 1;
+
+    _context.beginPath();
+    _context.moveTo(GUTTER, y);
+    _context.lineTo(width - GUTTER, y);
+    _context.stroke();
+  }
+
   function _updateBalloon(statistics, xPx, labelIndex) {
     const label = _data.xLabels[labelIndex];
     const date = new Date(label.value);
@@ -164,5 +189,5 @@ export function createTooltip(container, data, plotSize) {
 }
 
 function getPageOffset(el) {
-  return el.getBoundingClientRect().left;
+  return el.getBoundingClientRect();
 }
