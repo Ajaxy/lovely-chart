@@ -54,8 +54,9 @@ const SKIN_STATE_PROPS = mergeArrays(Object.keys(SKINS.day).map((key) => (
 )));
 
 export const ANIMATE_PROPS = [
+  // 'xWidth', 'xOffset', 'labelFromIndex', 'labelToIndex',
   'yMinViewport', 'yMaxViewport', 'yMinMinimap', 'yMaxMinimap',
   'yMinViewportSecond', 'yMaxViewportSecond', 'yMinMinimapSecond', 'yMaxMinimapSecond',
   'xAxisScale', 'yAxisScale', 'yAxisScaleSecond',
-  ...SKIN_STATE_PROPS
+  ...SKIN_STATE_PROPS,
 ];

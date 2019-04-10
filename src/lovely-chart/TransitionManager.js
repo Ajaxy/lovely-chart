@@ -64,6 +64,7 @@ export function createTransitionManager(onTick) {
       const { startedAt, from, to } = _transitions[prop];
       const progress = Math.min(1, (Date.now() - startedAt) / TRANSITION_DURATION);
       const current = from + (to - from) * transition(progress);
+
       _transitions[prop].current = current;
       _transitions[prop].progress = progress;
       state[prop] = current;

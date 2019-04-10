@@ -80,7 +80,7 @@ export function createLovelyChart(parentContainerId, dataOptions) {
     _axes = createAxes(_context, _data, _plotSize);
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _minimap = createMinimap(_container, _data, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize);
+    _tooltip = createTooltip(_container, _data, _plotSize, _zoomToLabel);
     createTools(_container, _data, _onFilterChange);
   }
 
@@ -139,6 +139,12 @@ export function createLovelyChart(parentContainerId, dataOptions) {
 
   function _onFilterChange(filter) {
     _stateManager.update({ filter });
+  }
+
+  function _zoomToLabel(labelIndex) {
+    const begin = labelIndex / _data.xLabels.length;
+    const end = begin + (1 / _data.xLabels.length);
+    _stateManager.update({ range: { begin, end } });
   }
 
   return { redraw };

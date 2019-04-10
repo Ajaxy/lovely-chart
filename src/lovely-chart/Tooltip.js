@@ -7,10 +7,11 @@ import { addEventListener, createElement } from './minifiers';
 
 const BALLOON_SHADOW_WIDTH = 1;
 
-export function createTooltip(container, data, plotSize) {
+export function createTooltip(container, data, plotSize, onSelectLabel) {
   const _container = container;
   const _data = data;
   const _plotSize = plotSize;
+  const _onSelectLabel = onSelectLabel;
 
   let _state;
   let _projection;
@@ -42,14 +43,14 @@ export function createTooltip(container, data, plotSize) {
     _setupCanvas();
     _setupBalloon();
 
-    addEventListener(_element, 'mousemove', _onMouseEnter);
-    addEventListener(_element, 'touchmove', _onMouseEnter);
-    addEventListener(_element, 'touchstart', _onMouseEnter);
-
-    addEventListener(_element, 'mouseout', _onMouseLeave);
-    addEventListener(_element, 'mouseup', _onMouseLeave);
-    addEventListener(_element, 'touchend', _onMouseLeave);
-    addEventListener(_element, 'touchcancel', _onMouseLeave);
+    if ('ontouchstart' in window) {
+      addEventListener(_element, 'touchmove', _onMouseMove);
+      addEventListener(_element, 'touchstart', _onMouseMove);
+      addEventListener(document, 'touchstart', _onDocumentMove);
+    } else {
+      addEventListener(_element, 'mousemove', _onMouseMove);
+      addEventListener(document, 'mousemove', _onDocumentMove);
+    }
 
     _container.appendChild(_element);
   }
@@ -66,29 +67,39 @@ export function createTooltip(container, data, plotSize) {
     _balloon.className = 'balloon';
     _balloon.innerHTML = '<div class="title"></div><div class="legend"></div>';
 
+    addEventListener(_balloon, 'click', _onBalloonClick)
+
     _element.appendChild(_balloon);
   }
 
-  function _onMouseEnter(e) {
-    _offsetX = e.offsetX;
-    _offsetY = e.offsetY;
-
-    if (e.type.startsWith('touch')) {
-      const pageOffset = getPageOffset(e.touches[0].target);
-
-      _offsetX = e.touches[0].clientX - pageOffset.left;
-      _offsetY = e.touches[0].clientY - pageOffset.top;
+  function _onMouseMove(e) {
+    if (e.target === _balloon || _balloon.contains(e.target)) {
+      return;
     }
+
+    const pageOffset = getPageOffset(_element);
+
+    _offsetX = (e.clientX || e.touches[0].clientX) - pageOffset.left;
+    _offsetY = (e.clientY || e.touches[0].clientY) - pageOffset.top;
 
     _drawStatisticsOnRaf();
   }
 
-  function _onMouseLeave(e) {
-    if (e) {
-      // Prevent further `mousemove` on touch devices.
-      e.preventDefault();
+  function _onDocumentMove(e) {
+    if (e.target !== _element && !_element.contains(e.target)) {
+      _clear();
     }
+  }
 
+  function _onBalloonClick() {
+    _balloon.classList.add('loading');
+
+    const labelIndex = _projection.findClosesLabelIndex(_offsetX);
+
+    _onSelectLabel(labelIndex);
+  }
+
+  function _clear() {
     _offsetX = null;
     clearCanvas(_canvas, _context);
     _hideBalloon();
@@ -99,19 +110,16 @@ export function createTooltip(container, data, plotSize) {
       return;
     }
 
-    const offsetX = _offsetX;
-    const state = _state;
+    const labelIndex = _projection.findClosesLabelIndex(_offsetX);
 
-    const labelIndex = _projection.findClosesLabelIndex(offsetX);
-
-    if (labelIndex < 0 || labelIndex >= _data.xLabels.length) {
+    if (labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex) {
       return;
     }
 
     clearCanvas(_canvas, _context);
 
     const [xPx] = _projection.toPixels(labelIndex, 0);
-    const lineColor = buildRgbaFromState(state, 'tooltipTail');
+    const lineColor = buildRgbaFromState(_state, 'tooltipTail');
     _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, lineColor);
 
     if (_secondaryCoords && _offsetY <= _plotSize.height - X_AXIS_HEIGHT) {
@@ -119,7 +127,7 @@ export function createTooltip(container, data, plotSize) {
     }
 
     const statistics = _data.datasets
-      .filter(({ key }) => state.filter[key])
+      .filter(({ key }) => _state.filter[key])
       .map(({ name, color, values, hasOwnYAxis }) => ({
         name,
         color,
@@ -131,7 +139,7 @@ export function createTooltip(container, data, plotSize) {
       const coordIndex = labelIndex - _state.labelFromIndex;
       const { x, y } = hasOwnYAxis ? _secondaryCoords[coordIndex] : _coords[i][coordIndex];
       // TODO animate
-      _drawCircle([x, y], color, buildRgbaFromState(state, 'bg'));
+      _drawCircle([x, y], color, buildRgbaFromState(_state, 'bg'));
     });
 
     _updateBalloon(statistics, xPx, labelIndex);

@@ -197,7 +197,7 @@ body.skin-night .lovely-chart a.checkbox .label {
   white-space: nowrap;
   opacity: 0;
   transition: opacity 200ms ease-out, background-color 300ms ease-out;
-  pointer-events: none;
+  cursor: pointer;
 }
 
 body.skin-night .lovely-chart .tooltip .balloon {
