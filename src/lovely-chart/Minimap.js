@@ -1,5 +1,5 @@
 import { setupCanvas, clearCanvas } from './canvas';
-import { drawDataset } from './drawDataset';
+import { drawDatasets } from './drawDatasets';
 import { createProjection } from './createProjection';
 import { setupDrag } from './setupDrag';
 import {
@@ -124,6 +124,11 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _drawDatasets(state = {}) {
+    const { datasets } = _data;
+    const range = {
+      from: 0,
+      to: _data.xLabels.length - 1,
+    };
     const projection = createProjection({
       xOffset: 0,
       xWidth: _data.xLabels.length - 1,
@@ -133,23 +138,20 @@ export function createMinimap(container, data, rangeCallback) {
       availableHeight: _canvasSize.height,
       yPadding: 1,
     });
+    const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
+    const coords = _data.isStacked
+      ? projection.prepareStackedCoords(datasets, range, visibilities)
+      : projection.prepareZeroBasedCoords(datasets, range);
 
-    _data.datasets.forEach(({ key, color, values, hasOwnYAxis }) => {
-      const datasetProjection = hasOwnYAxis
-        ? projection.copy({ yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond })
-        : projection;
-      const options = {
-        color,
-        opacity: state[`opacity#${key}`],
-        lineWidth: MINIMAP_LINE_WIDTH,
-      };
-      const range = {
-        from: 0,
-        to: values.length - 1,
-      };
+    let secondaryProjection = null;
+    let secondaryCoords = null;
+    if (_data.hasSecondYAxis) {
+      secondaryProjection = projection.copy({ yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond });
+      const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
+      secondaryCoords = secondaryProjection.prepareZeroBasedCoords([secondaryDataset], range)[0];
+    }
 
-      drawDataset(_context, values, datasetProjection, options, range);
-    });
+    drawDatasets(_context, state, _data, range, projection, coords, secondaryCoords, MINIMAP_LINE_WIDTH, visibilities);
   }
 
   function _onDragCapture(e) {

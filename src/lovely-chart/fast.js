@@ -30,6 +30,21 @@ export function mergeArrays(arrays) {
   return [].concat.apply([], arrays);
 }
 
+export function sumArrays(arrays) {
+  const sums = [];
+  const n = arrays.length;
+
+  for (let i = 0, l = arrays[0].length; i < l; i++) {
+    sums[i] = 0;
+
+    for (let j = 0; j < n; j++) {
+      sums[i] += arrays[j][i];
+    }
+  }
+
+  return sums;
+}
+
 export function proxyMerge(obj1, obj2) {
   return new Proxy({}, {
     get: (obj, prop) => {

@@ -38,7 +38,7 @@ export const SKINS = {
   day: {
     bg: [255, 255, 255],
     axesText: [150, 162, 170],
-    yAxisRulers: [242, 244, 245],
+    yAxisRulers: [24, 45, 59],
     tooltipTail: [223, 230, 235],
   },
   night: {

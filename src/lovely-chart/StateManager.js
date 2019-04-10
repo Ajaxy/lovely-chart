@@ -1,5 +1,5 @@
 import { createTransitionManager } from './TransitionManager';
-import { createThrottledUntilRaf, getMaxMin, mergeArrays, proxyMerge } from './fast';
+import { createThrottledUntilRaf, getMaxMin, mergeArrays, proxyMerge, sumArrays } from './fast';
 import {
   AXES_MAX_COLUMN_WIDTH,
   AXES_MAX_ROW_HEIGHT,
@@ -83,7 +83,10 @@ function calculateState(data, viewportSize, range, filter, prevState) {
 
   const xAxisScale = calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end);
 
-  const yRanges = calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+  const yRanges = data.isStacked
+    ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState)
+    : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+
   const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
   const yAxisScaleSecond = data.hasSecondYAxis &&
     calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
@@ -154,6 +157,23 @@ function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState)
     yMaxViewportSecond,
     yMinMinimapSecond,
     yMaxMinimapSecond,
+  };
+}
+
+function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) {
+  const filteredDatasets = data.datasets.filter((d) => filter[d.key]);
+  const filteredValues = filteredDatasets.map(({ values }) => values);
+
+  // TODO cache
+  const sums = filteredValues.length ? sumArrays(filteredValues) : [];
+  const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(sums);
+  const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(sums.slice(labelFromIndex, labelToIndex + 1));
+
+  return {
+    yMinViewport: 0,
+    yMaxViewport,
+    yMinMinimap: 0,
+    yMaxMinimap,
   };
 }
 

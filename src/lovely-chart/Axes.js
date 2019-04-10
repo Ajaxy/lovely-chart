@@ -111,7 +111,8 @@ export function createAxes(context, data, plotSize) {
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
       // TODO perf
-      _context.fillStyle = color ? hexToRgba(color, textOpacity) : buildRgbaFromState(state, 'axesText', textOpacity);
+      // TODO 0.5 -> to constants
+      _context.fillStyle = color ? hexToRgba(color, textOpacity) : buildRgbaFromState(state, 'yAxisRulers', textOpacity * 0.5);
 
       if (!isSecondary) {
         _context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
@@ -131,7 +132,8 @@ export function createAxes(context, data, plotSize) {
         }
       } else {
         _context.moveTo(GUTTER, yPx);
-        _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity);
+        // TODO 0.1 -> to constants
+        _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity * 0.1);
         _context.lineTo(_plotSize.width - GUTTER, yPx);
       }
     }

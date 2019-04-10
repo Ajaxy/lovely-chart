@@ -3,7 +3,7 @@ import { buildDayLabels } from './format';
 import { LABELS_KEY } from './constants';
 
 function prepareDatasets(chartData) {
-  const { columns, names, colors, y_scaled: hasSecondYAxis } = chartData;
+  const { columns, names, colors, types, y_scaled: hasSecondYAxis } = chartData;
 
   let labels = [];
   const datasets = [];
@@ -21,6 +21,7 @@ function prepareDatasets(chartData) {
       key,
       color: colors[key],
       name: names[key],
+      type: types[key],
       values,
       hasOwnYAxis: hasSecondYAxis && i === columns.length - 1,
     });
@@ -67,5 +68,6 @@ export function analyzeData(data) {
     yMax: totalYMax,
     xLabels,
     hasSecondYAxis: data.y_scaled,
+    isStacked: data.stacked,
   };
 }

@@ -4,7 +4,7 @@ import { createMinimap } from './Minimap';
 import { createTools } from './Tools';
 import { createTooltip } from './Tooltip';
 import { analyzeData } from './analyzeData';
-import { drawDataset } from './drawDataset';
+import { drawDatasets } from './drawDatasets';
 import { createProjection } from './createProjection';
 import { setupCanvas, clearCanvas } from './canvas';
 import {
@@ -84,6 +84,11 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   }
 
   function _onStateUpdate(state) {
+    const { datasets } = _data;
+    const range = {
+      from: state.labelFromIndex,
+      to: state.labelToIndex,
+    };
     const projection = createProjection({
       begin: state.begin,
       end: state.end,
@@ -96,38 +101,30 @@ export function createLovelyChart(parentContainerId, dataOptions) {
       xPadding: GUTTER,
       yPadding: PLOT_TOP_PADDING,
     });
+    const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
+    const coords = _data.isStacked
+      ? projection.prepareStackedCoords(datasets, range, visibilities)
+      : projection.prepareZeroBasedCoords(datasets, range);
 
-    const secondaryProjection = _data.hasSecondYAxis && projection.copy({
-      yMin: state.yMinViewportSecond,
-      yMax: state.yMaxViewportSecond,
-    });
+    let secondaryProjection = null;
+    let secondaryCoords = null;
+    if (_data.hasSecondYAxis) {
+      secondaryProjection = projection.copy({
+        yMin: state.yMinViewportSecond,
+        yMax: state.yMaxViewportSecond,
+      });
+      const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
+      secondaryCoords = secondaryProjection.prepareZeroBasedCoords([secondaryDataset], range)[0];
+    }
 
     clearCanvas(_plot, _context);
-
+    drawDatasets(_context, state, _data, range, projection, coords, secondaryCoords, PLOT_LINE_WIDTH, visibilities);
     _axes.drawYAxis(state, projection, secondaryProjection);
-    _drawDatasets(state, projection, secondaryProjection);
     // TODO isChanged
     _axes.drawXAxis(state, projection);
     _minimap.update(state);
-    _tooltip.update(state, projection, secondaryProjection);
-  }
-
-  function _drawDatasets(state, projection, secondaryProjection) {
-    const range = {
-      from: state.labelFromIndex,
-      to: state.labelToIndex,
-    };
-
-    _data.datasets.forEach(({ key, color, values, hasOwnYAxis }) => {
-      const datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
-      const options = {
-        color,
-        opacity: state[`opacity#${key}`],
-        lineWidth: PLOT_LINE_WIDTH,
-      };
-
-      drawDataset(_context, values, datasetProjection, options, range);
-    });
+    // TODO maybe `secondaryProjection` is enough, then many calculations above may be incapsulated in `drawDatasets`
+    _tooltip.update(state, projection, coords, secondaryCoords);
   }
 
   function _onRangeChange(range) {

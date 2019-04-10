@@ -14,7 +14,8 @@ export function createTooltip(container, data, plotSize) {
 
   let _state;
   let _projection;
-  let _secondaryProjection;
+  let _coords;
+  let _secondaryCoords;
   let _element;
   let _canvas;
   let _context;
@@ -26,10 +27,11 @@ export function createTooltip(container, data, plotSize) {
 
   _setupLayout();
 
-  function update(state, projection, secondaryProjection) {
+  function update(state, projection, coords, secondaryCoords) {
     _state = state;
     _projection = projection;
-    _secondaryProjection = secondaryProjection;
+    _coords = coords;
+    _secondaryCoords = secondaryCoords;
     _drawStatistics();
   }
 
@@ -112,7 +114,7 @@ export function createTooltip(container, data, plotSize) {
     const lineColor = buildRgbaFromState(state, 'tooltipTail');
     _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, lineColor);
 
-    if (_secondaryProjection && _offsetY <= _plotSize.height - X_AXIS_HEIGHT) {
+    if (_secondaryCoords && _offsetY <= _plotSize.height - X_AXIS_HEIGHT) {
       _drawHorizontalRuler(_offsetY, _plotSize.width, lineColor);
     }
 
@@ -125,10 +127,11 @@ export function createTooltip(container, data, plotSize) {
         hasOwnYAxis,
       }));
 
-    statistics.forEach(({ value, color, hasOwnYAxis }) => {
-      const projection = hasOwnYAxis ? _secondaryProjection : _projection;
+    statistics.forEach(({ value, color, hasOwnYAxis }, i) => {
+      const coordIndex = labelIndex - _state.labelFromIndex;
+      const { x, y } = hasOwnYAxis ? _secondaryCoords[coordIndex] : _coords[i][coordIndex];
       // TODO animate
-      _drawCircle(projection.toPixels(labelIndex, value), color, buildRgbaFromState(state, 'bg'));
+      _drawCircle([x, y], color, buildRgbaFromState(state, 'bg'));
     });
 
     _updateBalloon(statistics, xPx, labelIndex);
