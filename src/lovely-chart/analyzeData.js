@@ -69,5 +69,6 @@ export function analyzeData(data) {
     xLabels,
     hasSecondYAxis: data.y_scaled,
     isStacked: data.stacked,
+    isPercentage: data.percentage,
   };
 }

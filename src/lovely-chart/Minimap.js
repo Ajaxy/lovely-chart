@@ -1,6 +1,6 @@
 import { setupCanvas, clearCanvas } from './canvas';
 import { drawDatasets } from './drawDatasets';
-import { createProjection } from './createProjection';
+import { createProjection, setPercentage, setStacked } from './createProjection';
 import { setupDrag } from './setupDrag';
 import {
   DEFAULT_RANGE,
@@ -139,16 +139,21 @@ export function createMinimap(container, data, rangeCallback) {
       yPadding: 1,
     });
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
-    const coords = _data.isStacked
-      ? projection.prepareStackedCoords(datasets, range, visibilities)
-      : projection.prepareZeroBasedCoords(datasets, range);
+
+    let coords = projection.prepareCoords(datasets, range);
+    if (_data.isPercentage) {
+      coords = setPercentage(coords, visibilities);
+    }
+    if (_data.isStacked) {
+      coords = setStacked(coords, visibilities);
+    }
 
     let secondaryProjection = null;
     let secondaryCoords = null;
     if (_data.hasSecondYAxis) {
       secondaryProjection = projection.copy({ yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond });
       const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
-      secondaryCoords = secondaryProjection.prepareZeroBasedCoords([secondaryDataset], range)[0];
+      secondaryCoords = secondaryProjection.prepareCoords([secondaryDataset], range)[0];
     }
 
     drawDatasets(_context, state, _data, range, projection, coords, secondaryCoords, MINIMAP_LINE_WIDTH, visibilities);

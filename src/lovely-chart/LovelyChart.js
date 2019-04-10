@@ -5,7 +5,7 @@ import { createTools } from './Tools';
 import { createTooltip } from './Tooltip';
 import { analyzeData } from './analyzeData';
 import { drawDatasets } from './drawDatasets';
-import { createProjection } from './createProjection';
+import { createProjection, setPercentage, setStacked } from './createProjection';
 import { setupCanvas, clearCanvas } from './canvas';
 import {
   X_AXIS_HEIGHT,
@@ -102,9 +102,14 @@ export function createLovelyChart(parentContainerId, dataOptions) {
       yPadding: PLOT_TOP_PADDING,
     });
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
-    const coords = _data.isStacked
-      ? projection.prepareStackedCoords(datasets, range, visibilities)
-      : projection.prepareZeroBasedCoords(datasets, range);
+
+    let coords = projection.prepareCoords(datasets, range);
+    if (_data.isPercentage) {
+      coords = setPercentage(coords, visibilities);
+    }
+    if (_data.isStacked) {
+      coords = setStacked(coords, visibilities);
+    }
 
     let secondaryProjection = null;
     let secondaryCoords = null;
@@ -114,7 +119,7 @@ export function createLovelyChart(parentContainerId, dataOptions) {
         yMax: state.yMaxViewportSecond,
       });
       const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
-      secondaryCoords = secondaryProjection.prepareZeroBasedCoords([secondaryDataset], range)[0];
+      secondaryCoords = secondaryProjection.prepareCoords([secondaryDataset], range)[0];
     }
 
     clearCanvas(_plot, _context);

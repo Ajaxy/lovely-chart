@@ -1,4 +1,4 @@
-import { proxyMerge } from './fast';
+import { proxyMerge, sumArrays } from './fast';
 
 export function createProjection(params) {
   const {
@@ -57,7 +57,7 @@ export function createProjection(params) {
     return createProjection(proxyMerge(params, overrides));
   }
 
-  function prepareZeroBasedCoords(datasets, range) {
+  function prepareCoords(datasets, range) {
     const [, y0] = toPixels(0, 0);
 
     return datasets.map(({ values }) => {
@@ -65,12 +65,15 @@ export function createProjection(params) {
 
       for (let j = range.from; j <= range.to; j++) {
         const [x, y] = toPixels(j, values[j]);
+        const height = y0 - y;
 
         coords.push({
           x,
           y,
           yFrom: y0,
           yTo: y,
+          height,
+          heightPercent: height / (availableHeight - yPadding),
         });
       }
 
@@ -78,63 +81,61 @@ export function createProjection(params) {
     });
   }
 
-  function prepareStackedCoords(datasets, range, visibilities) {
-    const [, y0] = toPixels(0, 0);
-    const heightsAccum = [];
-
-    return datasets.map(({ values }, i) => {
-      const coords = [];
-
-      for (let j = range.from; j <= range.to; j++) {
-        const [x] = toPixels(j, values[j]);
-        const height = getHeight(values[j]);
-        const visibleHeight = height * visibilities[i];
-
-        if (heightsAccum[j] === undefined) {
-          heightsAccum[j] = 0;
-        }
-
-        const yFrom = y0 - heightsAccum[j];
-        const yTo = yFrom - visibleHeight;
-
-        coords.push({ x, y: yTo, yFrom, yTo });
-
-        heightsAccum[j] += visibleHeight;
-      }
-
-      return coords;
-    });
-  }
-
   return {
-    getX,
-    getHeight,
+    // TODO maybe not needed
+    // getX,
+    // getHeight,
     toPixels,
     findClosesLabelIndex,
     copy,
-    prepareZeroBasedCoords,
-    prepareStackedCoords,
+    prepareCoords,
   };
 }
 
-// function calculatePercentageHeights(datasets, range, projection, visibilities) {
-// const { coords, heights } = calculateHeights(datasets, range, projection, visibilities);
-//
-// const heightSums = sumArrays(heights);
-// const percentageHeights = [];
-//
-// coords.forEach((datasetCoords, i) => {
-//   percentageHeights[i] = [];
-//
-//   for (let j = range.from; j <= range.to; j++) {
-//     // const percentageHeight
-//     const [x] = datasetCoords[j];
-//     const from = [x, y0];
-//     const to = [x, y0 - heights[i][j] / heightSums[j]];
-//
-//     drawCoords[i].push([from, to]);
-//   }
-// });
-//
-// return coords;
-// }
+export function setStacked(coords, visibilities) {
+  const heightsAccum = [];
+
+  return coords.map((datasetCoords, i) => {
+    return datasetCoords.map(({ x, yFrom, height }, j) => {
+      const visibleHeight = height * visibilities[i];
+
+      if (heightsAccum[j] === undefined) {
+        heightsAccum[j] = 0;
+      }
+
+      yFrom -= heightsAccum[j];
+      const yTo = yFrom - visibleHeight;
+
+      heightsAccum[j] += visibleHeight;
+
+      return {
+        x,
+        y: yTo,
+        height: visibleHeight,
+        yFrom,
+        yTo,
+      };
+    });
+  });
+}
+
+export function setPercentage(coords, visibilities) {
+  const heights = coords.map((datasetCoords, i) => datasetCoords.map(({ height }) => height * visibilities[i]));
+  const heightSums = sumArrays(heights);
+
+  return coords.map((datasetCoords, i) => {
+    return datasetCoords.map(({ x, height, heightPercent, yFrom }, j) => {
+      const maxH = height / heightPercent;
+      const relativeHeight = maxH * (height / heightSums[j]);
+      const yTo = yFrom + relativeHeight;
+
+      return {
+        x,
+        y: yTo,
+        height: relativeHeight,
+        yFrom,
+        yTo,
+      };
+    });
+  });
+}
