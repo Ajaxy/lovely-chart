@@ -57,6 +57,7 @@ export function createLovelyChart(parentContainerId, dataOptions) {
 
     _plot = canvas;
     _context = context;
+    // TODO resize
     _plotSize = {
       width: _plot.offsetWidth,
       height: _plot.offsetHeight,

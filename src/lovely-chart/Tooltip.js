@@ -74,10 +74,10 @@ export function createTooltip(container, data, plotSize) {
     _offsetY = e.offsetY;
 
     if (e.type.startsWith('touch')) {
-      const pageOffset = getPageOffset(e.touches[0].currentTarget);
+      const pageOffset = getPageOffset(e.touches[0].target);
 
-      _offsetX = e.touches[0].pageX - pageOffset.left;
-      _offsetY = e.touches[0].pageY - pageOffset.top;
+      _offsetX = e.touches[0].clientX - pageOffset.left;
+      _offsetY = e.touches[0].clientY - pageOffset.top;
     }
 
     _drawStatisticsOnRaf();
