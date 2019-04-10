@@ -30,7 +30,7 @@ function drawDatasetBars(context, coords, options) {
 
   context.save();
   context.strokeStyle = options.color;
-  context.lineWidth = coords[1].x - coords[0].x;
+  context.lineWidth = coords.length > 1 ? coords[1].x - coords[0].x : coords[0].x * 2;
   context.globalAlpha = options.opacity;
   context.lineJoin = 'bevel';
   context.lineCap = 'butt';
@@ -91,6 +91,7 @@ export function drawDatasets(
       let datasetCoords = coords[i];
 
       if (type === 'area') {
+        // TODO refactor
         const [xMax, y0] = projection.toPixels(range.to, 0);
         const [xMin] = projection.toPixels(range.from, 0);
         const bottomLine = [{ x: xMax, y: y0 }, { x: xMin, y: y0 }];

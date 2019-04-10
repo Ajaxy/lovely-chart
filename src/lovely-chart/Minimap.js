@@ -127,11 +127,12 @@ export function createMinimap(container, data, rangeCallback) {
     const { datasets } = _data;
     const range = {
       from: 0,
-      to: _data.xLabels.length - 1,
+      to: state.totalXWidth,
     };
     const projection = createProjection({
-      xOffset: 0,
-      xWidth: _data.xLabels.length - 1,
+      begin: 0,
+      end: 1,
+      totalXWidth: state.totalXWidth,
       yMin: state.yMinMinimap,
       yMax: state.yMaxMinimap,
       availableWidth: _canvasSize.width,

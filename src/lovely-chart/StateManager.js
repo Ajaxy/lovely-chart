@@ -17,7 +17,7 @@ export function createStateManager(data, viewportSize, callback) {
 
   const _range = { begin: 0, end: 1 };
   const _filter = _buildDefaultFilter();
-  const _animateProps = _buildAnimateProps();
+  const _transitionConfig = _buildTransitionConfig();
   const _transitions = createTransitionManager(_runCallback);
   const _runCallbackOnRaf = createThrottledUntilRaf(_runCallback);
 
@@ -30,18 +30,20 @@ export function createStateManager(data, viewportSize, callback) {
     const prevState = _state;
     _state = calculateState(_data, _viewportSize, _range, _filter, prevState);
 
-    _animateProps.forEach((prop) => {
+    _transitionConfig.forEach(({ prop, duration, options }) => {
       const transition = _transitions.get(prop);
       const currentTarget = transition ? transition.to : prevState[prop];
 
       if (currentTarget !== undefined && currentTarget !== _state[prop]) {
-        const current = transition ? transition.current : prevState[prop];
+        const current = transition
+          ? (options.includes('fast') ? prevState[prop] : transition.current)
+          : prevState[prop];
 
         if (transition) {
           _transitions.remove(prop);
         }
 
-        _transitions.add(prop, current, _state[prop]);
+        _transitions.add(prop, current, _state[prop], duration, options);
       }
     });
 
@@ -50,11 +52,19 @@ export function createStateManager(data, viewportSize, callback) {
     }
   }
 
-  function _buildAnimateProps() {
-    return mergeArrays([
+  function _buildTransitionConfig() {
+    const transitionConfig = [];
+
+    mergeArrays([
       ANIMATE_PROPS,
       _data.datasets.map(({ key }) => `opacity#${key}`),
-    ]);
+    ]).forEach((transition) => {
+      const [prop, duration, ...options] = transition.split(' ');
+      // TODO size obj -> array;
+      transitionConfig.push({ prop, duration, options });
+    });
+
+    return transitionConfig;
   }
 
   function _buildDefaultFilter() {
@@ -98,8 +108,7 @@ function calculateState(data, viewportSize, range, filter, prevState) {
 
   return Object.assign(
     {
-      xOffset: begin * totalXWidth,
-      xWidth: (end - begin) * totalXWidth,
+      totalXWidth,
       xAxisScale,
       yAxisScale,
       yAxisScaleSecond,
@@ -121,6 +130,7 @@ function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState)
   const filteredValues = filteredDatasets.map(({ values }) => values);
   const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
 
+  // TODO perf cache
   const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
     = getMaxMin(mergeArrays(filteredValues));
   const yMinMinimap = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
@@ -135,6 +145,7 @@ function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState)
   let yMaxMinimapSecond = null;
 
   if (secondaryYAxisDataset && filter[secondaryYAxisDataset.key]) {
+    // TODO perf cache
     const minimapMaxMin = getMaxMin(secondaryYAxisDataset.values);
     const yMinMinimapRealSecond = minimapMaxMin.min || prevState.yMinMinimapSecond;
     yMaxMinimapSecond = minimapMaxMin.max || prevState.yMaxMinimapSecond;
@@ -164,8 +175,8 @@ function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, pre
   const filteredDatasets = data.datasets.filter((d) => filter[d.key]);
   const filteredValues = filteredDatasets.map(({ values }) => values);
 
-  // TODO cache
   const sums = filteredValues.length ? sumArrays(filteredValues) : [];
+  // TODO perf cache
   const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(sums);
   const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(sums.slice(labelFromIndex, labelToIndex + 1));
 
@@ -177,6 +188,7 @@ function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, pre
   };
 }
 
+// TODO use labels indexes
 function calculateXAxisScale(labelsCount, plotWidth, begin, end) {
   const viewportLabelsCount = labelsCount * (end - begin);
   const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);

@@ -31,8 +31,7 @@ export const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const BALLOON_OFFSET = 20;
 
-// TODO perf
-export const TRANSITION_DURATION = 300;
+export const TRANSITION_DEFAULT_DURATION = 400;
 
 export const SKINS = {
   day: {
@@ -54,9 +53,21 @@ const SKIN_STATE_PROPS = mergeArrays(Object.keys(SKINS.day).map((key) => (
 )));
 
 export const ANIMATE_PROPS = [
-  // 'xWidth', 'xOffset', 'labelFromIndex', 'labelToIndex',
-  'yMinViewport', 'yMaxViewport', 'yMinMinimap', 'yMaxMinimap',
-  'yMinViewportSecond', 'yMaxViewportSecond', 'yMinMinimapSecond', 'yMaxMinimapSecond',
-  'xAxisScale', 'yAxisScale', 'yAxisScaleSecond',
-  ...SKIN_STATE_PROPS,
+  // Viewport X-axis
+  'begin 200 fast', 'end 200 fast', 'labelFromIndex 200 fast floor', 'labelToIndex 200 fast ceil',
+
+  // X-axis labels
+  'xAxisScale 300',
+
+  // Viewport Y-axis
+  'yMinViewport', 'yMaxViewport', 'yMinViewportSecond', 'yMaxViewportSecond',
+
+  // Minimap Y-axis
+  'yMinMinimap', 'yMaxMinimap', 'yMinMinimapSecond', 'yMaxMinimapSecond',
+
+  // Y-axis labels
+  'yAxisScale 300', 'yAxisScaleSecond 300',
+
+  // Skin
+  ...SKIN_STATE_PROPS.map((p) => `${p} 300`),
 ];

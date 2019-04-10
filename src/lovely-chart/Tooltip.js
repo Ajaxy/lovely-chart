@@ -67,7 +67,7 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
     _balloon.className = 'balloon';
     _balloon.innerHTML = '<div class="title"></div><div class="legend"></div>';
 
-    addEventListener(_balloon, 'click', _onBalloonClick)
+    addEventListener(_balloon, 'click', _onBalloonClick);
 
     _element.appendChild(_balloon);
   }
@@ -79,14 +79,14 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
 
     const pageOffset = getPageOffset(_element);
 
-    _offsetX = (e.clientX || e.touches[0].clientX) - pageOffset.left;
-    _offsetY = (e.clientY || e.touches[0].clientY) - pageOffset.top;
+    _offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
+    _offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
 
     _drawStatisticsOnRaf();
   }
 
   function _onDocumentMove(e) {
-    if (e.target !== _element && !_element.contains(e.target)) {
+    if (_offsetX !== null && e.target !== _element && !_element.contains(e.target)) {
       _clear();
     }
   }
@@ -113,6 +113,7 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
     const labelIndex = _projection.findClosesLabelIndex(_offsetX);
 
     if (labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex) {
+      _clear();
       return;
     }
 
@@ -122,6 +123,7 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
     const lineColor = buildRgbaFromState(_state, 'tooltipTail');
     _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, lineColor);
 
+    // TODO not working on touch devices
     if (_secondaryCoords && _offsetY <= _plotSize.height - X_AXIS_HEIGHT) {
       _drawHorizontalRuler(_offsetY, _plotSize.width, lineColor);
     }

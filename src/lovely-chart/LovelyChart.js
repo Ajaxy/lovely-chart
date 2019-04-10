@@ -93,8 +93,7 @@ export function createLovelyChart(parentContainerId, dataOptions) {
     const projection = createProjection({
       begin: state.begin,
       end: state.end,
-      xOffset: state.xOffset,
-      xWidth: state.xWidth,
+      totalXWidth: state.totalXWidth,
       yMin: state.yMinViewport,
       yMax: state.yMaxViewport,
       availableWidth: _plotSize.width,
@@ -142,9 +141,14 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   }
 
   function _zoomToLabel(labelIndex) {
-    const begin = labelIndex / _data.xLabels.length;
-    const end = begin + (1 / _data.xLabels.length);
-    _stateManager.update({ range: { begin, end } });
+    const labelWidth = 1 / _data.xLabels.length;
+    const labelMiddle = labelIndex / (_data.xLabels.length - 1);
+    _stateManager.update({
+      range: {
+        begin: labelMiddle - labelWidth / 2,
+        end: labelMiddle + labelWidth / 2,
+      },
+    });
   }
 
   return { redraw };

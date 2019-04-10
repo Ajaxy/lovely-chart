@@ -4,8 +4,7 @@ export function createProjection(params) {
   const {
     begin,
     end,
-    xWidth,
-    xOffset,
+    totalXWidth,
     yMin,
     yMax,
     availableWidth,
@@ -13,6 +12,9 @@ export function createProjection(params) {
     xPadding = 0,
     yPadding = 0,
   } = params;
+
+  const xOffset = begin * totalXWidth;
+  const xWidth = (end - begin) * totalXWidth;
 
   let width = availableWidth;
 
