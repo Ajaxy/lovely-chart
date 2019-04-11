@@ -4,20 +4,26 @@ import { createMinimap } from './Minimap';
 import { createTools } from './Tools';
 import { createTooltip } from './Tooltip';
 import { analyzeData } from './analyzeData';
-import { drawDataset } from './drawDataset';
-import { createProjection } from './createProjection';
+import { drawDatasets } from './drawDatasets';
+import { createProjection, setPercentage, setStacked } from './createProjection';
 import { setupCanvas, clearCanvas } from './canvas';
 import {
   X_AXIS_HEIGHT,
   GUTTER,
-  EDGE_POINTS_BUDGET,
   PLOT_TOP_PADDING,
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
+  ZOOM_RANGE_DELTA,
+  ZOOM_TIMEOUT,
+  ZOOM_RANGE_MIDDLE,
+  ZOOM_HALF_DAY_WIDTH,
 } from './constants';
+import { createElement } from './minifiers';
 
-export function createLovelyChart(parentContainerId, data) {
-  const _data = analyzeData(data);
+export function createLovelyChart(parentContainerId, dataOptions) {
+  let _dataOptions = dataOptions;
+
+  let _data;
 
   let _container;
   let _plot;
@@ -31,14 +37,18 @@ export function createLovelyChart(parentContainerId, data) {
 
   _setupContainer(parentContainerId);
   _setupPlotCanvas();
-  _setupComponents();
+
+  _fetchData().then((data) => {
+    _data = analyzeData(data);
+    _setupComponents();
+  });
 
   function redraw() {
     _stateManager.update();
   }
 
   function _setupContainer(parentContainerId) {
-    _container = document.createElement('div');
+    _container = createElement('div');
     _container.className = 'lovely-chart';
 
     const parentContainer = document.getElementById(parentContainerId);
@@ -53,60 +63,90 @@ export function createLovelyChart(parentContainerId, data) {
 
     _plot = canvas;
     _context = context;
+    // TODO resize
     _plotSize = {
       width: _plot.offsetWidth,
       height: _plot.offsetHeight,
     };
   }
 
+  function _fetchData() {
+    const { dataSource } = _dataOptions;
+
+    if (dataSource) {
+      // TODO spinner
+      return fetch(`${dataSource}/overview.json`)
+        .then((response) => response.json());
+    } else {
+      return Promise.resolve(dataOptions);
+    }
+  }
+
+  function _fetchDayData(labelIndex) {
+    const { dataSource } = _dataOptions;
+    const date = new Date(_data.xLabels[labelIndex].value);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
+
+    return fetch(`${dataSource}/${path}.json`)
+      .then((response) => response.json());
+  }
+
   function _setupComponents() {
     _axes = createAxes(_context, _data, _plotSize);
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _minimap = createMinimap(_container, _data, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize);
+    _tooltip = createTooltip(_container, _data, _plotSize, _zoomToDay);
     createTools(_container, _data, _onFilterChange);
   }
 
-  function _getAvailablePlotSize() {
-    const { width, height } = _plotSize;
-
-    return {
-      width,
-      height: height - X_AXIS_HEIGHT,
-    };
-  }
-
   function _onStateUpdate(state) {
-    const projection = createProjection(state, _getAvailablePlotSize(), {
-      xPadding: GUTTER,
-      yPadding: PLOT_TOP_PADDING,
-    });
-
-    clearCanvas(_plot, _context);
-
-    _axes.drawYAxis(state, projection);
-    _drawDatasets(state, projection);
-    // TODO isChanged
-    _axes.drawXAxis(state, projection);
-    _minimap.update(state);
-    _tooltip.update(state, projection);
-  }
-
-  function _drawDatasets(state, projection) {
-    const bounds = {
+    const { datasets } = _data;
+    const range = {
       from: state.labelFromIndex,
       to: state.labelToIndex,
     };
-
-    _data.datasets.forEach(({ key, color, values }) => {
-      const options = {
-        color,
-        opacity: state[`opacity#${key}`],
-        lineWidth: PLOT_LINE_WIDTH,
-      };
-
-      drawDataset(_context, values, projection, options, bounds);
+    const projection = createProjection({
+      begin: state.begin,
+      end: state.end,
+      totalXWidth: state.totalXWidth,
+      yMin: state.yMinViewport,
+      yMax: state.yMaxViewport,
+      availableWidth: _plotSize.width,
+      availableHeight: _plotSize.height - X_AXIS_HEIGHT,
+      xPadding: GUTTER,
+      yPadding: PLOT_TOP_PADDING,
     });
+    const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
+
+    let coords = projection.prepareCoords(datasets, range);
+    if (_data.isPercentage) {
+      coords = setPercentage(coords, visibilities);
+    }
+    if (_data.isStacked) {
+      coords = setStacked(coords, visibilities);
+    }
+
+    let secondaryProjection = null;
+    let secondaryCoords = null;
+    if (_data.hasSecondYAxis) {
+      secondaryProjection = projection.copy({
+        yMin: state.yMinViewportSecond,
+        yMax: state.yMaxViewportSecond,
+      });
+      const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
+      secondaryCoords = secondaryProjection.prepareCoords([secondaryDataset], range)[0];
+    }
+
+    clearCanvas(_plot, _context);
+    drawDatasets(_context, state, _data, range, projection, coords, secondaryCoords, PLOT_LINE_WIDTH, visibilities);
+    _axes.drawYAxis(state, projection, secondaryProjection);
+    // TODO isChanged
+    _axes.drawXAxis(state, projection);
+    _minimap.update(state);
+    // TODO maybe `secondaryProjection` is enough, then many calculations above may be incapsulated in `drawDatasets`
+    _tooltip.update(state, projection, coords, secondaryCoords);
   }
 
   function _onRangeChange(range) {
@@ -115,6 +155,42 @@ export function createLovelyChart(parentContainerId, data) {
 
   function _onFilterChange(filter) {
     _stateManager.update({ filter });
+  }
+
+  function _zoomToDay(labelIndex) {
+    if (!_dataOptions) {
+      return;
+    }
+
+    _fetchDayData(labelIndex)
+      .then((data) => {
+        const labelWidth = 1 / _data.xLabels.length;
+        const labelMiddle = labelIndex / (_data.xLabels.length - 1);
+
+        _stateManager.update({
+          range: {
+            begin: labelMiddle - labelWidth / 2,
+            end: labelMiddle + labelWidth / 2,
+          },
+        });
+
+        setTimeout(() => {
+          Object.assign(_data, analyzeData(data, 'hours'));
+          _stateManager.update({
+            range: {
+              begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
+              end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
+            },
+          }, true);
+
+          _stateManager.update({
+            range: {
+              begin: ZOOM_RANGE_MIDDLE - ZOOM_HALF_DAY_WIDTH,
+              end: ZOOM_RANGE_MIDDLE + ZOOM_HALF_DAY_WIDTH,
+            },
+          });
+        }, ZOOM_TIMEOUT);
+      });
   }
 
   return { redraw };

@@ -1,8 +1,8 @@
-import { TRANSITION_DURATION } from './constants';
+import { TRANSITION_DEFAULT_DURATION } from './constants';
 
 function transition(t) {
-  // easeOutSine
-  return Math.sin(Math.PI / 2 * t);
+  // easeOut
+  return 1 - Math.pow(1 - t, 1.675);
 }
 
 export function createTransitionManager(onTick) {
@@ -12,10 +12,12 @@ export function createTransitionManager(onTick) {
 
   let _nextFrame = null;
 
-  function add(prop, from, to) {
+  function add(prop, from, to, duration, options) {
     _transitions[prop] = {
       from,
       to,
+      duration,
+      options,
       current: from,
       startedAt: Date.now(),
       progress: 0,
@@ -39,12 +41,14 @@ export function createTransitionManager(onTick) {
     return _transitions[prop];
   }
 
+  // TODO keep from last tick
   function getState() {
     const state = {};
 
     Object.keys(_transitions).forEach((prop) => {
       const { current, from, to, progress } = _transitions[prop];
       state[prop] = current;
+      // TODO perf lazy
       state[`${prop}From`] = from;
       state[`${prop}To`] = to;
       state[`${prop}Progress`] = progress;
@@ -61,9 +65,16 @@ export function createTransitionManager(onTick) {
     const state = {};
 
     Object.keys(_transitions).forEach((prop) => {
-      const { startedAt, from, to } = _transitions[prop];
-      const progress = Math.min(1, (Date.now() - startedAt) / TRANSITION_DURATION);
-      const current = from + (to - from) * transition(progress);
+      const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = _transitions[prop];
+      const progress = Math.min(1, (Date.now() - startedAt) / duration);
+      let current = from + (to - from) * transition(progress);
+
+      if (options.includes('ceil')) {
+        current = Math.ceil(current);
+      } else if (options.includes('floor')) {
+        current = Math.floor(current);
+      }
+
       _transitions[prop].current = current;
       _transitions[prop].progress = progress;
       state[prop] = current;

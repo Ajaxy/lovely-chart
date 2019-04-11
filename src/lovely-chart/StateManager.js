@@ -1,5 +1,5 @@
 import { createTransitionManager } from './TransitionManager';
-import { createThrottledUntilRaf, getMaxMin, mergeArrays, proxyMerge } from './fast';
+import { createThrottledUntilRaf, getMaxMin, mergeArrays, proxyMerge, sumArrays } from './fast';
 import {
   AXES_MAX_COLUMN_WIDTH,
   AXES_MAX_ROW_HEIGHT,
@@ -17,44 +17,56 @@ export function createStateManager(data, viewportSize, callback) {
 
   const _range = { begin: 0, end: 1 };
   const _filter = _buildDefaultFilter();
-  const _animateProps = _buildAnimateProps();
+  const _transitionConfig = _buildTransitionConfig();
   const _transitions = createTransitionManager(_runCallback);
   const _runCallbackOnRaf = createThrottledUntilRaf(_runCallback);
 
   let _state = {};
 
-  function update({ range = {}, filter = {} } = {}) {
+  function update({ range = {}, filter = {} } = {}, noTransition) {
     Object.assign(_range, range);
     Object.assign(_filter, filter);
 
     const prevState = _state;
     _state = calculateState(_data, _viewportSize, _range, _filter, prevState);
 
-    _animateProps.forEach((prop) => {
-      const transition = _transitions.get(prop);
-      const currentTarget = transition ? transition.to : prevState[prop];
+    if (!noTransition) {
+      _transitionConfig.forEach(({ prop, duration, options }) => {
+        const transition = _transitions.get(prop);
+        const currentTarget = transition ? transition.to : prevState[prop];
 
-      if (currentTarget !== undefined && currentTarget !== _state[prop]) {
-        const current = transition ? transition.current : prevState[prop];
+        if (currentTarget !== undefined && currentTarget !== _state[prop]) {
+          const current = transition
+            ? (options.includes('fast') ? prevState[prop] : transition.current)
+            : prevState[prop];
 
-        if (transition) {
-          _transitions.remove(prop);
+          if (transition) {
+            _transitions.remove(prop);
+          }
+
+          _transitions.add(prop, current, _state[prop], duration, options);
         }
-
-        _transitions.add(prop, current, _state[prop]);
-      }
-    });
+      });
+    }
 
     if (!_transitions.isRunning()) {
       _runCallbackOnRaf();
     }
   }
 
-  function _buildAnimateProps() {
-    return mergeArrays([
+  function _buildTransitionConfig() {
+    const transitionConfig = [];
+
+    mergeArrays([
       ANIMATE_PROPS,
       _data.datasets.map(({ key }) => `opacity#${key}`),
-    ]);
+    ]).forEach((transition) => {
+      const [prop, duration, ...options] = transition.split(' ');
+      // TODO size obj -> array;
+      transitionConfig.push({ prop, duration, options });
+    });
+
+    return transitionConfig;
   }
 
   function _buildDefaultFilter() {
@@ -81,19 +93,15 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
   const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
 
-  const filteredValues = data.datasets.filter(({ key }) => filter[key]).map(({ values }) => values);
-  const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
-
-  const { min: yMinFilteredReal = prevState.yMinFiltered, max: yMaxFiltered = prevState.yMaxFiltered }
-    = getMaxMin(mergeArrays(filteredValues));
-  const yMinFiltered = yMinFilteredReal / yMaxFiltered > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinFilteredReal : 0;
-
-  const { min: yMinViewportReal = prevState.yMin, max: yMaxViewport = prevState.yMax }
-    = getMaxMin(mergeArrays(viewportValues));
-  const yMinViewport = yMinFilteredReal / yMaxFiltered > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
-
   const xAxisScale = calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end);
-  const yAxisScale = calculateYAxisScale(viewportSize.height, yMinViewport, yMaxViewport);
+
+  const yRanges = data.isStacked
+    ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState)
+    : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+
+  const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
+  const yAxisScaleSecond = data.hasSecondYAxis &&
+    calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
 
   const datasetsOpacity = {};
   data.datasets.forEach(({ key }) => {
@@ -102,24 +110,87 @@ function calculateState(data, viewportSize, range, filter, prevState) {
 
   return Object.assign(
     {
-      xOffset: begin * totalXWidth,
-      xWidth: (end - begin) * totalXWidth,
-      yMinFiltered,
-      yMaxFiltered,
-      yMin: yMinViewport,
-      yMax: yMaxViewport,
+      totalXWidth,
       xAxisScale,
       yAxisScale,
+      yAxisScaleSecond,
       labelFromIndex: Math.max(0, labelFromIndex - 1),
       labelToIndex: Math.min(labelToIndex + 1, totalXWidth),
       filter,
     },
+    yRanges,
     datasetsOpacity,
     buildSkinState(),
     range,
   );
 }
 
+function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {
+  const secondaryYAxisDataset = data.hasSecondYAxis && data.datasets.slice(-1)[0];
+
+  const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
+  const filteredValues = filteredDatasets.map(({ values }) => values);
+  const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
+
+  // TODO perf cache
+  const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
+    = getMaxMin(mergeArrays(filteredValues));
+  const yMinMinimap = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
+
+  const { min: yMinViewportReal = prevState.yMinViewport, max: yMaxViewport = prevState.yMaxViewport }
+    = getMaxMin(mergeArrays(viewportValues));
+  const yMinViewport = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
+
+  let yMinViewportSecond = null;
+  let yMaxViewportSecond = null;
+  let yMinMinimapSecond = null;
+  let yMaxMinimapSecond = null;
+
+  if (secondaryYAxisDataset && filter[secondaryYAxisDataset.key]) {
+    // TODO perf cache
+    const minimapMaxMin = getMaxMin(secondaryYAxisDataset.values);
+    const yMinMinimapRealSecond = minimapMaxMin.min || prevState.yMinMinimapSecond;
+    yMaxMinimapSecond = minimapMaxMin.max || prevState.yMaxMinimapSecond;
+    yMinMinimapSecond =
+      yMinMinimapRealSecond / yMaxMinimapSecond > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapRealSecond : 0;
+
+    const viewportMaxMin = getMaxMin(secondaryYAxisDataset.values.slice(labelFromIndex, labelToIndex + 1));
+    const yMinViewportRealSecond = viewportMaxMin.min || prevState.yMinViewportSecond;
+    yMaxViewportSecond = viewportMaxMin.max || prevState.yMaxViewportSecond;
+    yMinViewportSecond =
+      yMinMinimapRealSecond / yMaxMinimapSecond > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportRealSecond : 0;
+  }
+
+  return {
+    yMinViewport,
+    yMaxViewport,
+    yMinMinimap,
+    yMaxMinimap,
+    yMinViewportSecond,
+    yMaxViewportSecond,
+    yMinMinimapSecond,
+    yMaxMinimapSecond,
+  };
+}
+
+function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) {
+  const filteredDatasets = data.datasets.filter((d) => filter[d.key]);
+  const filteredValues = filteredDatasets.map(({ values }) => values);
+
+  const sums = filteredValues.length ? sumArrays(filteredValues) : [];
+  // TODO perf cache
+  const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(sums);
+  const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(sums.slice(labelFromIndex, labelToIndex + 1));
+
+  return {
+    yMinViewport: 0,
+    yMaxViewport,
+    yMinMinimap: 0,
+    yMaxMinimap,
+  };
+}
+
+// TODO use labels indexes
 function calculateXAxisScale(labelsCount, plotWidth, begin, end) {
   const viewportLabelsCount = labelsCount * (end - begin);
   const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);

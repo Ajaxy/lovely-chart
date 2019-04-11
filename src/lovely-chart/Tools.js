@@ -1,3 +1,5 @@
+import { createElement } from './minifiers';
+
 export function createTools(container, data, filterCallback) {
   const _container = container;
   const _data = data;
@@ -9,11 +11,11 @@ export function createTools(container, data, filterCallback) {
   _updateFilter();
 
   function _setupLayout() {
-    _element = document.createElement('div');
+    _element = createElement('div');
     _element.className = 'tools';
 
     _data.datasets.forEach(({ key, name, color }) => {
-      const control = document.createElement('a');
+      const control = createElement('a');
       control.href = '#';
       control.dataset.key = key;
       control.className = 'checkbox checked';

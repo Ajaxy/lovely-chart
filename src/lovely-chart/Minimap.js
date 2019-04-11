@@ -1,6 +1,6 @@
 import { setupCanvas, clearCanvas } from './canvas';
-import { drawDataset } from './drawDataset';
-import { createProjection } from './createProjection';
+import { drawDatasets } from './drawDatasets';
+import { createProjection, setPercentage, setStacked } from './createProjection';
 import { setupDrag } from './setupDrag';
 import {
   DEFAULT_RANGE,
@@ -11,6 +11,7 @@ import {
   MINIMAP_LINE_WIDTH,
 } from './constants';
 import { createThrottledUntilRaf } from './fast';
+import { createElement } from './minifiers';
 
 export function createMinimap(container, data, rangeCallback) {
   const _container = container;
@@ -34,6 +35,9 @@ export function createMinimap(container, data, rangeCallback) {
   _updateRange(DEFAULT_RANGE);
 
   function update(newState) {
+    const { begin, end } = newState;
+    _updateRange({ begin, end }, true);
+
     if (!_isStateChanged(newState)) {
       return;
     }
@@ -44,7 +48,7 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _setupLayout() {
-    _element = document.createElement('div');
+    _element = createElement('div');
 
     _element.className = 'minimap';
     _element.style.height = `${MINIMAP_HEIGHT}px`;
@@ -75,7 +79,7 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _setupRuler() {
-    _ruler = document.createElement('div');
+    _ruler = createElement('div');
     _ruler.className = 'ruler';
     _ruler.innerHTML = MINIMAP_RULER_HTML;
 
@@ -117,32 +121,46 @@ export function createMinimap(container, data, rangeCallback) {
     }
 
     const keys = _data.datasets.map(({ key }) => `opacity#${key}`);
-    keys.push('yMaxFiltered');
+    keys.push('yMaxMinimap');
 
     return keys.some((key) => _state[key] !== newState[key]);
   }
 
   function _drawDatasets(state = {}) {
-    _data.datasets.forEach(({ key, color, values }) => {
-      const opacity = state[`opacity#${key}`];
-      const bounds = {
-        xOffset: 0,
-        xWidth: _data.xLabels.length - 1,
-        yMin: state.yMinFiltered,
-        yMax: state.yMaxFiltered,
-      };
-      const projection = createProjection(bounds, _canvasSize, { yPadding: 1 });
-      const options = {
-        color,
-        opacity,
-        lineWidth: MINIMAP_LINE_WIDTH,
-      };
-
-      drawDataset(_context, values, projection, options, {
-        from: 0,
-        to: values.length - 1,
-      });
+    const { datasets } = _data;
+    const range = {
+      from: 0,
+      to: state.totalXWidth,
+    };
+    const projection = createProjection({
+      begin: 0,
+      end: 1,
+      totalXWidth: state.totalXWidth,
+      yMin: state.yMinMinimap,
+      yMax: state.yMaxMinimap,
+      availableWidth: _canvasSize.width,
+      availableHeight: _canvasSize.height,
+      yPadding: 1,
     });
+    const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
+
+    let coords = projection.prepareCoords(datasets, range);
+    if (_data.isPercentage) {
+      coords = setPercentage(coords, visibilities);
+    }
+    if (_data.isStacked) {
+      coords = setStacked(coords, visibilities);
+    }
+
+    let secondaryProjection = null;
+    let secondaryCoords = null;
+    if (_data.hasSecondYAxis) {
+      secondaryProjection = projection.copy({ yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond });
+      const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
+      secondaryCoords = secondaryProjection.prepareCoords([secondaryDataset], range)[0];
+    }
+
+    drawDatasets(_context, state, _data, range, projection, coords, secondaryCoords, MINIMAP_LINE_WIDTH, visibilities);
   }
 
   function _onDragCapture(e) {
@@ -187,7 +205,7 @@ export function createMinimap(container, data, rangeCallback) {
     _updateRange({ end });
   }
 
-  function _updateRange(range) {
+  function _updateRange(range, isExternal) {
     const nextRange = Object.assign({}, _range, range);
     if (nextRange.begin === _range.begin && nextRange.end === _range.end) {
       return;
@@ -195,15 +213,10 @@ export function createMinimap(container, data, rangeCallback) {
 
     _range = nextRange;
     _updateRulerOnRaf();
-    _rangeCallback(_range);
 
-    if (_pauseTimeout) {
-      clearTimeout(_pauseTimeout);
-      _pauseTimeout = null;
-    }
-    _pauseTimeout = setTimeout(() => {
+    if (!isExternal) {
       _rangeCallback(_range);
-    }, 50);
+    }
   }
 
   function _updateRuler() {

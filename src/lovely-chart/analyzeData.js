@@ -1,14 +1,14 @@
 import { ensureSorted, getMaxMin } from './fast';
-import { buildDayLabels } from './format';
+import { buildDayLabels, buildTimeLabels } from './format';
 import { LABELS_KEY } from './constants';
 
 function prepareDatasets(chartData) {
-  const { columns, names, colors } = chartData;
+  const { columns, names, colors, types, y_scaled: hasSecondYAxis } = chartData;
 
   let labels = [];
   const datasets = [];
 
-  columns.forEach((values) => {
+  columns.forEach((values, i) => {
     const key = values.shift();
 
     if (key === LABELS_KEY) {
@@ -21,7 +21,9 @@ function prepareDatasets(chartData) {
       key,
       color: colors[key],
       name: names[key],
+      type: types[key],
       values,
+      hasOwnYAxis: hasSecondYAxis && i === columns.length - 1,
     });
   });
 
@@ -32,7 +34,7 @@ function prepareDatasets(chartData) {
   return { datasets };
 }
 
-export function analyzeData(data) {
+export function analyzeData(data, type) {
   const { datasets } = prepareDatasets(data);
 
   let totalYMin = Infinity;
@@ -58,12 +60,15 @@ export function analyzeData(data) {
   const lastLabels = datasets.map((dataset) => dataset.labels[dataset.labels.length - 1]);
   const firstDate = Math.min.apply(null, firstlLabels);
   const lastDate = Math.max.apply(null, lastLabels);
-  const xLabels = buildDayLabels(firstDate, lastDate);
+  const xLabels = type === 'hours' ? buildTimeLabels(firstDate, lastDate) : buildDayLabels(firstDate, lastDate);
 
   return {
     datasets,
     yMin: totalYMin,
     yMax: totalYMax,
     xLabels,
+    hasSecondYAxis: data.y_scaled,
+    isStacked: data.stacked,
+    isPercentage: data.percentage,
   };
 }

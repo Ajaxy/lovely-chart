@@ -1,3 +1,5 @@
+import { addEventListener, removeEventListener } from './minifiers';
+
 export function setupDrag(element, options) {
   let captureEvent = null;
 
@@ -10,12 +12,12 @@ export function setupDrag(element, options) {
     captureEvent = e;
 
     if (e.type === 'mousedown') {
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onRelease);
+      addEventListener(document, 'mousemove', onMove);
+      addEventListener(document, 'mouseup', onRelease);
     } else if (e.type === 'touchstart') {
-      document.addEventListener('touchmove', onMove);
-      document.addEventListener('touchend', onRelease);
-      document.addEventListener('touchcancel', onRelease);
+      addEventListener(document, 'touchmove', onMove);
+      addEventListener(document, 'touchend', onRelease);
+      addEventListener(document, 'touchcancel', onRelease);
 
       // https://stackoverflow.com/questions/11287877/how-can-i-get-e-offsetx-on-mobile-ipad
       // Android does not have this value, and iOS has it but as read-only.
@@ -37,11 +39,11 @@ export function setupDrag(element, options) {
         document.body.classList.remove(`cursor-${options.draggingCursor}`);
       }
 
-      document.removeEventListener('mouseup', onRelease);
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('touchcancel', onRelease);
-      document.removeEventListener('touchend', onRelease);
-      document.removeEventListener('touchmove', onMove);
+      removeEventListener(document, 'mouseup', onRelease);
+      removeEventListener(document, 'mousemove', onMove);
+      removeEventListener(document, 'touchcancel', onRelease);
+      removeEventListener(document, 'touchend', onRelease);
+      removeEventListener(document, 'touchmove', onMove);
 
       captureEvent = null;
     }
@@ -59,6 +61,6 @@ export function setupDrag(element, options) {
     }
   }
 
-  element.addEventListener('mousedown', onCapture);
-  element.addEventListener('touchstart', onCapture);
+  addEventListener(element, 'mousedown', onCapture);
+  addEventListener(element, 'touchstart', onCapture);
 }

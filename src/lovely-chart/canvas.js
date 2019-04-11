@@ -1,7 +1,8 @@
 import { DPR } from './constants';
+import { createElement } from './minifiers';
 
 export function setupCanvas(container, { width, height }) {
-  const canvas = document.createElement('canvas');
+  const canvas = createElement('canvas');
 
   canvas.width = width * DPR;
   canvas.height = height * DPR;
