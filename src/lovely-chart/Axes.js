@@ -38,15 +38,21 @@ export function createAxes(context, data, plotSize) {
   }
 
   function drawYAxis(state, projection, secondaryProjection) {
-    const { yAxisScale, yAxisScaleFrom, yAxisScaleTo, yAxisScaleProgress = 0 } = state;
+    const {
+      yAxisScale, yAxisScaleFrom, yAxisScaleTo, yAxisScaleProgress = 0,
+      yMinViewport, yMinViewportFrom, yMinViewportTo,
+      yMaxViewport, yMaxViewportFrom, yMaxViewportTo,
+      yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
+      yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
+    } = state;
     const color = secondaryProjection && _data.datasets[0].color;
 
     _drawYAxisScaled(
       state,
       projection,
       Math.round(yAxisScaleFrom || yAxisScale),
-      state.yMinViewport,
-      state.yMaxViewport,
+      yMinViewportFrom !== undefined ? yMinViewportFrom : yMinViewport,
+      yMaxViewportFrom !== undefined ? yMaxViewportFrom : yMaxViewport,
       1 - yAxisScaleProgress,
       color,
     );
@@ -56,8 +62,8 @@ export function createAxes(context, data, plotSize) {
         state,
         projection,
         yAxisScaleTo,
-        state.yMinViewport,
-        state.yMaxViewport,
+        yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
+        yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
         yAxisScaleProgress,
         color,
       );
@@ -71,8 +77,8 @@ export function createAxes(context, data, plotSize) {
         state,
         secondaryProjection,
         Math.round(yAxisScaleSecondFrom || yAxisScaleSecond),
-        state.yMinViewportSecond,
-        state.yMaxViewportSecond,
+        yMinViewportSecondFrom !== undefined ? yMinViewportSecondFrom : yMinViewportSecond,
+        yMaxViewportSecondFrom !== undefined ? yMaxViewportSecondFrom : yMaxViewportSecond,
         1 - yAxisScaleSecondProgress,
         secondaryColor,
         true,
@@ -83,8 +89,8 @@ export function createAxes(context, data, plotSize) {
           state,
           secondaryProjection,
           yAxisScaleSecondTo,
-          state.yMinViewportSecond,
-          state.yMaxViewportSecond,
+          yMinViewportSecondTo !== undefined ? yMinViewportSecondTo : yMinViewportSecond,
+          yMaxViewportSecondTo !== undefined ? yMaxViewportSecondTo : yMaxViewportSecond,
           yAxisScaleSecondProgress,
           secondaryColor,
           true,
