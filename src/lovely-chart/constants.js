@@ -26,12 +26,18 @@ export const MINIMAP_RULER_HTML
 export const DPR = window.devicePixelRatio || 1;
 
 export const DAY_MS = 1000 * 60 * 60 * 24;
+export const HOUR_MS = 1000 * 60 * 60;
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const BALLOON_OFFSET = 20;
 
 export const TRANSITION_DEFAULT_DURATION = 400;
+
+export const ZOOM_TIMEOUT = 200;
+export const ZOOM_RANGE_DELTA = 0.0001;
+export const ZOOM_RANGE_MIDDLE = .5;
+export const ZOOM_HALF_DAY_WIDTH = (1 / 7) / 2;
 
 export const SKINS = {
   day: {
@@ -57,7 +63,7 @@ export const ANIMATE_PROPS = [
   'begin 200 fast', 'end 200 fast', 'labelFromIndex 200 fast floor', 'labelToIndex 200 fast ceil',
 
   // X-axis labels
-  'xAxisScale 300',
+  'xAxisScale 400',
 
   // Viewport Y-axis
   'yMinViewport', 'yMaxViewport', 'yMinViewportSecond', 'yMaxViewportSecond',

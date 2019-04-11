@@ -1,4 +1,4 @@
-import { DAY_MS, MONTHS } from './constants';
+import { DAY_MS, HOUR_MS, MONTHS } from './constants';
 
 export function buildDayLabels(timestampFrom, timestampTo) {
   timestampFrom = roundToDay(timestampFrom);
@@ -20,8 +20,32 @@ export function buildDayLabels(timestampFrom, timestampTo) {
   return labels;
 }
 
+export function buildTimeLabels(timestampFrom, timestampTo) {
+  timestampFrom = roundToHour(timestampFrom);
+  timestampTo = roundToHour(timestampTo);
+
+  const labels = [];
+
+  for (let timestamp = timestampFrom; timestamp <= timestampTo; timestamp += HOUR_MS) {
+    const date = new Date(timestamp);
+    const hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
+
+    labels.push({
+      value: timestamp,
+      text: `${hours < 10 ? '0' : ''}${hours}:${minutes < 10 ? '0' : ''}${minutes}`,
+    });
+  }
+
+  return labels;
+}
+
 function roundToDay(timestamp) {
   return timestamp - (timestamp % DAY_MS);
+}
+
+function roundToHour(timestamp) {
+  return timestamp - (timestamp % HOUR_MS);
 }
 
 export function humanize(value, decimals = 1) {

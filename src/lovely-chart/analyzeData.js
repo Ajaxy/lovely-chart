@@ -1,5 +1,5 @@
 import { ensureSorted, getMaxMin } from './fast';
-import { buildDayLabels } from './format';
+import { buildDayLabels, buildTimeLabels } from './format';
 import { LABELS_KEY } from './constants';
 
 function prepareDatasets(chartData) {
@@ -34,7 +34,7 @@ function prepareDatasets(chartData) {
   return { datasets };
 }
 
-export function analyzeData(data) {
+export function analyzeData(data, type) {
   const { datasets } = prepareDatasets(data);
 
   let totalYMin = Infinity;
@@ -60,7 +60,7 @@ export function analyzeData(data) {
   const lastLabels = datasets.map((dataset) => dataset.labels[dataset.labels.length - 1]);
   const firstDate = Math.min.apply(null, firstlLabels);
   const lastDate = Math.max.apply(null, lastLabels);
-  const xLabels = buildDayLabels(firstDate, lastDate);
+  const xLabels = type === 'hours' ? buildTimeLabels(firstDate, lastDate) : buildDayLabels(firstDate, lastDate);
 
   return {
     datasets,

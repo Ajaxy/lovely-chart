@@ -23,29 +23,31 @@ export function createStateManager(data, viewportSize, callback) {
 
   let _state = {};
 
-  function update({ range = {}, filter = {} } = {}) {
+  function update({ range = {}, filter = {} } = {}, noTransition) {
     Object.assign(_range, range);
     Object.assign(_filter, filter);
 
     const prevState = _state;
     _state = calculateState(_data, _viewportSize, _range, _filter, prevState);
 
-    _transitionConfig.forEach(({ prop, duration, options }) => {
-      const transition = _transitions.get(prop);
-      const currentTarget = transition ? transition.to : prevState[prop];
+    if (!noTransition) {
+      _transitionConfig.forEach(({ prop, duration, options }) => {
+        const transition = _transitions.get(prop);
+        const currentTarget = transition ? transition.to : prevState[prop];
 
-      if (currentTarget !== undefined && currentTarget !== _state[prop]) {
-        const current = transition
-          ? (options.includes('fast') ? prevState[prop] : transition.current)
-          : prevState[prop];
+        if (currentTarget !== undefined && currentTarget !== _state[prop]) {
+          const current = transition
+            ? (options.includes('fast') ? prevState[prop] : transition.current)
+            : prevState[prop];
 
-        if (transition) {
-          _transitions.remove(prop);
+          if (transition) {
+            _transitions.remove(prop);
+          }
+
+          _transitions.add(prop, current, _state[prop], duration, options);
         }
-
-        _transitions.add(prop, current, _state[prop], duration, options);
-      }
-    });
+      });
+    }
 
     if (!_transitions.isRunning()) {
       _runCallbackOnRaf();

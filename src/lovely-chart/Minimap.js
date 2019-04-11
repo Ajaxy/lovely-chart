@@ -35,6 +35,9 @@ export function createMinimap(container, data, rangeCallback) {
   _updateRange(DEFAULT_RANGE);
 
   function update(newState) {
+    const { begin, end } = newState;
+    _updateRange({ begin, end }, true);
+
     if (!_isStateChanged(newState)) {
       return;
     }
@@ -202,7 +205,7 @@ export function createMinimap(container, data, rangeCallback) {
     _updateRange({ end });
   }
 
-  function _updateRange(range) {
+  function _updateRange(range, isExternal) {
     const nextRange = Object.assign({}, _range, range);
     if (nextRange.begin === _range.begin && nextRange.end === _range.end) {
       return;
@@ -210,15 +213,10 @@ export function createMinimap(container, data, rangeCallback) {
 
     _range = nextRange;
     _updateRulerOnRaf();
-    _rangeCallback(_range);
 
-    if (_pauseTimeout) {
-      clearTimeout(_pauseTimeout);
-      _pauseTimeout = null;
-    }
-    _pauseTimeout = setTimeout(() => {
+    if (!isExternal) {
       _rangeCallback(_range);
-    }, 50);
+    }
   }
 
   function _updateRuler() {

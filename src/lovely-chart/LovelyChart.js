@@ -13,10 +13,16 @@ import {
   PLOT_TOP_PADDING,
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
+  ZOOM_RANGE_DELTA,
+  ZOOM_TIMEOUT,
+  ZOOM_RANGE_MIDDLE,
+  ZOOM_HALF_DAY_WIDTH,
 } from './constants';
 import { createElement } from './minifiers';
 
 export function createLovelyChart(parentContainerId, dataOptions) {
+  let _dataOptions = dataOptions;
+
   let _data;
 
   let _container;
@@ -32,7 +38,7 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   _setupContainer(parentContainerId);
   _setupPlotCanvas();
 
-  _fetchData(dataOptions).then((data) => {
+  _fetchData().then((data) => {
     _data = analyzeData(data);
     _setupComponents();
   });
@@ -64,8 +70,8 @@ export function createLovelyChart(parentContainerId, dataOptions) {
     };
   }
 
-  function _fetchData(dataOptions) {
-    const { dataSource } = dataOptions;
+  function _fetchData() {
+    const { dataSource } = _dataOptions;
 
     if (dataSource) {
       // TODO spinner
@@ -76,11 +82,22 @@ export function createLovelyChart(parentContainerId, dataOptions) {
     }
   }
 
+  function _fetchDayData(labelIndex) {
+    const { dataSource } = _dataOptions;
+    const date = new Date(_data.xLabels[labelIndex].value);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
+
+    return fetch(`${dataSource}/${path}.json`)
+      .then((response) => response.json());
+  }
+
   function _setupComponents() {
     _axes = createAxes(_context, _data, _plotSize);
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _minimap = createMinimap(_container, _data, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize, _zoomToLabel);
+    _tooltip = createTooltip(_container, _data, _plotSize, _zoomToDay);
     createTools(_container, _data, _onFilterChange);
   }
 
@@ -140,15 +157,40 @@ export function createLovelyChart(parentContainerId, dataOptions) {
     _stateManager.update({ filter });
   }
 
-  function _zoomToLabel(labelIndex) {
-    const labelWidth = 1 / _data.xLabels.length;
-    const labelMiddle = labelIndex / (_data.xLabels.length - 1);
-    _stateManager.update({
-      range: {
-        begin: labelMiddle - labelWidth / 2,
-        end: labelMiddle + labelWidth / 2,
-      },
-    });
+  function _zoomToDay(labelIndex) {
+    if (!_dataOptions) {
+      return;
+    }
+
+    _fetchDayData(labelIndex)
+      .then((data) => {
+        const labelWidth = 1 / _data.xLabels.length;
+        const labelMiddle = labelIndex / (_data.xLabels.length - 1);
+
+        _stateManager.update({
+          range: {
+            begin: labelMiddle - labelWidth / 2,
+            end: labelMiddle + labelWidth / 2,
+          },
+        });
+
+        setTimeout(() => {
+          Object.assign(_data, analyzeData(data, 'hours'));
+          _stateManager.update({
+            range: {
+              begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
+              end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
+            },
+          }, true);
+
+          _stateManager.update({
+            range: {
+              begin: ZOOM_RANGE_MIDDLE - ZOOM_HALF_DAY_WIDTH,
+              end: ZOOM_RANGE_MIDDLE + ZOOM_HALF_DAY_WIDTH,
+            },
+          });
+        }, ZOOM_TIMEOUT);
+      });
   }
 
   return { redraw };
