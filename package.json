@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "dev": "rm -rf dist/* && cp -r ./data dist/ && parcel src/index.html",
-    "prod": "rm -rf docs/ && gulp prod"
+    "prod": "rm -rf docs/stage2secret && gulp prod"
   },
   "keywords": [],
   "author": "",
