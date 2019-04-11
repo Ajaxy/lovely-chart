@@ -1,3 +1,5 @@
+import { mergeArrays } from './fast';
+
 function drawDatasetLine(context, coords, options) {
   context.beginPath();
 
@@ -25,7 +27,7 @@ function drawDatasetBars(context, coords, options) {
 
   coords.forEach(({ x, yFrom, yTo }) => {
     context.moveTo(x, yFrom);
-    context.lineTo(x, yTo);
+    context.lineTo(x, yFrom - yTo >= 1 ? yTo : yTo - 1);
   });
 
   context.save();
@@ -41,10 +43,6 @@ function drawDatasetBars(context, coords, options) {
 // TODO draw overlaying
 function drawDatasetArea(context, coords, options) {
   context.beginPath();
-
-  // TODO 1000 -> y0
-  // context.moveTo(coords[coords.length - 1].x, 1000);
-  // context.lineTo(0, 1000);
 
   coords.forEach(({ x, y }, i) => {
     if (i === 0) {
@@ -79,38 +77,28 @@ function drawDataset(type, ...args) {
 export function drawDatasets(
   context, state, data, range, projection, coords, secondaryCoords, lineWidth, visibilities,
 ) {
-  const { datasets } = data;
+  data.datasets.forEach(({ color, type, hasOwnYAxis }, i) => {
+    if (!visibilities[i]) {
+      return;
+    }
 
-  if (data.isStacked) {
-    datasets.forEach(({ key, color, type }, i) => {
-      const options = {
-        color,
-        lineWidth,
-      };
+    const options = {
+      color,
+      lineWidth,
+      opacity: data.isStacked ? 1 : visibilities[i],
+    };
 
-      let datasetCoords = coords[i];
+    let datasetCoords = hasOwnYAxis ? secondaryCoords : coords[i];
 
-      if (type === 'area') {
-        // TODO refactor
-        const [xMax, y0] = projection.toPixels(range.to, 0);
-        const [xMin] = projection.toPixels(range.from, 0);
-        const bottomLine = [{ x: xMax, y: y0 }, { x: xMin, y: y0 }];
-        datasetCoords = datasetCoords.concat(coords[i - 1] ? coords[i - 1].reverse() : bottomLine);
-      }
+    if (type === 'area') {
+      const [xMax, y0] = projection.toPixels(range.to, 0);
+      const [xMin] = projection.toPixels(range.from, 0);
+      const bottomLine = [{ x: xMin, y: y0 }, { x: xMax, y: y0 }];
+      const topLine = [{ x: xMax, y: 0 }, { x: xMin, y: 0 }];
 
-      drawDataset(type, context, datasetCoords, options);
-    });
-  } else {
-    datasets.forEach((dataset, i) => {
-      const { color, type, hasOwnYAxis } = dataset;
-      let datasetCoords = hasOwnYAxis ? secondaryCoords : coords[i];
-      const options = {
-        color,
-        opacity: visibilities[i],
-        lineWidth,
-      };
+      datasetCoords = mergeArrays([coords[i - 1] || bottomLine, topLine]);
+    }
 
-      drawDataset(type, context, datasetCoords, options);
-    });
-  }
+    drawDataset(type, context, datasetCoords, options);
+  });
 }

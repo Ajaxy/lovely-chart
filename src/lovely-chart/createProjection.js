@@ -36,18 +36,10 @@ export function createProjection(params) {
   const yFactor = (availableHeight - yPadding) / (yMax - yMin);
   const yOffsetPx = yMin * yFactor;
 
-  function getX(labelIndex) {
-    return labelIndex * xFactor - xOffsetPx;
-  }
-
-  function getHeight(value) {
-    return value * yFactor - yOffsetPx;
-  }
-
   function toPixels(labelIndex, value) {
     return [
-      getX(labelIndex),
-      availableHeight - getHeight(value),
+      labelIndex * xFactor - xOffsetPx,
+      availableHeight - (value * yFactor - yOffsetPx),
     ];
   }
 
@@ -60,19 +52,17 @@ export function createProjection(params) {
   }
 
   function prepareCoords(datasets, range) {
-    const [, y0] = toPixels(0, 0);
-
     return datasets.map(({ values }) => {
       const coords = [];
 
       for (let j = range.from; j <= range.to; j++) {
         const [x, y] = toPixels(j, values[j]);
-        const height = y0 - y;
+        const height = availableHeight - y;
 
         coords.push({
           x,
           y,
-          yFrom: y0,
+          yFrom: availableHeight,
           yTo: y,
           height,
           heightPercent: height / (availableHeight - yPadding),
@@ -84,9 +74,6 @@ export function createProjection(params) {
   }
 
   return {
-    // TODO maybe not needed
-    // getX,
-    // getHeight,
     toPixels,
     findClosesLabelIndex,
     copy,
