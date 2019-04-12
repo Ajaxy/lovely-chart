@@ -1,0 +1,55 @@
+body .lovely-chart,
+body.skin-night .lovely-chart {
+  .tooltip .balloon {
+    background: var(--tooltip-background);
+    color: var(--tooltip-text);
+    box-shadow: 0 0 2px 1px rgba(211, 211, 211, 0.8);
+    border-radius: 8px;
+    padding: 8px 10px;
+    min-width: 130px;
+
+    .title {
+      font-size: 12px;
+      font-weight: 700;
+      position: relative;
+
+      &::after {
+        content: '';
+        display: block;
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 12px;
+        height: 12px;
+        background-image: url('../lovely-chart/icon-arrow-right.svg');
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: 75%;
+      }
+    }
+
+    .legend {
+      margin-top: 0;
+      padding-top: 5px;
+
+      .dataset {
+        display: block;
+        margin: 0;
+        line-height: 20px;
+        color: var(--tooltip-text);
+
+        .value {
+          float: right;
+          font-weight: 700;
+        }
+      }
+    }
+  }
+
+}
+
+body.skin-night .lovely-chart {
+  .tooltip .balloon {
+    box-shadow: none;
+  }
+}

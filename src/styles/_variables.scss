@@ -3,10 +3,13 @@
   --scroll-selector: #C0D1E1;
   --grid-lines: #{rgba(#182D3B, 10%)};
   --zoom-out-text: #108BE3;
+  --tooltip-background: #ffffff;
+  --tooltip-text: #000000;
   --tooltip-arrow: #D2D5D7;
   --x-axis-text: #8E8E93;
   --y-axis-text: #8E8E93;
   --mask: #{rgba(#FFFFFF, 50%)};
+  --killer-button: #35AADC;
 
   #followers, #interactions, #growth {
     --red-line: #FE3C30;
@@ -83,6 +86,8 @@ body.skin-night {
   --scroll-selector: #56626D;
   --grid-lines: #{rgba(#FFFFFF, 10%)};
   --zoom-out-text: #48AAF0;
+  --tooltip-background: #1c2533;
+  --tooltip-text: #ffffff;
   --tooltip-arrow: #D2D5D7;
   --x-axis-text: rgba(#A3B1C2, 60%);
   --y-axis-text: rgba(#A3B1C2, 60%);

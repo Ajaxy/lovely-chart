@@ -183,7 +183,7 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
     const date = new Date(label.value);
     _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
     _balloon.children[1].innerHTML = statistics.map(({ name, color, value }) => (
-      `<div class="dataset" style="color: ${color}"><div>${humanize(value, 2)}</div><div>${name}</div></div>`
+      `<div class="dataset"><span>${name}</span><span class="value" style="color: ${color}">${humanize(value, 2)}</span></div>`
     )).join('');
 
     const left = Math.max(
