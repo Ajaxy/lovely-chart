@@ -1,85 +1,87 @@
-.checkbox {
-  border: 1px solid #E6ECF0;
-  background-color: transparent;
-  padding: 7px 7px;
-  display: inline-block;
-  border-radius: 18px;
-  text-align: center;
-  text-decoration: none;
-  margin: 0 5px 5px 0;
-  transition: background-color 300ms ease-out;
-  position: relative;
+.lovely-chart {
+  a.checkbox {
+    border: 1px solid #E6ECF0;
+    background-color: transparent;
+    padding: 7px 7px;
+    display: inline-block;
+    border-radius: 18px;
+    text-align: center;
+    text-decoration: none;
+    margin: 0 5px 5px 0;
+    transition: background-color 300ms ease-out;
+    position: relative;
 
-  .circle {
-    position: absolute;
-    top: 7px;
-    left: 7px;
-    border: none;
-  }
-
-  .label {
-    color: inherit;
-    padding: 0 13px;
-    transition: padding 300ms ease-out;
-  }
-
-  &:not(.checked) {
-    background: transparent !important;
-  }
-
-  &.checked {
-    .label {
-      color: #ffffff !important;
-      padding-right: 6px;
-      padding-left: 20px;
+    .circle {
+      position: absolute;
+      top: 7px;
+      left: 7px;
+      border: none;
     }
-  }
 
-  &.red {
-    border-color: var(--red-button);
-    background-color: var(--red-button);
-    color: var(--red-button);
-  }
+    .label {
+      color: inherit;
+      padding: 0 13px;
+      transition: padding 300ms ease-out;
+    }
 
-  &.green {
-    border-color: var(--green-button);
-    background-color: var(--green-button);
-    color: var(--green-button);
-  }
+    &:not(.checked) {
+      background: transparent !important;
+    }
 
-  &.light-green {
-    border-color: var(--light-green-button);
-    background-color: var(--light-green-button);
-    color: var(--light-green-button);
-  }
+    &.checked {
+      .label {
+        color: #ffffff !important;
+        padding-right: 6px;
+        padding-left: 20px;
+      }
+    }
 
-  &.blue {
-    border-color: var(--blue-button);
-    background-color: var(--blue-button);
-    color: var(--blue-button);
-  }
+    &.red {
+      border-color: var(--red-button);
+      background-color: var(--red-button);
+      color: var(--red-button);
+    }
 
-  &.dark-blue {
-    border-color: var(--dark-blue-button);
-    background-color: var(--dark-blue-button);
-    color: var(--dark-blue-button);
-  }
+    &.green {
+      border-color: var(--green-button);
+      background-color: var(--green-button);
+      color: var(--green-button);
+    }
 
-  &.light-blue {
-    border-color: var(--light-blue-button);
-    background-color: var(--light-blue-button);
-    color: var(--light-blue-button);
-  }
+    &.light-green {
+      border-color: var(--light-green-button);
+      background-color: var(--light-green-button);
+      color: var(--light-green-button);
+    }
 
-  &.yellow {
-    border-color: var(--yellow-button);
-    background-color: var(--yellow-button);
-    color: var(--yellow-button);
-  }
+    &.blue {
+      border-color: var(--blue-button);
+      background-color: var(--blue-button);
+      color: var(--blue-button);
+    }
 
-  &.orange {
-    border-color: var(--orange-button);
-    background-color: var(--orange-button);
-    color: var(--orange-button);
+    &.dark-blue {
+      border-color: var(--dark-blue-button);
+      background-color: var(--dark-blue-button);
+      color: var(--dark-blue-button);
+    }
+
+    &.light-blue {
+      border-color: var(--light-blue-button);
+      background-color: var(--light-blue-button);
+      color: var(--light-blue-button);
+    }
+
+    &.yellow {
+      border-color: var(--yellow-button);
+      background-color: var(--yellow-button);
+      color: var(--yellow-button);
+    }
+
+    &.orange {
+      border-color: var(--orange-button);
+      background-color: var(--orange-button);
+      color: var(--orange-button);
+    }
   }
 }
