@@ -7,6 +7,8 @@ import { analyzeData } from './analyzeData';
 import { drawDatasets } from './drawDatasets';
 import { createProjection, setPercentage, setStacked } from './createProjection';
 import { setupCanvas, clearCanvas } from './canvas';
+import { hideOnScroll } from './hideOnScroll';
+import { createElement } from './minifiers';
 import {
   X_AXIS_HEIGHT,
   GUTTER,
@@ -18,7 +20,6 @@ import {
   ZOOM_RANGE_MIDDLE,
   ZOOM_HALF_DAY_WIDTH,
 } from './constants';
-import { createElement } from './minifiers';
 
 export function createLovelyChart(parentContainerId, dataOptions) {
   let _dataOptions = dataOptions;
@@ -50,6 +51,8 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   function _setupContainer(parentContainerId) {
     _container = createElement('div');
     _container.className = 'lovely-chart';
+
+    hideOnScroll(_container);
 
     const parentContainer = document.getElementById(parentContainerId);
     parentContainer.appendChild(_container);

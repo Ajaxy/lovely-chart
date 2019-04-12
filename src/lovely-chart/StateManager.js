@@ -59,7 +59,7 @@ export function createStateManager(data, viewportSize, callback) {
 
     mergeArrays([
       ANIMATE_PROPS,
-      _data.datasets.map(({ key }) => `opacity#${key}`),
+      _data.datasets.map(({ key }) => `opacity#${key} 200`),
     ]).forEach((transition) => {
       const [prop, duration, ...options] = transition.split(' ');
       // TODO size obj -> array;
@@ -127,38 +127,47 @@ function calculateState(data, viewportSize, range, filter, prevState) {
 
 function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {
   const secondaryYAxisDataset = data.hasSecondYAxis && data.datasets.slice(-1)[0];
-
   const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
-  const filteredValues = filteredDatasets.map(({ values }) => values);
-  const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
 
-  // TODO perf cache
-  const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
-    = getMaxMin(mergeArrays(filteredValues));
-  const yMinMinimap = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
-
-  const { min: yMinViewportReal = prevState.yMinViewport, max: yMaxViewport = prevState.yMaxViewport }
-    = getMaxMin(mergeArrays(viewportValues));
-  const yMinViewport = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
-
-  let yMinViewportSecond = null;
-  let yMaxViewportSecond = null;
-  let yMinMinimapSecond = null;
-  let yMaxMinimapSecond = null;
+  const yRanges = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets);
 
   if (secondaryYAxisDataset && filter[secondaryYAxisDataset.key]) {
-    // TODO perf cache
-    const minimapMaxMin = getMaxMin(secondaryYAxisDataset.values);
-    const yMinMinimapRealSecond = minimapMaxMin.min || prevState.yMinMinimapSecond;
-    yMaxMinimapSecond = minimapMaxMin.max || prevState.yMaxMinimapSecond;
-    yMinMinimapSecond =
-      yMinMinimapRealSecond / yMaxMinimapSecond > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapRealSecond : 0;
+    const {
+      yMinViewport: yMinViewportSecond,
+      yMaxViewport: yMaxViewportSecond,
+      yMinMinimap: yMinMinimapSecond,
+      yMaxMinimap: yMaxMinimapSecond,
+    } = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, [secondaryYAxisDataset]);
 
-    const viewportMaxMin = getMaxMin(secondaryYAxisDataset.values.slice(labelFromIndex, labelToIndex + 1));
-    const yMinViewportRealSecond = viewportMaxMin.min || prevState.yMinViewportSecond;
-    yMaxViewportSecond = viewportMaxMin.max || prevState.yMaxViewportSecond;
-    yMinViewportSecond =
-      yMinMinimapRealSecond / yMaxMinimapSecond > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportRealSecond : 0;
+    Object.assign(yRanges, {
+      yMinViewportSecond,
+      yMaxViewportSecond,
+      yMinMinimapSecond,
+      yMaxMinimapSecond,
+    });
+  }
+
+  return yRanges;
+}
+
+function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, datasets) {
+  const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
+    = getMaxMin(mergeArrays(datasets.map(({ yMax, yMin }) => [yMax, yMin])));
+  const yMinMinimap = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
+
+  let yMinViewport;
+  let yMaxViewport;
+
+  if (labelFromIndex === 0 && labelToIndex === data.xLabels.length - 1) {
+    yMinViewport = yMinMinimap;
+    yMaxViewport = yMaxMinimap;
+  } else {
+    const filteredValues = datasets.map(({ values }) => values);
+    const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
+    const viewportMaxMin = getMaxMin(mergeArrays(viewportValues));
+    const yMinViewportReal = viewportMaxMin.min || prevState.yMinViewport;
+    yMaxViewport = viewportMaxMin.max || prevState.yMaxViewport;
+    yMinViewport = yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
   }
 
   return {
@@ -166,10 +175,6 @@ function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState)
     yMaxViewport,
     yMinMinimap,
     yMaxMinimap,
-    yMinViewportSecond,
-    yMaxViewportSecond,
-    yMinMinimapSecond,
-    yMaxMinimapSecond,
   };
 }
 

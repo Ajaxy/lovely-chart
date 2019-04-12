@@ -41,8 +41,7 @@ export function analyzeData(data, type) {
   let totalYMax = -Infinity;
 
   datasets.forEach((dataset) => {
-    const { max: yMax } = getMaxMin(dataset.values);
-    const yMin = 0;
+    const { min: yMin, max: yMax } = getMaxMin(dataset.values);
 
     if (yMin < totalYMin) {
       totalYMin = yMin;

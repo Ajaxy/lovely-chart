@@ -1,6 +1,8 @@
 import { TRANSITION_DEFAULT_DURATION } from './constants';
 
 function transition(t) {
+  // faster
+  // return -t * (t - 2);
   // easeOut
   return 1 - Math.pow(1 - t, 1.675);
 }

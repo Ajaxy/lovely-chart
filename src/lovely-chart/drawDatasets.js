@@ -3,13 +3,15 @@ import { mergeArrays } from './fast';
 function drawDatasetLine(context, coords, options) {
   context.beginPath();
 
-  coords.forEach(({ x, y }, i) => {
-    if (i === 0) {
-      context.moveTo(x, y);
-    } else {
-      context.lineTo(x, y);
-    }
-  });
+  // TODO perf use projection?
+  // const { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx } = projection.vars;
+  //  const x = j * xFactor - xOffsetPx;
+  //  const y = availableHeight - (values[j] * yFactor - yOffsetPx);
+
+  for (let j = 0, l = coords.length; j <l; j++) {
+    const { x, y } = coords[j];
+    context.lineTo(x, y);
+  }
 
   context.save();
   context.strokeStyle = options.color;

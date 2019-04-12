@@ -27,7 +27,6 @@ export function createMinimap(container, data, rangeCallback) {
   let _capturedOffset;
   let _range = {};
   let _state;
-  let _pauseTimeout = null;
 
   const _updateRulerOnRaf = createThrottledUntilRaf(_updateRuler);
 
@@ -36,6 +35,7 @@ export function createMinimap(container, data, rangeCallback) {
 
   function update(newState) {
     const { begin, end } = newState;
+    // TODO skip when is dragging
     _updateRange({ begin, end }, true);
 
     if (!_isStateChanged(newState)) {
@@ -142,7 +142,9 @@ export function createMinimap(container, data, rangeCallback) {
       availableHeight: _canvasSize.height,
       yPadding: 1,
     });
-    const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
+    const visibilities = datasets.map(({ key }) => {
+      return Math.max(0, Math.min(state[`opacity#${key}`] * 2 - 1, 1));
+    });
 
     let coords = projection.prepareCoords(datasets, range);
     if (_data.isPercentage) {

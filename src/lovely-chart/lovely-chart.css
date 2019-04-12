@@ -9,6 +9,10 @@
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
 
+.lovely-chart.hidden {
+  visibility: hidden;
+}
+
 .lovely-chart > canvas, .lovely-chart .tooltip canvas {
   margin-top: 10px;
 }

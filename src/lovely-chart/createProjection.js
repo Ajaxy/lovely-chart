@@ -57,6 +57,11 @@ export function createProjection(params) {
 
       for (let j = range.from; j <= range.to; j++) {
         const [x, y] = toPixels(j, values[j]);
+        // TODO perf use flat
+        // const [x, y] = [
+        //   j * xFactor - xOffsetPx,
+        //   availableHeight - (values[j] * yFactor - yOffsetPx),
+        // ];
         const height = availableHeight - y;
 
         coords.push({
