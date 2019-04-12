@@ -11,6 +11,10 @@
     transition: background-color 300ms ease-out;
     position: relative;
 
+    border-color: var(--tooltip-text);
+    background-color: var(--tooltip-text);
+    color: var(--tooltip-text);
+
     .circle {
       position: absolute;
       top: 7px;
@@ -19,7 +23,7 @@
     }
 
     .label {
-      color: inherit;
+      color: inherit !important;
       padding: 0 13px;
       transition: padding 300ms ease-out;
     }
@@ -83,5 +87,11 @@
       background-color: var(--orange-button);
       color: var(--orange-button);
     }
+  }
+
+  #killer-feature {
+    border-color: var(--killer-button);
+    background-color: var(--killer-button);
+    color: var(--killer-button);
   }
 }
