@@ -86,7 +86,7 @@ export function createMinimap(container, data, rangeCallback) {
     _slider = _ruler.children[1];
 
     setupDrag(
-      _slider,
+      _slider.children[1],
       {
         onCapture: _onDragCapture,
         onDrag: _onSliderDrag,
@@ -104,7 +104,7 @@ export function createMinimap(container, data, rangeCallback) {
     );
 
     setupDrag(
-      _slider.children[1],
+      _slider.children[2],
       {
         onCapture: _onDragCapture,
         onDrag: _onRightEarDrag,

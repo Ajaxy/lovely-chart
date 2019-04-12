@@ -1,11 +1,12 @@
 :root {
-  --scroll-background: rgba(#E2EEF9, 60%);
+  --scroll-background: #{rgba(#E2EEF9, 60%)};
   --scroll-selector: #C0D1E1;
-  --grid-lines: rgba(#182D3B, 10%);
+  --grid-lines: #{rgba(#182D3B, 10%)};
   --zoom-out-text: #108BE3;
   --tooltip-arrow: #D2D5D7;
   --x-axis-text: #8E8E93;
   --y-axis-text: #8E8E93;
+  --mask: #{rgba(#FFFFFF, 50%)};
 
   #followers, #interactions, #growth {
     --red-line: #FE3C30;
@@ -58,9 +59,8 @@
     --red-button: #E65850;
     --red-text: #F34C44;
 
-    --x-axis-text: rgba(#252529, 60%);
-    --y-axis-text: rgba(#252529, 60%);
-    --mask: rgba(#FFFFFF, 50%);
+    --x-axis-text: #{rgba(#252529, 60%)};
+    --y-axis-text: #{rgba(#252529, 60%)};
   }
 
   #onlines {
@@ -79,13 +79,14 @@
 }
 
 body.skin-night {
-  --scroll-background: rgba(#304259, 60%);
+  --scroll-background: #{rgba(#304259, 60%)};
   --scroll-selector: #56626D;
-  --grid-lines: rgba(#FFFFFF, 10%);
+  --grid-lines: #{rgba(#FFFFFF, 10%)};
   --zoom-out-text: #48AAF0;
   --tooltip-arrow: #D2D5D7;
   --x-axis-text: rgba(#A3B1C2, 60%);
   --y-axis-text: rgba(#A3B1C2, 60%);
+  --mask: #{rgba(#242F3E, 50%)};
 
   #followers, #interactions, #growth {
     --red-line: #E6574F;
@@ -138,9 +139,8 @@ body.skin-night {
     --red-button: #CF5D57;
     --red-text: #F7655E;
 
-    --x-axis-text: rgba(#ECF2F8, 50%);
-    --y-axis-text: rgba(#A3B1C2, 60%);
-    --mask: rgba(#242F3E, 50%);
+    --x-axis-text: #{rgba(#ECF2F8, 50%)};
+    --y-axis-text: #{rgba(#A3B1C2, 60%)};
   }
 
   #onlines {

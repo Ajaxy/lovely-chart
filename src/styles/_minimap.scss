@@ -1,0 +1,67 @@
+body .lovely-chart,
+body.skin-night .lovely-chart {
+  .minimap {
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .minimap .ruler {
+    .mask {
+      background: var(--scroll-background);
+    }
+
+    .slider {
+      border-top: none;
+      border-bottom: none;
+
+      > div.inner {
+        box-sizing: border-box;
+        border-top: 1px solid var(--scroll-selector);
+        border-bottom: 1px solid var(--scroll-selector);
+        float: left;
+        width: calc(100% - 16px);
+        background: transparent !important;
+        cursor: grab;
+      }
+
+      > div.handle {
+        background: var(--scroll-background);
+
+        width: 8px;
+        position: relative;
+
+        &::before, &::after {
+          content: '';
+          display: block;
+          position: absolute;
+        }
+
+        &::before {
+          background: var(--scroll-selector);
+          top: 0;
+          bottom: 0;
+          right: 0;
+          left: 0;
+        }
+
+        &::after {
+          background: #ffffff;
+          width: 2px;
+          height: 8px;
+          top: calc(50% - 4px);
+          left: calc(50% - 1px);
+        }
+
+        &:first-child::before {
+          border-top-left-radius: 6px;
+          border-bottom-left-radius: 6px;
+        }
+
+        &:last-child::before {
+          border-top-right-radius: 6px;
+          border-bottom-right-radius: 6px;
+        }
+      }
+    }
+  }
+}
