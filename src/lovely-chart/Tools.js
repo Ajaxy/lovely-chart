@@ -21,6 +21,9 @@ export function createTools(container, data, filterCallback) {
       control.className = 'checkbox checked';
       control.innerHTML = `<span class="circle"></span><span class="label">${name}</span>`;
       control.firstChild.style.borderColor = color;
+      control.style.borderColor = color;
+      control.style.backgroundColor = color;
+      control.style.color = color;
       control.addEventListener('click', _updateFilter);
       _element.appendChild(control);
     });

@@ -117,7 +117,7 @@ body.skin-night .lovely-chart .minimap .ruler .slider > div {
   padding: 16px 10px;
 }
 
-.lovely-chart a.checkbox {
+.checkbox {
   border: 1px solid #E6ECF0;
   padding: 6px;
   display: inline-block;
@@ -127,15 +127,15 @@ body.skin-night .lovely-chart .minimap .ruler .slider > div {
   transition: border-color 300ms ease-out;
 }
 
-body.skin-night .lovely-chart a.checkbox {
+body.skin-night .checkbox {
   border-color: #344658;
 }
 
-.lovely-chart a.checkbox span {
+.checkbox span {
   display: inline-block;
 }
 
-.lovely-chart a.checkbox .circle {
+.checkbox .circle {
   display: inline-block;
   box-sizing: border-box;
   width: 20px;
@@ -147,11 +147,11 @@ body.skin-night .lovely-chart a.checkbox {
   transition: border-width 300ms ease-out;
 }
 
-.lovely-chart a.checkbox.checked .circle {
+.checkbox.checked .circle {
   border-width: 10px;
 }
 
-.lovely-chart a.checkbox .circle:after {
+.checkbox .circle:after {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -166,11 +166,11 @@ body.skin-night .lovely-chart a.checkbox {
   transition: border-width 300ms ease-out, opacity 150ms ease-out;
 }
 
-.lovely-chart a.checkbox.checked .circle:after {
+.checkbox.checked .circle:after {
   opacity: 1;
 }
 
-.lovely-chart a.checkbox .label {
+.checkbox .label {
   font-weight: 300;
   color: #555;
   line-height: 20px;
@@ -179,7 +179,7 @@ body.skin-night .lovely-chart a.checkbox {
   transition: color 300ms ease-out;
 }
 
-body.skin-night .lovely-chart a.checkbox .label {
+body.skin-night .checkbox .label {
   color: white;
 }
 
