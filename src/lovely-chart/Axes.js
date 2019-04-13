@@ -47,6 +47,7 @@ export function createAxes(context, data, plotSize, palette) {
       yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
     } = state;
     const color = secondaryProjection && _data.datasets[0].colorName;
+    const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
     _drawYAxisScaled(
       state,
@@ -58,13 +59,13 @@ export function createAxes(context, data, plotSize, palette) {
       color,
     );
 
-    if (yAxisScaleProgress > 0 && yMinViewportFrom) {
+    if (yAxisScaleProgress > 0 && isYChanging) {
       _drawYAxisScaled(
         state,
         projection,
         Math.round(yAxisScaleFrom),
-        yMinViewportFrom,
-        yMaxViewportFrom,
+        yMinViewportFrom !== undefined ? yMinViewportFrom : yMinViewport,
+        yMaxViewportFrom !== undefined ? yMaxViewportFrom : yMaxViewport,
         1 - yAxisScaleProgress,
         color,
       );
@@ -73,6 +74,7 @@ export function createAxes(context, data, plotSize, palette) {
     if (secondaryProjection) {
       const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
       const secondaryColor = _data.datasets[_data.datasets.length - 1].colorName;
+      const isYChanging = yMinViewportSecondFrom !== undefined || yMaxViewportSecondFrom !== undefined;
 
       _drawYAxisScaled(
         state,
@@ -85,7 +87,7 @@ export function createAxes(context, data, plotSize, palette) {
         true,
       );
 
-      if (yAxisScaleSecondProgress > 0 && yMinViewportSecondFrom) {
+      if (yAxisScaleSecondProgress > 0 && isYChanging) {
         _drawYAxisScaled(
           state,
           secondaryProjection,
@@ -113,6 +115,7 @@ export function createAxes(context, data, plotSize, palette) {
 
     _context.beginPath();
 
+    // TODO start from y0
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
       const [, yPx] = projection.toPixels(0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);

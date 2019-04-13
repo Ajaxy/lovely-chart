@@ -6,10 +6,11 @@
     margin: 0 10px;
 
     .title, .caption {
+      color: var(--text-color);
       position: absolute;
       top: 0;
       line-height: 30px;
-      transition: opacity 300ms ease;
+      transition: opacity 300ms ease, color 300ms ease;
 
       &.hidden {
         opacity: 0;

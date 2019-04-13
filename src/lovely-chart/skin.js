@@ -18,6 +18,7 @@ export function buildSkinState() {
   const state = {};
   const skin = colors[getSkin()];
 
+  // TODO perf !
   colorKeys.forEach((key) => {
     CHANNEL_KEYS.forEach((channel, i) => {
       const channels = hexToChannels(skin[key]);

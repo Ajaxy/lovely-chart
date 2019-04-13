@@ -58,8 +58,8 @@
     "palette-type-3-light-blue-line": "#5CBCDF",
     "palette-type-3-light-blue-button": "#5CBCDF",
     "palette-type-3-light-blue-text": "#5CBCDF",
-    "palette-type-3-x-axis-text": "#8E8E93",
-    "palette-type-3-y-axis-text": "#8E8E93"
+    "palette-type-3-x-axis-text": "#252529/0.6",
+    "palette-type-3-y-axis-text": "#252529/0.6"
   },
   "skin-night": {
     "background": "#242F3E",
@@ -109,8 +109,8 @@
     "palette-type-2-red-line": "#CF5D57",
     "palette-type-2-red-button": "#CF5D57",
     "palette-type-2-red-text": "#F7655E",
-    "palette-type-2-x-axis-text": "#ECF2F8/0.6",
-    "palette-type-2-y-axis-text": "#A3B1C2/0.6",
+    "palette-type-2-x-axis-text": "#A3B1C2/0.6",
+    "palette-type-2-y-axis-text": "#ECF2F8/0.6",
     "palette-type-3-blue-line": "#4082CE",
     "palette-type-3-blue-button": "#4082CE",
     "palette-type-3-blue-text": "#4082CE",

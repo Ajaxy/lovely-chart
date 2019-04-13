@@ -84,6 +84,7 @@
             height: 8px;
             top: calc(50% - 4px);
             left: calc(50% - 1px);
+            pointer-events: none;
           }
 
           &:first-child {

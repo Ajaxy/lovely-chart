@@ -112,6 +112,7 @@ function calculateState(data, viewportSize, range, filter, prevState) {
     datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
   });
 
+  // TODO perf
   return Object.assign(
     {
       totalXWidth,

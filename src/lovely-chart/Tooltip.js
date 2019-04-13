@@ -131,17 +131,19 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     }
 
     const statistics = _data.datasets
-      .filter(({ key }) => _state.filter[key])
-      .map(({ name, colorName, values, hasOwnYAxis }) => ({
+      .map(({ key, name, colorName, values, hasOwnYAxis }, i) => ({
+        key,
         name,
         colorName,
         value: values[labelIndex],
         hasOwnYAxis,
-      }));
+        originalIndex: i
+      }))
+      .filter(({ key }) => _state.filter[key]);
 
-    statistics.forEach(({ value, colorName, hasOwnYAxis }, i) => {
+    statistics.forEach(({ value, colorName, hasOwnYAxis, originalIndex }) => {
       const coordIndex = labelIndex - _state.labelFromIndex;
-      const { x, y } = hasOwnYAxis ? _secondaryCoords[coordIndex] : _coords[i][coordIndex];
+      const { x, y } = hasOwnYAxis ? _secondaryCoords[coordIndex] : _coords[originalIndex][coordIndex];
       // TODO animate
       _drawCircle(
         [x, y],
@@ -189,7 +191,7 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     const date = new Date(label.value);
     _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
     _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (
-      `<div class="dataset"><span>${name}</span><span class="value ${colorName}">${formatInteger(value, 2)}</span></div>`
+      `<div class="dataset"><span>${name}</span><span class="value ${colorName}">${formatInteger(value)}</span></div>`
     )).join('');
 
     const left = Math.max(
