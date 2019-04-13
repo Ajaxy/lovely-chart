@@ -1,4 +1,4 @@
-import './styles/index.scss';
+import './lovely-chart/styles/index.scss';
 
 const CHARTS = [{
   containerId: 'container',
