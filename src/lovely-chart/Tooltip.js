@@ -1,16 +1,17 @@
 import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, GUTTER, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { humanize } from './format';
-import { buildRgbaFromState } from './skin';
+import { buildCssColorFromState } from './skin';
 import { createThrottledUntilRaf } from './fast';
 import { addEventListener, createElement } from './minifiers';
 
 const BALLOON_SHADOW_WIDTH = 1;
 
-export function createTooltip(container, data, plotSize, onSelectLabel) {
+export function createTooltip(container, data, plotSize, palette, onSelectLabel) {
   const _container = container;
   const _data = data;
   const _plotSize = plotSize;
+  const _palette = palette;
   const _onSelectLabel = onSelectLabel;
 
   let _state;
@@ -120,7 +121,8 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
     clearCanvas(_canvas, _context);
 
     const [xPx] = _projection.toPixels(labelIndex, 0);
-    const lineColor = buildRgbaFromState(_state, 'tooltipTail');
+    const lineColor = buildCssColorFromState(_state, 'grid-lines');
+
     _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, lineColor);
 
     // TODO not working on touch devices
@@ -130,19 +132,22 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
 
     const statistics = _data.datasets
       .filter(({ key }) => _state.filter[key])
-      .map(({ name, color, colorName, values, hasOwnYAxis }) => ({
+      .map(({ name, colorName, values, hasOwnYAxis }) => ({
         name,
-        color,
         colorName,
         value: values[labelIndex],
         hasOwnYAxis,
       }));
 
-    statistics.forEach(({ value, color, hasOwnYAxis }, i) => {
+    statistics.forEach(({ value, colorName, hasOwnYAxis }, i) => {
       const coordIndex = labelIndex - _state.labelFromIndex;
       const { x, y } = hasOwnYAxis ? _secondaryCoords[coordIndex] : _coords[i][coordIndex];
       // TODO animate
-      _drawCircle([x, y], color, buildRgbaFromState(_state, 'bg'));
+      _drawCircle(
+        [x, y],
+        buildCssColorFromState(_state, `palette-${_palette}-${colorName}-line`),
+        buildCssColorFromState(_state, 'background'),
+      );
     });
 
     _updateBalloon(statistics, xPx, labelIndex);

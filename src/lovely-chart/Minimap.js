@@ -13,9 +13,11 @@ import {
 import { createThrottledUntilRaf } from './fast';
 import { createElement } from './minifiers';
 
-export function createMinimap(container, data, rangeCallback) {
+export function createMinimap(container, data, palette, rangeCallback) {
+  // TODO use scoped args
   const _container = container;
   const _data = data;
+  const _palette = palette;
   const _rangeCallback = rangeCallback;
 
   let _element;
@@ -162,7 +164,9 @@ export function createMinimap(container, data, rangeCallback) {
       secondaryCoords = secondaryProjection.prepareCoords([secondaryDataset], range)[0];
     }
 
-    drawDatasets(_context, state, _data, range, projection, coords, secondaryCoords, MINIMAP_LINE_WIDTH, visibilities);
+    drawDatasets(
+      _context, state, _data, range, projection, coords, secondaryCoords, MINIMAP_LINE_WIDTH, visibilities, _palette
+    );
   }
 
   function _onDragCapture(e) {

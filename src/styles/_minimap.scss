@@ -18,8 +18,8 @@ body.skin-night .lovely-chart {
 
       > div.inner {
         box-sizing: border-box;
-        border-top: 1px solid var(--scroll-selector);
-        border-bottom: 1px solid var(--scroll-selector);
+        border-top: 1px solid var(--minimap-slider);
+        border-bottom: 1px solid var(--minimap-slider);
         float: left;
         width: calc(100% - 16px);
         background: transparent !important;
@@ -42,7 +42,7 @@ body.skin-night .lovely-chart {
         }
 
         &::before {
-          background: var(--scroll-selector);
+          background: var(--minimap-slider);
           top: 0;
           bottom: 0;
           right: 0;

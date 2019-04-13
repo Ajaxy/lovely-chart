@@ -10,6 +10,7 @@ import { createProjection, setPercentage, setStacked } from './createProjection'
 import { setupCanvas, clearCanvas } from './canvas';
 import { hideOnScroll } from './hideOnScroll';
 import { createElement } from './minifiers';
+import { setupColors } from './skin';
 import {
   X_AXIS_HEIGHT,
   GUTTER,
@@ -22,7 +23,7 @@ import {
   ZOOM_HALF_DAY_WIDTH, DEFAULT_PALETTE,
 } from './constants';
 
-export function createLovelyChart(params) {
+function createLovelyChart(params) {
   let _params = params;
 
   let _data;
@@ -99,10 +100,10 @@ export function createLovelyChart(params) {
   function _setupComponents() {
     _header = createHeader(_container, _params.title, _onZoomOut);
     _setupPlotCanvas();
-    _axes = createAxes(_context, _data, _plotSize);
+    _axes = createAxes(_context, _data, _plotSize, _params.palette);
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
-    _minimap = createMinimap(_container, _data, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize, _zoomToDay);
+    _minimap = createMinimap(_container, _data, _params.palette, _onRangeChange);
+    _tooltip = createTooltip(_container, _data, _plotSize, _params.palette, _zoomToDay);
     createTools(_container, _data, _onFilterChange);
   }
 
@@ -146,7 +147,9 @@ export function createLovelyChart(params) {
 
     _header.setCaption(`${_data.xLabels[state.labelFromIndex].text} — ${_data.xLabels[state.labelToIndex].text}`);
     clearCanvas(_plot, _context);
-    drawDatasets(_context, state, _data, range, projection, coords, secondaryCoords, PLOT_LINE_WIDTH, visibilities);
+    drawDatasets(
+      _context, state, _data, range, projection, coords, secondaryCoords, PLOT_LINE_WIDTH, visibilities, _params.palette,
+    );
     _axes.drawYAxis(state, projection, secondaryProjection);
     // TODO isChanged
     _axes.drawXAxis(state, projection);
@@ -215,4 +218,5 @@ export function createLovelyChart(params) {
 
 window.LovelyChart = {
   create: createLovelyChart,
+  setupColors,
 };

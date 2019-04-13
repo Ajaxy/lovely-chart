@@ -115,6 +115,11 @@ body.skin-night .lovely-chart .minimap .ruler .slider > div {
 
 .lovely-chart .header {
   height: 30px;
+  color: #222222;
+}
+
+body.skin-night .lovely-chart .header {
+  color: #ffffff;
 }
 
 .lovely-chart .header > div {

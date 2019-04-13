@@ -1,5 +1,3 @@
-import { mergeArrays } from './fast';
-
 export const LABELS_KEY = 'x';
 
 export const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };
@@ -39,26 +37,7 @@ export const ZOOM_RANGE_DELTA = 0.1;
 export const ZOOM_RANGE_MIDDLE = .5;
 export const ZOOM_HALF_DAY_WIDTH = (1 / 7) / 2;
 
-export const SKINS = {
-  day: {
-    bg: [255, 255, 255],
-    axesText: [150, 162, 170],
-    yAxisRulers: [24, 45, 59],
-    tooltipTail: [223, 230, 235],
-  },
-  night: {
-    bg: [36, 47, 62],
-    axesText: [163, 177, 194],
-    yAxisRulers: [255, 255, 255],
-    tooltipTail: [59, 74, 90],
-  },
-};
-
 export const DEFAULT_PALETTE = 'type-1';
-
-const SKIN_STATE_PROPS = mergeArrays(Object.keys(SKINS.day).map((key) => (
-  ['R', 'G', 'B'].map((channel) => `colorChannels#${key}#${channel}`)
-)));
 
 export const ANIMATE_PROPS = [
   // Viewport X-axis
@@ -75,7 +54,4 @@ export const ANIMATE_PROPS = [
 
   // Y-axis labels
   'yAxisScale', 'yAxisScaleSecond',
-
-  // Skin
-  ...SKIN_STATE_PROPS.map((p) => `${p} 300`),
 ];

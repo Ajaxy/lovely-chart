@@ -61,16 +61,22 @@ let charts = [];
 let snow;
 
 document.addEventListener('DOMContentLoaded', () => {
-  CHARTS.forEach((params) => {
-    charts.push(LovelyChart.create(params));
-  });
-
-  fetch('./data/chart_data.json')
+  fetch('./data/colors.json')
     .then((response) => response.json())
-    .then((chartsData) => {
-      chartsData.forEach((data) => charts.push(
-        LovelyChart.create({ containerId: 'container', data }),
-      ));
+    .then((colors) => {
+      LovelyChart.setupColors(colors);
+
+      CHARTS.forEach((params) => {
+        charts.push(LovelyChart.create(params));
+      });
+
+      fetch('./data/chart_data.json')
+        .then((response) => response.json())
+        .then((chartsData) => {
+          chartsData.forEach((data) => charts.push(
+            LovelyChart.create({ containerId: 'container', data }),
+          ));
+        });
     });
 
   document.getElementById('skin-switcher').addEventListener('click', (e) => {

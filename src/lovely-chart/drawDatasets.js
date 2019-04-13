@@ -1,4 +1,5 @@
 import { mergeArrays } from './fast';
+import { buildCssColorFromState } from './skin';
 
 function drawDatasetLine(context, coords, options) {
   context.beginPath();
@@ -77,15 +78,15 @@ function drawDataset(type, ...args) {
 
 // TODO remove projection
 export function drawDatasets(
-  context, state, data, range, projection, coords, secondaryCoords, lineWidth, visibilities,
+  context, state, data, range, projection, coords, secondaryCoords, lineWidth, visibilities, palette
 ) {
-  data.datasets.forEach(({ color, type, hasOwnYAxis }, i) => {
+  data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
       return;
     }
 
     const options = {
-      color,
+      color: buildCssColorFromState(state, `palette-${palette}-${colorName}-line`),
       lineWidth,
       opacity: data.isStacked ? 1 : visibilities[i],
     };
