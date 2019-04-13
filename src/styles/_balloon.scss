@@ -41,6 +41,38 @@ body.skin-night .lovely-chart {
         .value {
           float: right;
           font-weight: 700;
+
+          &.red {
+            color: var(--red-text);
+          }
+
+          &.green {
+            color: var(--green-text);
+          }
+
+          &.light-green {
+            color: var(--light-green-text);
+          }
+
+          &.blue {
+            color: var(--blue-text);
+          }
+
+          &.dark-blue {
+            color: var(--dark-blue-text);
+          }
+
+          &.light-blue {
+            color: var(--light-blue-text);
+          }
+
+          &.yellow {
+            color: var(--yellow-text);
+          }
+
+          &.orange {
+            color: var(--orange-text);
+          }
         }
       }
     }
