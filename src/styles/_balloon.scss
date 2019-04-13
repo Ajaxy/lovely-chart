@@ -2,7 +2,7 @@ body .lovely-chart,
 body.skin-night .lovely-chart {
   .tooltip .balloon {
     background: var(--tooltip-background);
-    color: var(--tooltip-text);
+    color: var(--text-color);
     box-shadow: 0 0 2px 1px rgba(211, 211, 211, 0.8);
     border-radius: 8px;
     padding: 8px 10px;
@@ -36,7 +36,7 @@ body.skin-night .lovely-chart {
         display: block;
         margin: 0;
         line-height: 20px;
-        color: var(--tooltip-text);
+        color: var(--text-color);
 
         .value {
           float: right;

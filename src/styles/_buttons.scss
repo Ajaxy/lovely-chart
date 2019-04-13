@@ -11,9 +11,9 @@
     transition: background-color 300ms ease-out;
     position: relative;
 
-    border-color: var(--tooltip-text);
-    background-color: var(--tooltip-text);
-    color: var(--tooltip-text);
+    border-color: var(--text-color);
+    background-color: var(--text-color);
+    color: var(--text-color);
 
     .circle {
       position: absolute;
