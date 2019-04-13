@@ -57,6 +57,13 @@ const CHARTS = [{
   },
 }];
 
+const originalDatasetColors = {
+  y0: 'red',
+  y1: 'green',
+  y2: 'light-blue',
+  y3: 'blue',
+};
+
 let charts = [];
 let snow;
 
@@ -69,7 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
     .then((response) => response.json())
     .then((chartsData) => {
       chartsData.forEach((data) => charts.push(
-        LovelyChart.create({ containerId: 'container', data }),
+        LovelyChart.create({
+          containerId: 'container',
+          data,
+          palette: 'type-original',
+          datasetColors: originalDatasetColors
+        }),
       ));
     });
 
