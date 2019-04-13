@@ -37,7 +37,7 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
   }
 
   function _setupLayout() {
-    _element = createElement('div');
+    _element = createElement();
     _element.className = 'tooltip';
 
     _setupCanvas();
@@ -63,7 +63,7 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
   }
 
   function _setupBalloon() {
-    _balloon = createElement('div');
+    _balloon = createElement();
     _balloon.className = 'balloon';
     _balloon.innerHTML = '<div class="title"></div><div class="legend"></div>';
 

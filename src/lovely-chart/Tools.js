@@ -11,7 +11,7 @@ export function createTools(container, data, filterCallback) {
   _updateFilter();
 
   function _setupLayout() {
-    _element = createElement('div');
+    _element = createElement();
     _element.className = 'tools';
 
     _data.datasets.forEach(({ key, name, color }) => {

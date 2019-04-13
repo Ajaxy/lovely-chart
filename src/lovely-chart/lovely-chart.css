@@ -113,6 +113,23 @@ body.skin-night .lovely-chart .minimap .ruler .slider > div {
   }
 }
 
+.lovely-chart .header {
+  height: 30px;
+}
+
+.lovely-chart .header > div {
+  font-size: larger;
+  font-weight: 500;
+  display: inline-block;
+  padding-left: 10px;
+  opacity: 1;
+  transition: opacity 300ms ease;
+}
+
+.lovely-chart .header > div.hidden {
+  opacity: 0;
+}
+
 .lovely-chart .tools {
   padding: 16px 10px;
 }
@@ -185,7 +202,7 @@ body.skin-night .lovely-chart a.checkbox .label {
 
 .lovely-chart .tooltip {
   position: absolute;
-  top: 0;
+  top: 30px;
   left: 0;
 }
 

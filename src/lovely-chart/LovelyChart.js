@@ -1,4 +1,5 @@
 import { createStateManager } from './StateManager';
+import { createHeader } from './Header';
 import { createAxes } from './Axes';
 import { createMinimap } from './Minimap';
 import { createTools } from './Tools';
@@ -31,13 +32,13 @@ export function createLovelyChart(params) {
   let _context;
   let _plotSize;
 
+  let _header;
   let _axes;
   let _stateManager;
   let _minimap;
   let _tooltip;
 
   _setupContainer();
-  _setupPlotCanvas();
 
   _fetchData().then((data) => {
     _data = analyzeData(data);
@@ -49,7 +50,7 @@ export function createLovelyChart(params) {
   }
 
   function _setupContainer() {
-    _container = createElement('div');
+    _container = createElement();
     _container.className = `lovely-chart palette-${_params.palette || DEFAULT_PALETTE}`;
 
     hideOnScroll(_container);
@@ -85,9 +86,8 @@ export function createLovelyChart(params) {
     }
   }
 
-  function _fetchDayData(labelIndex) {
-    const { dataSource } = _dataOptions;
-    const date = new Date(_data.xLabels[labelIndex].value);
+  function _fetchDayData(date) {
+    const { dataSource } = _params;
     const month = date.getMonth() + 1;
     const day = date.getDate();
     const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
@@ -97,6 +97,8 @@ export function createLovelyChart(params) {
   }
 
   function _setupComponents() {
+    _header = createHeader(_container, _params.title, _onZoomOut);
+    _setupPlotCanvas();
     _axes = createAxes(_context, _data, _plotSize);
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _minimap = createMinimap(_container, _data, _onRangeChange);
@@ -142,6 +144,7 @@ export function createLovelyChart(params) {
       secondaryCoords = secondaryProjection.prepareCoords([secondaryDataset], range)[0];
     }
 
+    _header.setCaption(`${_data.xLabels[state.labelFromIndex].text} — ${_data.xLabels[state.labelToIndex].text}`);
     clearCanvas(_plot, _context);
     drawDatasets(_context, state, _data, range, projection, coords, secondaryCoords, PLOT_LINE_WIDTH, visibilities);
     _axes.drawYAxis(state, projection, secondaryProjection);
@@ -161,11 +164,15 @@ export function createLovelyChart(params) {
   }
 
   function _zoomToDay(labelIndex) {
-    if (!_dataOptions) {
+    if (!_params.dataSource) {
       return;
     }
 
-    _fetchDayData(labelIndex)
+    const { value: date, text: dateText } = _data.xLabels[labelIndex];
+
+    _header.zoom(dateText);
+
+    _fetchDayData(new Date(date))
       .then((data) => {
         const labelWidth = 1 / _data.xLabels.length;
         const labelMiddle = labelIndex / (_data.xLabels.length - 1);
@@ -194,6 +201,13 @@ export function createLovelyChart(params) {
           });
         }, ZOOM_TIMEOUT);
       });
+  }
+
+  function _onZoomOut() {
+    // TODO implement
+    setTimeout(() => {
+      location.reload();
+    }, 300);
   }
 
   return { redraw };

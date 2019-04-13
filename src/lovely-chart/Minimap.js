@@ -48,7 +48,7 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _setupLayout() {
-    _element = createElement('div');
+    _element = createElement();
 
     _element.className = 'minimap';
     _element.style.height = `${MINIMAP_HEIGHT}px`;
@@ -79,7 +79,7 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _setupRuler() {
-    _ruler = createElement('div');
+    _ruler = createElement();
     _ruler.className = 'ruler';
     _ruler.innerHTML = MINIMAP_RULER_HTML;
 

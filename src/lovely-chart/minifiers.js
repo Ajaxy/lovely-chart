@@ -1,4 +1,7 @@
-export const createElement = document.createElement.bind(document);
+// TODO className, innerHTML, parentElement, events
+export const createElement = (tagName = 'div') => {
+  return document.createElement(tagName);
+};
 
 export function addEventListener(element, event, cb) {
   element.addEventListener(event, cb);
