@@ -42,10 +42,6 @@ body.skin-night #killer {
   color: white;
 }
 
-#killer .circle {
-  border-color: #BAEFFB;
-}
-
 a#skin-switcher:hover, a#skin-switcher:active, a#skin-switcher:visited {
   color: rgba(16, 139, 227, 0.71);
 }
