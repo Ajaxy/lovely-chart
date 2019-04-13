@@ -19,7 +19,7 @@ export const Y_AXIS_ZERO_BASED_THRESHOLD = 0.1;
 export const MINIMAP_HEIGHT = 40;
 export const MINIMAP_MARGIN = 10;
 export const MINIMAP_LINE_WIDTH = 1;
-export const MINIMAP_EAR_WIDTH = 5;
+export const MINIMAP_EAR_WIDTH = 8;
 export const MINIMAP_RULER_HTML
   = '<div class="mask"></div><div class="slider"><div class="handle"></div><div class="inner"></div><div class="handle"></div></div><div class="mask"></div>';
 
