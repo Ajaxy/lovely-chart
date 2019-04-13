@@ -7,12 +7,14 @@ body.skin-night .lovely-chart {
 
   .minimap .ruler {
     .mask {
-      background: var(--scroll-background);
+      background: var(--minimap-mask);
+      transition: background 300ms ease-out;
     }
 
     .slider {
       border-top: none;
       border-bottom: none;
+      min-width: 16px;
 
       > div.inner {
         box-sizing: border-box;
@@ -22,10 +24,13 @@ body.skin-night .lovely-chart {
         width: calc(100% - 16px);
         background: transparent !important;
         cursor: grab;
+
+        transition: border-color 300ms ease-out;
       }
 
       > div.handle {
-        background: var(--scroll-background);
+        background: var(--minimap-mask);
+        transition: background 300ms ease-out;
 
         width: 8px;
         position: relative;
@@ -42,6 +47,7 @@ body.skin-night .lovely-chart {
           bottom: 0;
           right: 0;
           left: 0;
+          transition: background 300ms ease-out;
         }
 
         &::after {

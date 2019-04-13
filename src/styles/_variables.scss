@@ -1,6 +1,6 @@
 :root {
   --background: #ffffff;
-  --scroll-background: #{rgba(#E2EEF9, 60%)};
+  --minimap-mask: #{rgba(#E2EEF9, 60%)};
   --scroll-selector: #C0D1E1;
   --grid-lines: #{rgba(#182D3B, 10%)};
   --zoom-out-text: #108BE3;
@@ -84,7 +84,7 @@
 
 body.skin-night {
   --background: rgb(36, 47, 62);
-  --scroll-background: #{rgba(#304259, 60%)};
+  --minimap-mask: #{rgba(#304259, 60%)};
   --scroll-selector: #56626D;
   --grid-lines: #{rgba(#FFFFFF, 10%)};
   --zoom-out-text: #48AAF0;
