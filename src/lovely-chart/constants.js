@@ -54,6 +54,8 @@ export const SKINS = {
   },
 };
 
+export const DEFAULT_PALETTE = 'type-1';
+
 const SKIN_STATE_PROPS = mergeArrays(Object.keys(SKINS.day).map((key) => (
   ['R', 'G', 'B'].map((channel) => `colorChannels#${key}#${channel}`)
 )));

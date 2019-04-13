@@ -1,21 +1,45 @@
 import './styles/index.scss';
 
-// TODO titles
-const DATA_SOURCES = ['data/1', 'data/2', 'data/3', 'data/4', 'data/5'];
+const CHARTS = [{
+  containerId: 'container',
+  title: 'Followers',
+  palette: 'type-1',
+  dataSource: 'data/1',
+}, {
+  containerId: 'container',
+  title: 'Interactions',
+  palette: 'type-1',
+  dataSource: 'data/2',
+}, {
+  containerId: 'container',
+  title: 'Messages',
+  palette: 'type-2',
+  dataSource: 'data/3',
+}, {
+  containerId: 'container',
+  title: 'Views',
+  palette: 'type-3',
+  dataSource: 'data/4',
+}, {
+  containerId: 'container',
+  title: 'Apps',
+  palette: 'type-2',
+  dataSource: 'data/5',
+}];
 
 let charts = [];
 let snow;
 
 document.addEventListener('DOMContentLoaded', () => {
-  DATA_SOURCES.forEach((dataSource) => {
-    charts.push(LovelyChart.create('container', { dataSource }));
+  CHARTS.forEach((params) => {
+    charts.push(LovelyChart.create(params));
   });
 
   fetch('./data/chart_data.json')
     .then((response) => response.json())
-    .then((data) => {
-      data.forEach((chartData) => charts.push(
-        LovelyChart.create('container', chartData),
+    .then((chartsData) => {
+      chartsData.forEach((data) => charts.push(
+        LovelyChart.create({ containerId: 'container', data }),
       ));
     });
 

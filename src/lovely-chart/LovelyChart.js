@@ -18,11 +18,11 @@ import {
   ZOOM_RANGE_DELTA,
   ZOOM_TIMEOUT,
   ZOOM_RANGE_MIDDLE,
-  ZOOM_HALF_DAY_WIDTH,
+  ZOOM_HALF_DAY_WIDTH, DEFAULT_PALETTE,
 } from './constants';
 
-export function createLovelyChart(parentContainerId, dataOptions) {
-  let _dataOptions = dataOptions;
+export function createLovelyChart(params) {
+  let _params = params;
 
   let _data;
 
@@ -36,7 +36,7 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   let _minimap;
   let _tooltip;
 
-  _setupContainer(parentContainerId);
+  _setupContainer();
   _setupPlotCanvas();
 
   _fetchData().then((data) => {
@@ -48,13 +48,13 @@ export function createLovelyChart(parentContainerId, dataOptions) {
     _stateManager.update();
   }
 
-  function _setupContainer(parentContainerId) {
+  function _setupContainer() {
     _container = createElement('div');
-    _container.className = 'lovely-chart';
+    _container.className = `lovely-chart palette-${_params.palette || DEFAULT_PALETTE}`;
 
     hideOnScroll(_container);
 
-    const parentContainer = document.getElementById(parentContainerId);
+    const parentContainer = document.getElementById(_params.containerId);
     parentContainer.appendChild(_container);
   }
 
@@ -74,14 +74,14 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   }
 
   function _fetchData() {
-    const { dataSource } = _dataOptions;
+    const { data, dataSource } = _params;
 
-    if (dataSource) {
+    if (data) {
+      return Promise.resolve(data);
+    } else if (dataSource) {
       // TODO spinner
       return fetch(`${dataSource}/overview.json`)
         .then((response) => response.json());
-    } else {
-      return Promise.resolve(dataOptions);
     }
   }
 
