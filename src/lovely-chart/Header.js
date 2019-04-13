@@ -10,7 +10,6 @@ export function createHeader(container, title, zoomOutCallback) {
   let _zoomOutElement;
   let _caption1Element;
   let _caption2Element;
-  let _spinner;
 
   let _isZoomed = false;
 
@@ -50,11 +49,6 @@ export function createHeader(container, title, zoomOutCallback) {
     _caption2Element = createElement();
     _caption2Element.className = 'hidden';
     _element.appendChild(_caption2Element);
-
-    _spinner = createElement();
-    _spinner.innerHTML = '...';
-    _spinner.className = 'hidden';
-    _element.appendChild(_spinner);
 
     _container.appendChild(_element);
   }
