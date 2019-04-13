@@ -34,20 +34,22 @@ export function createHeader(container, title, zoomOutCallback) {
     _element.className = 'header';
 
     _titleElement = createElement();
+    _titleElement.className = 'title shown fadeOutUp';
     _titleElement.innerHTML = _title;
     _element.appendChild(_titleElement);
 
     _zoomOutElement = createElement();
-    _zoomOutElement.className = 'hidden';
+    _zoomOutElement.className = 'title zoom-out hidden fadeInDown';
     _zoomOutElement.innerHTML = 'Zoom Out';
     addEventListener(_zoomOutElement, 'click', _onZoomOut);
     _element.appendChild(_zoomOutElement);
 
     _caption1Element = createElement();
+    _caption1Element.className = 'caption shown fadeOutUp';
     _element.appendChild(_caption1Element);
 
     _caption2Element = createElement();
-    _caption2Element.className = 'hidden';
+    _caption2Element.className = 'caption hidden fadeInDown';
     _element.appendChild(_caption2Element);
 
     _container.appendChild(_element);
