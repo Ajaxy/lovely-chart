@@ -38,60 +38,6 @@
   padding: 16px 10px;
 }
 
-.lovely-chart .tooltip {
-  position: absolute;
-  top: 30px;
-  left: 0;
-}
-
-.lovely-chart .tooltip .balloon {
-  position: absolute;
-  top: 5px;
-  left: 0;
-  margin-left: -20px;
-  background: white;
-  padding: 5px 10px;
-  border-radius: 5px;
-  box-shadow: 0 1px 2px 1px rgba(211, 211, 211, 0.5);
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 200ms ease-out, background-color 300ms ease-out;
-  cursor: pointer;
-}
-
-body.skin-night .lovely-chart .tooltip .balloon {
-  color: white;
-  background: #253241;
-  box-shadow: 0 1px 2px 1px rgba(26, 34, 44, 0.5);
-}
-
-.lovely-chart .tooltip .balloon.shown {
-  opacity: 1;
-}
-
-.lovely-chart .tooltip .balloon .title {
-  font-size: 12.5px;
-}
-
-.lovely-chart .tooltip .balloon .legend {
-  margin-top: 10px;
-}
-
-.lovely-chart .tooltip .balloon .legend .dataset {
-  display: inline-block;
-  margin-right: 20px;
-}
-
-.lovely-chart .tooltip .balloon .legend .dataset > div:first-child {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.lovely-chart .tooltip .balloon .legend .dataset > div:last-child {
-  margin-top: 2px;
-  font-size: 11px;
-}
-
 body.cursor-ew-resize, body.cursor-ew-resize * {
   cursor: ew-resize !important;
 }
