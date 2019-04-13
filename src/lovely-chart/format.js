@@ -65,3 +65,7 @@ function keepThreeDigits(value, decimals) {
     .replace(/(\d{3,})\.\d+/, '$1')
     .replace(/\.0+$/, '');
 }
+
+export function formatInteger(n) {
+  return String(n).replace(/\d(?=(\d{3})+$)/g, '$& ');
+}

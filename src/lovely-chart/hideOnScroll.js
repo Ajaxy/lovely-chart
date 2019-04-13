@@ -1,18 +1,28 @@
-import { createThrottledUntilRaf } from './fast';
+import { debounce } from './fast';
 
 export const hideOnScroll = (() => {
   const charts = [];
+  const showAllDebounced = debounce(showAll, 500, true, false);
+  const hideScrolledDebounced = debounce(hideScrolled, 500, false, true);
 
   function setup(chart) {
     charts.push(chart);
 
     if (charts.length === 1) {
-      // TODO throttle to 1 second
-      window.onscroll = createThrottledUntilRaf(onScroll);
+      window.onscroll = () => {
+        showAllDebounced();
+        hideScrolledDebounced();
+      };
     }
   }
 
-  function onScroll() {
+  function showAll() {
+    charts.forEach((chart) => {
+      chart.classList.remove('hidden');
+    });
+  }
+
+  function hideScrolled() {
     charts.forEach((chart) => {
       const { top, bottom } = chart.getBoundingClientRect();
       const shouldHide = bottom < 0 || top > window.innerHeight;

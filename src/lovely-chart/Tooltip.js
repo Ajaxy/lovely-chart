@@ -1,8 +1,8 @@
 import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, GUTTER, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
-import { humanize } from './format';
+import { formatInteger } from './format';
 import { buildCssColorFromState } from './skin';
-import { createThrottledUntilRaf } from './fast';
+import { throttleWithRaf } from './fast';
 import { addEventListener, createElement } from './minifiers';
 
 const BALLOON_SHADOW_WIDTH = 1;
@@ -25,7 +25,7 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
   let _offsetX;
   let _offsetY;
 
-  const _drawStatisticsOnRaf = createThrottledUntilRaf(_drawStatistics);
+  const _drawStatisticsOnRaf = throttleWithRaf(_drawStatistics);
 
   _setupLayout();
 
@@ -189,7 +189,7 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     const date = new Date(label.value);
     _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
     _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (
-      `<div class="dataset"><span>${name}</span><span class="value ${colorName}">${humanize(value, 2)}</span></div>`
+      `<div class="dataset"><span>${name}</span><span class="value ${colorName}">${formatInteger(value, 2)}</span></div>`
     )).join('');
 
     const left = Math.max(

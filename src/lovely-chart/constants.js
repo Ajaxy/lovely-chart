@@ -53,5 +53,5 @@ export const ANIMATE_PROPS = [
   'yMinMinimap', 'yMaxMinimap', 'yMinMinimapSecond', 'yMaxMinimapSecond',
 
   // Y-axis labels
-  'yAxisScale', 'yAxisScaleSecond',
+  'yAxisScale 300', 'yAxisScaleSecond 300',
 ];

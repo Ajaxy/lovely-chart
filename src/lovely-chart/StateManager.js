@@ -1,5 +1,5 @@
 import { createTransitionManager } from './TransitionManager';
-import { createThrottledUntilRaf, getMaxMin, mergeArrays, proxyMerge, sumArrays } from './fast';
+import { throttleWithRaf, getMaxMin, mergeArrays, proxyMerge, sumArrays } from './fast';
 import {
   AXES_MAX_COLUMN_WIDTH,
   AXES_MAX_ROW_HEIGHT,
@@ -19,7 +19,7 @@ export function createStateManager(data, viewportSize, callback) {
   const _filter = _buildDefaultFilter();
   const _transitionConfig = _buildTransitionConfig();
   const _transitions = createTransitionManager(_runCallback);
-  const _runCallbackOnRaf = createThrottledUntilRaf(_runCallback);
+  const _runCallbackOnRaf = throttleWithRaf(_runCallback);
 
   let _state = {};
 
@@ -56,6 +56,7 @@ export function createStateManager(data, viewportSize, callback) {
 
   function _buildTransitionConfig() {
     const transitionConfig = [];
+    // TODO too fast, not synced on area charts
     const datasetVisibilities = _data.datasets.map(({ key }) => `opacity#${key} 200`);
     const skinColors = buildSkinStateKeys().map((key) => `${key} 300`);
 
@@ -96,7 +97,7 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
   const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
 
-  const xAxisScale = calculateXAxisScale(data.xLabels.length, viewportSize.width, begin, end);
+  const xAxisScale = calculateXAxisScale(viewportSize.width, labelFromIndex, labelToIndex);
 
   const yRanges = data.isStacked
     ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState)
@@ -200,8 +201,8 @@ function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, pre
 }
 
 // TODO use labels indexes
-function calculateXAxisScale(labelsCount, plotWidth, begin, end) {
-  const viewportLabelsCount = labelsCount * (end - begin);
+function calculateXAxisScale(plotWidth, labelFromIndex, labelToIndex) {
+  const viewportLabelsCount = labelToIndex - labelFromIndex;
   const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
 
   return xStepToScaleLevel(viewportLabelsCount / maxColumns);

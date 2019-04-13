@@ -46,55 +46,53 @@ export function createAxes(context, data, plotSize, palette) {
       yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
       yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
     } = state;
-    const color = secondaryProjection &&
-      buildCssColorFromState(state, `palette-${_palette}-${_data.datasets[0].colorName}-text`);
+    const color = secondaryProjection && _data.datasets[0].colorName;
 
     _drawYAxisScaled(
       state,
       projection,
-      Math.round(yAxisScaleFrom || yAxisScale),
-      yMinViewportFrom !== undefined ? yMinViewportFrom : yMinViewport,
-      yMaxViewportFrom !== undefined ? yMaxViewportFrom : yMaxViewport,
-      1 - yAxisScaleProgress,
+      Math.round(yAxisScaleTo || yAxisScale),
+      yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
+      yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
+      yAxisScaleFrom ? yAxisScaleProgress : 1,
       color,
     );
 
-    if (yAxisScaleProgress > 0) {
+    if (yAxisScaleProgress > 0 && yMinViewportFrom) {
       _drawYAxisScaled(
         state,
         projection,
-        yAxisScaleTo,
-        yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
-        yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
-        yAxisScaleProgress,
+        Math.round(yAxisScaleFrom),
+        yMinViewportFrom,
+        yMaxViewportFrom,
+        1 - yAxisScaleProgress,
         color,
       );
     }
 
     if (secondaryProjection) {
       const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
-      const secondaryColor =
-        buildCssColorFromState(state, `palette-${_palette}-${_data.datasets[_data.datasets.length - 1].colorName}-text`);
+      const secondaryColor = _data.datasets[_data.datasets.length - 1].colorName;
 
       _drawYAxisScaled(
         state,
         secondaryProjection,
-        Math.round(yAxisScaleSecondFrom || yAxisScaleSecond),
-        yMinViewportSecondFrom !== undefined ? yMinViewportSecondFrom : yMinViewportSecond,
-        yMaxViewportSecondFrom !== undefined ? yMaxViewportSecondFrom : yMaxViewportSecond,
-        1 - yAxisScaleSecondProgress,
+        Math.round(yAxisScaleSecondTo || yAxisScaleSecond),
+        yMinViewportSecondTo !== undefined ? yMinViewportSecondTo : yMinViewportSecond,
+        yMaxViewportSecondTo !== undefined ? yMaxViewportSecondTo : yMaxViewportSecond,
+        yAxisScaleSecondFrom ? yAxisScaleSecondProgress : 1,
         secondaryColor,
         true,
       );
 
-      if (yAxisScaleSecondProgress > 0) {
+      if (yAxisScaleSecondProgress > 0 && yMinViewportSecondFrom) {
         _drawYAxisScaled(
           state,
           secondaryProjection,
-          yAxisScaleSecondTo,
-          yMinViewportSecondTo !== undefined ? yMinViewportSecondTo : yMinViewportSecond,
-          yMaxViewportSecondTo !== undefined ? yMaxViewportSecondTo : yMaxViewportSecond,
-          yAxisScaleSecondProgress,
+          Math.round(yAxisScaleSecondFrom),
+          yMinViewportSecondFrom !== undefined ? yMinViewportSecondFrom : yMinViewportSecond,
+          yMaxViewportSecondFrom !== undefined ? yMaxViewportSecondFrom : yMaxViewportSecond,
+          1 - yAxisScaleSecondProgress,
           secondaryColor,
           true,
         );
@@ -102,7 +100,7 @@ export function createAxes(context, data, plotSize, palette) {
     }
   }
 
-  function _drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, color = null, isSecondary = false) {
+  function _drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorName = null, isSecondary = false) {
     const step = yScaleLevelToStep(scaleLevel);
     const firstVisibleValue = Math.ceil(yMin / step) * step;
     const lastVisibleValue = Math.floor(yMax / step) * step;
@@ -120,7 +118,9 @@ export function createAxes(context, data, plotSize, palette) {
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
       // TODO perf
-      _context.fillStyle = color || buildCssColorFromState(state, `palette-${_palette}-y-axis-text`, textOpacity);
+      _context.fillStyle = colorName
+        ? buildCssColorFromState(state, `palette-${_palette}-${colorName}-text`, textOpacity)
+        : buildCssColorFromState(state, `palette-${_palette}-y-axis-text`, textOpacity);
 
       if (!isSecondary) {
         _context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
@@ -128,8 +128,8 @@ export function createAxes(context, data, plotSize, palette) {
         _context.fillText(humanize(value), _plotSize.width - GUTTER, yPx - GUTTER / 2);
       }
 
-      if (color) {
-        _context.strokeStyle = color;
+      if (colorName) {
+        _context.strokeStyle = buildCssColorFromState(state, `palette-${_palette}-${colorName}-text`, opacity);
 
         if (isSecondary) {
           _context.moveTo(_plotSize.width - GUTTER, yPx);

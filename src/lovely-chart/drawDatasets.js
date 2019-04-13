@@ -43,7 +43,7 @@ function drawDatasetBars(context, coords, options) {
   context.restore();
 }
 
-// TODO draw overlaying
+// TODO try draw overlaying
 function drawDatasetArea(context, coords, options) {
   context.beginPath();
 

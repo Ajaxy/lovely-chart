@@ -53,7 +53,7 @@ export function proxyMerge(obj1, obj2) {
   });
 }
 
-export function createThrottledUntilRaf(fn) {
+export function throttleWithRaf(fn) {
   let waiting = false;
 
   return function () {
@@ -65,5 +65,26 @@ export function createThrottledUntilRaf(fn) {
         fn();
       });
     }
+  };
+}
+
+export function debounce(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
+  let waitingTimeout = null;
+
+  return function () {
+    if (waitingTimeout) {
+      clearTimeout(waitingTimeout);
+      waitingTimeout = null;
+    } else if (shouldRunFirst) {
+      fn();
+    }
+
+    waitingTimeout = setTimeout(() => {
+      if (shouldRunLast) {
+        fn();
+      }
+
+      waitingTimeout = null;
+    }, ms);
   };
 }

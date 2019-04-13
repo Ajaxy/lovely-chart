@@ -10,7 +10,7 @@ import {
   MINIMAP_MARGIN,
   MINIMAP_LINE_WIDTH,
 } from './constants';
-import { createThrottledUntilRaf } from './fast';
+import { throttleWithRaf } from './fast';
 import { createElement } from './minifiers';
 
 export function createMinimap(container, data, palette, rangeCallback) {
@@ -30,7 +30,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
   let _range = {};
   let _state;
 
-  const _updateRulerOnRaf = createThrottledUntilRaf(_updateRuler);
+  const _updateRulerOnRaf = throttleWithRaf(_updateRuler);
 
   _setupLayout();
   _updateRange(DEFAULT_RANGE);
