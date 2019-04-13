@@ -48,8 +48,8 @@ export const SKINS = {
   },
   night: {
     bg: [36, 47, 62],
-    axesText: [84, 103, 120],
-    yAxisRulers: [41, 53, 68],
+    axesText: [163, 177, 194],
+    yAxisRulers: [255, 255, 255],
     tooltipTail: [59, 74, 90],
   },
 };
