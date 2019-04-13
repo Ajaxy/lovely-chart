@@ -1,12 +1,13 @@
 import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants';
 import { humanize } from './format';
-import { buildRgbaFromState, hexToRgba } from './skin';
+import { buildCssColorFromState } from './skin';
 import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
 
-export function createAxes(context, data, plotSize) {
+export function createAxes(context, data, plotSize, palette) {
   const _context = context;
   const _data = data;
   const _plotSize = plotSize;
+  const _palette = palette;
 
   function drawXAxis(state, projection) {
     _context.clearRect(0, _plotSize.height - X_AXIS_HEIGHT, plotSize.width, X_AXIS_HEIGHT);
@@ -32,7 +33,7 @@ export function createAxes(context, data, plotSize) {
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
       opacity = applyYEdgeOpacity(opacity, xPx, _plotSize.width);
 
-      _context.fillStyle = buildRgbaFromState(state, 'axesText', opacity);
+      _context.fillStyle = buildCssColorFromState(state, `palette-${_palette}-x-axis-text`, opacity);
       _context.fillText(label.text, xPx, topOffset);
     }
   }
@@ -45,7 +46,8 @@ export function createAxes(context, data, plotSize) {
       yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
       yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
     } = state;
-    const color = secondaryProjection && _data.datasets[0].color;
+    const color = secondaryProjection &&
+      buildCssColorFromState(state, `palette-${_palette}-${_data.datasets[0].colorName}-text`);
 
     _drawYAxisScaled(
       state,
@@ -71,7 +73,8 @@ export function createAxes(context, data, plotSize) {
 
     if (secondaryProjection) {
       const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
-      const secondaryColor = _data.datasets[_data.datasets.length - 1].color;
+      const secondaryColor =
+        buildCssColorFromState(state, `palette-${_palette}-${_data.datasets[_data.datasets.length - 1].colorName}-text`);
 
       _drawYAxisScaled(
         state,
@@ -117,8 +120,7 @@ export function createAxes(context, data, plotSize) {
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
       // TODO perf
-      // TODO 0.5 -> to constants
-      _context.fillStyle = color ? hexToRgba(color, textOpacity) : buildRgbaFromState(state, 'yAxisRulers', textOpacity * 0.5);
+      _context.fillStyle = color || buildCssColorFromState(state, `palette-${_palette}-y-axis-text`, textOpacity);
 
       if (!isSecondary) {
         _context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
@@ -127,7 +129,7 @@ export function createAxes(context, data, plotSize) {
       }
 
       if (color) {
-        _context.strokeStyle = hexToRgba(color, opacity);
+        _context.strokeStyle = color;
 
         if (isSecondary) {
           _context.moveTo(_plotSize.width - GUTTER, yPx);
@@ -138,8 +140,7 @@ export function createAxes(context, data, plotSize) {
         }
       } else {
         _context.moveTo(GUTTER, yPx);
-        // TODO 0.1 -> to constants
-        _context.strokeStyle = buildRgbaFromState(state, 'yAxisRulers', opacity * 0.1);
+        _context.strokeStyle = buildCssColorFromState(state, 'grid-lines', opacity);
         _context.lineTo(_plotSize.width - GUTTER, yPx);
       }
     }

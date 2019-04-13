@@ -1,44 +1,60 @@
-import { SKINS } from './constants';
+import { mergeArrays } from './fast';
 
-export function getSkin() {
-  return document.body.classList.contains('skin-night') ? 'night' : 'day';
+let colors;
+let colorKeys;
+
+const CHANNEL_KEYS = ['R', 'G', 'B', 'A'];
+
+export function setupColors(_colors) {
+  colors = _colors;
+  colorKeys = Object.keys(colors['skin-day']);
 }
 
-export function buildSkinState(overrides = {}) {
-  const state = {};
-  const skin = SKINS[getSkin()];
+export function getSkin() {
+  return document.body.classList.contains('skin-night') ? 'skin-night' : 'skin-day';
+}
 
-  Object.keys(SKINS.day).forEach((key) => {
-    setStateColorProps(state, key, overrides[key] || skin[key]);
+export function buildSkinState() {
+  const state = {};
+  const skin = colors[getSkin()];
+
+  colorKeys.forEach((key) => {
+    CHANNEL_KEYS.forEach((channel, i) => {
+      const channels = hexToChannels(skin[key]);
+      state[`colorChannels#${key}#${channel}`] = channels[i];
+    });
   });
 
   return state;
 }
 
-function setStateColorProps(state, key, rgb) {
-  ['R', 'G', 'B'].forEach((channel, i) => {
-    state[`colorChannels#${key}#${channel}`] = rgb[i];
+export function buildSkinStateKeys() {
+  return mergeArrays(colorKeys.map((key) => (
+    CHANNEL_KEYS.map((channel) => `colorChannels#${key}#${channel}`)
+  )));
+}
+
+export function buildCssColorFromState(state, key, opacity = 1) {
+  const rgba = CHANNEL_KEYS.map((channel) => {
+    const value = state[`colorChannels#${key}#${channel}`];
+
+    return channel === 'A' ? value : Math.round(value);
   });
+
+  return buildCssColor(rgba, opacity);
 }
 
-export function buildRgbaFromState(state, key, opacity = 1) {
-  return buildRgba(getColorFromState(state, key), opacity);
-}
+function hexToChannels(hexWithAlpha) {
+  const [hex, alpha] = hexWithAlpha.replace('#', '').split('/');
 
-function getColorFromState(state, key) {
-  return ['R', 'G', 'B'].map((channel) => Math.round(state[`colorChannels#${key}#${channel}`]));
-}
-
-export function hexToRgba(hex, opacity) {
-  hex = hex.replace('#', '');
-
-  return buildRgba([
+  return [
     parseInt(hex.slice(0, 2), 16),
     parseInt(hex.slice(2, 4), 16),
     parseInt(hex.slice(4, 6), 16),
-  ], opacity);
+    alpha ? parseFloat(alpha) : 1,
+  ];
 }
 
-function buildRgba([r, g, b], a = 1) {
-  return `rgba(${r}, ${g}, ${b}, ${a})`;
+function buildCssColor([r, g, b, a = 1], opacity = 1) {
+  return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
 }

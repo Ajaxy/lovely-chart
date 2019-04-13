@@ -7,7 +7,7 @@ import {
   ANIMATE_PROPS,
   Y_AXIS_ZERO_BASED_THRESHOLD,
 } from './constants';
-import { buildSkinState } from './skin';
+import { buildSkinState, buildSkinStateKeys } from './skin';
 import { xStepToScaleLevel, yStepToScaleLevel } from './formulas';
 
 export function createStateManager(data, viewportSize, callback) {
@@ -56,10 +56,13 @@ export function createStateManager(data, viewportSize, callback) {
 
   function _buildTransitionConfig() {
     const transitionConfig = [];
+    const datasetVisibilities = _data.datasets.map(({ key }) => `opacity#${key} 200`);
+    const skinColors = buildSkinStateKeys().map((key) => `${key} 300`);
 
     mergeArrays([
       ANIMATE_PROPS,
-      _data.datasets.map(({ key }) => `opacity#${key} 200`),
+      datasetVisibilities,
+      skinColors,
     ]).forEach((transition) => {
       const [prop, duration, ...options] = transition.split(' ');
       // TODO size obj -> array;
@@ -120,6 +123,7 @@ function calculateState(data, viewportSize, range, filter, prevState) {
     },
     yRanges,
     datasetsOpacity,
+    // TODO perf ?
     buildSkinState(),
     range,
   );

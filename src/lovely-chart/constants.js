@@ -1,5 +1,3 @@
-import { mergeArrays } from './fast';
-
 export const LABELS_KEY = 'x';
 
 export const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };
@@ -19,9 +17,9 @@ export const Y_AXIS_ZERO_BASED_THRESHOLD = 0.1;
 export const MINIMAP_HEIGHT = 40;
 export const MINIMAP_MARGIN = 10;
 export const MINIMAP_LINE_WIDTH = 1;
-export const MINIMAP_EAR_WIDTH = 5;
+export const MINIMAP_EAR_WIDTH = 8;
 export const MINIMAP_RULER_HTML
-  = '<div class="mask"></div><div class="slider"><div></div><div></div></div><div class="mask"></div>';
+  = '<div class="mask"></div><div class="slider"><div class="handle"><span></span></div><div class="inner"></div><div class="handle"><span></span></div></div><div class="mask"></div>';
 
 export const DPR = window.devicePixelRatio || 1;
 
@@ -39,24 +37,7 @@ export const ZOOM_RANGE_DELTA = 0.1;
 export const ZOOM_RANGE_MIDDLE = .5;
 export const ZOOM_HALF_DAY_WIDTH = (1 / 7) / 2;
 
-export const SKINS = {
-  day: {
-    bg: [255, 255, 255],
-    axesText: [150, 162, 170],
-    yAxisRulers: [24, 45, 59],
-    tooltipTail: [223, 230, 235],
-  },
-  night: {
-    bg: [36, 47, 62],
-    axesText: [84, 103, 120],
-    yAxisRulers: [41, 53, 68],
-    tooltipTail: [59, 74, 90],
-  },
-};
-
-const SKIN_STATE_PROPS = mergeArrays(Object.keys(SKINS.day).map((key) => (
-  ['R', 'G', 'B'].map((channel) => `colorChannels#${key}#${channel}`)
-)));
+export const DEFAULT_PALETTE = 'type-1';
 
 export const ANIMATE_PROPS = [
   // Viewport X-axis
@@ -73,7 +54,4 @@ export const ANIMATE_PROPS = [
 
   // Y-axis labels
   'yAxisScale', 'yAxisScaleSecond',
-
-  // Skin
-  ...SKIN_STATE_PROPS.map((p) => `${p} 300`),
 ];

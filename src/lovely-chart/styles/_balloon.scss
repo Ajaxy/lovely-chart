@@ -1,0 +1,101 @@
+.lovely-chart {
+  .tooltip {
+    position: absolute;
+    top: 30px;
+    left: 0;
+
+    .balloon {
+      position: absolute;
+      top: 5px;
+      left: 0;
+      margin-left: -20px;
+      min-width: 130px;
+      border-radius: 8px;
+      padding: 8px 10px;
+      white-space: nowrap;
+
+      background: var(--tooltip-background);
+      color: var(--text-color);
+      box-shadow: 0 1px 2px 1px rgba(211, 211, 211, 0.8);
+      opacity: 0;
+      transition: opacity 200ms ease-out, background-color 300ms ease-out;
+      cursor: pointer;
+
+      &.shown {
+        opacity: 1;
+      }
+
+      .title {
+        font-size: 12px;
+        font-weight: 700;
+        position: relative;
+
+        &::after {
+          content: '';
+          display: block;
+          position: absolute;
+          right: 0;
+          top: 0;
+          width: 12px;
+          height: 12px;
+          background-image: url('../icon-arrow-right.svg');
+          background-position: center;
+          background-repeat: no-repeat;
+          background-size: 75%;
+        }
+      }
+
+      .legend {
+        padding-top: 5px;
+
+        .dataset {
+          line-height: 20px;
+          color: var(--text-color);
+
+          .value {
+            float: right;
+            font-weight: 700;
+
+            &.red {
+              color: var(--red-text);
+            }
+
+            &.green {
+              color: var(--green-text);
+            }
+
+            &.light-green {
+              color: var(--light-green-text);
+            }
+
+            &.blue {
+              color: var(--blue-text);
+            }
+
+            &.dark-blue {
+              color: var(--dark-blue-text);
+            }
+
+            &.light-blue {
+              color: var(--light-blue-text);
+            }
+
+            &.yellow {
+              color: var(--yellow-text);
+            }
+
+            &.orange {
+              color: var(--orange-text);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+body.skin-night .lovely-chart {
+  .tooltip .balloon {
+    box-shadow: none;
+  }
+}

@@ -1,16 +1,17 @@
 import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, GUTTER, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { humanize } from './format';
-import { buildRgbaFromState } from './skin';
+import { buildCssColorFromState } from './skin';
 import { createThrottledUntilRaf } from './fast';
 import { addEventListener, createElement } from './minifiers';
 
 const BALLOON_SHADOW_WIDTH = 1;
 
-export function createTooltip(container, data, plotSize, onSelectLabel) {
+export function createTooltip(container, data, plotSize, palette, onSelectLabel) {
   const _container = container;
   const _data = data;
   const _plotSize = plotSize;
+  const _palette = palette;
   const _onSelectLabel = onSelectLabel;
 
   let _state;
@@ -37,7 +38,7 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
   }
 
   function _setupLayout() {
-    _element = createElement('div');
+    _element = createElement();
     _element.className = 'tooltip';
 
     _setupCanvas();
@@ -63,7 +64,7 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
   }
 
   function _setupBalloon() {
-    _balloon = createElement('div');
+    _balloon = createElement();
     _balloon.className = 'balloon';
     _balloon.innerHTML = '<div class="title"></div><div class="legend"></div>';
 
@@ -120,7 +121,8 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
     clearCanvas(_canvas, _context);
 
     const [xPx] = _projection.toPixels(labelIndex, 0);
-    const lineColor = buildRgbaFromState(_state, 'tooltipTail');
+    const lineColor = buildCssColorFromState(_state, 'grid-lines');
+
     _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, lineColor);
 
     // TODO not working on touch devices
@@ -130,18 +132,22 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
 
     const statistics = _data.datasets
       .filter(({ key }) => _state.filter[key])
-      .map(({ name, color, values, hasOwnYAxis }) => ({
+      .map(({ name, colorName, values, hasOwnYAxis }) => ({
         name,
-        color,
+        colorName,
         value: values[labelIndex],
         hasOwnYAxis,
       }));
 
-    statistics.forEach(({ value, color, hasOwnYAxis }, i) => {
+    statistics.forEach(({ value, colorName, hasOwnYAxis }, i) => {
       const coordIndex = labelIndex - _state.labelFromIndex;
       const { x, y } = hasOwnYAxis ? _secondaryCoords[coordIndex] : _coords[i][coordIndex];
       // TODO animate
-      _drawCircle([x, y], color, buildRgbaFromState(_state, 'bg'));
+      _drawCircle(
+        [x, y],
+        buildCssColorFromState(_state, `palette-${_palette}-${colorName}-line`),
+        buildCssColorFromState(_state, 'background'),
+      );
     });
 
     _updateBalloon(statistics, xPx, labelIndex);
@@ -182,8 +188,8 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
     const label = _data.xLabels[labelIndex];
     const date = new Date(label.value);
     _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
-    _balloon.children[1].innerHTML = statistics.map(({ name, color, value }) => (
-      `<div class="dataset" style="color: ${color}"><div>${humanize(value, 2)}</div><div>${name}</div></div>`
+    _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (
+      `<div class="dataset"><span>${name}</span><span class="value ${colorName}">${humanize(value, 2)}</span></div>`
     )).join('');
 
     const left = Math.max(

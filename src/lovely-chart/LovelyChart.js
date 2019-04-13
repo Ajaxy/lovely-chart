@@ -1,4 +1,5 @@
 import { createStateManager } from './StateManager';
+import { createHeader } from './Header';
 import { createAxes } from './Axes';
 import { createMinimap } from './Minimap';
 import { createTools } from './Tools';
@@ -9,6 +10,7 @@ import { createProjection, setPercentage, setStacked } from './createProjection'
 import { setupCanvas, clearCanvas } from './canvas';
 import { hideOnScroll } from './hideOnScroll';
 import { createElement } from './minifiers';
+import { setupColors } from './skin';
 import {
   X_AXIS_HEIGHT,
   GUTTER,
@@ -18,11 +20,11 @@ import {
   ZOOM_RANGE_DELTA,
   ZOOM_TIMEOUT,
   ZOOM_RANGE_MIDDLE,
-  ZOOM_HALF_DAY_WIDTH,
+  ZOOM_HALF_DAY_WIDTH, DEFAULT_PALETTE,
 } from './constants';
 
-export function createLovelyChart(parentContainerId, dataOptions) {
-  let _dataOptions = dataOptions;
+function createLovelyChart(params) {
+  let _params = params;
 
   let _data;
 
@@ -31,16 +33,16 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   let _context;
   let _plotSize;
 
+  let _header;
   let _axes;
   let _stateManager;
   let _minimap;
   let _tooltip;
 
-  _setupContainer(parentContainerId);
-  _setupPlotCanvas();
+  _setupContainer();
 
   _fetchData().then((data) => {
-    _data = analyzeData(data);
+    _data = analyzeData(data, _params.datasetColors);
     _setupComponents();
   });
 
@@ -48,13 +50,13 @@ export function createLovelyChart(parentContainerId, dataOptions) {
     _stateManager.update();
   }
 
-  function _setupContainer(parentContainerId) {
-    _container = createElement('div');
-    _container.className = 'lovely-chart';
+  function _setupContainer() {
+    _container = createElement();
+    _container.className = `lovely-chart palette-${_params.palette || DEFAULT_PALETTE}`;
 
     hideOnScroll(_container);
 
-    const parentContainer = document.getElementById(parentContainerId);
+    const parentContainer = document.getElementById(_params.containerId);
     parentContainer.appendChild(_container);
   }
 
@@ -74,20 +76,19 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   }
 
   function _fetchData() {
-    const { dataSource } = _dataOptions;
+    const { data, dataSource } = _params;
 
-    if (dataSource) {
+    if (data) {
+      return Promise.resolve(data);
+    } else if (dataSource) {
       // TODO spinner
       return fetch(`${dataSource}/overview.json`)
         .then((response) => response.json());
-    } else {
-      return Promise.resolve(dataOptions);
     }
   }
 
-  function _fetchDayData(labelIndex) {
-    const { dataSource } = _dataOptions;
-    const date = new Date(_data.xLabels[labelIndex].value);
+  function _fetchDayData(date) {
+    const { dataSource } = _params;
     const month = date.getMonth() + 1;
     const day = date.getDate();
     const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
@@ -97,10 +98,12 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   }
 
   function _setupComponents() {
-    _axes = createAxes(_context, _data, _plotSize);
+    _header = createHeader(_container, _params.title, _onZoomOut);
+    _setupPlotCanvas();
+    _axes = createAxes(_context, _data, _plotSize, _params.palette);
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
-    _minimap = createMinimap(_container, _data, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize, _zoomToDay);
+    _minimap = createMinimap(_container, _data, _params.palette, _onRangeChange);
+    _tooltip = createTooltip(_container, _data, _plotSize, _params.palette, _zoomToDay);
     createTools(_container, _data, _onFilterChange);
   }
 
@@ -142,8 +145,11 @@ export function createLovelyChart(parentContainerId, dataOptions) {
       secondaryCoords = secondaryProjection.prepareCoords([secondaryDataset], range)[0];
     }
 
+    _header.setCaption(`${_data.xLabels[state.labelFromIndex].text} — ${_data.xLabels[state.labelToIndex].text}`);
     clearCanvas(_plot, _context);
-    drawDatasets(_context, state, _data, range, projection, coords, secondaryCoords, PLOT_LINE_WIDTH, visibilities);
+    drawDatasets(
+      _context, state, _data, range, projection, coords, secondaryCoords, PLOT_LINE_WIDTH, visibilities, _params.palette,
+    );
     _axes.drawYAxis(state, projection, secondaryProjection);
     // TODO isChanged
     _axes.drawXAxis(state, projection);
@@ -161,11 +167,15 @@ export function createLovelyChart(parentContainerId, dataOptions) {
   }
 
   function _zoomToDay(labelIndex) {
-    if (!_dataOptions) {
+    if (!_params.dataSource) {
       return;
     }
 
-    _fetchDayData(labelIndex)
+    const { value: date, text: dateText } = _data.xLabels[labelIndex];
+
+    _header.zoom(dateText);
+
+    _fetchDayData(new Date(date))
       .then((data) => {
         const labelWidth = 1 / _data.xLabels.length;
         const labelMiddle = labelIndex / (_data.xLabels.length - 1);
@@ -178,7 +188,7 @@ export function createLovelyChart(parentContainerId, dataOptions) {
         });
 
         setTimeout(() => {
-          Object.assign(_data, analyzeData(data, 'hours'));
+          Object.assign(_data, analyzeData(data, _params.datasetColors, 'hours'));
           _stateManager.update({
             range: {
               begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
@@ -196,9 +206,17 @@ export function createLovelyChart(parentContainerId, dataOptions) {
       });
   }
 
+  function _onZoomOut() {
+    // TODO implement
+    setTimeout(() => {
+      location.reload();
+    }, 300);
+  }
+
   return { redraw };
 }
 
 window.LovelyChart = {
   create: createLovelyChart,
+  setupColors,
 };

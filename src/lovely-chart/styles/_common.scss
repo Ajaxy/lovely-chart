@@ -1,0 +1,31 @@
+.lovely-chart {
+  font: 300 13px Helvetica, Arial, sans-serif;
+  color: #222222;
+  position: relative;
+  margin-bottom: 50px;
+  text-align: left;
+  overflow: hidden;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+
+  &.hidden {
+    visibility: hidden;
+  }
+
+  > canvas,
+  .tooltip canvas {
+    margin-top: 10px;
+  }
+
+  .tools {
+    padding: 16px 10px;
+  }
+}
+
+body.cursor-ew-resize, body.cursor-ew-resize * {
+  cursor: ew-resize !important;
+}
+
+body.cursor-grabbing, body.cursor-grabbing * {
+  cursor: grabbing !important;
+}

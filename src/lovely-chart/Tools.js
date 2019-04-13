@@ -11,16 +11,15 @@ export function createTools(container, data, filterCallback) {
   _updateFilter();
 
   function _setupLayout() {
-    _element = createElement('div');
+    _element = createElement();
     _element.className = 'tools';
 
-    _data.datasets.forEach(({ key, name, color }) => {
+    _data.datasets.forEach(({ key, name, colorName }) => {
       const control = createElement('a');
       control.href = '#';
       control.dataset.key = key;
-      control.className = 'checkbox checked';
+      control.className = `checkbox ${colorName} checked`;
       control.innerHTML = `<span class="circle"></span><span class="label">${name}</span>`;
-      control.firstChild.style.borderColor = color;
       control.addEventListener('click', _updateFilter);
       _element.appendChild(control);
     });

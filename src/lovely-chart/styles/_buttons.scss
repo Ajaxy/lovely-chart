@@ -1,0 +1,147 @@
+.lovely-chart {
+  a.checkbox {
+    border: 1px solid #E6ECF0;
+    background-color: transparent;
+    padding: 7px 7px;
+    display: inline-block;
+    border-radius: 18px;
+    text-align: center;
+    text-decoration: none;
+    margin: 0 6px 8px 0;
+    transition: background-color 500ms ease-out, border-color 500ms ease-out;
+    position: relative;
+
+    border-color: var(--text-color);
+    background: transparent;
+    color: var(--text-color);
+
+    .circle {
+      display: inline-block;
+      position: absolute;
+      top: 7px;
+      left: 7px;
+      width: 20px;
+      height: 20px;
+      opacity: 0;
+      transition: opacity 300ms ease-out;
+
+      &::after {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        content: '';
+        width: 12px;
+        height: 12px;
+        margin-left: -6px;
+        margin-top: -6px;
+        background-image: url('../icon-ok.svg');
+        background-size: 100%;
+      }
+    }
+
+    .label {
+      display: inline-block;
+      font-weight: 300;
+      line-height: 20px;
+      color: inherit;
+      padding: 0 13px;
+      transition: padding 300ms ease-out, color 300ms ease-out;
+    }
+
+    &.checked {
+      background-color: var(--text-color);
+
+      .circle {
+        opacity: 1;
+      }
+
+      .label {
+        color: #ffffff;
+        padding-right: 6px;
+        padding-left: 20px;
+      }
+    }
+
+    &.red {
+      border-color: var(--red-button);
+      color: var(--red-button);
+
+      &.checked {
+        background-color: var(--red-button);
+      }
+    }
+
+    &.green {
+      border-color: var(--green-button);
+      color: var(--green-button);
+
+      &.checked {
+        background-color: var(--green-button);
+      }
+    }
+
+    &.light-green {
+      border-color: var(--light-green-button);
+      background-color: var(--light-green-button);
+      color: var(--light-green-button);
+
+      &.checked {
+        background-color: var(--light-green-button);
+      }
+    }
+
+    &.blue {
+      border-color: var(--blue-button);
+      color: var(--blue-button);
+
+      &.checked {
+        background-color: var(--blue-button);
+      }
+    }
+
+    &.dark-blue {
+      border-color: var(--dark-blue-button);
+      color: var(--dark-blue-button);
+
+      &.checked {
+        background-color: var(--dark-blue-button);
+      }
+    }
+
+    &.light-blue {
+      border-color: var(--light-blue-button);
+      color: var(--light-blue-button);
+
+      &.checked {
+        background-color: var(--light-blue-button);
+      }
+    }
+
+    &.yellow {
+      border-color: var(--yellow-button);
+      color: var(--yellow-button);
+
+      &.checked {
+        background-color: var(--yellow-button);
+      }
+    }
+
+    &.orange {
+      border-color: var(--orange-button);
+      color: var(--orange-button);
+
+      &.checked {
+        background-color: var(--orange-button);
+      }
+    }
+  }
+
+  #killer-feature {
+    border-color: var(--killer-button);
+    color: var(--killer-button);
+
+    &.checked {
+      background-color: var(--killer-button);
+    }
+  }
+}

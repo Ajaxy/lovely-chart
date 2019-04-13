@@ -13,9 +13,11 @@ import {
 import { createThrottledUntilRaf } from './fast';
 import { createElement } from './minifiers';
 
-export function createMinimap(container, data, rangeCallback) {
+export function createMinimap(container, data, palette, rangeCallback) {
+  // TODO use scoped args
   const _container = container;
   const _data = data;
+  const _palette = palette;
   const _rangeCallback = rangeCallback;
 
   let _element;
@@ -48,7 +50,7 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _setupLayout() {
-    _element = createElement('div');
+    _element = createElement();
 
     _element.className = 'minimap';
     _element.style.height = `${MINIMAP_HEIGHT}px`;
@@ -79,14 +81,14 @@ export function createMinimap(container, data, rangeCallback) {
   }
 
   function _setupRuler() {
-    _ruler = createElement('div');
+    _ruler = createElement();
     _ruler.className = 'ruler';
     _ruler.innerHTML = MINIMAP_RULER_HTML;
 
     _slider = _ruler.children[1];
 
     setupDrag(
-      _slider,
+      _slider.children[1],
       {
         onCapture: _onDragCapture,
         onDrag: _onSliderDrag,
@@ -104,7 +106,7 @@ export function createMinimap(container, data, rangeCallback) {
     );
 
     setupDrag(
-      _slider.children[1],
+      _slider.children[2],
       {
         onCapture: _onDragCapture,
         onDrag: _onRightEarDrag,
@@ -162,7 +164,9 @@ export function createMinimap(container, data, rangeCallback) {
       secondaryCoords = secondaryProjection.prepareCoords([secondaryDataset], range)[0];
     }
 
-    drawDatasets(_context, state, _data, range, projection, coords, secondaryCoords, MINIMAP_LINE_WIDTH, visibilities);
+    drawDatasets(
+      _context, state, _data, range, projection, coords, secondaryCoords, MINIMAP_LINE_WIDTH, visibilities, _palette
+    );
   }
 
   function _onDragCapture(e) {
