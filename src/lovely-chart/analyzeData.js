@@ -2,7 +2,7 @@ import { ensureSorted, getMaxMin } from './fast';
 import { buildDayLabels, buildTimeLabels } from './format';
 import { LABELS_KEY } from './constants';
 
-function prepareDatasets(chartData, colorNames = {}) {
+function prepareDatasets(chartData, datasetColors = {}) {
   const { columns, names, colors, types, y_scaled: hasSecondYAxis } = chartData;
 
   let labels = [];
@@ -19,8 +19,7 @@ function prepareDatasets(chartData, colorNames = {}) {
 
     datasets.push({
       key,
-      color: colors[key],
-      colorName: colorNames[key],
+      colorName: datasetColors[key],
       name: names[key],
       type: types[key],
       values,
@@ -35,8 +34,8 @@ function prepareDatasets(chartData, colorNames = {}) {
   return { datasets };
 }
 
-export function analyzeData(data, colorNames, type) {
-  const { datasets } = prepareDatasets(data, colorNames);
+export function analyzeData(data, datasetColors, type) {
+  const { datasets } = prepareDatasets(data, datasetColors);
 
   let totalYMin = Infinity;
   let totalYMax = -Infinity;
