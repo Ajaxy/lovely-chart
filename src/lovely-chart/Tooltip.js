@@ -130,9 +130,10 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
 
     const statistics = _data.datasets
       .filter(({ key }) => _state.filter[key])
-      .map(({ name, color, values, hasOwnYAxis }) => ({
+      .map(({ name, color, colorName, values, hasOwnYAxis }) => ({
         name,
         color,
+        colorName,
         value: values[labelIndex],
         hasOwnYAxis,
       }));
@@ -182,8 +183,8 @@ export function createTooltip(container, data, plotSize, onSelectLabel) {
     const label = _data.xLabels[labelIndex];
     const date = new Date(label.value);
     _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
-    _balloon.children[1].innerHTML = statistics.map(({ name, color, value }) => (
-      `<div class="dataset"><span>${name}</span><span class="value" style="color: ${color}">${humanize(value, 2)}</span></div>`
+    _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (
+      `<div class="dataset"><span>${name}</span><span class="value ${colorName}">${humanize(value, 2)}</span></div>`
     )).join('');
 
     const left = Math.max(

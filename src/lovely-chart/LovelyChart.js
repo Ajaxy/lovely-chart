@@ -41,7 +41,7 @@ export function createLovelyChart(params) {
   _setupContainer();
 
   _fetchData().then((data) => {
-    _data = analyzeData(data);
+    _data = analyzeData(data, _params.datasetColors);
     _setupComponents();
   });
 
@@ -185,7 +185,7 @@ export function createLovelyChart(params) {
         });
 
         setTimeout(() => {
-          Object.assign(_data, analyzeData(data, 'hours'));
+          Object.assign(_data, analyzeData(data, _params.datasetColors, 'hours'));
           _stateManager.update({
             range: {
               begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
