@@ -16,9 +16,10 @@ export function createHeader(container, title, zoomOutCallback) {
   _setupLayout();
 
   function setCaption(caption) {
-    console.log('setting caption', caption);
     if (!_captionElement.innerHTML) {
       _captionElement.innerHTML = caption;
+    } else if (_captionElement.innerHTML === caption) {
+      return;
     } else {
       _captionElement = animation.toggleText(_captionElement, caption, 'caption right');
     }
