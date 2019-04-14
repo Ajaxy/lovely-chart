@@ -1,22 +1,20 @@
 import { createElement } from './minifiers';
 
-const ANIMATION_TIME = 400;
-
-function fadeIn(element) {
+function toggleIn(element) {
   // Remove and add `animated` class to re-trigger animation
   element.classList.remove('animated');
   element.classList.add('animated');
   element.classList.remove('hidden');
 }
 
-function fadeOut(element) {
+function toggleOut(element) {
   // Remove and add `animated` class to re-trigger animation
   element.classList.remove('animated');
   element.classList.add('animated');
   element.classList.add('hidden');
 }
 
-export default function toggleText(element, newText, className, inverse = false) {
+export function toggleText(element, newText, className, inverse = false) {
   const container = element.parentNode;
   container.classList.add('transition-container');
 
@@ -32,8 +30,8 @@ export default function toggleText(element, newText, className, inverse = false)
   element.classList.add(inverse ? 'bottom' : 'top');
   container.insertBefore(newElement, element.nextSibling);
 
-  fadeIn(newElement);
-  fadeOut(element);
+  toggleIn(newElement);
+  toggleOut(element);
 
   return newElement;
 }

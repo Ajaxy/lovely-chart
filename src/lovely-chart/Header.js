@@ -1,5 +1,5 @@
 import { createElement, addEventListener } from './minifiers';
-import toggleText from './toggleText';
+import { toggleText } from './toggleText';
 import { throttle } from './fast';
 
 export function createHeader(container, title, zoomOutCallback) {
@@ -14,7 +14,7 @@ export function createHeader(container, title, zoomOutCallback) {
 
   let _isZoomed = false;
 
-  const setCaptionThrottled = throttle(setCaption, 800, true, true);
+  const setCaptionThrottled = throttle(setCaption, 800, false, true);
 
   _setupLayout();
 
