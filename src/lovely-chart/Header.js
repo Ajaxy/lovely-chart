@@ -39,12 +39,12 @@ export function createHeader(container, title, zoomOutCallback) {
     _element.className = 'header transition-container';
 
     _titleElement = createElement();
-    _titleElement.className = 'title transition top';
+    _titleElement.className = 'title';
     _titleElement.innerHTML = _title;
     _element.appendChild(_titleElement);
 
     _captionElement = createElement();
-    _captionElement.className = 'caption transition top right';
+    _captionElement.className = 'caption';
     _element.appendChild(_captionElement);
 
     _container.appendChild(_element);

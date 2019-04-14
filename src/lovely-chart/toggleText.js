@@ -21,17 +21,19 @@ function fadeOut(element) {
 }
 
 export default function toggleText(element, newText, className, inverse = false) {
+  var container = element.parentNode;
+
   var newElement = createElement();
   newElement.className = `${className} transition ${inverse ? 'top' : 'bottom'} hidden`;
   newElement.innerHTML = newText;
 
   const classList = className.indexOf(' ') !== -1 ?
     className.split(' ') : [className];
-  var oldElements = element.parentNode.querySelectorAll(`.${classList.join('.')}.hidden`);
+  var oldElements = container.querySelectorAll(`.${classList.join('.')}.hidden`);
   oldElements.forEach(e => e.remove());
 
-  element.parentNode.insertBefore(newElement, element.nextSibling);
-  element.classList.remove('bottom');
+  container.insertBefore(newElement, element.nextSibling);
+  element.classList.remove(inverse ? 'bottom' : 'top');
 
   fadeIn(newElement);
   fadeOut(element);
