@@ -69,10 +69,11 @@
   .animated {
     animation-fill-mode: forwards;
     animation-timing-function: ease-out;
-    animation-duration: 400ms;
+    animation-duration: 200ms;
 
     &.hidden {
       animation-name: fadeOut;
+      animation-duration: 300ms;
     }
 
     &:not(.hidden) {

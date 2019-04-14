@@ -9,27 +9,28 @@ export function createHeader(container, title, zoomOutCallback) {
   let _element;
   let _titleElement;
   let _zoomOutElement;
-  let _caption1Element;
-  let _caption2Element;
+  let _captionElement;
 
   let _isZoomed = false;
 
   _setupLayout();
 
   function setCaption(caption) {
-    _caption1Element.innerHTML = caption;
-    _caption2Element.innerHTML = caption;
+    console.log('setting caption', caption);
+    if (!_captionElement.innerHTML) {
+      _captionElement.innerHTML = caption;
+    } else {
+      _captionElement = animation.toggleText(_captionElement, caption, 'caption right');
+    }
   }
 
   function zoom(caption) {
     _isZoomed = true;
 
-    setCaption(caption);
-
     animation.fadeOut(_titleElement);
     animation.fadeIn(_zoomOutElement);
-    animation.fadeOut(_caption1Element);
-    animation.fadeIn(_caption2Element);
+
+    setCaption(caption);
   }
 
   function _setupLayout() {
@@ -47,13 +48,9 @@ export function createHeader(container, title, zoomOutCallback) {
     addEventListener(_zoomOutElement, 'click', _onZoomOut);
     _element.appendChild(_zoomOutElement);
 
-    _caption1Element = createElement();
-    _caption1Element.className = 'caption transition top right';
-    _element.appendChild(_caption1Element);
-
-    _caption2Element = createElement();
-    _caption2Element.className = 'caption hidden transition bottom right';
-    _element.appendChild(_caption2Element);
+    _captionElement = createElement();
+    _captionElement.className = 'caption transition top right';
+    _element.appendChild(_captionElement);
 
     _container.appendChild(_element);
   }
