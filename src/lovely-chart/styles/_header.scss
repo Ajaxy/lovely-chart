@@ -1,14 +1,11 @@
 .lovely-chart {
   .header {
     height: 30px;
-    position: relative;
     font-weight: 600;
     margin: 0 10px;
 
     .title, .caption {
       color: var(--text-color);
-      position: absolute;
-      top: 0;
       line-height: 30px;
       transition: color 300ms ease;
 
@@ -19,12 +16,10 @@
     }
 
     .title {
-      left: 0;
       font-size: 16px;
     }
 
     .caption {
-      right: 0;
       text-align: right;
     }
 

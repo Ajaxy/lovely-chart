@@ -32,8 +32,15 @@
 }
 
 .lovely-chart {
+  .transition-container {
+    position: relative;
+  }
+
   .transition {
-    &.from-top {
+    position: absolute;
+
+    &.top {
+      top: 0;
       transform-origin: top left;
 
       &.right {
@@ -41,12 +48,21 @@
       }
     }
 
-    &.from-bottom {
+    &.bottom {
+      bottom: 0;
       transform-origin: bottom left;
 
       &.right {
         transform-origin: bottom right;
       }
+    }
+
+    &.left {
+      left: 0;
+    }
+
+    &.right {
+      right: 0;
     }
   }
 

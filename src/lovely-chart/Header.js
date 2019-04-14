@@ -34,25 +34,25 @@ export function createHeader(container, title, zoomOutCallback) {
 
   function _setupLayout() {
     _element = createElement();
-    _element.className = 'header';
+    _element.className = 'header transition-container';
 
     _titleElement = createElement();
-    _titleElement.className = 'title transition from-top';
+    _titleElement.className = 'title transition top';
     _titleElement.innerHTML = _title;
     _element.appendChild(_titleElement);
 
     _zoomOutElement = createElement();
-    _zoomOutElement.className = 'title zoom-out hidden transition from-bottom';
+    _zoomOutElement.className = 'title zoom-out hidden transition bottom';
     _zoomOutElement.innerHTML = 'Zoom Out';
     addEventListener(_zoomOutElement, 'click', _onZoomOut);
     _element.appendChild(_zoomOutElement);
 
     _caption1Element = createElement();
-    _caption1Element.className = 'caption transition from-top right';
+    _caption1Element.className = 'caption transition top right';
     _element.appendChild(_caption1Element);
 
     _caption2Element = createElement();
-    _caption2Element.className = 'caption hidden transition from-bottom right';
+    _caption2Element.className = 'caption hidden transition bottom right';
     _element.appendChild(_caption2Element);
 
     _container.appendChild(_element);
