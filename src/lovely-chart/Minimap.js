@@ -16,7 +16,7 @@ import { createElement } from './minifiers';
 import { getDatasetMinimapVisibility } from './formulas';
 
 export function createMinimap(container, data, palette, rangeCallback) {
-  // TODO use scoped args
+  // TODO size use scoped args
   const _container = container;
   const _data = data;
   const _palette = palette;
@@ -39,7 +39,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
 
   function update(newState) {
     const { begin, end } = newState;
-    // TODO skip when is dragging
+    // TODO bug skip when is dragging
     _updateRange({ begin, end }, true);
 
     if (!_isStateChanged(newState)) {

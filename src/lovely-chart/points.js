@@ -4,7 +4,7 @@ import { sumArrays } from './fast';
 
 export function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
   let values = datasets.map(({ values }) => (
-    values.slice(range.from, range.to)
+    values.slice(range.from, range.to + 1)
   ));
 
   if (data.isPie && !pieToArea) {

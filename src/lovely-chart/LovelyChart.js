@@ -21,7 +21,7 @@ import {
   ZOOM_RANGE_DELTA,
   ZOOM_TIMEOUT,
   ZOOM_RANGE_MIDDLE,
-  ZOOM_HALF_DAY_WIDTH, DEFAULT_PALETTE,
+  DEFAULT_PALETTE,
 } from './constants';
 
 function createLovelyChart(params) {
@@ -152,9 +152,11 @@ function createLovelyChart(params) {
       range, points, projection, secondaryPoints, secondaryProjection,
       PLOT_LINE_WIDTH, visibilities, _params.palette,
     );
-    _axes.drawYAxis(state, projection, secondaryProjection);
-    // TODO isChanged
-    _axes.drawXAxis(state, projection);
+    if (!_data.isPie) {
+      _axes.drawYAxis(state, projection, secondaryProjection);
+      // TODO isChanged
+      _axes.drawXAxis(state, projection);
+    }
     _minimap.update(state);
     _tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
   }
