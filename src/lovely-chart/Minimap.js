@@ -1,6 +1,7 @@
 import { setupCanvas, clearCanvas } from './canvas';
+import { preparePoints } from './points';
+import { createProjection } from './createProjection';
 import { drawDatasets } from './drawDatasets';
-import { createProjection, setPercentage, setStacked } from './createProjection';
 import { setupDrag } from './setupDrag';
 import {
   DEFAULT_RANGE,
@@ -12,6 +13,7 @@ import {
 } from './constants';
 import { throttleWithRaf } from './fast';
 import { createElement } from './minifiers';
+import { getDatasetMinimapVisibility } from './formulas';
 
 export function createMinimap(container, data, palette, rangeCallback) {
   // TODO use scoped args
@@ -134,7 +136,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
       from: 0,
       to: state.totalXWidth,
     };
-    const projection = createProjection({
+    const boundsAndParams = {
       begin: 0,
       end: 1,
       totalXWidth: state.totalXWidth,
@@ -143,30 +145,23 @@ export function createMinimap(container, data, palette, rangeCallback) {
       availableWidth: _canvasSize.width,
       availableHeight: _canvasSize.height,
       yPadding: 1,
-    });
-    const visibilities = datasets.map(({ key }) => {
-      return Math.max(0, Math.min(state[`opacity#${key}`] * 2 - 1, 1));
-    });
+    };
+    const visibilities = datasets.map(({ key }) => getDatasetMinimapVisibility(state, key));
+    const points = preparePoints(_data, datasets, range, visibilities, boundsAndParams, true);
+    const projection = createProjection(boundsAndParams);
 
-    let coords = projection.prepareCoords(datasets, range);
-    if (_data.isPercentage) {
-      coords = setPercentage(coords, visibilities, projection);
-    }
-    if (_data.isStacked) {
-      coords = setStacked(coords, visibilities, projection);
-    }
-
+    let secondaryPoints = null;
     let secondaryProjection = null;
-    let secondaryCoords = null;
     if (_data.hasSecondYAxis) {
-      secondaryProjection = projection.copy({ yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond });
       const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
-      secondaryCoords = secondaryProjection.prepareCoords([secondaryDataset], range)[0];
+      const bounds = { yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond };
+      secondaryPoints = preparePoints(_data, [secondaryDataset], range, visibilities, bounds)[0];
+      secondaryProjection = projection.copy(bounds);
     }
 
     drawDatasets(
       _context, state, _data,
-      range, projection, coords, secondaryCoords,
+      range, points, projection, secondaryPoints, secondaryProjection,
       MINIMAP_LINE_WIDTH, visibilities, _palette, true,
     );
   }

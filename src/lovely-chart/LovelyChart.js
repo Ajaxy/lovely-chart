@@ -5,8 +5,9 @@ import { createMinimap } from './Minimap';
 import { createTools } from './Tools';
 import { createTooltip } from './Tooltip';
 import { analyzeData } from './analyzeData';
+import { preparePoints } from './points';
+import { createProjection } from './createProjection';
 import { drawDatasets } from './drawDatasets';
-import { createProjection, setPercentage, setStacked } from './createProjection';
 import { setupCanvas, clearCanvas } from './canvas';
 import { hideOnScroll } from './hideOnScroll';
 import { createElement } from './minifiers';
@@ -113,7 +114,7 @@ function createLovelyChart(params) {
       from: state.labelFromIndex,
       to: state.labelToIndex,
     };
-    const projection = createProjection({
+    const boundsAndParams = {
       begin: state.begin,
       end: state.end,
       totalXWidth: state.totalXWidth,
@@ -123,39 +124,35 @@ function createLovelyChart(params) {
       availableHeight: _plotSize.height - X_AXIS_HEIGHT,
       xPadding: GUTTER,
       yPadding: PLOT_TOP_PADDING,
-    });
+    };
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
+    const points = preparePoints(_data, datasets, range, visibilities, boundsAndParams);
+    const projection = createProjection(boundsAndParams);
 
-    let coords = projection.prepareCoords(datasets, range);
-    if (_data.isPercentage) {
-      coords = setPercentage(coords, visibilities, projection);
-    }
-    if (_data.isStacked) {
-      coords = setStacked(coords, visibilities, projection);
-    }
-
+    let secondaryPoints = null;
     let secondaryProjection = null;
-    let secondaryCoords = null;
     if (_data.hasSecondYAxis) {
-      secondaryProjection = projection.copy({
+      const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
+      const bounds = {
         yMin: state.yMinViewportSecond,
         yMax: state.yMaxViewportSecond,
-      });
-      const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
-      secondaryCoords = secondaryProjection.prepareCoords([secondaryDataset], range)[0];
+      };
+      secondaryPoints = preparePoints(_data, [secondaryDataset], range, visibilities, bounds)[0];
+      secondaryProjection = projection.copy(bounds);
     }
 
     _header.setCaption(`${_data.xLabels[state.labelFromIndex].text} — ${_data.xLabels[state.labelToIndex].text}`);
     clearCanvas(_plot, _context);
     drawDatasets(
-      _context, state, _data, range, projection, coords, secondaryCoords, PLOT_LINE_WIDTH, visibilities, _params.palette,
+      _context, state, _data,
+      range, points, projection, secondaryPoints, secondaryProjection,
+      PLOT_LINE_WIDTH, visibilities, _params.palette,
     );
     _axes.drawYAxis(state, projection, secondaryProjection);
     // TODO isChanged
     _axes.drawXAxis(state, projection);
     _minimap.update(state);
-    // TODO maybe `secondaryProjection` is enough, then many calculations above may be incapsulated in `drawDatasets`
-    _tooltip.update(state, projection, coords, secondaryCoords);
+    _tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
   }
 
   function _onRangeChange(range) {

@@ -3,16 +3,12 @@ import { buildCssColorFromState } from './skin';
 import { PLOT_PIE_RADIUS_FACTOR } from './constants';
 import { getPieTextShift, getPieTextSize } from './formulas';
 
-function drawDatasetLine(context, coords, options) {
+function drawDatasetLine(context, points, projection, options) {
   context.beginPath();
 
-  // TODO perf use projection?
-  // const { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx } = projection.vars;
-  //  const x = j * xFactor - xOffsetPx;
-  //  const y = availableHeight - (values[j] * yFactor - yOffsetPx);
-
-  for (let j = 0, l = coords.length; j < l; j++) {
-    const { x, y } = coords[j];
+  for (let j = 0, l = points.length; j < l; j++) {
+    const { labelIndex, stackValue } = points[j];
+    const [x, y] = projection.toPixels(labelIndex, stackValue);
     context.lineTo(x, y);
   }
 
@@ -27,17 +23,27 @@ function drawDatasetLine(context, coords, options) {
 }
 
 // TODO try polyons and filled lines
-function drawDatasetBars(context, coords, options) {
+function drawDatasetBars(context, points, projection, options) {
+  const { yMin } = projection.getParams();
+
   context.beginPath();
 
-  coords.forEach(({ x, yFrom, yTo }) => {
+  for (let j = 0, l = points.length; j < l; j++) {
+    const { labelIndex, value, stackValue, stackOffset = 0 } = points[j];
+    const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
+    const [x, yTo] = projection.toPixels(labelIndex, stackValue);
+
     context.moveTo(x, yFrom);
     context.lineTo(x, yFrom - yTo >= 1 ? yTo : yTo - 1);
-  });
+  }
+
+  const [x0] = projection.toPixels(0, 0);
+  const [x1] = projection.toPixels(1, 0);
+  const lineWidth = x1 - x0;
 
   context.save();
   context.strokeStyle = options.color;
-  context.lineWidth = coords.length > 1 ? coords[1].x - coords[0].x : coords[0].x * 2;
+  context.lineWidth = lineWidth;
   context.globalAlpha = options.opacity;
   context.lineJoin = 'bevel';
   context.lineCap = 'butt';
@@ -46,16 +52,14 @@ function drawDatasetBars(context, coords, options) {
 }
 
 // TODO try draw overlaying
-function drawDatasetArea(context, coords, options) {
+function drawDatasetArea(context, points, projection, options) {
   context.beginPath();
 
-  coords.forEach(({ x, y }, i) => {
-    if (i === 0) {
-      context.moveTo(x, y);
-    } else {
-      context.lineTo(x, y);
-    }
-  });
+  for (let j = 0, l = points.length; j < l; j++) {
+    const { labelIndex, stackValue } = points[j];
+    const [x, y] = projection.toPixels(labelIndex, stackValue);
+    context.lineTo(x, y);
+  }
 
   context.save();
   context.fillStyle = options.color;
@@ -67,15 +71,20 @@ function drawDatasetArea(context, coords, options) {
   context.restore();
 }
 
-function drawDatasetPie(context, coords, options) {
-  const { percent, percentFrom, percentTo } = coords[0];
+function drawDatasetPie(context, points, projection, options) {
+  const { visibleValue, stackValue, stackOffset = 0 } = points[0];
 
-  if (!percent) {
+  if (!visibleValue) {
     return;
   }
 
-  const beginAngle = percentFrom * Math.PI * 2 - Math.PI / 2;
-  const endAngle = percentTo * Math.PI * 2 - Math.PI / 2;
+  const { yMin, yMax } = projection.getParams();
+  const percentFactor = 1 / (yMax - yMin);
+  const percent = visibleValue * percentFactor;
+
+  const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
+  const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
+
   const { radius = 120, shift = 0, center } = options;
   const [x, y] = center;
 
@@ -118,7 +127,9 @@ function drawDataset(type, ...args) {
 }
 
 export function drawDatasets(
-  context, state, data, range, projection, coords, secondaryCoords, lineWidth, visibilities, palette, pieToArea
+  context, state, data,
+  range, points, projection, secondaryPoints, secondaryProjection,
+  lineWidth, visibilities, palette, pieToArea,
 ) {
   data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
@@ -132,15 +143,22 @@ export function drawDatasets(
     };
 
     const datasetType = type === 'pie' && pieToArea ? 'area' : type;
-    let datasetCoords = hasOwnYAxis ? secondaryCoords : coords[i];
+    let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
+    let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
 
     if (datasetType === 'area') {
-      const [xMax, y0] = projection.toPixels(range.to, 0);
-      const [xMin] = projection.toPixels(range.from, 0);
-      const bottomLine = [{ x: xMin, y: y0 }, { x: xMax, y: y0 }];
-      const topLine = [{ x: xMax, y: 0 }, { x: xMin, y: 0 }];
+      const { yMin, yMax } = projection.getParams();
+      const yHeight = yMax - yMin;
+      const bottomLine = [
+        { labelIndex: range.from, stackValue: 0 },
+        { labelIndex: range.to, stackValue: 0 },
+      ];
+      const topLine = [
+        { labelIndex: range.to, stackValue: yHeight },
+        { labelIndex: range.from, stackValue: yHeight },
+      ];
 
-      datasetCoords = mergeArrays([coords[i - 1] || bottomLine, topLine]);
+      datasetPoints = mergeArrays([points[i - 1] || bottomLine, topLine]);
     }
 
     if (datasetType === 'pie') {
@@ -148,6 +166,6 @@ export function drawDatasets(
       options.radius = Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
     }
 
-    drawDataset(datasetType, context, datasetCoords, options);
+    drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
   });
 }

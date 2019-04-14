@@ -43,3 +43,7 @@ export function getPieTextSize(percent, radius) {
 export function getPieTextShift(percent, radius) {
   return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
 }
+
+export function getDatasetMinimapVisibility(state, key) {
+  return Math.max(0, Math.min(state[`opacity#${key}`] * 2 - 1, 1))
+}

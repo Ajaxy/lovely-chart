@@ -15,9 +15,10 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
   const _onSelectLabel = onSelectLabel;
 
   let _state;
+  let _points;
   let _projection;
-  let _coords;
-  let _secondaryCoords;
+  let _secondaryPoints;
+  let _secondaryProjection;
   let _element;
   let _canvas;
   let _context;
@@ -29,11 +30,12 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
 
   _setupLayout();
 
-  function update(state, projection, coords, secondaryCoords) {
+  function update(state, points, projection, secondaryPoints, secondaryProjection) {
     _state = state;
+    _points = points;
     _projection = projection;
-    _coords = coords;
-    _secondaryCoords = secondaryCoords;
+    _secondaryPoints = secondaryPoints;
+    _secondaryProjection = secondaryProjection;
     _drawStatistics();
   }
 
@@ -126,24 +128,33 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, lineColor);
 
     // TODO not working on touch devices
-    if (_secondaryCoords && _offsetY <= _plotSize.height - X_AXIS_HEIGHT) {
+    if (_secondaryPoints && _offsetY <= _plotSize.height - X_AXIS_HEIGHT) {
       _drawHorizontalRuler(_offsetY, _plotSize.width, lineColor);
     }
 
     const statistics = _data.datasets
-      .map(({ key, name, colorName, values, hasOwnYAxis }, i) => ({
+      .map(({ key, name, colorName, values, hasOwnYAxis }) => ({
         key,
         name,
         colorName,
         value: values[labelIndex],
         hasOwnYAxis,
-        originalIndex: i
       }))
       .filter(({ key }) => _state.filter[key]);
 
-    statistics.forEach(({ value, colorName, hasOwnYAxis, originalIndex }) => {
-      const coordIndex = labelIndex - _state.labelFromIndex;
-      const { x, y } = hasOwnYAxis ? _secondaryCoords[coordIndex] : _coords[originalIndex][coordIndex];
+    statistics.forEach(({ value, colorName, hasOwnYAxis, originalIndex }, i) => {
+
+      const pointIndex = labelIndex - _state.labelFromIndex;
+      const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[i][pointIndex];
+
+      if (!point) {
+        return;
+      }
+
+      const [x, y] = hasOwnYAxis
+        ? _secondaryProjection.toPixels(labelIndex, point.stackValue)
+        : _projection.toPixels(labelIndex, point.stackValue);
+
       // TODO animate
       _drawCircle(
         [x, y],
