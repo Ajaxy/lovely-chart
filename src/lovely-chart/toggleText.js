@@ -14,10 +14,6 @@ function fadeIn(element) {
 function fadeOut(element) {
   element.classList.add('animated');
   element.classList.add('hidden');
-
-  setTimeout(() => {
-    element.classList.remove('animated');
-  }, ANIMATION_TIME);
 }
 
 export default function toggleText(element, newText, className, inverse = false) {
