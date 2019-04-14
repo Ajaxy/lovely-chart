@@ -30,5 +30,25 @@
       text-align: right;
       transform-origin: right;
     }
+
+    .zoom-out {
+      display: flex;
+      align-items: center;
+      color: var(--zoom-out-text);
+      cursor: pointer;
+
+      &::before {
+        content: '';
+        display: inline-block;
+        margin-right: 6px;
+        width: 16px;
+        height: 16px;
+
+        background: url('../icon-zoom-out.svg');
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 100%;
+      }
+    }
   }
 }

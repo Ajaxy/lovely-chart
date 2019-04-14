@@ -34,7 +34,7 @@ export function createHeader(container, title, zoomOutCallback) {
     _element.className = 'header';
 
     _titleElement = createElement();
-    _titleElement.className = 'title shown fadeOutUp';
+    _titleElement.className = 'title fadeOutUp';
     _titleElement.innerHTML = _title;
     _element.appendChild(_titleElement);
 
@@ -45,7 +45,7 @@ export function createHeader(container, title, zoomOutCallback) {
     _element.appendChild(_zoomOutElement);
 
     _caption1Element = createElement();
-    _caption1Element.className = 'caption shown fadeOutUp';
+    _caption1Element.className = 'caption fadeOutUp';
     _element.appendChild(_caption1Element);
 
     _caption2Element = createElement();
