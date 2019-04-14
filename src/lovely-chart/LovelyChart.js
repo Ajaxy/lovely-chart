@@ -40,6 +40,8 @@ function createLovelyChart(params) {
   let _minimap;
   let _tooltip;
 
+  let _state;
+
   _setupContainer();
 
   _fetchData().then((data) => {
@@ -109,6 +111,8 @@ function createLovelyChart(params) {
   }
 
   function _onStateUpdate(state) {
+    _state = state;
+
     const { datasets } = _data;
     const range = {
       from: state.labelFromIndex,
@@ -172,7 +176,9 @@ function createLovelyChart(params) {
 
     _header.zoom(dateText);
 
-    _fetchDayData(new Date(date))
+    const dataPromise = _params.zoomToPie ? Promise.resolve(generatePieData()) : _fetchDayData(new Date(date));
+
+    dataPromise
       .then((data) => {
         const labelWidth = 1 / _data.xLabels.length;
         const labelMiddle = labelIndex / (_data.xLabels.length - 1);
@@ -185,7 +191,8 @@ function createLovelyChart(params) {
         });
 
         setTimeout(() => {
-          Object.assign(_data, analyzeData(data, _params.datasetColors, 'hours'));
+          Object.assign(_data, analyzeData(data, _params.datasetColors, _params.zoomToPie ? 'days' : 'hours'));
+
           _stateManager.update({
             range: {
               begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
@@ -193,10 +200,13 @@ function createLovelyChart(params) {
             },
           }, true);
 
+          const daysCount = _params.zoomToPie ? _data.xLabels.length : _data.xLabels.length / 24;
+          const halfDayWidth = (1 / daysCount) / 2;
+
           _stateManager.update({
             range: {
-              begin: ZOOM_RANGE_MIDDLE - ZOOM_HALF_DAY_WIDTH,
-              end: ZOOM_RANGE_MIDDLE + ZOOM_HALF_DAY_WIDTH,
+              begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
+              end: ZOOM_RANGE_MIDDLE + halfDayWidth,
             },
           });
         }, ZOOM_TIMEOUT);
@@ -208,6 +218,28 @@ function createLovelyChart(params) {
     setTimeout(() => {
       location.reload();
     }, 300);
+  }
+
+  function generatePieData() {
+    return _fetchData().then((sourceData) => {
+      const pieData = Object.assign({}, sourceData);
+
+      pieData.columns = sourceData.columns.map((c) => {
+        const column = c.slice(_state.labelFromIndex + 1, _state.labelToIndex + 1);
+        column.unshift(c[0]);
+        return column;
+      });
+
+      Object.keys(pieData.types).forEach((key) => {
+        if (key !== 'x') {
+          pieData.types[key] = 'pie';
+        }
+      });
+
+      pieData.pie = true;
+
+      return pieData;
+    });
   }
 
   return { redraw };

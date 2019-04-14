@@ -29,7 +29,7 @@ function drawDatasetBars(context, points, projection, options) {
   context.beginPath();
 
   for (let j = 0, l = points.length; j < l; j++) {
-    const { labelIndex, value, stackValue, stackOffset = 0 } = points[j];
+    const { labelIndex, stackValue, stackOffset = 0 } = points[j];
     const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
     const [x, yTo] = projection.toPixels(labelIndex, stackValue);
 

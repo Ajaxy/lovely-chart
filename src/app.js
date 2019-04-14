@@ -47,6 +47,7 @@ const CHARTS = [{
   title: 'Apps',
   palette: 'type-2',
   dataSource: 'data/5',
+  zoomToPie: true,
   datasetColors: {
     y0: 'light-blue',
     y1: 'blue',

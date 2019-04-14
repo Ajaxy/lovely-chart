@@ -2578,12 +2578,12 @@
     ]
   ],
   "types": {
-    "y0": "pie",
-    "y1": "pie",
-    "y2": "pie",
-    "y3": "pie",
-    "y4": "pie",
-    "y5": "pie",
+    "y0": "area",
+    "y1": "area",
+    "y2": "area",
+    "y3": "area",
+    "y4": "area",
+    "y5": "area",
     "x": "x"
   },
   "names": {
@@ -2603,6 +2603,5 @@
     "y5": "#F79E39"
   },
   "percentage": true,
-  "stacked": true,
-  "pie": true
+  "stacked": true
 }

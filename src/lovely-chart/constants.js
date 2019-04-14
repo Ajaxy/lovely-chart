@@ -36,7 +36,6 @@ export const TRANSITION_DEFAULT_DURATION = 400;
 export const ZOOM_TIMEOUT = TRANSITION_DEFAULT_DURATION;
 export const ZOOM_RANGE_DELTA = 0.1;
 export const ZOOM_RANGE_MIDDLE = .5;
-export const ZOOM_HALF_DAY_WIDTH = (1 / 7) / 2;
 
 export const DEFAULT_PALETTE = 'type-1';
 
