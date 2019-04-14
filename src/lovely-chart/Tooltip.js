@@ -24,7 +24,6 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
   let _context;
   let _balloon;
   let _offsetX;
-  let _offsetY;
 
   const _drawStatisticsOnRaf = throttleWithRaf(_drawStatistics);
 
@@ -81,9 +80,7 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     }
 
     const pageOffset = getPageOffset(_element);
-
     _offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
-    _offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
 
     _drawStatisticsOnRaf();
   }
@@ -127,11 +124,6 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
 
     _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, lineColor);
 
-    // TODO not working on touch devices
-    if (_secondaryPoints && _offsetY <= _plotSize.height - X_AXIS_HEIGHT) {
-      _drawHorizontalRuler(_offsetY, _plotSize.width, lineColor);
-    }
-
     const statistics = _data.datasets
       .map(({ key, name, colorName, values, hasOwnYAxis }) => ({
         key,
@@ -143,7 +135,6 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
       .filter(({ key }) => _state.filter[key]);
 
     statistics.forEach(({ value, colorName, hasOwnYAxis, originalIndex }, i) => {
-
       const pointIndex = labelIndex - _state.labelFromIndex;
       const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[i][pointIndex];
 
@@ -184,16 +175,6 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     _context.beginPath();
     _context.moveTo(xPx, 0);
     _context.lineTo(xPx, height);
-    _context.stroke();
-  }
-
-  function _drawHorizontalRuler(y, width, color) {
-    _context.strokeStyle = color;
-    _context.lineWidth = 1;
-
-    _context.beginPath();
-    _context.moveTo(GUTTER, y);
-    _context.lineTo(width - GUTTER, y);
     _context.stroke();
   }
 

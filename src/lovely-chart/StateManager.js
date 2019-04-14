@@ -108,7 +108,12 @@ function calculateState(data, viewportSize, range, filter, prevState) {
     calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
 
   const yStep = yScaleLevelToStep(yAxisScale);
-  yRanges.yMinViewport = yRanges.yMinViewport - yRanges.yMinViewport % yStep;
+  yRanges.yMinViewport -= yRanges.yMinViewport % yStep;
+
+  if (yAxisScaleSecond) {
+    const yStepSecond = yScaleLevelToStep(yAxisScaleSecond);
+    yRanges.yMinViewportSecond -= yRanges.yMinViewportSecond % yStepSecond;
+  }
 
   const datasetsOpacity = {};
   data.datasets.forEach(({ key }) => {
@@ -140,7 +145,8 @@ function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState)
 
   const yRanges = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets);
 
-  if (secondaryYAxisDataset && filter[secondaryYAxisDataset.key]) {
+  if (secondaryYAxisDataset) {
+    const group = filter[secondaryYAxisDataset.key] ? [secondaryYAxisDataset] : [];
     const {
       yMinViewport: yMinViewportSecond,
       yMaxViewport: yMaxViewportSecond,

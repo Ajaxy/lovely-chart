@@ -131,16 +131,11 @@ export function createAxes(context, data, plotSize, palette) {
         _context.fillText(humanize(value), _plotSize.width - GUTTER, yPx - GUTTER / 2);
       }
 
-      if (colorName) {
+      if (isSecondary) {
         _context.strokeStyle = buildCssColorFromState(state, `palette-${_palette}-${colorName}-text`, opacity);
 
-        if (isSecondary) {
-          _context.moveTo(_plotSize.width - GUTTER, yPx);
-          _context.lineTo(_plotSize.width - GUTTER * 2, yPx);
-        } else {
-          _context.moveTo(GUTTER, yPx);
-          _context.lineTo(GUTTER * 2, yPx);
-        }
+        _context.moveTo(_plotSize.width - GUTTER, yPx);
+        _context.lineTo(_plotSize.width - GUTTER * 2, yPx);
       } else {
         _context.moveTo(GUTTER, yPx);
         _context.strokeStyle = buildCssColorFromState(state, 'grid-lines', opacity);
