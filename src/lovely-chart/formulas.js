@@ -5,7 +5,7 @@ export function xScaleLevelToStep(scaleLevel) {
 }
 
 export function xStepToScaleLevel(step) {
-  return Math.ceil(Math.log2(step));
+  return Math.ceil(Math.log2(step || 1));
 }
 
 const SCALE_LEVELS = [

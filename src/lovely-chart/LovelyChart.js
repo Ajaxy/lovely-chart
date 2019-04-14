@@ -41,6 +41,8 @@ function createLovelyChart(params) {
   let _tooltip;
 
   let _state;
+  let _isZoomed = false;
+  let _stateBeforeZoom;
 
   _setupContainer();
 
@@ -170,59 +172,66 @@ function createLovelyChart(params) {
   }
 
   function _zoomToDay(labelIndex) {
+    if (!_params.dataSource || _isZoomed) {
+      return;
+    }
+
+    _stateBeforeZoom = _state;
+    const { value: date, text: dateText } = _data.xLabels[labelIndex];
+    _header.zoom(dateText);
+    const dataPromise = _params.zoomToPie ? Promise.resolve(_generatePieData()) : _fetchDayData(new Date(date));
+    dataPromise.then((data) => _replaceData(data, labelIndex));
+  }
+
+  function _onZoomOut() {
     if (!_params.dataSource) {
       return;
     }
 
-    const { value: date, text: dateText } = _data.xLabels[labelIndex];
+    const labelIndex = Math.round((_state.labelFromIndex + _state.labelToIndex) / 2);
 
-    _header.zoom(dateText);
-
-    const dataPromise = _params.zoomToPie ? Promise.resolve(generatePieData()) : _fetchDayData(new Date(date));
-
-    dataPromise
-      .then((data) => {
-        const labelWidth = 1 / _data.xLabels.length;
-        const labelMiddle = labelIndex / (_data.xLabels.length - 1);
-
-        _stateManager.update({
-          range: {
-            begin: labelMiddle - labelWidth / 2,
-            end: labelMiddle + labelWidth / 2,
-          },
-        });
-
-        setTimeout(() => {
-          Object.assign(_data, analyzeData(data, _params.datasetColors, _params.zoomToPie ? 'days' : 'hours'));
-
-          _stateManager.update({
-            range: {
-              begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
-              end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
-            },
-          }, true);
-
-          const daysCount = _params.zoomToPie ? _data.xLabels.length : _data.xLabels.length / 24;
-          const halfDayWidth = (1 / daysCount) / 2;
-
-          _stateManager.update({
-            range: {
-              begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
-              end: ZOOM_RANGE_MIDDLE + halfDayWidth,
-            },
-          });
-        }, ZOOM_TIMEOUT);
-      });
+    _fetchData().then((data) => _replaceData(data, labelIndex));
   }
 
-  function _onZoomOut() {
-    // TODO implement
+  function _replaceData(data, labelIndex) {
+    const labelWidth = 1 / _data.xLabels.length;
+    const labelMiddle = labelIndex / (_data.xLabels.length - 1);
+
+    _stateManager.update({
+      range: {
+        begin: labelMiddle - labelWidth / 2,
+        end: labelMiddle + labelWidth / 2,
+      },
+    });
+
     setTimeout(() => {
-      location.reload();
-    }, 300);
+      Object.assign(_data, analyzeData(data, _params.datasetColors, _isZoomed || _params.zoomToPie ? 'days' : 'hours'));
+
+      _stateManager.update({
+        range: {
+          begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
+          end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
+        },
+      }, true);
+
+      const daysCount = _isZoomed || _params.zoomToPie ? _data.xLabels.length : _data.xLabels.length / 24;
+      const halfDayWidth = (1 / daysCount) / 2;
+
+      _stateManager.update({
+        range: _isZoomed ? {
+          begin: _stateBeforeZoom.begin,
+          end: _stateBeforeZoom.end,
+        } : {
+          begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
+          end: ZOOM_RANGE_MIDDLE + halfDayWidth,
+        },
+      });
+
+      _isZoomed = !_isZoomed;
+    }, ZOOM_TIMEOUT);
   }
 
-  function generatePieData() {
+  function _generatePieData() {
     return _fetchData().then((sourceData) => {
       const pieData = Object.assign({}, sourceData);
 

@@ -125,18 +125,19 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, lineColor);
 
     const statistics = _data.datasets
-      .map(({ key, name, colorName, values, hasOwnYAxis }) => ({
+      .map(({ key, name, colorName, values, hasOwnYAxis }, i) => ({
         key,
         name,
         colorName,
         value: values[labelIndex],
         hasOwnYAxis,
+        originalIndex: i,
       }))
       .filter(({ key }) => _state.filter[key]);
 
-    statistics.forEach(({ value, colorName, hasOwnYAxis, originalIndex }, i) => {
+    statistics.forEach(({ value, colorName, hasOwnYAxis, originalIndex }) => {
       const pointIndex = labelIndex - _state.labelFromIndex;
-      const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[i][pointIndex];
+      const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[originalIndex][pointIndex];
 
       if (!point) {
         return;
