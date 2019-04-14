@@ -1,0 +1,87 @@
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale3d(.5, .5, 1);
+  }
+
+  40% {
+    transform: scale3d(.75, .75, 1);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+
+  60% {
+
+    transform: scale3d(.75, .75, 1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale3d(.5, .5, 1);
+  }
+}
+
+.lovely-chart {
+  .transition-container {
+    position: relative;
+  }
+
+  .transition {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+
+    &.top {
+      transform-origin: top left;
+
+      &.right {
+        transform-origin: top right;
+      }
+    }
+
+    &.bottom {
+      transform-origin: bottom left;
+
+      &.right {
+        transform-origin: bottom right;
+      }
+    }
+
+    &.left {
+      left: 0;
+    }
+
+    &.right {
+      right: 0;
+    }
+
+    &.hidden {
+      opacity: 0;
+    }
+  }
+
+  .animated {
+    animation-fill-mode: forwards;
+    animation-timing-function: ease-out;
+    animation-duration: 200ms;
+
+    &.hidden {
+      animation-name: fadeOut;
+      animation-duration: 300ms;
+    }
+
+    &:not(.hidden) {
+      animation-name: fadeIn;
+    }
+  }
+}

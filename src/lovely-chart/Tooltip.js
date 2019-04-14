@@ -183,7 +183,10 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     const date = new Date(label.value);
     _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
     _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (
-      `<div class="dataset"><span>${name}</span><span class="value ${colorName}">${formatInteger(value)}</span></div>`
+      `<div class="dataset transition-container">
+        <span>${name}</span>
+        <span class="value transition top right ${colorName}">${formatInteger(value)}</span>
+      </div>`
     )).join('');
 
     const left = Math.max(

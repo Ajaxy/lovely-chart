@@ -1,4 +1,6 @@
 import { createElement, addEventListener } from './minifiers';
+import { toggleText } from './toggleText';
+import { throttle } from './fast';
 
 export function createHeader(container, title, zoomOutCallback) {
   const _container = container;
@@ -8,25 +10,29 @@ export function createHeader(container, title, zoomOutCallback) {
   let _element;
   let _titleElement;
   let _zoomOutElement;
-  let _caption1Element;
-  let _caption2Element;
+  let _captionElement;
 
   let _isZoomed = false;
+
+  const setCaptionThrottled = throttle(setCaption, 800, false, true);
 
   _setupLayout();
 
   function setCaption(caption) {
-    _caption1Element.innerHTML = caption;
-    _caption2Element.innerHTML = caption;
+    if (!_captionElement.innerHTML) {
+      _captionElement.innerHTML = caption;
+    } else if (_captionElement.innerHTML !== caption) {
+      _captionElement = toggleText(_captionElement, caption, 'caption right');
+    }
   }
 
   function zoom(caption) {
     _isZoomed = true;
 
-    setCaption(caption);
+    _zoomOutElement = toggleText(_titleElement, 'Zoom Out', 'title zoom-out');
+    addEventListener(_zoomOutElement, 'click', _onZoomOut);
 
-    _titleElement.classList.add('hidden');
-    _zoomOutElement.classList.remove('hidden');
+    setCaption(caption);
   }
 
   function _setupLayout() {
@@ -34,23 +40,13 @@ export function createHeader(container, title, zoomOutCallback) {
     _element.className = 'header';
 
     _titleElement = createElement();
-    _titleElement.className = 'title shown fadeOutUp';
+    _titleElement.className = 'title';
     _titleElement.innerHTML = _title;
     _element.appendChild(_titleElement);
 
-    _zoomOutElement = createElement();
-    _zoomOutElement.className = 'title zoom-out hidden fadeInDown';
-    _zoomOutElement.innerHTML = 'Zoom Out';
-    addEventListener(_zoomOutElement, 'click', _onZoomOut);
-    _element.appendChild(_zoomOutElement);
-
-    _caption1Element = createElement();
-    _caption1Element.className = 'caption shown fadeOutUp';
-    _element.appendChild(_caption1Element);
-
-    _caption2Element = createElement();
-    _caption2Element.className = 'caption hidden fadeInDown';
-    _element.appendChild(_caption2Element);
+    _captionElement = createElement();
+    _captionElement.className = 'caption right';
+    _element.appendChild(_captionElement);
 
     _container.appendChild(_element);
   }
@@ -58,14 +54,13 @@ export function createHeader(container, title, zoomOutCallback) {
   function _onZoomOut() {
     _isZoomed = true;
 
-    _titleElement.classList.remove('hidden');
-    _zoomOutElement.classList.add('hidden');
+    _titleElement = toggleText(_zoomOutElement, _title, 'title', true);
 
     _zoomOutCallback();
   }
 
   return {
-    setCaption,
+    setCaption: setCaptionThrottled,
     zoom,
   };
 }
