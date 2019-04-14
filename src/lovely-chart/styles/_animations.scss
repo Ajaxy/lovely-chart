@@ -38,9 +38,10 @@
 
   .transition {
     position: absolute;
+    top: 0;
+    bottom: 0;
 
     &.top {
-      top: 0;
       transform-origin: top left;
 
       &.right {
@@ -49,7 +50,6 @@
     }
 
     &.bottom {
-      bottom: 0;
       transform-origin: bottom left;
 
       &.right {

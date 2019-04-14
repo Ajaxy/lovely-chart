@@ -20,9 +20,9 @@ function fadeOut(element) {
   }, ANIMATION_TIME);
 }
 
-function toggleText(element, newText, className) {
+export default function toggleText(element, newText, className, inverse = false) {
   var newElement = createElement();
-  newElement.className = `${className} transition bottom hidden`;
+  newElement.className = `${className} transition ${inverse ? 'top' : 'bottom'} hidden`;
   newElement.innerHTML = newText;
 
   const classList = className.indexOf(' ') !== -1 ?
@@ -32,16 +32,9 @@ function toggleText(element, newText, className) {
 
   element.parentNode.insertBefore(newElement, element.nextSibling);
   element.classList.remove('bottom');
-  element.classList.add('top');
 
   fadeIn(newElement);
   fadeOut(element);
 
   return newElement;
-}
-
-export default {
-  fadeIn,
-  fadeOut,
-  toggleText
 }
