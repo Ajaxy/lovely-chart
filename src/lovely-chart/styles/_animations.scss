@@ -64,6 +64,10 @@
     &.right {
       right: 0;
     }
+
+    &.hidden {
+      opacity: 0;
+    }
   }
 
   .animated {
@@ -80,6 +84,4 @@
       animation-name: fadeIn;
     }
   }
-
-
 }

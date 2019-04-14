@@ -45,7 +45,7 @@ export function createHeader(container, title, zoomOutCallback) {
     _element.appendChild(_titleElement);
 
     _captionElement = createElement();
-    _captionElement.className = 'caption';
+    _captionElement.className = 'caption right';
     _element.appendChild(_captionElement);
 
     _container.appendChild(_element);
