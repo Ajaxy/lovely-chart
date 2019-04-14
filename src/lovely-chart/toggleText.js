@@ -17,14 +17,14 @@ function fadeOut(element) {
 }
 
 export default function toggleText(element, newText, className, inverse = false) {
-  var container = element.parentNode;
+  const container = element.parentNode;
   container.classList.add('transition-container');
 
-  var newElement = createElement();
+  const newElement = createElement();
   newElement.className = `${className} transition ${inverse ? 'top' : 'bottom'} hidden`;
   newElement.innerHTML = newText;
 
-  var oldElements = container.querySelectorAll(`.${className.split(' ').join('.')}.hidden`);
+  const oldElements = container.querySelectorAll(`.${className.split(' ').join('.')}.hidden`);
   oldElements.forEach(e => e.remove());
 
   element.classList.add('transition');
