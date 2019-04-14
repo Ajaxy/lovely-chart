@@ -128,10 +128,10 @@ function createLovelyChart(params) {
 
     let coords = projection.prepareCoords(datasets, range);
     if (_data.isPercentage) {
-      coords = setPercentage(coords, visibilities);
+      coords = setPercentage(coords, visibilities, projection);
     }
     if (_data.isStacked) {
-      coords = setStacked(coords, visibilities);
+      coords = setStacked(coords, visibilities, projection);
     }
 
     let secondaryProjection = null;

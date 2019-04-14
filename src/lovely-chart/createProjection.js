@@ -13,27 +13,21 @@ export function createProjection(params) {
     yPadding = 0,
   } = params;
 
-  const xOffset = begin * totalXWidth;
-  const xWidth = (end - begin) * totalXWidth;
-
-  let width = availableWidth;
-
+  let effectiveWidth = availableWidth;
   if (begin === 0) {
-    width -= xPadding;
+    effectiveWidth -= xPadding;
   }
-
   if (end === 1) {
-    width -= xPadding;
+    effectiveWidth -= xPadding;
   }
-
-  const xFactor = width / xWidth;
-  let xOffsetPx = xOffset * xFactor;
-
+  const xFactor = effectiveWidth / ((end - begin) * totalXWidth);
+  let xOffsetPx = (begin * totalXWidth) * xFactor;
   if (begin === 0) {
     xOffsetPx -= xPadding;
   }
 
-  const yFactor = (availableHeight - yPadding) / (yMax - yMin);
+  const effectiveHeight = availableHeight - yPadding;
+  const yFactor = effectiveHeight / (yMax - yMin);
   const yOffsetPx = yMin * yFactor;
 
   function toPixels(labelIndex, value) {
@@ -70,7 +64,6 @@ export function createProjection(params) {
           yFrom: availableHeight,
           yTo: y,
           height,
-          heightPercent: height / (availableHeight - yPadding),
         });
       }
 
@@ -78,58 +71,85 @@ export function createProjection(params) {
     });
   }
 
+  function getCenter() {
+    return [
+      effectiveWidth / 2,
+      availableHeight - effectiveHeight / 2,
+    ];
+  }
+
+  function getSize() {
+    return [effectiveWidth, effectiveHeight];
+  }
+
+  function getY0() {
+    return availableHeight;
+  }
+
   return {
     toPixels,
     findClosesLabelIndex,
     copy,
     prepareCoords,
+    getCenter,
+    getSize,
+    getY0,
   };
 }
 
-export function setStacked(coords, visibilities) {
+export function setPercentage(coords, visibilities, projection) {
+  const heights = coords.map((datasetCoords, i) => datasetCoords.map(({ height }) => height * visibilities[i]));
+  const heightSums = sumArrays(heights);
+  const [, effectiveHeight] = projection.getSize();
+
+  return coords.map((datasetCoords) => {
+    return datasetCoords.map((coord, j) => {
+      const { height, yFrom } = coord;
+      const heightPercent = height / heightSums[j];
+      const newHeight = effectiveHeight * heightPercent;
+      const yTo = yFrom - newHeight;
+
+      return Object.assign(coord, {
+        y: yTo,
+        height: newHeight,
+        yTo,
+      });
+    });
+  });
+}
+
+export function setStacked(coords, visibilities, projection) {
+  const [, effectiveHeight] = projection.getSize();
+  const y0 = projection.getY0();
   const heightsAccum = [];
 
   return coords.map((datasetCoords, i) => {
-    return datasetCoords.map(({ x, yFrom, height }, j) => {
+    return datasetCoords.map((coord, j) => {
+      const { yFrom, height } = coord;
       const visibleHeight = height * visibilities[i];
 
       if (heightsAccum[j] === undefined) {
         heightsAccum[j] = 0;
       }
 
-      yFrom -= heightsAccum[j];
-      const yTo = yFrom - visibleHeight;
+      const newYFrom = yFrom - heightsAccum[j];
+      const yTo = newYFrom - visibleHeight;
+
+      const percent = visibleHeight / effectiveHeight;
+      const percentFrom = (y0 - newYFrom) / effectiveHeight;
+      const percentTo = (y0 - yTo) / effectiveHeight;
 
       heightsAccum[j] += visibleHeight;
 
-      return {
-        x,
+      return Object.assign(coord, {
         y: yTo,
         height: visibleHeight,
-        yFrom,
+        yFrom: newYFrom,
         yTo,
-      };
-    });
-  });
-}
-
-export function setPercentage(coords, visibilities) {
-  const heights = coords.map((datasetCoords, i) => datasetCoords.map(({ height }) => height * visibilities[i]));
-  const heightSums = sumArrays(heights);
-
-  return coords.map((datasetCoords, i) => {
-    return datasetCoords.map(({ x, height, heightPercent, yFrom }, j) => {
-      const maxH = height / heightPercent;
-      const relativeHeight = maxH * (height / heightSums[j]);
-      const yTo = yFrom + relativeHeight;
-
-      return {
-        x,
-        y: yTo,
-        height: relativeHeight,
-        yFrom,
-        yTo,
-      };
+        percent,
+        percentFrom,
+        percentTo,
+      });
     });
   });
 }

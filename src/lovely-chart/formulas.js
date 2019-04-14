@@ -35,3 +35,11 @@ export function applyXEdgeOpacity(opacity, yPx) {
     ? Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2))
     : opacity;
 }
+
+export function getPieTextSize(percent, radius) {
+  return (radius + percent * 150) / 8;
+}
+
+export function getPieTextShift(percent, radius) {
+  return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
+}

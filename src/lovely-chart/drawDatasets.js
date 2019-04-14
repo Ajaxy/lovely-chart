@@ -1,5 +1,7 @@
 import { mergeArrays } from './fast';
 import { buildCssColorFromState } from './skin';
+import { PLOT_PIE_RADIUS_FACTOR } from './constants';
+import { getPieTextShift, getPieTextSize } from './formulas';
 
 function drawDatasetLine(context, coords, options) {
   context.beginPath();
@@ -9,7 +11,7 @@ function drawDatasetLine(context, coords, options) {
   //  const x = j * xFactor - xOffsetPx;
   //  const y = availableHeight - (values[j] * yFactor - yOffsetPx);
 
-  for (let j = 0, l = coords.length; j <l; j++) {
+  for (let j = 0, l = coords.length; j < l; j++) {
     const { x, y } = coords[j];
     context.lineTo(x, y);
   }
@@ -65,6 +67,43 @@ function drawDatasetArea(context, coords, options) {
   context.restore();
 }
 
+function drawDatasetPie(context, coords, options) {
+  const { percent, percentFrom, percentTo } = coords[0];
+
+  if (!percent) {
+    return;
+  }
+
+  const beginAngle = percentFrom * Math.PI * 2 - Math.PI / 2;
+  const endAngle = percentTo * Math.PI * 2 - Math.PI / 2;
+  const { radius = 120, shift = 0, center } = options;
+  const [x, y] = center;
+
+  const shiftAngle = (beginAngle + endAngle) / 2;
+  const directionX = Math.cos(shiftAngle);
+  const directionY = Math.sin(shiftAngle);
+  const shiftX = directionX * shift;
+  const shiftY = directionY * shift;
+
+  context.save();
+
+  context.beginPath();
+  context.fillStyle = options.color;
+  context.moveTo(x + shiftX, y + shiftY);
+  context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
+  context.lineTo(x + shiftX, y + shiftY);
+  context.fill();
+
+  context.font = `700 ${getPieTextSize(percent, radius)}px Helvetica, Arial, sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillStyle = 'white';
+  const textShift = getPieTextShift(percent, radius);
+  context.fillText(`${Math.round(percent * 100)}%`, x + directionX * textShift, y + directionY * textShift);
+
+  context.restore();
+}
+
 function drawDataset(type, ...args) {
   switch (type) {
     case 'line':
@@ -73,12 +112,13 @@ function drawDataset(type, ...args) {
       return drawDatasetBars(...args);
     case 'area':
       return drawDatasetArea(...args);
+    case 'pie':
+      return drawDatasetPie(...args);
   }
 }
 
-// TODO remove projection
 export function drawDatasets(
-  context, state, data, range, projection, coords, secondaryCoords, lineWidth, visibilities, palette
+  context, state, data, range, projection, coords, secondaryCoords, lineWidth, visibilities, palette, pieToArea
 ) {
   data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
@@ -91,9 +131,10 @@ export function drawDatasets(
       opacity: data.isStacked ? 1 : visibilities[i],
     };
 
+    const datasetType = type === 'pie' && pieToArea ? 'area' : type;
     let datasetCoords = hasOwnYAxis ? secondaryCoords : coords[i];
 
-    if (type === 'area') {
+    if (datasetType === 'area') {
       const [xMax, y0] = projection.toPixels(range.to, 0);
       const [xMin] = projection.toPixels(range.from, 0);
       const bottomLine = [{ x: xMin, y: y0 }, { x: xMax, y: y0 }];
@@ -102,6 +143,11 @@ export function drawDatasets(
       datasetCoords = mergeArrays([coords[i - 1] || bottomLine, topLine]);
     }
 
-    drawDataset(type, context, datasetCoords, options);
+    if (datasetType === 'pie') {
+      options.center = projection.getCenter();
+      options.radius = Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
+    }
+
+    drawDataset(datasetType, context, datasetCoords, options);
   });
 }
