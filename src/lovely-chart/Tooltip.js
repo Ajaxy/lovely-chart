@@ -189,13 +189,8 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
   function _updateBalloon(statistics, xPx, labelIndex) {
     const label = _data.xLabels[labelIndex];
     const date = new Date(label.value);
-    _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
-    _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (
-      `<div class="dataset transition-container">
-        <span>${name}</span>
-        <span class="value transition top right ${colorName}">${formatInteger(value)}</span>
-      </div>`
-    )).join('');
+    _drawBaloonTitle(date, label);
+    _drawBalloonContent(statistics);
 
     const left = Math.max(
       BALLOON_OFFSET + BALLOON_SHADOW_WIDTH,
@@ -203,6 +198,29 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     );
     _balloon.style.left = `${left}px`;
     _balloon.classList.add('shown');
+  }
+
+  function _drawBaloonTitle(date, label) {
+    if (!_balloon.children[0].innerHTML) {
+      _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
+      return;
+    }
+
+    // TODO: update individual datasets
+  }
+
+  function _drawBalloonContent() {
+    if (!_balloon.children[1].innerHTML) {
+      _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (
+        `<div class="dataset">
+          <span>${name}</span>
+          <span class="value right ${colorName}">${formatInteger(value)}</span>
+        </div>`
+      )).join('');
+      return;
+    }
+
+    // TODO: pdate individual datasets
   }
 
   function _hideBalloon() {
