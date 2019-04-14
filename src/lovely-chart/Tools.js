@@ -1,6 +1,10 @@
 import { createElement } from './minifiers';
 
 export function createTools(container, data, filterCallback) {
+  if (data.datasets.length < 2) {
+    return;
+  }
+
   const _container = container;
   const _data = data;
   const _filterCallback = filterCallback;
