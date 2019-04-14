@@ -194,7 +194,7 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
       BALLOON_OFFSET + BALLOON_SHADOW_WIDTH,
       Math.min(xPx, _plotSize.width - (_balloon.offsetWidth + BALLOON_SHADOW_WIDTH) + BALLOON_OFFSET),
     );
-    _balloon.style.left = `${left}px`;
+    _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
     _balloon.classList.add('shown');
   }
 

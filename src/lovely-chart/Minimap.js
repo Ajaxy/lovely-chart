@@ -171,39 +171,33 @@ export function createMinimap(container, data, palette, rangeCallback) {
   }
 
   function _onSliderDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const minimapWidth = _canvas.offsetWidth;
-
     const minX1 = 0;
-    const maxX1 = minimapWidth - _slider.offsetWidth;
+    const maxX1 = _canvasSize.width - _slider.offsetWidth;
 
     const newX1 = Math.max(minX1, Math.min(_capturedOffset + dragOffsetX, maxX1));
     const newX2 = newX1 + _slider.offsetWidth;
-    const begin = newX1 / minimapWidth;
-    const end = newX2 / minimapWidth;
+    const begin = newX1 / _canvasSize.width;
+    const end = newX2 / _canvasSize.width;
 
     _updateRange({ begin, end });
   }
 
   function _onLeftEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const minimapWidth = _canvas.offsetWidth;
-
     const minX1 = 0;
     const maxX1 = _slider.offsetLeft + _slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
 
     const newX1 = Math.min(maxX1, Math.max(minX1, _capturedOffset + dragOffsetX));
-    const begin = newX1 / minimapWidth;
+    const begin = newX1 / _canvasSize.width;
 
     _updateRange({ begin });
   }
 
   function _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-    const minimapWidth = _canvas.offsetWidth;
-
     const minX2 = _slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
-    const maxX2 = minimapWidth;
+    const maxX2 = _canvasSize.width;
 
     const newX2 = Math.max(minX2, Math.min(_capturedOffset + MINIMAP_EAR_WIDTH + dragOffsetX, maxX2));
-    const end = newX2 / minimapWidth;
+    const end = newX2 / _canvasSize.width;
 
     _updateRange({ end });
   }
@@ -224,6 +218,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
 
   function _updateRuler() {
     const { begin, end } = _range;
+
     _ruler.children[0].style.width = `${begin * 100}%`;
     _ruler.children[1].style.width = `${(end - begin) * 100}%`;
     _ruler.children[2].style.width = `${(1 - end) * 100}%`;
