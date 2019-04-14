@@ -10,7 +10,7 @@
       position: absolute;
       top: 0;
       line-height: 30px;
-      transition: opacity 300ms ease, color 300ms ease;
+      transition: color 300ms ease;
 
       &.hidden {
         opacity: 0;
@@ -20,15 +20,12 @@
 
     .title {
       left: 0;
-      transform-origin: left;
-
       font-size: 16px;
     }
 
     .caption {
       right: 0;
       text-align: right;
-      transform-origin: right;
     }
 
     .zoom-out {
