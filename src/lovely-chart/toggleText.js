@@ -22,6 +22,9 @@ function fadeOut(element) {
 
 export default function toggleText(element, newText, className, inverse = false) {
   var container = element.parentNode;
+  if (!container.classList.contains('transition-container')) {
+    container.classList.add('transition-container');
+  }
 
   var newElement = createElement();
   newElement.className = `${className} transition ${inverse ? 'top' : 'bottom'} hidden`;

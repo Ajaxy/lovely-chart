@@ -36,7 +36,7 @@ export function createHeader(container, title, zoomOutCallback) {
 
   function _setupLayout() {
     _element = createElement();
-    _element.className = 'header transition-container';
+    _element.className = 'header';
 
     _titleElement = createElement();
     _titleElement.className = 'title';
