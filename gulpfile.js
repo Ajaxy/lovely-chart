@@ -21,13 +21,16 @@ gulp.task('prod', () => {
       .src('src/*.js')
       .pipe(minifyJs()),
     gulp
-      .src(['src/**/*.css'])
+      .src('src/**/*.css')
       .pipe(minifyCss()),
     gulp
-      .src(['src/**/*.!(js|css|json)']),
+      .src('src/index.html')
+      .pipe(replace('lovely-chart.scss', 'lovely-chart.css')),
     gulp
-      .src(['data/**/*.json'], { base: '.' })
-      .pipe(minifyJson()),
+      .src('src/**/*.!(js|css|json|scss|html)'),
+    gulp
+    .src(['data/**/*.json'], { base: '.' })
+    .pipe(minifyJson()),
   )
     .pipe(gulp.dest('docs/stage2secret'));
 });

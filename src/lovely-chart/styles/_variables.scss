@@ -91,8 +91,8 @@ body.skin-night {
   --zoom-out-text: #48AAF0;
   --tooltip-background: #1c2533;
   --tooltip-arrow: #D2D5D7;
-  --x-axis-text: rgba(#A3B1C2, 60%);
-  --y-axis-text: rgba(#A3B1C2, 60%);
+  --x-axis-text: #{rgba(#A3B1C2, 60%)};
+  --y-axis-text: #{rgba(#A3B1C2, 60%)};
   --mask: #{rgba(#242F3E, 50%)};
 
   .lovely-chart.palette-type-1 {

@@ -1,5 +1,3 @@
-import './lovely-chart/styles/index.scss';
-
 const CHARTS = [{
   // TODO bug on zoom
   containerId: 'container',
