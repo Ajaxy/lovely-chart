@@ -10,7 +10,7 @@ export function createAxes(context, data, plotSize, palette) {
   const _palette = palette;
 
   function drawXAxis(state, projection) {
-    _context.clearRect(0, _plotSize.height - X_AXIS_HEIGHT, plotSize.width, X_AXIS_HEIGHT);
+    _context.clearRect(0, _plotSize.height - X_AXIS_HEIGHT + 1, plotSize.width, X_AXIS_HEIGHT + 1);
 
     const topOffset = _plotSize.height - X_AXIS_HEIGHT / 2;
     const scaleLevel = Math.floor(state.xAxisScale);

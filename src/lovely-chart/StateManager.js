@@ -8,7 +8,7 @@ import {
   Y_AXIS_ZERO_BASED_THRESHOLD,
 } from './constants';
 import { buildSkinState, buildSkinStateKeys } from './skin';
-import { xStepToScaleLevel, yStepToScaleLevel } from './formulas';
+import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas';
 
 export function createStateManager(data, viewportSize, callback) {
   const _data = data;
@@ -106,6 +106,9 @@ function calculateState(data, viewportSize, range, filter, prevState) {
   const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
   const yAxisScaleSecond = data.hasSecondYAxis &&
     calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
+
+  const yStep = yScaleLevelToStep(yAxisScale);
+  yRanges.yMinViewport = yRanges.yMinViewport - yRanges.yMinViewport % yStep;
 
   const datasetsOpacity = {};
   data.datasets.forEach(({ key }) => {

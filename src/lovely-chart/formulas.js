@@ -8,18 +8,17 @@ export function xStepToScaleLevel(step) {
   return Math.ceil(Math.log2(step));
 }
 
+const SCALE_LEVELS = [
+  1, 2, 8, 18, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000,
+  250000, 500000, 1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000
+];
+
 export function yScaleLevelToStep(scaleLevel) {
-  return scaleLevel <= 13
-    ? Math.pow(scaleLevel, 2) * 2
-    : ((scaleLevel % 10) || 1) * Math.pow(10, Math.floor(scaleLevel / 10) + 1);
+  return SCALE_LEVELS[scaleLevel] || SCALE_LEVELS[SCALE_LEVELS.length - 1];
 }
 
-export function yStepToScaleLevel(step) {
-  return Math.ceil(
-    step <= 288
-      ? Math.sqrt(step / 2)
-      : 10 * Math.floor(Math.log10(step) - 1) + step / Math.pow(10, Math.floor(Math.log10(step))),
-  );
+export function yStepToScaleLevel(neededStep) {
+  return SCALE_LEVELS.findIndex((step) => step >= neededStep) || SCALE_LEVELS.length - 1;
 }
 
 export function applyYEdgeOpacity(opacity, xPx, plotWidth) {
@@ -45,5 +44,5 @@ export function getPieTextShift(percent, radius) {
 }
 
 export function getDatasetMinimapVisibility(state, key) {
-  return Math.max(0, Math.min(state[`opacity#${key}`] * 2 - 1, 1))
+  return Math.max(0, Math.min(state[`opacity#${key}`] * 2 - 1, 1));
 }
