@@ -1,5 +1,5 @@
 import { createElement, addEventListener } from './minifiers';
-import toggleText from './animation';
+import toggleText from './toggleText';
 
 export function createHeader(container, title, zoomOutCallback) {
   const _container = container;
