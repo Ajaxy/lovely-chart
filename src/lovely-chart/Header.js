@@ -1,5 +1,6 @@
 import { createElement, addEventListener } from './minifiers';
 import toggleText from './toggleText';
+import { throttle } from './fast';
 
 export function createHeader(container, title, zoomOutCallback) {
   const _container = container;
@@ -13,14 +14,14 @@ export function createHeader(container, title, zoomOutCallback) {
 
   let _isZoomed = false;
 
+  const setCaptionThrottled = throttle(setCaption, 800, true, true);
+
   _setupLayout();
 
   function setCaption(caption) {
     if (!_captionElement.innerHTML) {
       _captionElement.innerHTML = caption;
-    } else if (_captionElement.innerHTML === caption) {
-      return;
-    } else {
+    } else if (_captionElement.innerHTML !== caption) {
       _captionElement = toggleText(_captionElement, caption, 'caption right');
     }
   }
@@ -59,7 +60,7 @@ export function createHeader(container, title, zoomOutCallback) {
   }
 
   return {
-    setCaption,
+    setCaption: setCaptionThrottled,
     zoom,
   };
 }

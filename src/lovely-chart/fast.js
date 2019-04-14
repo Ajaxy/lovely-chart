@@ -53,6 +53,31 @@ export function proxyMerge(obj1, obj2) {
   });
 }
 
+export function throttle(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
+  let waiting = false;
+  let args;
+
+  return function (..._args) {
+    args = _args;
+
+    if (!waiting) {
+      if (shouldRunFirst) {
+        fn(...args);
+      }
+
+      waiting = true;
+
+      setTimeout(() => {
+        waiting = false;
+
+        if (shouldRunLast) {
+          fn(...args);
+        }
+      }, ms);
+    }
+  };
+}
+
 export function throttleWithRaf(fn) {
   let waiting = false;
 
