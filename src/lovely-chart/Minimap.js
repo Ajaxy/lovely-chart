@@ -16,12 +16,6 @@ import { createElement } from './minifiers';
 import { getDatasetMinimapVisibility } from './formulas';
 
 export function createMinimap(container, data, palette, rangeCallback) {
-  // TODO size use scoped args
-  const _container = container;
-  const _data = data;
-  const _palette = palette;
-  const _rangeCallback = rangeCallback;
-
   let _element;
   let _canvas;
   let _context;
@@ -60,7 +54,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
     _setupCanvas();
     _setupRuler();
 
-    _container.appendChild(_element);
+    container.appendChild(_element);
 
     _canvasSize = {
       width: _canvas.offsetWidth,
@@ -70,7 +64,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
 
   function _getSize() {
     return {
-      width: _container.offsetWidth - MINIMAP_MARGIN * 2,
+      width: container.offsetWidth - MINIMAP_MARGIN * 2,
       height: MINIMAP_HEIGHT,
     };
   }
@@ -124,14 +118,14 @@ export function createMinimap(container, data, palette, rangeCallback) {
       return true;
     }
 
-    const keys = _data.datasets.map(({ key }) => `opacity#${key}`);
+    const keys = data.datasets.map(({ key }) => `opacity#${key}`);
     keys.push('yMaxMinimap');
 
     return keys.some((key) => _state[key] !== newState[key]);
   }
 
   function _drawDatasets(state = {}) {
-    const { datasets } = _data;
+    const { datasets } = data;
     const range = {
       from: 0,
       to: state.totalXWidth,
@@ -147,22 +141,22 @@ export function createMinimap(container, data, palette, rangeCallback) {
       yPadding: 1,
     };
     const visibilities = datasets.map(({ key }) => getDatasetMinimapVisibility(state, key));
-    const points = preparePoints(_data, datasets, range, visibilities, boundsAndParams, true);
+    const points = preparePoints(data, datasets, range, visibilities, boundsAndParams, true);
     const projection = createProjection(boundsAndParams);
 
     let secondaryPoints = null;
     let secondaryProjection = null;
-    if (_data.hasSecondYAxis) {
+    if (data.hasSecondYAxis) {
       const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
       const bounds = { yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond };
-      secondaryPoints = preparePoints(_data, [secondaryDataset], range, visibilities, bounds)[0];
+      secondaryPoints = preparePoints(data, [secondaryDataset], range, visibilities, bounds)[0];
       secondaryProjection = projection.copy(bounds);
     }
 
     drawDatasets(
-      _context, state, _data,
+      _context, state, data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      MINIMAP_LINE_WIDTH, visibilities, _palette, true,
+      MINIMAP_LINE_WIDTH, visibilities, palette, true,
     );
   }
 
@@ -212,7 +206,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
     _updateRulerOnRaf();
 
     if (!isExternal) {
-      _rangeCallback(_range);
+      rangeCallback(_range);
     }
   }
 

@@ -1,5 +1,4 @@
 const CHARTS = [{
-  // TODO bug on zoom
   containerId: 'container',
   title: 'Followers',
   palette: 'type-1',
@@ -32,7 +31,6 @@ const CHARTS = [{
     y6: 'red',
   },
 }, {
-  // TODO bug on zoom
   containerId: 'container',
   title: 'Views',
   palette: 'type-3',

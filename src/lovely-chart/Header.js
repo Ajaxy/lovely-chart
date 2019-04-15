@@ -3,10 +3,6 @@ import { toggleText } from './toggleText';
 import { throttle } from './fast';
 
 export function createHeader(container, title, zoomOutCallback) {
-  const _container = container;
-  const _title = title;
-  const _zoomOutCallback = zoomOutCallback;
-
   let _element;
   let _titleElement;
   let _zoomOutElement;
@@ -41,22 +37,22 @@ export function createHeader(container, title, zoomOutCallback) {
 
     _titleElement = createElement();
     _titleElement.className = 'title';
-    _titleElement.innerHTML = _title;
+    _titleElement.innerHTML = title;
     _element.appendChild(_titleElement);
 
     _captionElement = createElement();
     _captionElement.className = 'caption right';
     _element.appendChild(_captionElement);
 
-    _container.appendChild(_element);
+    container.appendChild(_element);
   }
 
   function _onZoomOut() {
     _isZoomed = true;
 
-    _titleElement = toggleText(_zoomOutElement, _title, 'title', true);
+    _titleElement = toggleText(_zoomOutElement, title, 'title', true);
 
-    _zoomOutCallback();
+    zoomOutCallback();
   }
 
   return {

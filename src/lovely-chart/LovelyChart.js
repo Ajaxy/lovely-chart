@@ -25,8 +25,6 @@ import {
 } from './constants';
 
 function createLovelyChart(params) {
-  let _params = params;
-
   let _data;
 
   let _container;
@@ -47,7 +45,7 @@ function createLovelyChart(params) {
   _setupContainer();
 
   _fetchData().then((data) => {
-    _data = analyzeData(data, _params.datasetColors);
+    _data = analyzeData(data, params.datasetColors);
     _setupComponents();
   });
 
@@ -57,11 +55,11 @@ function createLovelyChart(params) {
 
   function _setupContainer() {
     _container = createElement();
-    _container.className = `lovely-chart palette-${_params.palette || DEFAULT_PALETTE}`;
+    _container.className = `lovely-chart palette-${params.palette || DEFAULT_PALETTE}`;
 
     hideOnScroll(_container);
 
-    const parentContainer = document.getElementById(_params.containerId);
+    const parentContainer = document.getElementById(params.containerId);
     parentContainer.appendChild(_container);
   }
 
@@ -81,7 +79,7 @@ function createLovelyChart(params) {
   }
 
   function _fetchData() {
-    const { data, dataSource } = _params;
+    const { data, dataSource } = params;
 
     if (data) {
       return Promise.resolve(data);
@@ -93,7 +91,7 @@ function createLovelyChart(params) {
   }
 
   function _fetchDayData(date) {
-    const { dataSource } = _params;
+    const { dataSource } = params;
     const month = date.getMonth() + 1;
     const day = date.getDate();
     const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
@@ -103,12 +101,12 @@ function createLovelyChart(params) {
   }
 
   function _setupComponents() {
-    _header = createHeader(_container, _params.title, _onZoomOut);
+    _header = createHeader(_container, params.title, _onZoomOut);
     _setupPlotCanvas();
-    _axes = createAxes(_context, _data, _plotSize, _params.palette);
+    _axes = createAxes(_context, _data, _plotSize, params.palette);
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
-    _minimap = createMinimap(_container, _data, _params.palette, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize, _params.palette, _zoomToDay, _onLabelFocus);
+    _minimap = createMinimap(_container, _data, params.palette, _onRangeChange);
+    _tooltip = createTooltip(_container, _data, _plotSize, params.palette, _zoomToDay, _onLabelFocus);
     createTools(_container, _data, _onFilterChange);
   }
 
@@ -152,7 +150,7 @@ function createLovelyChart(params) {
     drawDatasets(
       _context, state, _data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      PLOT_LINE_WIDTH, visibilities, _params.palette,
+      PLOT_LINE_WIDTH, visibilities, params.palette,
     );
     if (!_data.isPie) {
       _axes.drawYAxis(state, projection, secondaryProjection);
@@ -172,19 +170,19 @@ function createLovelyChart(params) {
   }
 
   function _zoomToDay(labelIndex) {
-    if (!_params.dataSource || _isZoomed) {
+    if (!params.dataSource || _isZoomed) {
       return;
     }
 
     _stateBeforeZoom = _state;
     const { value: date, text: dateText } = _data.xLabels[labelIndex];
     _header.zoom(dateText);
-    const dataPromise = _params.zoomToPie ? Promise.resolve(_generatePieData()) : _fetchDayData(new Date(date));
+    const dataPromise = params.zoomToPie ? Promise.resolve(_generatePieData()) : _fetchDayData(new Date(date));
     dataPromise.then((data) => _replaceData(data, labelIndex));
   }
 
   function _onZoomOut() {
-    if (!_params.dataSource) {
+    if (!params.dataSource) {
       return;
     }
 
@@ -205,7 +203,7 @@ function createLovelyChart(params) {
     });
 
     setTimeout(() => {
-      Object.assign(_data, analyzeData(data, _params.datasetColors, _isZoomed || _params.zoomToPie ? 'days' : 'hours'));
+      Object.assign(_data, analyzeData(data, params.datasetColors, _isZoomed || params.zoomToPie ? 'days' : 'hours'));
 
       _stateManager.update({
         range: {
@@ -214,7 +212,7 @@ function createLovelyChart(params) {
         },
       }, true);
 
-      const daysCount = _isZoomed || _params.zoomToPie ? _data.xLabels.length : _data.xLabels.length / 24;
+      const daysCount = _isZoomed || params.zoomToPie ? _data.xLabels.length : _data.xLabels.length / 24;
       const halfDayWidth = (1 / daysCount) / 2;
 
       _stateManager.update({

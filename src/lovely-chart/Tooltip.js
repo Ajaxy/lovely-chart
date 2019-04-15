@@ -6,13 +6,6 @@ import { throttleWithRaf } from './fast';
 import { addEventListener, createElement } from './minifiers';
 
 export function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
-  const _container = container;
-  const _data = data;
-  const _plotSize = plotSize;
-  const _palette = palette;
-  const _onZoom = onZoom;
-  const _onFocus = onFocus;
-
   let _state;
   let _points;
   let _projection;
@@ -58,11 +51,11 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
       addEventListener(document, 'mousemove', _onDocumentMove);
     }
 
-    _container.appendChild(_element);
+    container.appendChild(_element);
   }
 
   function _setupCanvas() {
-    const { canvas, context } = setupCanvas(_element, _plotSize);
+    const { canvas, context } = setupCanvas(_element, plotSize);
 
     _canvas = canvas;
     _context = context;
@@ -109,7 +102,7 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
   function _onBalloonClick() {
     _balloon.classList.add('loading');
     const labelIndex = _projection.findClosesLabelIndex(_offsetX);
-    _onZoom(labelIndex);
+    onZoom(labelIndex);
   }
 
   function _clear(isExternal) {
@@ -118,8 +111,8 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
     clearCanvas(_canvas, _context);
     _hideBalloon();
 
-    if (!isExternal && _onFocus) {
-      _onFocus(null);
+    if (!isExternal && onFocus) {
+      onFocus(null);
     }
   }
 
@@ -135,16 +128,16 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
       return;
     }
 
-    if (!isExternal && _onFocus) {
+    if (!isExternal && onFocus) {
       if (data.isPie) {
-        _onFocus(getPointerVector());
+        onFocus(getPointerVector());
       } else {
-        _onFocus(labelIndex);
+        onFocus(labelIndex);
       }
     }
 
     const [xPx] = _projection.toPixels(labelIndex, 0);
-    const statistics = _data.datasets
+    const statistics = data.datasets
       .map(({ key, name, colorName, values, hasOwnYAxis }, i) => ({
         key,
         name,
@@ -157,14 +150,14 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
 
     _updateBalloon(statistics, xPx, labelIndex);
 
-    if (_data.isLines || _data.isAreas) {
+    if (data.isLines || data.isAreas) {
       clearCanvas(_canvas, _context);
 
-      if (_data.isLines) {
+      if (data.isLines) {
         _drawCircles(statistics, labelIndex);
       }
 
-      _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, buildCssColorFromState(_state, 'grid-lines'));
+      _drawTail(xPx, plotSize.height - X_AXIS_HEIGHT, buildCssColorFromState(_state, 'grid-lines'));
     }
   }
 
@@ -184,7 +177,7 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
       // TODO animate
       _drawCircle(
         [x, y],
-        buildCssColorFromState(_state, `palette-${_palette}-${colorName}-line`),
+        buildCssColorFromState(_state, `palette-${palette}-${colorName}-line`),
         buildCssColorFromState(_state, 'background'),
       );
     });
@@ -212,7 +205,7 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
   }
 
   function _updateBalloon(statistics, xPx, labelIndex) {
-    const label = _data.xLabels[labelIndex];
+    const label = data.xLabels[labelIndex];
     const date = new Date(label.value);
     _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
     _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (

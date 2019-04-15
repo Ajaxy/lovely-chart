@@ -3,7 +3,7 @@ import { buildDayLabels, buildTimeLabels } from './format';
 import { LABELS_KEY } from './constants';
 
 function prepareDatasets(chartData, datasetColors = {}) {
-  const { columns, names, colors, types, y_scaled: hasSecondYAxis } = chartData;
+  const { columns, names, types, y_scaled: hasSecondYAxis } = chartData;
 
   let labels = [];
   const datasets = [];

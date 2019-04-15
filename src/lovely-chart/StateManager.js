@@ -11,10 +11,6 @@ import { buildSkinState, buildSkinStateKeys } from './skin';
 import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas';
 
 export function createStateManager(data, viewportSize, callback) {
-  const _data = data;
-  const _viewportSize = viewportSize;
-  const _callback = callback;
-
   const _range = { begin: 0, end: 1 };
   const _filter = _buildDefaultFilter();
   const _transitionConfig = _buildTransitionConfig();
@@ -28,7 +24,7 @@ export function createStateManager(data, viewportSize, callback) {
     Object.assign(_filter, filter);
 
     const prevState = _state;
-    _state = calculateState(_data, _viewportSize, _range, _filter, focusOn, prevState);
+    _state = calculateState(data, viewportSize, _range, _filter, focusOn, prevState);
 
     if (!noTransition) {
       _transitionConfig.forEach(({ prop, duration, options }) => {
@@ -57,7 +53,7 @@ export function createStateManager(data, viewportSize, callback) {
   function _buildTransitionConfig() {
     const transitionConfig = [];
     // TODO too fast, not synced on area charts
-    const datasetVisibilities = _data.datasets.map(({ key }) => `opacity#${key} 200`);
+    const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 200`);
     const skinColors = buildSkinStateKeys().map((key) => `${key} 300`);
 
     mergeArrays([
@@ -76,7 +72,7 @@ export function createStateManager(data, viewportSize, callback) {
   function _buildDefaultFilter() {
     const filter = {};
 
-    _data.datasets.forEach(({ key }) => {
+    data.datasets.forEach(({ key }) => {
       filter[key] = true;
     });
 
@@ -84,7 +80,7 @@ export function createStateManager(data, viewportSize, callback) {
   }
 
   function _runCallback() {
-    _callback(proxyMerge(_state, _transitions.getState()));
+    callback(proxyMerge(_state, _transitions.getState()));
   }
 
   return { update };

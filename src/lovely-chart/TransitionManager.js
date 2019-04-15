@@ -8,8 +8,6 @@ function transition(t) {
 }
 
 export function createTransitionManager(onTick) {
-  const _onTick = onTick;
-
   const _transitions = {};
 
   let _nextFrame = null;
@@ -86,7 +84,7 @@ export function createTransitionManager(onTick) {
       }
     });
 
-    _onTick(state);
+    onTick(state);
 
     if (isRunning()) {
       _nextFrame = requestAnimationFrame(_tick);

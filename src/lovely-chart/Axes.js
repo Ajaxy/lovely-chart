@@ -4,22 +4,17 @@ import { buildCssColorFromState } from './skin';
 import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
 
 export function createAxes(context, data, plotSize, palette) {
-  const _context = context;
-  const _data = data;
-  const _plotSize = plotSize;
-  const _palette = palette;
-
   function drawXAxis(state, projection) {
-    _context.clearRect(0, _plotSize.height - X_AXIS_HEIGHT + 1, plotSize.width, X_AXIS_HEIGHT + 1);
+    context.clearRect(0, plotSize.height - X_AXIS_HEIGHT + 1, plotSize.width, X_AXIS_HEIGHT + 1);
 
-    const topOffset = _plotSize.height - X_AXIS_HEIGHT / 2;
+    const topOffset = plotSize.height - X_AXIS_HEIGHT / 2;
     const scaleLevel = Math.floor(state.xAxisScale);
     const step = xScaleLevelToStep(scaleLevel);
     const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
 
-    _context.font = AXES_FONT;
-    _context.textAlign = 'center';
-    _context.textBaseline = 'middle';
+    context.font = AXES_FONT;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
 
     for (let i = state.labelFromIndex; i <= state.labelToIndex; i++) {
       const shiftedI = i - X_AXIS_SHIFT_START;
@@ -28,13 +23,13 @@ export function createAxes(context, data, plotSize, palette) {
         continue;
       }
 
-      const label = _data.xLabels[i];
+      const label = data.xLabels[i];
       const [xPx] = projection.toPixels(i, 0);
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
-      opacity = applyYEdgeOpacity(opacity, xPx, _plotSize.width);
+      opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width);
 
-      _context.fillStyle = buildCssColorFromState(state, `palette-${_palette}-x-axis-text`, opacity);
-      _context.fillText(label.text, xPx, topOffset);
+      context.fillStyle = buildCssColorFromState(state, `palette-${palette}-x-axis-text`, opacity);
+      context.fillText(label.text, xPx, topOffset);
     }
   }
 
@@ -46,7 +41,7 @@ export function createAxes(context, data, plotSize, palette) {
       yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
       yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
     } = state;
-    const color = secondaryProjection && _data.datasets[0].colorName;
+    const color = secondaryProjection && data.datasets[0].colorName;
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
     _drawYAxisScaled(
@@ -73,7 +68,7 @@ export function createAxes(context, data, plotSize, palette) {
 
     if (secondaryProjection) {
       const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
-      const secondaryColor = _data.datasets[_data.datasets.length - 1].colorName;
+      const secondaryColor = data.datasets[data.datasets.length - 1].colorName;
       const isYChanging = yMinViewportSecondFrom !== undefined || yMaxViewportSecondFrom !== undefined;
 
       _drawYAxisScaled(
@@ -107,13 +102,13 @@ export function createAxes(context, data, plotSize, palette) {
     const firstVisibleValue = Math.ceil(yMin / step) * step;
     const lastVisibleValue = Math.floor(yMax / step) * step;
 
-    _context.font = AXES_FONT;
-    _context.textAlign = isSecondary ? 'right' : 'left';
-    _context.textBaseline = 'bottom';
+    context.font = AXES_FONT;
+    context.textAlign = isSecondary ? 'right' : 'left';
+    context.textBaseline = 'bottom';
 
-    _context.lineWidth = 1;
+    context.lineWidth = 1;
 
-    _context.beginPath();
+    context.beginPath();
 
     // TODO start from y0
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
@@ -121,29 +116,29 @@ export function createAxes(context, data, plotSize, palette) {
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
       // TODO perf
-      _context.fillStyle = colorName
-        ? buildCssColorFromState(state, `palette-${_palette}-${colorName}-text`, textOpacity)
-        : buildCssColorFromState(state, `palette-${_palette}-y-axis-text`, textOpacity);
+      context.fillStyle = colorName
+        ? buildCssColorFromState(state, `palette-${palette}-${colorName}-text`, textOpacity)
+        : buildCssColorFromState(state, `palette-${palette}-y-axis-text`, textOpacity);
 
       if (!isSecondary) {
-        _context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
+        context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
       } else {
-        _context.fillText(humanize(value), _plotSize.width - GUTTER, yPx - GUTTER / 2);
+        context.fillText(humanize(value), plotSize.width - GUTTER, yPx - GUTTER / 2);
       }
 
       if (isSecondary) {
-        _context.strokeStyle = buildCssColorFromState(state, `palette-${_palette}-${colorName}-text`, opacity);
+        context.strokeStyle = buildCssColorFromState(state, `palette-${palette}-${colorName}-text`, opacity);
 
-        _context.moveTo(_plotSize.width - GUTTER, yPx);
-        _context.lineTo(_plotSize.width - GUTTER * 2, yPx);
+        context.moveTo(plotSize.width - GUTTER, yPx);
+        context.lineTo(plotSize.width - GUTTER * 2, yPx);
       } else {
-        _context.moveTo(GUTTER, yPx);
-        _context.strokeStyle = buildCssColorFromState(state, 'grid-lines', opacity);
-        _context.lineTo(_plotSize.width - GUTTER, yPx);
+        context.moveTo(GUTTER, yPx);
+        context.strokeStyle = buildCssColorFromState(state, 'grid-lines', opacity);
+        context.lineTo(plotSize.width - GUTTER, yPx);
       }
     }
 
-    _context.stroke();
+    context.stroke();
   }
 
   return { drawXAxis, drawYAxis };
