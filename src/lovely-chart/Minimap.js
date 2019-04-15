@@ -46,6 +46,14 @@ export function createMinimap(container, data, colors, rangeCallback) {
     _drawDatasets(newState);
   }
 
+  function toggle(shouldShow) {
+    _element.classList.toggle('hidden', !shouldShow);
+
+    requestAnimationFrame(() => {
+      _element.classList.toggle('transparent', !shouldShow);
+    });
+  }
+
   function _setupLayout() {
     _element = createElement();
 
@@ -229,5 +237,5 @@ export function createMinimap(container, data, colors, rangeCallback) {
     _ruler.children[2].style.width = `${(1 - end) * 100}%`;
   }
 
-  return { update };
+  return { update, toggle };
 }

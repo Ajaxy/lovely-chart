@@ -40,6 +40,7 @@ const CHARTS = [{
     y1: 'light-blue',
     y2: 'dark-blue',
   },
+  noMinimapOnZoom: true,
 }, {
   containerId: 'container',
   title: 'Apps',
@@ -56,13 +57,6 @@ const CHARTS = [{
   },
 }];
 
-const originalDatasetColors = {
-  y0: 'red',
-  y1: 'green',
-  y2: 'blue',
-  y3: 'dark-blue',
-};
-
 let charts = [];
 let snow;
 
@@ -76,20 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
         charts.push(LovelyChart.create(params));
       });
 
-      fetch('./data/chart_data.json')
-        .then((response) => response.json())
-        .then((chartsData) => {
-          chartsData.forEach((data) => charts.push(
-            LovelyChart.create({
-              containerId: 'container',
-              data,
-              palette: 'type-2',
-              datasetColors: originalDatasetColors,
-            }),
-          ));
-
-          document.querySelector('#spinner-main').classList.add('hidden');
-        });
+      document.querySelector('#spinner-main').classList.add('hidden');
     });
 
   document.getElementById('skin-switcher').addEventListener('click', (e) => {

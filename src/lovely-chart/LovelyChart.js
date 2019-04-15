@@ -12,6 +12,7 @@ import { setupCanvas, clearCanvas } from './canvas';
 import { hideOnScroll } from './hideOnScroll';
 import { createElement } from './minifiers';
 import { setupColors, changeSkin, createColors } from './skin';
+import { getFullLabelDate } from './format';
 import {
   X_AXIS_HEIGHT,
   GUTTER,
@@ -37,9 +38,11 @@ function createLovelyChart(params) {
   let _stateManager;
   let _minimap;
   let _tooltip;
+  let _tools;
 
   let _state;
   let _isZoomed = false;
+  let _zoomedDateText;
   let _stateBeforeZoom;
 
   const _colors = createColors(params.palette);
@@ -108,7 +111,7 @@ function createLovelyChart(params) {
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _minimap = createMinimap(_container, _data, _colors, _onRangeChange);
     _tooltip = createTooltip(_container, _data, _plotSize, _colors, _zoomToDay, _onFocus);
-    createTools(_container, _data, _onFilterChange);
+    _tools = createTools(_container, _data, _onFilterChange);
   }
 
   function _onStateUpdate(state) {
@@ -146,7 +149,11 @@ function createLovelyChart(params) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    _header.setCaption(`${_data.xLabels[state.labelFromIndex + 1].text} — ${_data.xLabels[state.labelToIndex - 1].text}`);
+    _header.setCaption(
+      _zoomedDateText ||
+      `${_data.xLabels[state.labelFromIndex + 1].text} — ${_data.xLabels[state.labelToIndex - 1].text}`,
+    );
+
     clearCanvas(_plot, _context);
     drawDatasets(
       _context, state, _data,
@@ -176,8 +183,9 @@ function createLovelyChart(params) {
     }
 
     _stateBeforeZoom = _state;
-    const { value: date, text: dateText } = _data.xLabels[labelIndex];
-    _header.zoom(dateText);
+    _header.zoom(getFullLabelDate(_data.xLabels[labelIndex]));
+
+    const { value: date } = _data.xLabels[labelIndex];
     const dataPromise = params.zoomToPie ? Promise.resolve(_generatePieData()) : _fetchDayData(new Date(date));
     dataPromise.then((data) => _replaceData(data, labelIndex));
   }
@@ -195,16 +203,31 @@ function createLovelyChart(params) {
   function _replaceData(data, labelIndex) {
     const labelWidth = 1 / _data.xLabels.length;
     const labelMiddle = labelIndex / (_data.xLabels.length - 1);
+    const filter = {};
+    _data.datasets.forEach(({ key }) => filter[key] = false);
 
     _stateManager.update({
       range: {
         begin: labelMiddle - labelWidth / 2,
         end: labelMiddle + labelWidth / 2,
       },
+      filter,
     });
 
     setTimeout(() => {
+      if (!_isZoomed) {
+        _zoomedDateText = getFullLabelDate(_data.xLabels[labelIndex]);
+      } else {
+        _zoomedDateText = null;
+      }
+
       Object.assign(_data, analyzeData(data, params.datasetColors, _isZoomed || params.zoomToPie ? 'days' : 'hours'));
+
+      if (params.noMinimapOnZoom) {
+        _minimap.toggle(_isZoomed);
+      }
+
+      _tools.redraw();
 
       _stateManager.update({
         range: {
@@ -215,16 +238,28 @@ function createLovelyChart(params) {
 
       const daysCount = _isZoomed || params.zoomToPie ? _data.xLabels.length : _data.xLabels.length / 24;
       const halfDayWidth = (1 / daysCount) / 2;
+      const filter = {};
+      _data.datasets.forEach(({ key }) => filter[key] = true);
 
-      _stateManager.update({
-        range: _isZoomed ? {
+      let range;
+      if (_isZoomed) {
+        range = {
           begin: _stateBeforeZoom.begin,
           end: _stateBeforeZoom.end,
-        } : {
+        };
+      } else if (!params.noMinimapOnZoom) {
+        range = {
           begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
           end: ZOOM_RANGE_MIDDLE + halfDayWidth,
-        },
-      });
+        };
+      } else {
+        range = {
+          begin: 0,
+          end: 1,
+        };
+      }
+
+      _stateManager.update({ range, filter });
 
       _isZoomed = !_isZoomed;
     }, ZOOM_TIMEOUT);

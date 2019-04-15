@@ -1,0 +1,16 @@
+.lovely-chart {
+  .tools {
+    opacity: 1;
+    transition: opacity 400ms ease;
+
+    &.hidden {
+      display: none;
+    }
+
+    &.transparent {
+      opacity: 0;
+    }
+
+    padding: 0 10px 16px 10px;
+  }
+}

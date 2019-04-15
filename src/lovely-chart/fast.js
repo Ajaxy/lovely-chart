@@ -17,14 +17,6 @@ export function getMaxMin(array) {
   return { max, min };
 }
 
-export function ensureSorted(array) {
-  for (let i = 0, l = array.length; i < l; i++) {
-    if (array[i] !== undefined && array[i + 1] !== undefined && array[i] >= array[i + 1]) {
-      throw new Error('Array is not sorted');
-    }
-  }
-}
-
 // https://jsperf.com/multi-array-concat/24
 export function mergeArrays(arrays) {
   return [].concat.apply([], arrays);
