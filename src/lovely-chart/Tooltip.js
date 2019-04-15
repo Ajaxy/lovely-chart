@@ -22,16 +22,21 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   let _offsetY;
   let _clickedOnLabel = null;
 
+  let _showSpinner = false;
+  let _isZoomed = false;
+
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
 
   _setupLayout();
 
-  function update(state, points, projection, secondaryPoints, secondaryProjection) {
+  function update(state, points, projection, secondaryPoints, secondaryProjection, showSpinner = false, isZoomed = false) {
     _state = state;
     _points = points;
     _projection = projection;
     _secondaryPoints = secondaryPoints;
     _secondaryProjection = secondaryProjection;
+    _showSpinner = showSpinner;
+    _isZoomed = isZoomed;
     _selectLabel(true);
   }
 
@@ -237,6 +242,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
 
     _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
+    _balloon.classList.toggle('loading', _showSpinner);
+    _balloon.classList.toggle('zoomed', _isZoomed);
     _balloon.classList.add('shown');
   }
 
