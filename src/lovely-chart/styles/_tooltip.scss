@@ -111,6 +111,21 @@
           }
         }
       }
+
+      .spinner {
+        position: absolute;
+        top: 7px;
+        right: 8px;
+        background: var(--tooltip-background);
+        opacity: 0;
+        transition: opacity 500ms ease-out;
+      }
+
+      &.loading {
+        .spinner {
+          opacity: 1;
+        }
+      }
     }
   }
 }

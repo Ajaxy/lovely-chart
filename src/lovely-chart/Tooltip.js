@@ -64,8 +64,8 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
 
   function _setupBalloon() {
     _balloon = createElement();
-    _balloon.className = 'balloon';
-    _balloon.innerHTML = '<div class="title"></div><div class="legend"></div>';
+    _balloon.className = 'balloon loading';
+    _balloon.innerHTML = '<div class="title"></div><div class="legend"></div><div class="spinner"></div>';
 
     addEventListener(_balloon, 'click', _onBalloonClick);
 
