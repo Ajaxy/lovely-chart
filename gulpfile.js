@@ -1,15 +1,19 @@
 const path = require('path');
 const gulp = require('gulp');
 const merge = require('merge-stream');
+const clone = require('gulp-clone');
 const order = require('gulp-order');
 const concat = require('gulp-concat');
 const replace = require('gulp-replace');
 const jsclosure = require('gulp-jsclosure');
 const minifyJs = require('gulp-babel-minify');
+const rename = require('gulp-rename');
 const minifyCss = require('gulp-uglifycss');
 const minifyJson = require('gulp-jsonminify');
 
 gulp.task('prod', () => {
+  const cloneSink = clone.sink();
+
   return merge(
     gulp
       .src('src/lovely-chart/*.js')
@@ -22,8 +26,11 @@ gulp.task('prod', () => {
       .pipe(replace(/^import(.|\n)*?from.*?\n/gm, ''))
       .pipe(replace(/export /g, ''))
       .pipe(replace(/\n\s+\/\/ TODO.*/g, ''))
-      .pipe(jsclosure()),
-    // .pipe(minifyJs()),
+      .pipe(jsclosure())
+      .pipe(cloneSink)
+      .pipe(minifyJs())
+      .pipe(rename('lovely-chart/LovelyChart.min.js'))
+      .pipe(cloneSink.tap()),
     gulp
       .src('src/*.js'),
     // .pipe(minifyJs()),
