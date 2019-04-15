@@ -65,6 +65,14 @@
         }
       }
 
+      &.zoomed {
+        cursor: default;
+
+        .title::after {
+          display: none;
+        }
+      }
+
       .legend {
         padding-top: 5px;
 
