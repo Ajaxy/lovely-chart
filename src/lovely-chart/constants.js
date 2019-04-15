@@ -27,8 +27,6 @@ export const MINIMAP_EAR_WIDTH = 8;
 
 export const DPR = window.devicePixelRatio || 1;
 
-export const DAY_MS = 1000 * 60 * 60 * 24;
-export const HOUR_MS = 1000 * 60 * 60;
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 

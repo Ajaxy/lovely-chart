@@ -40,6 +40,7 @@ const CHARTS = [{
     y1: 'light-blue',
     y2: 'dark-blue',
   },
+  noMinimapOnZoom: true
 }, {
   containerId: 'container',
   title: 'Apps',

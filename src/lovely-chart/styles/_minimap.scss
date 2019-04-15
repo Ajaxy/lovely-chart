@@ -2,10 +2,20 @@
   .minimap {
     position: relative;
     background: var(--background);
-    margin: 0 10px;
+    margin: 0 10px 16px 10px;
     border-radius: 6px;
     overflow: hidden;
-    transition: background-color 300ms ease-out;
+    //transition: background-color 300ms ease-out;
+    opacity: 1;
+    transition: opacity 400ms ease;
+
+    &.hidden {
+      display: none;
+    }
+
+    &.transparent {
+      opacity: 0;
+    }
 
     canvas {
       background: var(--background);

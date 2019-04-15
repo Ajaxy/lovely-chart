@@ -1,51 +1,30 @@
-import { DAY_MS, HOUR_MS, MONTHS, WEEK_DAYS } from './constants';
+import { MONTHS, WEEK_DAYS } from './constants';
 
-export function buildDayLabels(timestampFrom, timestampTo) {
-  timestampFrom = roundToDay(timestampFrom);
-  timestampTo = roundToDay(timestampTo);
 
-  const labels = [];
-
-  for (let timestamp = timestampFrom; timestamp <= timestampTo; timestamp += DAY_MS) {
-    const date = new Date(timestamp);
+export function buildDayLabels(labels) {
+  return labels.map((value) => {
+    const date = new Date(value);
     const day = date.getDate();
     const month = MONTHS[date.getMonth()];
 
-    labels.push({
-      value: timestamp,
+    return ({
+      value,
       text: `${month} ${day}`,
     });
-  }
-
-  return labels;
+  });
 }
 
-export function buildTimeLabels(timestampFrom, timestampTo) {
-  timestampFrom = roundToHour(timestampFrom);
-  timestampTo = roundToHour(timestampTo);
-
-  const labels = [];
-
-  for (let timestamp = timestampFrom; timestamp <= timestampTo; timestamp += HOUR_MS) {
-    const date = new Date(timestamp);
+export function buildTimeLabels(labels) {
+  return labels.map((value) => {
+    const date = new Date(value);
     const hours = date.getUTCHours();
     const minutes = date.getUTCMinutes();
 
-    labels.push({
-      value: timestamp,
+    return ({
+      value,
       text: `${hours < 10 ? '0' : ''}${hours}:${minutes < 10 ? '0' : ''}${minutes}`,
     });
-  }
-
-  return labels;
-}
-
-function roundToDay(timestamp) {
-  return timestamp - (timestamp % DAY_MS);
-}
-
-function roundToHour(timestamp) {
-  return timestamp - (timestamp % HOUR_MS);
+  });
 }
 
 export function humanize(value, decimals = 1) {

@@ -1,18 +1,34 @@
 import { createElement } from './minifiers';
 
 export function createTools(container, data, filterCallback) {
-  if (data.datasets.length < 2) {
-    return;
-  }
-
   let _element;
 
   _setupLayout();
   _updateFilter();
 
+  function redraw() {
+    if (_element) {
+      const oldElement = _element;
+      oldElement.classList.add('hidden');
+      setTimeout(() => {
+        oldElement.parentNode.removeChild(oldElement);
+      }, 500);
+    }
+
+    _setupLayout();
+    _element.classList.add('transparent');
+    requestAnimationFrame(() => {
+      _element.classList.remove('transparent');
+    });
+  }
+
   function _setupLayout() {
     _element = createElement();
     _element.className = 'tools';
+
+    if (data.datasets.length < 2) {
+      _element.className += ' hidden';
+    }
 
     data.datasets.forEach(({ key, name, colorName }) => {
       const control = createElement('a');
@@ -48,4 +64,8 @@ export function createTools(container, data, filterCallback) {
 
     filterCallback(filter);
   }
+
+  return {
+    redraw,
+  };
 }

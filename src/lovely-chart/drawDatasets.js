@@ -29,6 +29,7 @@ function drawDatasetBars(context, points, projection, options) {
 
   context.save();
 
+  context.globalAlpha = options.opacity;
   context.fillStyle = options.color;
 
   for (let j = 0, l = points.length; j < l; j++) {

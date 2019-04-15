@@ -38,6 +38,7 @@ function createLovelyChart(params) {
   let _stateManager;
   let _minimap;
   let _tooltip;
+  let _tools;
 
   let _state;
   let _isZoomed = false;
@@ -110,7 +111,7 @@ function createLovelyChart(params) {
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _minimap = createMinimap(_container, _data, _colors, _onRangeChange);
     _tooltip = createTooltip(_container, _data, _plotSize, _colors, _zoomToDay, _onFocus);
-    createTools(_container, _data, _onFilterChange);
+    _tools = createTools(_container, _data, _onFilterChange);
   }
 
   function _onStateUpdate(state) {
@@ -202,12 +203,15 @@ function createLovelyChart(params) {
   function _replaceData(data, labelIndex) {
     const labelWidth = 1 / _data.xLabels.length;
     const labelMiddle = labelIndex / (_data.xLabels.length - 1);
+    const filter = {};
+    _data.datasets.forEach(({ key }) => filter[key] = false);
 
     _stateManager.update({
       range: {
         begin: labelMiddle - labelWidth / 2,
         end: labelMiddle + labelWidth / 2,
       },
+      filter,
     });
 
     setTimeout(() => {
@@ -219,6 +223,12 @@ function createLovelyChart(params) {
 
       Object.assign(_data, analyzeData(data, params.datasetColors, _isZoomed || params.zoomToPie ? 'days' : 'hours'));
 
+      if (params.noMinimapOnZoom) {
+        _minimap.toggle(_isZoomed);
+      }
+
+      _tools.redraw();
+
       _stateManager.update({
         range: {
           begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
@@ -228,16 +238,28 @@ function createLovelyChart(params) {
 
       const daysCount = _isZoomed || params.zoomToPie ? _data.xLabels.length : _data.xLabels.length / 24;
       const halfDayWidth = (1 / daysCount) / 2;
+      const filter = {};
+      _data.datasets.forEach(({ key }) => filter[key] = true);
 
-      _stateManager.update({
-        range: _isZoomed ? {
+      let range;
+      if (_isZoomed) {
+        range = {
           begin: _stateBeforeZoom.begin,
           end: _stateBeforeZoom.end,
-        } : {
+        };
+      } else if (!params.noMinimapOnZoom) {
+        range = {
           begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
           end: ZOOM_RANGE_MIDDLE + halfDayWidth,
-        },
-      });
+        };
+      } else {
+        range = {
+          begin: 0,
+          end: 1,
+        };
+      }
+
+      _stateManager.update({ range, filter });
 
       _isZoomed = !_isZoomed;
     }, ZOOM_TIMEOUT);
