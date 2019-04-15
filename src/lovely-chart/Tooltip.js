@@ -2,7 +2,7 @@ import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, PIE_BALLOON_MIN_DISTANCE, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { formatInteger } from './format';
 import { buildCssColorFromState } from './skin';
-import { throttleWithRaf } from './fast';
+import { throttle, throttleWithRaf } from './fast';
 import { addEventListener, createElement } from './minifiers';
 import { toggleText } from './toggleText';
 
@@ -219,11 +219,17 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
     _context.stroke();
   }
 
+  const _updateBalloonDataThrottled = throttle(_updateBalloonData, 500, false, true);
+  let _isFirstUpdate = true;
+
   function _updateBalloon(statistics, xPx, labelIndex) {
-    const label = data.xLabels[labelIndex];
-    const date = new Date(label.value);
-    _updateTitle(`${WEEK_DAYS[date.getDay()]}, ${label.text}`);
-    _updateDataSets(statistics);
+    if (_isFirstUpdate) {
+      // This prevents initial render delay made by throttling
+      _updateBalloonData(statistics, labelIndex, true);
+      _isFirstUpdate = false;
+    } else {
+      _updateBalloonDataThrottled(statistics, labelIndex);
+    }
 
     const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
     const left = labelIndex < meanLabel
@@ -234,18 +240,26 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
     _balloon.classList.add('shown');
   }
 
-  function _updateTitle(title) {
+  function _updateBalloonData(statistics, labelIndex, force = false) {
+    const label = data.xLabels[labelIndex];
+    const date = new Date(label.value);
+
+    _updateTitle(`${WEEK_DAYS[date.getDay()]}, ${label.text}`, force);
+    _updateDataSets(statistics, force);
+  }
+
+  function _updateTitle(title, force = false) {
     const titleContainer = _balloon.children[0];
     const currentTitle = titleContainer.querySelector(':not(.hidden)');
 
-    if (!titleContainer.innerHTML || !currentTitle) {
+    if (force || !titleContainer.innerHTML || !currentTitle) {
       titleContainer.innerHTML = `<span>${title}</span>`;
     } else if (currentTitle.innerHTML !== title) {
       toggleText(currentTitle, title, 'title-inner');
     }
   }
 
-  function _updateDataSets(data) {
+  function _updateDataSets(data, force = false) {
     const dataSetContainer = _balloon.children[1];
     const currentDataSets = dataSetContainer.children;
     for (const d of currentDataSets) {
@@ -255,7 +269,7 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
     data.forEach(({ name, colorName, value }) => {
       const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
       const className = `value right ${colorName}`;
-      if (!currentDataSet) {
+      if (force || !currentDataSet) {
         const newDataSet = createElement();
         newDataSet.className = 'dataset';
         newDataSet.setAttribute('data-present', 'true');
@@ -276,6 +290,7 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
 
   function _hideBalloon() {
     _balloon.classList.remove('shown');
+    _isFirstUpdate = true;
   }
 
   function getPointerVector() {

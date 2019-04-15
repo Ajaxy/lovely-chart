@@ -9,16 +9,19 @@ export function createHeader(container, title, zoomOutCallback) {
   let _captionElement;
 
   let _isZoomed = false;
+  let _isFirstUpdate = true;
 
-  const setCaptionThrottled = throttle(setCaption, 800, false, true);
+  const _updateCaptionThrottled = throttle(_updateCaption, 500, false, true);
 
   _setupLayout();
 
   function setCaption(caption) {
-    if (!_captionElement.innerHTML) {
+    if (_isFirstUpdate) {
+      // This prevents initial render delay made by throttling
       _captionElement.innerHTML = caption;
-    } else if (_captionElement.innerHTML !== caption) {
-      _captionElement = toggleText(_captionElement, caption, 'caption right');
+      _isFirstUpdate = false;
+    } else {
+      _updateCaptionThrottled(caption);
     }
   }
 
@@ -29,6 +32,10 @@ export function createHeader(container, title, zoomOutCallback) {
     addEventListener(_zoomOutElement, 'click', _onZoomOut);
 
     setCaption(caption);
+  }
+
+  function _updateCaption(caption) {
+    _captionElement = toggleText(_captionElement, caption, 'caption right');
   }
 
   function _setupLayout() {
@@ -56,7 +63,7 @@ export function createHeader(container, title, zoomOutCallback) {
   }
 
   return {
-    setCaption: setCaptionThrottled,
+    setCaption,
     zoom,
   };
 }
