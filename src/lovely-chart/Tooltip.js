@@ -19,7 +19,7 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
 
   let _offsetX;
   let _offsetY;
-  let _isClicked = false;
+  let _clickedOnLabel = null;
 
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
 
@@ -72,19 +72,13 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
   }
 
   function _onMouseMove(e) {
-    if (e.target === _balloon || _balloon.contains(e.target) || _isClicked) {
+    if (e.target === _balloon || _balloon.contains(e.target) || _clickedOnLabel) {
       return;
     }
 
     const pageOffset = _getPageOffset(_element);
     _offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
     _offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
-
-    const labelIndex = _projection.findClosesLabelIndex(_offsetX);
-    if (labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex) {
-      _clear();
-      return;
-    }
 
     _selectLabelOnRaf();
   }
@@ -95,8 +89,16 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
     }
   }
 
-  function _onClick() {
-    _isClicked = !_isClicked;
+  function _onClick(e) {
+    const oldLabelIndex = _clickedOnLabel;
+
+    _clickedOnLabel = null;
+    _onMouseMove(e, true);
+
+    const newLabelIndex = _getLabelIndex();
+    if (newLabelIndex !== oldLabelIndex) {
+      _clickedOnLabel = newLabelIndex;
+    }
   }
 
   function _onBalloonClick() {
@@ -107,7 +109,7 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
 
   function _clear(isExternal) {
     _offsetX = null;
-    _isClicked = false;
+    _clickedOnLabel = null;
     clearCanvas(_canvas, _context);
     _hideBalloon();
 
@@ -116,14 +118,18 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
     }
   }
 
+  function _getLabelIndex() {
+    const labelIndex = _projection.findClosesLabelIndex(_offsetX);
+    return labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex ? null : labelIndex;
+  }
+
   function _selectLabel(isExternal) {
     if (!_offsetX || !_state) {
       return;
     }
 
-    const labelIndex = _projection.findClosesLabelIndex(_offsetX);
-    const isVisible = labelIndex >= _state.labelFromIndex && labelIndex <= _state.labelToIndex;
-    if (!isVisible) {
+    const labelIndex = _getLabelIndex();
+    if (!labelIndex) {
       _clear(isExternal);
       return;
     }

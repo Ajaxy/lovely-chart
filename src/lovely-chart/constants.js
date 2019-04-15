@@ -34,7 +34,7 @@ export const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const BALLOON_OFFSET = 20;
 
-export const TRANSITION_DEFAULT_DURATION = 400;
+export const TRANSITION_DEFAULT_DURATION = 300;
 
 export const ZOOM_TIMEOUT = TRANSITION_DEFAULT_DURATION;
 export const ZOOM_RANGE_DELTA = 0.1;

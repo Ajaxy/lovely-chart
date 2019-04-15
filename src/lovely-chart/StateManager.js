@@ -53,7 +53,7 @@ export function createStateManager(data, viewportSize, callback) {
   function _buildTransitionConfig() {
     const transitionConfig = [];
     // TODO too fast, not synced on area charts
-    const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 200`);
+    const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 300`);
     const skinColors = buildSkinStateKeys().map((key) => `${key} 300`);
 
     mergeArrays([

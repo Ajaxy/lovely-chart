@@ -145,7 +145,7 @@ function createLovelyChart(params) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    _header.setCaption(`${_data.xLabels[state.labelFromIndex].text} — ${_data.xLabels[state.labelToIndex].text}`);
+    _header.setCaption(`${_data.xLabels[state.labelFromIndex + 1].text} — ${_data.xLabels[state.labelToIndex - 1].text}`);
     clearCanvas(_plot, _context);
     drawDatasets(
       _context, state, _data,
