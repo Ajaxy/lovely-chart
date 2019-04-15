@@ -5,11 +5,11 @@
     margin: 0 10px;
     border-radius: 6px;
     overflow: hidden;
-    transition: background-color 300ms ease-out;
+    // transition: background-color 300ms ease-out;
 
     canvas {
       background: var(--background);
-      transition: background-color 300ms ease-out;
+      // transition: background-color 300ms ease-out;
     }
 
     .ruler {
@@ -28,7 +28,7 @@
         width: 33.3%;
         height: 100%;
         background: var(--minimap-mask);
-        transition: background-color 300ms ease-out;
+        // transition: background-color 300ms ease-out;
 
         &:last-child {
           position: relative;
@@ -42,7 +42,7 @@
             right: -5px;
             width: 5px;
             background: var(--minimap-mask);
-            transition: background-color 300ms ease-out;
+            // transition: background-color 300ms ease-out;
           }
         }
       }
@@ -64,12 +64,12 @@
           background: transparent !important;
           cursor: grab;
 
-          transition: border-color 300ms ease-out;
+          // transition: border-color 300ms ease-out;
         }
 
         > .handle {
           background: var(--minimap-mask);
-          transition: background-color 300ms ease-out;
+          // transition: background-color 300ms ease-out;
 
           width: 8px;
           height: 100%;
@@ -89,7 +89,7 @@
             bottom: 0;
             right: 0;
             left: 0;
-            transition: background 300ms ease-out;
+            // transition: background-color 300ms ease-out;
           }
 
           span {

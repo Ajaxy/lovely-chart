@@ -7,7 +7,7 @@
     .title, .caption {
       color: var(--text-color);
       line-height: 30px;
-      transition: color 300ms ease;
+      // transition: color 300ms ease;
 
       &.hidden {
         opacity: 0;
