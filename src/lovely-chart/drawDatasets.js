@@ -1,6 +1,6 @@
 import { mergeArrays } from './fast';
 import { buildCssColorFromState } from './skin';
-import { PLOT_PIE_RADIUS_FACTOR } from './constants';
+import { PLOT_PIE_RADIUS_FACTOR, PLOT_PIE_SHIFT } from './constants';
 import { getPieTextShift, getPieTextSize } from './formulas';
 
 function drawDatasetLine(context, points, projection, options) {
@@ -22,8 +22,41 @@ function drawDatasetLine(context, points, projection, options) {
   context.restore();
 }
 
-// TODO try polyons and filled lines
+// TODO try areas
 function drawDatasetBars(context, points, projection, options) {
+  const { yMin } = projection.getParams();
+  let activePoint;
+
+  context.save();
+
+  context.fillStyle = options.color;
+
+  for (let j = 0, l = points.length; j < l; j++) {
+    const { labelIndex, stackValue, stackOffset = 0 } = points[j];
+
+    // if (labelIndex === options.focusOn) {
+    //   activePoint = points[j];
+    //   continue;
+    // }
+
+    const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
+    const [x, yTo] = projection.toPixels(labelIndex, stackValue);
+    const rectX = x - options.lineWidth / 2;
+    const rectY = yTo;
+    const rectW = options.lineWidth + 0.5;
+    const rectH = yFrom - yTo;
+
+    context.fillRect(rectX, rectY, rectW, rectH);
+  }
+
+  // if (activePoint) {
+  //   drawBarsActivePoint(activePoint, context, projection, options);
+  // }
+
+  context.restore();
+}
+
+function drawDatasetBarsWithLines(context, points, projection, options) {
   const { yMin } = projection.getParams();
 
   context.beginPath();
@@ -49,6 +82,32 @@ function drawDatasetBars(context, points, projection, options) {
   context.lineCap = 'butt';
   context.stroke();
   context.restore();
+}
+
+function drawBarsActivePoint(activePoint, context, projection, options) {
+  const { yMin } = projection.getParams();
+  const { labelIndex, stackValue, stackOffset = 0 } = activePoint;
+  const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
+  const [x, yTo] = projection.toPixels(labelIndex, stackValue);
+
+  const rectX = x - options.lineWidth / 2;
+  const rectY = yTo;
+  const rectW = options.lineWidth;
+  const rectH = yFrom - yTo;
+
+  context.globalAlpha = options.opacity;
+  context.fillRect(rectX, rectY, rectW, rectH);
+}
+
+function drawBarsMask(context, projection, options) {
+  const [xCenter, yCenter] = projection.getCenter();
+  const [width, height] = projection.getSize();
+
+  const [x] = projection.toPixels(options.focusOn, 0);
+
+  context.fillStyle = options.color;
+  context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2, height);
+  context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
 }
 
 // TODO try draw overlaying
@@ -85,8 +144,14 @@ function drawDatasetPie(context, points, projection, options) {
   const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
   const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
 
-  const { radius = 120, shift = 0, center } = options;
-  const [x, y] = center;
+  const { radius = 120, center: [x, y], pointerVector } = options;
+
+  const shift = (
+    pointerVector &&
+    beginAngle <= pointerVector.angle &&
+    pointerVector.angle < endAngle &&
+    pointerVector.distance <= radius
+  ) ? PLOT_PIE_SHIFT : 0;
 
   const shiftAngle = (beginAngle + endAngle) / 2;
   const directionX = Math.cos(shiftAngle);
@@ -108,7 +173,9 @@ function drawDatasetPie(context, points, projection, options) {
   context.textBaseline = 'middle';
   context.fillStyle = 'white';
   const textShift = getPieTextShift(percent, radius);
-  context.fillText(`${Math.round(percent * 100)}%`, x + directionX * textShift, y + directionY * textShift);
+  context.fillText(
+    `${Math.round(percent * 100)}%`, x + directionX * textShift + shiftX, y + directionY * textShift + shiftY
+  );
 
   context.restore();
 }
@@ -164,8 +231,28 @@ export function drawDatasets(
     if (datasetType === 'pie') {
       options.center = projection.getCenter();
       options.radius = Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
+      options.pointerVector = state.focusOn;
+    }
+
+    if (datasetType === 'bar') {
+      const [x0] = projection.toPixels(0, 0);
+      const [x1] = projection.toPixels(1, 0);
+
+      options.lineWidth = x1 - x0;
+      options.focusOn = state.focusOn;
     }
 
     drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
   });
+
+  if (state.focusOn && data.isBars) {
+    const [x0] = projection.toPixels(0, 0);
+    const [x1] = projection.toPixels(1, 0);
+
+    drawBarsMask(context, projection, {
+      focusOn: state.focusOn,
+      color: buildCssColorFromState(state, 'mask'),
+      lineWidth: x1 - x0
+    });
+  }
 }

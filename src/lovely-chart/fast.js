@@ -80,14 +80,17 @@ export function throttle(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
 
 export function throttleWithRaf(fn) {
   let waiting = false;
+  let args;
 
-  return function () {
+  return function (..._args) {
+    args = _args;
+
     if (!waiting) {
       waiting = true;
 
       requestAnimationFrame(() => {
         waiting = false;
-        fn();
+        fn(...args);
       });
     }
   };

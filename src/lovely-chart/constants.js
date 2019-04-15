@@ -7,6 +7,7 @@ export const PLOT_HEIGHT = 320;
 export const PLOT_TOP_PADDING = 10;
 export const PLOT_LINE_WIDTH = 2;
 export const PLOT_PIE_RADIUS_FACTOR = 0.9 / 2;
+export const PLOT_PIE_SHIFT = 10;
 
 export const AXES_FONT = '300 10px Helvetica, Arial, sans-serif';
 export const AXES_MAX_COLUMN_WIDTH = 45;

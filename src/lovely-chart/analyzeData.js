@@ -70,5 +70,8 @@ export function analyzeData(data, datasetColors, type) {
     isStacked: data.stacked,
     isPercentage: data.percentage,
     isPie: data.pie,
+    isLines: datasets.some(({ type }) => type === 'line'),
+    isBars: datasets.some(({ type }) => type === 'bar'),
+    isAreas: datasets.some(({ type }) => type === 'area'),
   };
 }

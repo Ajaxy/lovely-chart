@@ -1,31 +1,34 @@
 import { setupCanvas, clearCanvas } from './canvas';
-import { BALLOON_OFFSET, GUTTER, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
+import { BALLOON_OFFSET, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { formatInteger } from './format';
 import { buildCssColorFromState } from './skin';
 import { throttleWithRaf } from './fast';
 import { addEventListener, createElement } from './minifiers';
 
-const BALLOON_SHADOW_WIDTH = 1;
-
-export function createTooltip(container, data, plotSize, palette, onSelectLabel) {
+export function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
   const _container = container;
   const _data = data;
   const _plotSize = plotSize;
   const _palette = palette;
-  const _onSelectLabel = onSelectLabel;
+  const _onZoom = onZoom;
+  const _onFocus = onFocus;
 
   let _state;
   let _points;
   let _projection;
   let _secondaryPoints;
   let _secondaryProjection;
+
   let _element;
   let _canvas;
   let _context;
   let _balloon;
-  let _offsetX;
 
-  const _drawStatisticsOnRaf = throttleWithRaf(_drawStatistics);
+  let _offsetX;
+  let _offsetY;
+  let _isClicked = false;
+
+  const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
 
   _setupLayout();
 
@@ -35,7 +38,7 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     _projection = projection;
     _secondaryPoints = secondaryPoints;
     _secondaryProjection = secondaryProjection;
-    _drawStatistics();
+    _selectLabel(true);
   }
 
   function _setupLayout() {
@@ -51,6 +54,7 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
       addEventListener(document, 'touchstart', _onDocumentMove);
     } else {
       addEventListener(_element, 'mousemove', _onMouseMove);
+      addEventListener(_element, 'click', _onClick);
       addEventListener(document, 'mousemove', _onDocumentMove);
     }
 
@@ -75,14 +79,21 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
   }
 
   function _onMouseMove(e) {
-    if (e.target === _balloon || _balloon.contains(e.target)) {
+    if (e.target === _balloon || _balloon.contains(e.target) || _isClicked) {
       return;
     }
 
-    const pageOffset = getPageOffset(_element);
+    const pageOffset = _getPageOffset(_element);
     _offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
+    _offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
 
-    _drawStatisticsOnRaf();
+    const labelIndex = _projection.findClosesLabelIndex(_offsetX);
+    if (labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex) {
+      _clear();
+      return;
+    }
+
+    _selectLabelOnRaf();
   }
 
   function _onDocumentMove(e) {
@@ -91,39 +102,48 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     }
   }
 
+  function _onClick() {
+    _isClicked = !_isClicked;
+  }
+
   function _onBalloonClick() {
     _balloon.classList.add('loading');
-
     const labelIndex = _projection.findClosesLabelIndex(_offsetX);
-
-    _onSelectLabel(labelIndex);
+    _onZoom(labelIndex);
   }
 
-  function _clear() {
+  function _clear(isExternal) {
     _offsetX = null;
+    _isClicked = false;
     clearCanvas(_canvas, _context);
     _hideBalloon();
+
+    if (!isExternal && _onFocus) {
+      _onFocus(null);
+    }
   }
 
-  function _drawStatistics() {
+  function _selectLabel(isExternal) {
     if (!_offsetX || !_state) {
       return;
     }
 
     const labelIndex = _projection.findClosesLabelIndex(_offsetX);
-
-    if (labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex) {
-      _clear();
+    const isVisible = labelIndex >= _state.labelFromIndex && labelIndex <= _state.labelToIndex;
+    if (!isVisible) {
+      _clear(isExternal);
       return;
     }
 
-    clearCanvas(_canvas, _context);
+    if (!isExternal && _onFocus) {
+      if (data.isPie) {
+        _onFocus(getPointerVector());
+      } else {
+        _onFocus(labelIndex);
+      }
+    }
 
     const [xPx] = _projection.toPixels(labelIndex, 0);
-    const lineColor = buildCssColorFromState(_state, 'grid-lines');
-
-    _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, lineColor);
-
     const statistics = _data.datasets
       .map(({ key, name, colorName, values, hasOwnYAxis }, i) => ({
         key,
@@ -135,6 +155,20 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
       }))
       .filter(({ key }) => _state.filter[key]);
 
+    _updateBalloon(statistics, xPx, labelIndex);
+
+    if (_data.isLines || _data.isAreas) {
+      clearCanvas(_canvas, _context);
+
+      if (_data.isLines) {
+        _drawCircles(statistics, labelIndex);
+      }
+
+      _drawTail(xPx, _plotSize.height - X_AXIS_HEIGHT, buildCssColorFromState(_state, 'grid-lines'));
+    }
+  }
+
+  function _drawCircles(statistics, labelIndex) {
     statistics.forEach(({ value, colorName, hasOwnYAxis, originalIndex }) => {
       const pointIndex = labelIndex - _state.labelFromIndex;
       const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[originalIndex][pointIndex];
@@ -154,8 +188,6 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
         buildCssColorFromState(_state, 'background'),
       );
     });
-
-    _updateBalloon(statistics, xPx, labelIndex);
   }
 
   function _drawCircle([xPx, yPx], strokeColor, fillColor) {
@@ -190,10 +222,11 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
       '</div>'
     )).join('');
 
-    const left = Math.max(
-      BALLOON_OFFSET + BALLOON_SHADOW_WIDTH,
-      Math.min(xPx, _plotSize.width - (_balloon.offsetWidth + BALLOON_SHADOW_WIDTH) + BALLOON_OFFSET),
-    );
+    const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
+    const left = labelIndex < meanLabel
+      ? _offsetX + BALLOON_OFFSET
+      : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
+
     _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
     _balloon.classList.add('shown');
   }
@@ -202,9 +235,23 @@ export function createTooltip(container, data, plotSize, palette, onSelectLabel)
     _balloon.classList.remove('shown');
   }
 
+  function getPointerVector() {
+    const { width, height } = _element.getBoundingClientRect();
+
+    const center = [width / 2, height / 2];
+    const angle = Math.atan2(_offsetY - center[1], _offsetX - center[0]);
+    const distance = Math.sqrt((_offsetX - center[0]) ** 2 + (_offsetY - center[1]) ** 2);
+
+    return {
+      angle: angle >= -Math.PI / 2 ? angle : 2 * Math.PI + angle,
+      distance,
+    };
+  }
+
+  function _getPageOffset(el) {
+    return el.getBoundingClientRect();
+  }
+
   return { update };
 }
 
-function getPageOffset(el) {
-  return el.getBoundingClientRect();
-}

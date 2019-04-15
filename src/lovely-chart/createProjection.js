@@ -49,13 +49,13 @@ export function createProjection(params) {
 
   function getCenter() {
     return [
-      effectiveWidth / 2,
+      availableWidth / 2,
       availableHeight - effectiveHeight / 2,
     ];
   }
 
   function getSize() {
-    return [effectiveWidth, effectiveHeight];
+    return [availableWidth, effectiveHeight];
   }
 
   function getParams() {
