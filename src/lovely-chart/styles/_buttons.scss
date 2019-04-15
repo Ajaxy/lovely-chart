@@ -50,6 +50,7 @@
 
     &.checked {
       background-color: var(--text-color);
+      animation-duration: 500ms;
 
       .circle {
         opacity: 1;

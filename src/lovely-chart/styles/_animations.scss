@@ -1,3 +1,33 @@
+@keyframes shake {
+  0% {
+    transform: translateX(-3px);
+  }
+
+  16.66% {
+    transform: translateX(3px);
+  }
+
+  33.33% {
+    transform: translateX(-2px);
+  }
+
+  50% {
+    transform: translateX(2px);
+  }
+
+  66.66% {
+    transform: translateX(-1px);
+  }
+
+  83.33% {
+    transform: translateX(1px);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
