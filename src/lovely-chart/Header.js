@@ -35,7 +35,9 @@ export function createHeader(container, title, zoomOutCallback) {
   }
 
   function _updateCaption(caption) {
-    _captionElement = toggleText(_captionElement, caption, 'caption right');
+    if (_captionElement.innerHTML != caption) {
+      _captionElement = toggleText(_captionElement, caption, 'caption right');
+    }
   }
 
   function _setupLayout() {

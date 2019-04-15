@@ -278,7 +278,10 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
         dataSetContainer.appendChild(newDataSet);
       } else {
         currentDataSet.setAttribute('data-present', 'true');
-        toggleText(currentDataSet.querySelector(`.value.${colorName}:not(.hidden)`), value, className);
+        const valueElement = currentDataSet.querySelector(`.value.${colorName}:not(.hidden)`);
+        if (valueElement.innerHTML != value) {
+          toggleText(valueElement, value, className);
+        }
       }
     });
 
