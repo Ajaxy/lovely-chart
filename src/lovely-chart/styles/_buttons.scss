@@ -8,7 +8,7 @@
     text-align: center;
     text-decoration: none;
     margin: 0 6px 8px 0;
-    transition: background-color 500ms ease-out, border-color 500ms ease-out;
+    transition: background-color 300ms ease-out, border-color 300ms ease-out;
     position: relative;
 
     border-color: var(--text-color);
@@ -45,7 +45,7 @@
       line-height: 20px;
       color: inherit;
       padding: 0 13px;
-      transition: padding 300ms ease-out, color 300ms ease-out;
+      transition: transform 300ms ease-out, color 300ms ease-out;
     }
 
     &.checked {
@@ -57,8 +57,7 @@
 
       .label {
         color: #ffffff;
-        padding-right: 6px;
-        padding-left: 20px;
+        transform: translateX(6px);
       }
     }
 
