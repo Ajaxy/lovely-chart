@@ -30,29 +30,6 @@ body.cursor-grabbing, body.cursor-grabbing * {
   cursor: grabbing !important;
 }
 
-#spinner-main {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--background);
-  z-index: 2;
-  opacity: 1;
-  transition: opacity 500ms ease-out;
-
-  &.hiding {
-    opacity: 0;
-  }
-
-  &.hidden {
-    display: none;
-  }
-}
-
 .spinner {
   width: 16px;
   height: 16px;

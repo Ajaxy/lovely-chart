@@ -20,6 +20,27 @@ body.skin-night {
   text-align: left;
 }
 
+#spinner-main {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  background: #ffffff;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+body.skin-night #spinner-main {
+  background: #242F3E;
+}
+
+#spinner-main.hidden {
+  display: none;
+}
+
 a#skin-switcher {
   display: block;
   text-align: center;

@@ -88,11 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }),
           ));
 
-          const spinner = document.querySelector('#spinner-main');
-          spinner.classList.add('hiding');
-          setTimeout(() => {
-            spinner.classList.add('hidden');
-          }, 500);
+          document.querySelector('#spinner-main').classList.add('hidden');
         });
     });
 
