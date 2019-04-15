@@ -87,6 +87,12 @@ document.addEventListener('DOMContentLoaded', () => {
               datasetColors: originalDatasetColors,
             }),
           ));
+
+          const spinner = document.querySelector('#spinner-main');
+          spinner.classList.add('hiding');
+          setTimeout(() => {
+            spinner.classList.add('hidden');
+          }, 500);
         });
     });
 
