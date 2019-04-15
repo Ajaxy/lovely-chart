@@ -4,6 +4,7 @@ import { formatInteger } from './format';
 import { buildCssColorFromState } from './skin';
 import { throttleWithRaf } from './fast';
 import { addEventListener, createElement } from './minifiers';
+import { toggleText } from './toggleText';
 
 export function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
   let _state;
@@ -221,13 +222,8 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
   function _updateBalloon(statistics, xPx, labelIndex) {
     const label = data.xLabels[labelIndex];
     const date = new Date(label.value);
-    _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
-    _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (
-      '<div class="dataset transition-container">' +
-      `  <span>${name}</span>` +
-      `  <span class="value transition top right ${colorName}">${formatInteger(value)}</span>` +
-      '</div>'
-    )).join('');
+    _updateTitle(`${WEEK_DAYS[date.getDay()]}, ${label.text}`);
+    _updateDataSets(statistics);
 
     const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
     const left = labelIndex < meanLabel
@@ -236,6 +232,46 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
 
     _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
     _balloon.classList.add('shown');
+  }
+
+  function _updateTitle(title) {
+    const titleContainer = _balloon.children[0];
+    const currentTitle = titleContainer.querySelector(':not(.hidden)');
+
+    if (!titleContainer.innerHTML || !currentTitle) {
+      titleContainer.innerHTML = `<span>${title}</span>`;
+    } else if (currentTitle.innerHTML !== title) {
+      toggleText(currentTitle, title, 'title-inner');
+    }
+  }
+
+  function _updateDataSets(data) {
+    const dataSetContainer = _balloon.children[1];
+    const currentDataSets = dataSetContainer.children;
+    for (const d of currentDataSets) {
+      d.setAttribute('data-present', 'false');
+    }
+
+    data.forEach(({ name, colorName, value }) => {
+      const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
+      const className = `value right ${colorName}`;
+      if (!currentDataSet) {
+        const newDataSet = createElement();
+        newDataSet.className = 'dataset';
+        newDataSet.setAttribute('data-present', 'true');
+        newDataSet.setAttribute('data-name', name);
+        newDataSet.innerHTML = `<span>${name}</span>` + `<span class="${className}">${formatInteger(value)}</span>`;
+        dataSetContainer.appendChild(newDataSet);
+      } else {
+        currentDataSet.setAttribute('data-present', 'true');
+        toggleText(currentDataSet.querySelector(`.value.${colorName}:not(.hidden)`), value, className);
+      }
+    });
+
+    const oldDataSets = dataSetContainer.querySelectorAll('[data-present="false"]');
+    for (const d of oldDataSets) {
+      d.remove();
+    }
   }
 
   function _hideBalloon() {

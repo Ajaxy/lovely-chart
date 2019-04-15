@@ -14,15 +14,16 @@ function toggleOut(element) {
   element.classList.add('hidden');
 }
 
-export function toggleText(element, newText, className, inverse = false) {
+export function toggleText(element, newText, className = '', inverse = false) {
   const container = element.parentNode;
   container.classList.add('transition-container');
 
-  const newElement = createElement();
+  const newElement = createElement(element.tagName);
   newElement.className = `${className} transition ${inverse ? 'top' : 'bottom'} hidden`;
   newElement.innerHTML = newText;
 
-  const oldElements = container.querySelectorAll(`.${className.split(' ').join('.')}.hidden`);
+  const selector = className.length ? `.${className.split(' ').join('.')}` : '';
+  const oldElements = container.querySelectorAll(`${selector}.hidden`);
   oldElements.forEach(e => e.remove());
 
   element.classList.add('transition');
