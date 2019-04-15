@@ -287,7 +287,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         currentDataSet.setAttribute('data-present', 'true');
         const valueElement = currentDataSet.querySelector(`.value.${colorName}:not(.hidden)`);
         if (valueElement.innerHTML != value) {
-          toggleText(valueElement, value, className);
+          toggleText(valueElement, formatInteger(value), className);
         }
       }
     });
