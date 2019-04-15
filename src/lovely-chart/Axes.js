@@ -1,9 +1,9 @@
 import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants';
 import { humanize } from './format';
-import { buildCssColorFromState } from './skin';
+import { getCssColor } from './skin';
 import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
 
-export function createAxes(context, data, plotSize, palette) {
+export function createAxes(context, data, plotSize, colors) {
   function drawXAxis(state, projection) {
     context.clearRect(0, plotSize.height - X_AXIS_HEIGHT + 1, plotSize.width, X_AXIS_HEIGHT + 1);
 
@@ -28,7 +28,7 @@ export function createAxes(context, data, plotSize, palette) {
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
       opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width);
 
-      context.fillStyle = buildCssColorFromState(state, `palette-${palette}-x-axis-text`, opacity);
+      context.fillStyle = getCssColor(colors, 'x-axis-text', opacity);
       context.fillText(label.text, xPx, topOffset);
     }
   }
@@ -114,10 +114,9 @@ export function createAxes(context, data, plotSize, palette) {
       const [, yPx] = projection.toPixels(0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
-      // TODO perf
       context.fillStyle = colorName
-        ? buildCssColorFromState(state, `palette-${palette}-${colorName}-text`, textOpacity)
-        : buildCssColorFromState(state, `palette-${palette}-y-axis-text`, textOpacity);
+        ? getCssColor(colors, `${colorName}-text`, textOpacity)
+        : getCssColor(colors, 'y-axis-text', textOpacity);
 
       if (!isSecondary) {
         context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
@@ -126,13 +125,13 @@ export function createAxes(context, data, plotSize, palette) {
       }
 
       if (isSecondary) {
-        context.strokeStyle = buildCssColorFromState(state, `palette-${palette}-${colorName}-text`, opacity);
+        context.strokeStyle = getCssColor(colors, `${colorName}-text`, opacity);
 
         context.moveTo(plotSize.width - GUTTER, yPx);
         context.lineTo(plotSize.width - GUTTER * 2, yPx);
       } else {
         context.moveTo(GUTTER, yPx);
-        context.strokeStyle = buildCssColorFromState(state, 'grid-lines', opacity);
+        context.strokeStyle = getCssColor(colors, 'grid-lines', opacity);
         context.lineTo(plotSize.width - GUTTER, yPx);
       }
     }

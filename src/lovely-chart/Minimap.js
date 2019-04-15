@@ -14,7 +14,7 @@ import { throttleWithRaf } from './fast';
 import { createElement } from './minifiers';
 import { getDatasetMinimapVisibility } from './formulas';
 
-export function createMinimap(container, data, palette, rangeCallback) {
+export function createMinimap(container, data, colors, rangeCallback) {
   let _element;
   let _canvas;
   let _context;
@@ -163,7 +163,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
     drawDatasets(
       _context, state, data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      MINIMAP_LINE_WIDTH, visibilities, palette, true,
+      MINIMAP_LINE_WIDTH, visibilities, colors, true,
     );
   }
 

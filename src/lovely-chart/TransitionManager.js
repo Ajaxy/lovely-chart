@@ -41,7 +41,6 @@ export function createTransitionManager(onTick) {
     return _transitions[prop];
   }
 
-  // TODO keep from last tick
   function getState() {
     const state = {};
 

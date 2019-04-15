@@ -11,7 +11,7 @@ import { drawDatasets } from './drawDatasets';
 import { setupCanvas, clearCanvas } from './canvas';
 import { hideOnScroll } from './hideOnScroll';
 import { createElement } from './minifiers';
-import { setupColors } from './skin';
+import { setupColors, changeSkin, createColors } from './skin';
 import {
   X_AXIS_HEIGHT,
   GUTTER,
@@ -42,6 +42,7 @@ function createLovelyChart(params) {
   let _isZoomed = false;
   let _stateBeforeZoom;
 
+  const _colors = createColors(params.palette);
   _setupContainer();
 
   _fetchData().then((data) => {
@@ -103,10 +104,10 @@ function createLovelyChart(params) {
   function _setupComponents() {
     _header = createHeader(_container, params.title, _onZoomOut);
     _setupPlotCanvas();
-    _axes = createAxes(_context, _data, _plotSize, params.palette);
+    _axes = createAxes(_context, _data, _plotSize, _colors);
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
-    _minimap = createMinimap(_container, _data, params.palette, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize, params.palette, _zoomToDay, _onFocus);
+    _minimap = createMinimap(_container, _data, _colors, _onRangeChange);
+    _tooltip = createTooltip(_container, _data, _plotSize, _colors, _zoomToDay, _onFocus);
     createTools(_container, _data, _onFilterChange);
   }
 
@@ -150,7 +151,7 @@ function createLovelyChart(params) {
     drawDatasets(
       _context, state, _data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      PLOT_LINE_WIDTH, visibilities, params.palette,
+      PLOT_LINE_WIDTH, visibilities, _colors,
     );
     if (!_data.isPie) {
       _axes.drawYAxis(state, projection, secondaryProjection);
@@ -264,4 +265,5 @@ function createLovelyChart(params) {
 window.LovelyChart = {
   create: createLovelyChart,
   setupColors,
+  changeSkin,
 };

@@ -1,5 +1,5 @@
 import { mergeArrays } from './fast';
-import { buildCssColorFromState } from './skin';
+import { getCssColor } from './skin';
 import { PLOT_PIE_RADIUS_FACTOR, PLOT_PIE_SHIFT } from './constants';
 import { getPieTextShift, getPieTextSize } from './formulas';
 
@@ -195,7 +195,7 @@ function drawDataset(type, ...args) {
 export function drawDatasets(
   context, state, data,
   range, points, projection, secondaryPoints, secondaryProjection,
-  lineWidth, visibilities, palette, pieToArea,
+  lineWidth, visibilities, colors, pieToArea,
 ) {
   data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
@@ -203,7 +203,7 @@ export function drawDatasets(
     }
 
     const options = {
-      color: buildCssColorFromState(state, `palette-${palette}-${colorName}-line`),
+      color: getCssColor(colors, `${colorName}-line`),
       lineWidth,
       opacity: data.isStacked ? 1 : visibilities[i],
     };
@@ -250,7 +250,7 @@ export function drawDatasets(
 
     drawBarsMask(context, projection, {
       focusOn: state.focusOn,
-      color: buildCssColorFromState(state, 'mask'),
+      color: getCssColor(colors, 'mask'),
       lineWidth: x1 - x0
     });
   }

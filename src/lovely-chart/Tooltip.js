@@ -1,11 +1,11 @@
 import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, PIE_BALLOON_MIN_DISTANCE, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { formatInteger } from './format';
-import { buildCssColorFromState } from './skin';
+import { getCssColor } from './skin';
 import { throttleWithRaf } from './fast';
 import { addEventListener, createElement } from './minifiers';
 
-export function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
+export function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   let _state;
   let _points;
   let _projection;
@@ -171,7 +171,7 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
         _drawCircles(statistics, labelIndex);
       }
 
-      _drawTail(xPx, plotSize.height - X_AXIS_HEIGHT, buildCssColorFromState(_state, 'grid-lines'));
+      _drawTail(xPx, plotSize.height - X_AXIS_HEIGHT, getCssColor(colors, 'grid-lines'));
     }
   }
 
@@ -191,9 +191,9 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
       // TODO animate
       _drawCircle(
         [x, y],
-        buildCssColorFromState(_state, `palette-${palette}-${colorName}-line`),
-        buildCssColorFromState(_state, 'background'),
-      );
+        getCssColor(colors, `${colorName}-line`),
+        getCssColor(colors, 'background'),
+      )
     });
   }
 
