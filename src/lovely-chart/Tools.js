@@ -50,7 +50,9 @@ export function createTools(container, data, filterCallback) {
 
       if (button.classList.contains('checked') && _element.querySelectorAll('.checked').length < 2) {
         button.classList.remove('shake');
-        window.requestAnimationFrame(() => button.classList.add('shake'));
+        requestAnimationFrame(() => {
+          button.classList.add('shake')
+        });
       } else {
         button.classList.toggle('checked');
       }

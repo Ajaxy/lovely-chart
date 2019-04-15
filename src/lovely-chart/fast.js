@@ -48,12 +48,15 @@ export function proxyMerge(obj1, obj2) {
 export function throttle(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
   let waiting = false;
   let args;
+  let isPending;
 
   return function (..._args) {
     args = _args;
+    isPending = true;
 
     if (!waiting) {
       if (shouldRunFirst) {
+        isPending = false;
         fn(...args);
       }
 
@@ -62,7 +65,7 @@ export function throttle(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
       setTimeout(() => {
         waiting = false;
 
-        if (shouldRunLast) {
+        if (shouldRunLast && isPending) {
           fn(...args);
         }
       }, ms);

@@ -184,6 +184,8 @@ function createLovelyChart(params) {
 
     _stateBeforeZoom = _state;
     _header.zoom(getFullLabelDate(_data.xLabels[labelIndex]));
+    _tooltip.toggleSpinner(true);
+    _tooltip.toggleIsZoomed(true);
 
     const { value: date } = _data.xLabels[labelIndex];
     const dataPromise = params.zoomToPie ? Promise.resolve(_generatePieData()) : _fetchDayData(new Date(date));
@@ -191,16 +193,15 @@ function createLovelyChart(params) {
   }
 
   function _onZoomOut() {
-    if (!params.dataSource) {
-      return;
-    }
+    _tooltip.toggleIsZoomed(false);
 
     const labelIndex = Math.round((_state.labelFromIndex + _state.labelToIndex) / 2);
-
     _fetchData().then((data) => _replaceData(data, labelIndex));
   }
 
   function _replaceData(data, labelIndex) {
+    _tooltip.toggleSpinner(false);
+
     const labelWidth = 1 / _data.xLabels.length;
     const labelMiddle = labelIndex / (_data.xLabels.length - 1);
     const filter = {};
@@ -225,9 +226,8 @@ function createLovelyChart(params) {
 
       if (params.noMinimapOnZoom) {
         _minimap.toggle(_isZoomed);
+        _tools.redraw();
       }
-
-      _tools.redraw();
 
       _stateManager.update({
         range: {

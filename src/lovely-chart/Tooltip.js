@@ -22,22 +22,26 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   let _offsetY;
   let _clickedOnLabel = null;
 
-  let _showSpinner = false;
-  let _isZoomed = false;
-
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
+  const _throttledUpdateContent = throttle(_updateContent, 400, true, true);
 
   _setupLayout();
 
-  function update(state, points, projection, secondaryPoints, secondaryProjection, showSpinner = false, isZoomed = false) {
+  function update(state, points, projection, secondaryPoints, secondaryProjection) {
     _state = state;
     _points = points;
     _projection = projection;
     _secondaryPoints = secondaryPoints;
     _secondaryProjection = secondaryProjection;
-    _showSpinner = showSpinner;
-    _isZoomed = isZoomed;
     _selectLabel(true);
+  }
+
+  function toggleSpinner(isLoading) {
+    _balloon.classList.toggle('loading', isLoading);
+  }
+
+  function toggleIsZoomed(isZoomed) {
+    _balloon.classList.toggle('zoomed', isZoomed);
   }
 
   function _setupLayout() {
@@ -69,7 +73,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
   function _setupBalloon() {
     _balloon = createElement();
-    _balloon.className = 'balloon loading';
+    _balloon.className = 'balloon';
     _balloon.innerHTML = '<div class="title"></div><div class="legend"></div><div class="spinner"></div>';
 
     addEventListener(_balloon, 'click', _onBalloonClick);
@@ -108,7 +112,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _onBalloonClick() {
-    _balloon.classList.add('loading');
+    if (_balloon.classList.contains('zoomed')) {
+      return;
+    }
+
     const labelIndex = _projection.findClosesLabelIndex(_offsetX);
     onZoom(labelIndex);
   }
@@ -164,7 +171,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       }))
       .filter(({ key }) => _state.filter[key]);
 
-    if (shouldShowBalloon) {
+    if (statistics.length && shouldShowBalloon) {
       _updateBalloon(statistics, xPx, labelIndex);
     } else {
       _hideBalloon();
@@ -199,7 +206,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         [x, y],
         getCssColor(colors, `${colorName}-line`),
         getCssColor(colors, 'background'),
-      )
+      );
     });
   }
 
@@ -224,82 +231,64 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     _context.stroke();
   }
 
-  const _updateBalloonDataThrottled = throttle(_updateBalloonData, 800, false, true);
-  let _isFirstUpdate = true;
-
   function _updateBalloon(statistics, xPx, labelIndex) {
-    if (_isFirstUpdate) {
-      // This prevents initial render delay made by throttling
-      _updateBalloonData(statistics, labelIndex, true);
-      _isFirstUpdate = false;
-    } else {
-      _updateBalloonDataThrottled(statistics, labelIndex);
-    }
-
     const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
     const left = labelIndex < meanLabel
       ? _offsetX + BALLOON_OFFSET
       : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
 
     _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
-    _balloon.classList.toggle('loading', _showSpinner);
-    _balloon.classList.toggle('zoomed', _isZoomed);
     _balloon.classList.add('shown');
+
+    _throttledUpdateContent(getFullLabelDate(data.xLabels[labelIndex]), statistics);
   }
 
-  function _updateBalloonData(statistics, labelIndex, force = false) {
-    const label = data.xLabels[labelIndex];
-
-    _updateTitle(getFullLabelDate(data.xLabels[labelIndex]), force);
-    _updateDataSets(statistics, force);
-  }
-
-  function _updateTitle(title, force = false) {
+  function _updateContent(title, statistics) {
     const titleContainer = _balloon.children[0];
     const currentTitle = titleContainer.querySelector(':not(.hidden)');
 
-    if (force || !titleContainer.innerHTML || !currentTitle) {
+    if (!titleContainer.innerHTML || !currentTitle) {
       titleContainer.innerHTML = `<span>${title}</span>`;
     } else if (currentTitle.innerHTML !== title) {
       toggleText(currentTitle, title, 'title-inner');
     }
-  }
 
-  function _updateDataSets(data, force = false) {
     const dataSetContainer = _balloon.children[1];
-    const currentDataSets = dataSetContainer.children;
-    for (const d of currentDataSets) {
-      d.setAttribute('data-present', 'false');
-    }
+    Array.from(dataSetContainer.children).forEach((dataSet) => {
+      dataSet.setAttribute('data-present', 'false');
+    });
 
-    data.forEach(({ name, colorName, value }) => {
+    statistics.forEach(({ name, colorName, value }) => {
+      value = formatInteger(value);
+
       const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
       const className = `value right ${colorName}`;
-      if (force || !currentDataSet) {
+
+      if (!currentDataSet) {
         const newDataSet = createElement();
         newDataSet.className = 'dataset';
         newDataSet.setAttribute('data-present', 'true');
         newDataSet.setAttribute('data-name', name);
-        newDataSet.innerHTML = `<span>${name}</span>` + `<span class="${className}">${formatInteger(value)}</span>`;
+        newDataSet.innerHTML = `<span>${name}</span><span class="${className}">${value}</span>`;
         dataSetContainer.appendChild(newDataSet);
       } else {
         currentDataSet.setAttribute('data-present', 'true');
+
         const valueElement = currentDataSet.querySelector(`.value.${colorName}:not(.hidden)`);
-        if (valueElement.innerHTML != value) {
-          toggleText(valueElement, formatInteger(value), className);
+        if (valueElement.innerHTML !== value) {
+          toggleText(valueElement, value, className);
         }
       }
     });
 
-    const oldDataSets = dataSetContainer.querySelectorAll('[data-present="false"]');
-    for (const d of oldDataSets) {
-      d.remove();
-    }
+    Array.from(dataSetContainer.querySelectorAll('[data-present="false"]'))
+      .forEach((dataSet) => {
+        dataSet.remove();
+      });
   }
 
   function _hideBalloon() {
     _balloon.classList.remove('shown');
-    _isFirstUpdate = true;
   }
 
   function getPointerVector() {
@@ -319,6 +308,6 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     return el.getBoundingClientRect();
   }
 
-  return { update };
+  return { update, toggleSpinner, toggleIsZoomed };
 }
 
