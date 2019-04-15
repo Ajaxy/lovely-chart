@@ -33,8 +33,8 @@ export function createTools(container, data, filterCallback) {
       const button = e.currentTarget;
 
       if (button.classList.contains('checked') && _element.querySelectorAll('.checked').length < 2) {
-        button.removeAttribute('style');
-        window.requestAnimationFrame(() => button.style = 'animation-name: shake;');
+        button.classList.remove('shake');
+        window.requestAnimationFrame(() => button.classList.add('shake'));
       } else {
         button.classList.toggle('checked');
       }

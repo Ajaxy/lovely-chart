@@ -62,6 +62,10 @@
       }
     }
 
+    &.shake {
+      animation-name: shake;
+    }
+
     &.red {
       border-color: var(--red-button);
       color: var(--red-button);
