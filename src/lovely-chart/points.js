@@ -1,7 +1,5 @@
 import { sumArrays } from './fast';
 
-// const dataCache = {};
-
 export function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
   let values = datasets.map(({ values }) => (
     values.slice(range.from, range.to + 1)
