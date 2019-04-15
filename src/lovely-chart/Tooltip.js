@@ -1,6 +1,6 @@
 import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, PIE_BALLOON_MIN_DISTANCE, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
-import { formatInteger } from './format';
+import { formatInteger, getFullLabelDate } from './format';
 import { getCssColor } from './skin';
 import { throttleWithRaf } from './fast';
 import { addEventListener, createElement } from './minifiers';
@@ -219,9 +219,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _updateBalloon(statistics, xPx, labelIndex) {
-    const label = data.xLabels[labelIndex];
-    const date = new Date(label.value);
-    _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
+    _balloon.children[0].innerHTML = getFullLabelDate(data.xLabels[labelIndex]);
     _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (
       '<div class="dataset transition-container">' +
       `  <span>${name}</span>` +

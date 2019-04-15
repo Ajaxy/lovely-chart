@@ -1,4 +1,4 @@
-import { DAY_MS, HOUR_MS, MONTHS } from './constants';
+import { DAY_MS, HOUR_MS, MONTHS, WEEK_DAYS } from './constants';
 
 export function buildDayLabels(timestampFrom, timestampTo) {
   timestampFrom = roundToDay(timestampFrom);
@@ -68,4 +68,11 @@ function keepThreeDigits(value, decimals) {
 
 export function formatInteger(n) {
   return String(n).replace(/\d(?=(\d{3})+$)/g, '$& ');
+}
+
+export function getFullLabelDate(label) {
+  const { value, text } = label;
+  const date = new Date(value);
+
+  return `${WEEK_DAYS[date.getDay()]}, ${text} ${date.getFullYear()}`;
 }
