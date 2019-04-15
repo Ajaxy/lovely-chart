@@ -96,8 +96,11 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
 
     document.body.classList.toggle('skin-night');
-    e.target.innerText = `Switch to ${document.body.classList.contains('skin-night') ? 'Day' : 'Night'} Mode`;
 
+    const skin = document.body.classList.contains('skin-night') ? 'skin-night' : 'skin-day';
+    e.target.innerText = `Switch to ${(skin === 'skin-night') ? 'Day' : 'Night'} Mode`;
+
+    LovelyChart.changeSkin(skin);
     charts.forEach((chart) => {
       chart.redraw();
     });

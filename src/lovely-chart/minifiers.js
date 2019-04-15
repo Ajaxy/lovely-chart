@@ -1,4 +1,3 @@
-// TODO className, innerHTML, parentElement, events
 export const createElement = (tagName = 'div') => {
   return document.createElement(tagName);
 };

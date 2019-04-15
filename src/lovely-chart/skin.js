@@ -1,48 +1,38 @@
-import { mergeArrays } from './fast';
+import { DEFAULT_SKIN } from './constants';
 
-let colors;
-let colorKeys;
-
-const CHANNEL_KEYS = ['R', 'G', 'B', 'A'];
+let allColors;
+let skin = DEFAULT_SKIN;
 
 export function setupColors(_colors) {
-  colors = _colors;
-  colorKeys = Object.keys(colors['skin-day']);
+  allColors = _colors;
 }
 
-export function getSkin() {
-  return document.body.classList.contains('skin-night') ? 'skin-night' : 'skin-day';
+export function changeSkin(_skin) {
+  skin = _skin;
 }
 
-export function buildSkinState() {
-  const state = {};
-  const skin = colors[getSkin()];
+export function createColors(palette) {
+  const colors = {};
 
-  // TODO perf !
-  colorKeys.forEach((key) => {
-    CHANNEL_KEYS.forEach((channel, i) => {
-      const channels = hexToChannels(skin[key]);
-      state[`colorChannels#${key}#${channel}`] = channels[i];
+  ['skin-day', 'skin-night'].forEach((skin) => {
+    colors[skin] = {};
+
+    Object.keys(allColors[skin]).forEach((prop) => {
+      const channels = hexToChannels(allColors[skin][prop]);
+
+      if (prop.startsWith(`palette-${palette}`)) {
+        colors[skin][prop.replace(`palette-${palette}-`, '')] = channels;
+      } else if (!prop.startsWith(`palette-`)) {
+        colors[skin][prop] = channels;
+      }
     });
   });
 
-  return state;
+  return colors;
 }
 
-export function buildSkinStateKeys() {
-  return mergeArrays(colorKeys.map((key) => (
-    CHANNEL_KEYS.map((channel) => `colorChannels#${key}#${channel}`)
-  )));
-}
-
-export function buildCssColorFromState(state, key, opacity = 1) {
-  const rgba = CHANNEL_KEYS.map((channel) => {
-    const value = state[`colorChannels#${key}#${channel}`];
-
-    return channel === 'A' ? value : Math.round(value);
-  });
-
-  return buildCssColor(rgba, opacity);
+export function getCssColor(colors, key, opacity) {
+  return buildCssColor(colors[skin][key], opacity);
 }
 
 function hexToChannels(hexWithAlpha) {

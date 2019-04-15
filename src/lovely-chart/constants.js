@@ -1,3 +1,5 @@
+export const DEFAULT_SKIN = 'skin-day';
+
 export const LABELS_KEY = 'x';
 
 export const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };

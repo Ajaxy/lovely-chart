@@ -7,7 +7,6 @@ import {
   ANIMATE_PROPS,
   Y_AXIS_ZERO_BASED_THRESHOLD,
 } from './constants';
-import { buildSkinState, buildSkinStateKeys } from './skin';
 import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas';
 
 export function createStateManager(data, viewportSize, callback) {
@@ -52,17 +51,13 @@ export function createStateManager(data, viewportSize, callback) {
 
   function _buildTransitionConfig() {
     const transitionConfig = [];
-    // TODO too fast, not synced on area charts
     const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 300`);
-    const skinColors = buildSkinStateKeys().map((key) => `${key} 300`);
 
     mergeArrays([
       ANIMATE_PROPS,
       datasetVisibilities,
-      skinColors,
     ]).forEach((transition) => {
       const [prop, duration, ...options] = transition.split(' ');
-      // TODO size obj -> array;
       transitionConfig.push({ prop, duration, options });
     });
 
@@ -130,8 +125,6 @@ function calculateState(data, viewportSize, range, filter, focusOn, prevState) {
     },
     yRanges,
     datasetsOpacity,
-    // TODO perf ?
-    buildSkinState(),
     range,
   );
 }
@@ -195,7 +188,6 @@ function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, pre
   const filteredValues = filteredDatasets.map(({ values }) => values);
 
   const sums = filteredValues.length ? sumArrays(filteredValues) : [];
-  // TODO perf cache
   const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(sums);
   const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(sums.slice(labelFromIndex, labelToIndex + 1));
 
