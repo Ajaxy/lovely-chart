@@ -224,7 +224,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     _context.stroke();
   }
 
-  const _updateBalloonDataThrottled = throttle(_updateBalloonData, 500, false, true);
+  const _updateBalloonDataThrottled = throttle(_updateBalloonData, 800, false, true);
   let _isFirstUpdate = true;
 
   function _updateBalloon(statistics, xPx, labelIndex) {

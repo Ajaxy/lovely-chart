@@ -11,7 +11,7 @@ export function createHeader(container, title, zoomOutCallback) {
   let _isZoomed = false;
   let _isFirstUpdate = true;
 
-  const _updateCaptionThrottled = throttle(_updateCaption, 500, false, true);
+  const _updateCaptionThrottled = throttle(_updateCaption, 800, false, true);
 
   _setupLayout();
 
