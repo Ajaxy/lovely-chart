@@ -26,6 +26,24 @@
         pointer-events: auto;
       }
 
+      &::before, &::after {
+        content: '';
+        display: block;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 40px;
+        cursor: default;
+      }
+
+      &::before {
+        left: -40px;
+      }
+
+      &::after {
+        right: -40px;
+      }
+
       .title {
         font-size: 12px;
         font-weight: 700;
