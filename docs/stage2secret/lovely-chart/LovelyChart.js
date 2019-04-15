@@ -1,4 +1,6 @@
 ;(function() {
+const DEFAULT_SKIN = 'skin-day';
+
 const LABELS_KEY = 'x';
 
 const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };
@@ -26,8 +28,6 @@ const MINIMAP_EAR_WIDTH = 8;
 
 const DPR = window.devicePixelRatio || 1;
 
-const DAY_MS = 1000 * 60 * 60 * 24;
-const HOUR_MS = 1000 * 60 * 60;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -72,11 +72,14 @@ function createLovelyChart(params) {
   let _stateManager;
   let _minimap;
   let _tooltip;
+  let _tools;
 
   let _state;
   let _isZoomed = false;
+  let _zoomedDateText;
   let _stateBeforeZoom;
 
+  const _colors = createColors(params.palette);
   _setupContainer();
 
   _fetchData().then((data) => {
@@ -136,11 +139,11 @@ function createLovelyChart(params) {
   function _setupComponents() {
     _header = createHeader(_container, params.title, _onZoomOut);
     _setupPlotCanvas();
-    _axes = createAxes(_context, _data, _plotSize, params.palette);
+    _axes = createAxes(_context, _data, _plotSize, _colors);
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
-    _minimap = createMinimap(_container, _data, params.palette, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize, params.palette, _zoomToDay, _onFocus);
-    createTools(_container, _data, _onFilterChange);
+    _minimap = createMinimap(_container, _data, _colors, _onRangeChange);
+    _tooltip = createTooltip(_container, _data, _plotSize, _colors, _zoomToDay, _onFocus);
+    _tools = createTools(_container, _data, _onFilterChange);
   }
 
   function _onStateUpdate(state) {
@@ -178,12 +181,16 @@ function createLovelyChart(params) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    _header.setCaption(`${_data.xLabels[state.labelFromIndex + 1].text} — ${_data.xLabels[state.labelToIndex - 1].text}`);
+    _header.setCaption(
+      _zoomedDateText ||
+      `${_data.xLabels[state.labelFromIndex + 1].text} — ${_data.xLabels[state.labelToIndex - 1].text}`,
+    );
+
     clearCanvas(_plot, _context);
     drawDatasets(
       _context, state, _data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      PLOT_LINE_WIDTH, visibilities, params.palette,
+      PLOT_LINE_WIDTH, visibilities, _colors,
     );
     if (!_data.isPie) {
       _axes.drawYAxis(state, projection, secondaryProjection);
@@ -207,35 +214,51 @@ function createLovelyChart(params) {
     }
 
     _stateBeforeZoom = _state;
-    const { value: date, text: dateText } = _data.xLabels[labelIndex];
-    _header.zoom(dateText);
+    _header.zoom(getFullLabelDate(_data.xLabels[labelIndex]));
+    _tooltip.toggleSpinner(true);
+    _tooltip.toggleIsZoomed(true);
+
+    const { value: date } = _data.xLabels[labelIndex];
     const dataPromise = params.zoomToPie ? Promise.resolve(_generatePieData()) : _fetchDayData(new Date(date));
     dataPromise.then((data) => _replaceData(data, labelIndex));
   }
 
   function _onZoomOut() {
-    if (!params.dataSource) {
-      return;
-    }
+    _tooltip.toggleIsZoomed(false);
 
     const labelIndex = Math.round((_state.labelFromIndex + _state.labelToIndex) / 2);
-
     _fetchData().then((data) => _replaceData(data, labelIndex));
   }
 
   function _replaceData(data, labelIndex) {
+    _tooltip.toggleSpinner(false);
+
     const labelWidth = 1 / _data.xLabels.length;
     const labelMiddle = labelIndex / (_data.xLabels.length - 1);
+    const filter = {};
+    _data.datasets.forEach(({ key }) => filter[key] = false);
 
     _stateManager.update({
       range: {
         begin: labelMiddle - labelWidth / 2,
         end: labelMiddle + labelWidth / 2,
       },
+      filter,
     });
 
     setTimeout(() => {
+      if (!_isZoomed) {
+        _zoomedDateText = getFullLabelDate(_data.xLabels[labelIndex]);
+      } else {
+        _zoomedDateText = null;
+      }
+
       Object.assign(_data, analyzeData(data, params.datasetColors, _isZoomed || params.zoomToPie ? 'days' : 'hours'));
+
+      if (params.noMinimapOnZoom) {
+        _minimap.toggle(_isZoomed);
+        _tools.redraw();
+      }
 
       _stateManager.update({
         range: {
@@ -246,16 +269,28 @@ function createLovelyChart(params) {
 
       const daysCount = _isZoomed || params.zoomToPie ? _data.xLabels.length : _data.xLabels.length / 24;
       const halfDayWidth = (1 / daysCount) / 2;
+      const filter = {};
+      _data.datasets.forEach(({ key }) => filter[key] = true);
 
-      _stateManager.update({
-        range: _isZoomed ? {
+      let range;
+      if (_isZoomed) {
+        range = {
           begin: _stateBeforeZoom.begin,
           end: _stateBeforeZoom.end,
-        } : {
+        };
+      } else if (!params.noMinimapOnZoom) {
+        range = {
           begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
           end: ZOOM_RANGE_MIDDLE + halfDayWidth,
-        },
-      });
+        };
+      } else {
+        range = {
+          begin: 0,
+          end: 1,
+        };
+      }
+
+      _stateManager.update({ range, filter });
 
       _isZoomed = !_isZoomed;
     }, ZOOM_TIMEOUT);
@@ -295,6 +330,7 @@ function createLovelyChart(params) {
 window.LovelyChart = {
   create: createLovelyChart,
   setupColors,
+  changeSkin,
 };
 
 
@@ -341,12 +377,10 @@ function createStateManager(data, viewportSize, callback) {
   function _buildTransitionConfig() {
     const transitionConfig = [];
     const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 300`);
-    const skinColors = buildSkinStateKeys().map((key) => `${key} 300`);
 
     mergeArrays([
       ANIMATE_PROPS,
       datasetVisibilities,
-      skinColors,
     ]).forEach((transition) => {
       const [prop, duration, ...options] = transition.split(' ');
       transitionConfig.push({ prop, duration, options });
@@ -414,7 +448,6 @@ function calculateState(data, viewportSize, range, filter, focusOn, prevState) {
     },
     yRanges,
     datasetsOpacity,
-    buildSkinState(),
     range,
   );
 }
@@ -545,6 +578,7 @@ function createTransitionManager(onTick) {
   function get(prop) {
     return _transitions[prop];
   }
+
   function getState() {
     const state = {};
 
@@ -604,14 +638,16 @@ function createHeader(container, title, zoomOutCallback) {
   let _captionElement;
 
   let _isZoomed = false;
+  let _isFirstUpdate = true;
 
-  const setCaptionThrottled = throttle(setCaption, 800, false, true);
+  const setCaptionThrottled = throttle(setCaption, 400, false, true);
 
   _setupLayout();
 
   function setCaption(caption) {
     if (!_captionElement.innerHTML) {
       _captionElement.innerHTML = caption;
+      _isFirstUpdate = false;
     } else if (_captionElement.innerHTML !== caption) {
       _captionElement = toggleText(_captionElement, caption, 'caption right');
     }
@@ -657,7 +693,7 @@ function createHeader(container, title, zoomOutCallback) {
 }
 
 
-function createAxes(context, data, plotSize, palette) {
+function createAxes(context, data, plotSize, colors) {
   function drawXAxis(state, projection) {
     context.clearRect(0, plotSize.height - X_AXIS_HEIGHT + 1, plotSize.width, X_AXIS_HEIGHT + 1);
 
@@ -682,7 +718,7 @@ function createAxes(context, data, plotSize, palette) {
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
       opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width);
 
-      context.fillStyle = buildCssColorFromState(state, `palette-${palette}-x-axis-text`, opacity);
+      context.fillStyle = getCssColor(colors, 'x-axis-text', opacity);
       context.fillText(label.text, xPx, topOffset);
     }
   }
@@ -767,9 +803,10 @@ function createAxes(context, data, plotSize, palette) {
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
       const [, yPx] = projection.toPixels(0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
+
       context.fillStyle = colorName
-        ? buildCssColorFromState(state, `palette-${palette}-${colorName}-text`, textOpacity)
-        : buildCssColorFromState(state, `palette-${palette}-y-axis-text`, textOpacity);
+        ? getCssColor(colors, `${colorName}-text`, textOpacity)
+        : getCssColor(colors, 'y-axis-text', textOpacity);
 
       if (!isSecondary) {
         context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
@@ -778,13 +815,13 @@ function createAxes(context, data, plotSize, palette) {
       }
 
       if (isSecondary) {
-        context.strokeStyle = buildCssColorFromState(state, `palette-${palette}-${colorName}-text`, opacity);
+        context.strokeStyle = getCssColor(colors, `${colorName}-text`, opacity);
 
         context.moveTo(plotSize.width - GUTTER, yPx);
         context.lineTo(plotSize.width - GUTTER * 2, yPx);
       } else {
         context.moveTo(GUTTER, yPx);
-        context.strokeStyle = buildCssColorFromState(state, 'grid-lines', opacity);
+        context.strokeStyle = getCssColor(colors, 'grid-lines', opacity);
         context.lineTo(plotSize.width - GUTTER, yPx);
       }
     }
@@ -796,7 +833,7 @@ function createAxes(context, data, plotSize, palette) {
 }
 
 
-function createMinimap(container, data, palette, rangeCallback) {
+function createMinimap(container, data, colors, rangeCallback) {
   let _element;
   let _canvas;
   let _context;
@@ -826,6 +863,14 @@ function createMinimap(container, data, palette, rangeCallback) {
     _state = newState;
     clearCanvas(_canvas, _context);
     _drawDatasets(newState);
+  }
+
+  function toggle(shouldShow) {
+    _element.classList.toggle('hidden', !shouldShow);
+
+    requestAnimationFrame(() => {
+      _element.classList.toggle('transparent', !shouldShow);
+    });
   }
 
   function _setupLayout() {
@@ -945,7 +990,7 @@ function createMinimap(container, data, palette, rangeCallback) {
     drawDatasets(
       _context, state, data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      MINIMAP_LINE_WIDTH, visibilities, palette, true,
+      MINIMAP_LINE_WIDTH, visibilities, colors, true,
     );
   }
 
@@ -1011,11 +1056,11 @@ function createMinimap(container, data, palette, rangeCallback) {
     _ruler.children[2].style.width = `${(1 - end) * 100}%`;
   }
 
-  return { update };
+  return { update, toggle };
 }
 
 
-function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
+function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   let _state;
   let _points;
   let _projection;
@@ -1032,6 +1077,7 @@ function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
   let _clickedOnLabel = null;
 
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
+  const _throttledUpdateContent = throttle(_updateContent, 400, true, true);
 
   _setupLayout();
 
@@ -1042,6 +1088,14 @@ function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
     _secondaryPoints = secondaryPoints;
     _secondaryProjection = secondaryProjection;
     _selectLabel(true);
+  }
+
+  function toggleSpinner(isLoading) {
+    _balloon.classList.toggle('loading', isLoading);
+  }
+
+  function toggleIsZoomed(isZoomed) {
+    _balloon.classList.toggle('zoomed', isZoomed);
   }
 
   function _setupLayout() {
@@ -1074,7 +1128,7 @@ function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
   function _setupBalloon() {
     _balloon = createElement();
     _balloon.className = 'balloon';
-    _balloon.innerHTML = '<div class="title"></div><div class="legend"></div>';
+    _balloon.innerHTML = '<div class="title"></div><div class="legend"></div><div class="spinner"></div>';
 
     addEventListener(_balloon, 'click', _onBalloonClick);
 
@@ -1112,7 +1166,10 @@ function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
   }
 
   function _onBalloonClick() {
-    _balloon.classList.add('loading');
+    if (_balloon.classList.contains('zoomed')) {
+      return;
+    }
+
     const labelIndex = _projection.findClosesLabelIndex(_offsetX);
     onZoom(labelIndex);
   }
@@ -1167,7 +1224,7 @@ function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
       }))
       .filter(({ key }) => _state.filter[key]);
 
-    if (shouldShowBalloon) {
+    if (statistics.length && shouldShowBalloon) {
       _updateBalloon(statistics, xPx, labelIndex);
     } else {
       _hideBalloon();
@@ -1180,7 +1237,7 @@ function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
         _drawCircles(statistics, labelIndex);
       }
 
-      _drawTail(xPx, plotSize.height - X_AXIS_HEIGHT, buildCssColorFromState(_state, 'grid-lines'));
+      _drawTail(xPx, plotSize.height - X_AXIS_HEIGHT, getCssColor(colors, 'grid-lines'));
     }
   }
 
@@ -1198,8 +1255,8 @@ function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
         : _projection.toPixels(labelIndex, point.stackValue);
       _drawCircle(
         [x, y],
-        buildCssColorFromState(_state, `palette-${palette}-${colorName}-line`),
-        buildCssColorFromState(_state, 'background'),
+        getCssColor(colors, `${colorName}-line`),
+        getCssColor(colors, 'background'),
       );
     });
   }
@@ -1226,16 +1283,6 @@ function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
   }
 
   function _updateBalloon(statistics, xPx, labelIndex) {
-    const label = data.xLabels[labelIndex];
-    const date = new Date(label.value);
-    _balloon.children[0].innerHTML = `${WEEK_DAYS[date.getDay()]}, ${label.text}`;
-    _balloon.children[1].innerHTML = statistics.map(({ name, colorName, value }) => (
-      '<div class="dataset transition-container">' +
-      `  <span>${name}</span>` +
-      `  <span class="value transition top right ${colorName}">${formatInteger(value)}</span>` +
-      '</div>'
-    )).join('');
-
     const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
     const left = labelIndex < meanLabel
       ? _offsetX + BALLOON_OFFSET
@@ -1243,6 +1290,52 @@ function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
 
     _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
     _balloon.classList.add('shown');
+
+    _throttledUpdateContent(getFullLabelDate(data.xLabels[labelIndex]), statistics);
+  }
+
+  function _updateContent(title, statistics) {
+    const titleContainer = _balloon.children[0];
+    const currentTitle = titleContainer.querySelector(':not(.hidden)');
+
+    if (!titleContainer.innerHTML || !currentTitle) {
+      titleContainer.innerHTML = `<span>${title}</span>`;
+    } else if (currentTitle.innerHTML !== title) {
+      toggleText(currentTitle, title, 'title-inner');
+    }
+
+    const dataSetContainer = _balloon.children[1];
+    Array.from(dataSetContainer.children).forEach((dataSet) => {
+      dataSet.setAttribute('data-present', 'false');
+    });
+
+    statistics.forEach(({ name, colorName, value }) => {
+      value = formatInteger(value);
+
+      const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
+      const className = `value right ${colorName}`;
+
+      if (!currentDataSet) {
+        const newDataSet = createElement();
+        newDataSet.className = 'dataset';
+        newDataSet.setAttribute('data-present', 'true');
+        newDataSet.setAttribute('data-name', name);
+        newDataSet.innerHTML = `<span>${name}</span><span class="${className}">${value}</span>`;
+        dataSetContainer.appendChild(newDataSet);
+      } else {
+        currentDataSet.setAttribute('data-present', 'true');
+
+        const valueElement = currentDataSet.querySelector(`.value.${colorName}:not(.hidden)`);
+        if (valueElement.innerHTML !== value) {
+          toggleText(valueElement, value, className);
+        }
+      }
+    });
+
+    Array.from(dataSetContainer.querySelectorAll('[data-present="false"]'))
+      .forEach((dataSet) => {
+        dataSet.remove();
+      });
   }
 
   function _hideBalloon() {
@@ -1266,24 +1359,40 @@ function createTooltip(container, data, plotSize, palette, onZoom, onFocus) {
     return el.getBoundingClientRect();
   }
 
-  return { update };
+  return { update, toggleSpinner, toggleIsZoomed };
 }
 
 
 
 function createTools(container, data, filterCallback) {
-  if (data.datasets.length < 2) {
-    return;
-  }
-
   let _element;
 
   _setupLayout();
   _updateFilter();
 
+  function redraw() {
+    if (_element) {
+      const oldElement = _element;
+      oldElement.classList.add('hidden');
+      setTimeout(() => {
+        oldElement.parentNode.removeChild(oldElement);
+      }, 500);
+    }
+
+    _setupLayout();
+    _element.classList.add('transparent');
+    requestAnimationFrame(() => {
+      _element.classList.remove('transparent');
+    });
+  }
+
   function _setupLayout() {
     _element = createElement();
     _element.className = 'tools';
+
+    if (data.datasets.length < 2) {
+      _element.className += ' hidden';
+    }
 
     data.datasets.forEach(({ key, name, colorName }) => {
       const control = createElement('a');
@@ -1301,7 +1410,16 @@ function createTools(container, data, filterCallback) {
   function _updateFilter(e) {
     if (e) {
       e.preventDefault();
-      e.currentTarget.classList.toggle('checked');
+      const button = e.currentTarget;
+
+      if (button.classList.contains('checked') && _element.querySelectorAll('.checked').length < 2) {
+        button.classList.remove('shake');
+        requestAnimationFrame(() => {
+          button.classList.add('shake')
+        });
+      } else {
+        button.classList.toggle('checked');
+      }
     }
 
     const filter = {};
@@ -1312,6 +1430,10 @@ function createTools(container, data, filterCallback) {
 
     filterCallback(filter);
   }
+
+  return {
+    redraw,
+  };
 }
 
 
@@ -1326,7 +1448,6 @@ function prepareDatasets(chartData, datasetColors = {}) {
 
     if (key === LABELS_KEY) {
       labels = values;
-      ensureSorted(labels);
       return;
     }
 
@@ -1340,15 +1461,11 @@ function prepareDatasets(chartData, datasetColors = {}) {
     });
   });
 
-  datasets.forEach((dataset) => {
-    dataset.labels = labels;
-  });
-
-  return { datasets };
+  return { datasets, labels };
 }
 
 function analyzeData(data, datasetColors, type) {
-  const { datasets } = prepareDatasets(data, datasetColors);
+  const { datasets, labels } = prepareDatasets(data, datasetColors);
 
   let totalYMin = Infinity;
   let totalYMax = -Infinity;
@@ -1368,17 +1485,11 @@ function analyzeData(data, datasetColors, type) {
     dataset.yMax = yMax;
   });
 
-  const firstlLabels = datasets.map((dataset) => dataset.labels[0]);
-  const lastLabels = datasets.map((dataset) => dataset.labels[dataset.labels.length - 1]);
-  const firstDate = Math.min.apply(null, firstlLabels);
-  const lastDate = Math.max.apply(null, lastLabels);
-  const xLabels = type === 'hours' ? buildTimeLabels(firstDate, lastDate) : buildDayLabels(firstDate, lastDate);
-
   return {
     datasets,
     yMin: totalYMin,
     yMax: totalYMax,
-    xLabels,
+    xLabels: type === 'hours' ? buildTimeLabels(labels) : buildDayLabels(labels),
     hasSecondYAxis: data.y_scaled,
     isStacked: data.stacked,
     isPercentage: data.percentage,
@@ -1389,8 +1500,6 @@ function analyzeData(data, datasetColors, type) {
   };
 }
 
-
-// const dataCache = {};
 
 function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
   let values = datasets.map(({ values }) => (
@@ -1563,6 +1672,7 @@ function drawDatasetBars(context, points, projection, options) {
 
   context.save();
 
+  context.globalAlpha = options.opacity;
   context.fillStyle = options.color;
 
   for (let j = 0, l = points.length; j < l; j++) {
@@ -1729,7 +1839,7 @@ function drawDataset(type, ...args) {
 function drawDatasets(
   context, state, data,
   range, points, projection, secondaryPoints, secondaryProjection,
-  lineWidth, visibilities, palette, pieToArea,
+  lineWidth, visibilities, colors, pieToArea,
 ) {
   data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
@@ -1737,7 +1847,7 @@ function drawDatasets(
     }
 
     const options = {
-      color: buildCssColorFromState(state, `palette-${palette}-${colorName}-line`),
+      color: getCssColor(colors, `${colorName}-line`),
       lineWidth,
       opacity: data.isStacked ? 1 : visibilities[i],
     };
@@ -1784,54 +1894,46 @@ function drawDatasets(
 
     drawBarsMask(context, projection, {
       focusOn: state.focusOn,
-      color: buildCssColorFromState(state, 'mask'),
+      color: getCssColor(colors, 'mask'),
       lineWidth: x1 - x0
     });
   }
 }
 
 
-let colors;
-let colorKeys;
-
-const CHANNEL_KEYS = ['R', 'G', 'B', 'A'];
+let allColors;
+let skin = DEFAULT_SKIN;
 
 function setupColors(_colors) {
-  colors = _colors;
-  colorKeys = Object.keys(colors['skin-day']);
+  allColors = _colors;
 }
 
-function getSkin() {
-  return document.body.classList.contains('skin-night') ? 'skin-night' : 'skin-day';
+function changeSkin(_skin) {
+  skin = _skin;
 }
 
-function buildSkinState() {
-  const state = {};
-  const skin = colors[getSkin()];
-  colorKeys.forEach((key) => {
-    CHANNEL_KEYS.forEach((channel, i) => {
-      const channels = hexToChannels(skin[key]);
-      state[`colorChannels#${key}#${channel}`] = channels[i];
+function createColors(palette) {
+  const colors = {};
+
+  ['skin-day', 'skin-night'].forEach((skin) => {
+    colors[skin] = {};
+
+    Object.keys(allColors[skin]).forEach((prop) => {
+      const channels = hexToChannels(allColors[skin][prop]);
+
+      if (prop.startsWith(`palette-${palette}`)) {
+        colors[skin][prop.replace(`palette-${palette}-`, '')] = channels;
+      } else if (!prop.startsWith(`palette-`)) {
+        colors[skin][prop] = channels;
+      }
     });
   });
 
-  return state;
+  return colors;
 }
 
-function buildSkinStateKeys() {
-  return mergeArrays(colorKeys.map((key) => (
-    CHANNEL_KEYS.map((channel) => `colorChannels#${key}#${channel}`)
-  )));
-}
-
-function buildCssColorFromState(state, key, opacity = 1) {
-  const rgba = CHANNEL_KEYS.map((channel) => {
-    const value = state[`colorChannels#${key}#${channel}`];
-
-    return channel === 'A' ? value : Math.round(value);
-  });
-
-  return buildCssColor(rgba, opacity);
+function getCssColor(colors, key, opacity) {
+  return buildCssColor(colors[skin][key], opacity);
 }
 
 function hexToChannels(hexWithAlpha) {
@@ -1889,14 +1991,6 @@ function getMaxMin(array) {
   return { max, min };
 }
 
-function ensureSorted(array) {
-  for (let i = 0, l = array.length; i < l; i++) {
-    if (array[i] !== undefined && array[i + 1] !== undefined && array[i] >= array[i + 1]) {
-      throw new Error('Array is not sorted');
-    }
-  }
-}
-
 // https://jsperf.com/multi-array-concat/24
 function mergeArrays(arrays) {
   return [].concat.apply([], arrays);
@@ -1928,12 +2022,15 @@ function proxyMerge(obj1, obj2) {
 function throttle(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
   let waiting = false;
   let args;
+  let isPending;
 
   return function (..._args) {
     args = _args;
+    isPending = true;
 
     if (!waiting) {
       if (shouldRunFirst) {
+        isPending = false;
         fn(...args);
       }
 
@@ -1942,7 +2039,7 @@ function throttle(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
       setTimeout(() => {
         waiting = false;
 
-        if (shouldRunLast) {
+        if (shouldRunLast && isPending) {
           fn(...args);
         }
       }, ms);
@@ -1990,52 +2087,31 @@ function debounce(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
 }
 
 
-function buildDayLabels(timestampFrom, timestampTo) {
-  timestampFrom = roundToDay(timestampFrom);
-  timestampTo = roundToDay(timestampTo);
 
-  const labels = [];
-
-  for (let timestamp = timestampFrom; timestamp <= timestampTo; timestamp += DAY_MS) {
-    const date = new Date(timestamp);
+function buildDayLabels(labels) {
+  return labels.map((value) => {
+    const date = new Date(value);
     const day = date.getDate();
     const month = MONTHS[date.getMonth()];
 
-    labels.push({
-      value: timestamp,
+    return ({
+      value,
       text: `${month} ${day}`,
     });
-  }
-
-  return labels;
+  });
 }
 
-function buildTimeLabels(timestampFrom, timestampTo) {
-  timestampFrom = roundToHour(timestampFrom);
-  timestampTo = roundToHour(timestampTo);
-
-  const labels = [];
-
-  for (let timestamp = timestampFrom; timestamp <= timestampTo; timestamp += HOUR_MS) {
-    const date = new Date(timestamp);
+function buildTimeLabels(labels) {
+  return labels.map((value) => {
+    const date = new Date(value);
     const hours = date.getUTCHours();
     const minutes = date.getUTCMinutes();
 
-    labels.push({
-      value: timestamp,
+    return ({
+      value,
       text: `${hours < 10 ? '0' : ''}${hours}:${minutes < 10 ? '0' : ''}${minutes}`,
     });
-  }
-
-  return labels;
-}
-
-function roundToDay(timestamp) {
-  return timestamp - (timestamp % DAY_MS);
-}
-
-function roundToHour(timestamp) {
-  return timestamp - (timestamp % HOUR_MS);
+  });
 }
 
 function humanize(value, decimals = 1) {
@@ -2056,6 +2132,13 @@ function keepThreeDigits(value, decimals) {
 
 function formatInteger(n) {
   return String(n).replace(/\d(?=(\d{3})+$)/g, '$& ');
+}
+
+function getFullLabelDate(label) {
+  const { value, text } = label;
+  const date = new Date(value);
+
+  return `${WEEK_DAYS[date.getDay()]}, ${text} ${date.getFullYear()}`;
 }
 
 
@@ -2139,6 +2222,7 @@ const hideOnScroll = (() => {
 
   return setup;
 })();
+
 const createElement = (tagName = 'div') => {
   return document.createElement(tagName);
 };
@@ -2234,15 +2318,16 @@ function toggleOut(element) {
   element.classList.add('hidden');
 }
 
-function toggleText(element, newText, className, inverse = false) {
+function toggleText(element, newText, className = '', inverse = false) {
   const container = element.parentNode;
   container.classList.add('transition-container');
 
-  const newElement = createElement();
+  const newElement = createElement(element.tagName);
   newElement.className = `${className} transition ${inverse ? 'top' : 'bottom'} hidden`;
   newElement.innerHTML = newText;
 
-  const oldElements = container.querySelectorAll(`.${className.split(' ').join('.')}.hidden`);
+  const selector = className.length ? `.${className.split(' ').join('.')}` : '';
+  const oldElements = container.querySelectorAll(`${selector}.hidden`);
   oldElements.forEach(e => e.remove());
 
   element.classList.add('transition');

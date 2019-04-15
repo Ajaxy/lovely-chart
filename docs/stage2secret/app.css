@@ -4,7 +4,7 @@ body {
   padding: 10px 0 50px 0;
   color: #222222;
   background: white;
-  transition: background-color 300ms ease-out;
+  /* transition: background-color 300ms ease-out; */
   text-align: center;
 }
 
@@ -18,6 +18,27 @@ body.skin-night {
   width: 100%;
   max-width: 480px;
   text-align: left;
+}
+
+#spinner-main {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  background: #ffffff;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+body.skin-night #spinner-main {
+  background: #242F3E;
+}
+
+#spinner-main.hidden {
+  display: none;
 }
 
 a#skin-switcher {
@@ -35,7 +56,7 @@ a#skin-switcher {
   width: 100%;
   max-width: 480px;
   text-align: center;
-  transition: color 300ms ease-out;
+  /* transition: color 300ms ease-out; */
 }
 
 body.skin-night #killer {
