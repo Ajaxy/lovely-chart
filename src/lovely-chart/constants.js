@@ -22,8 +22,6 @@ export const MINIMAP_HEIGHT = 40;
 export const MINIMAP_MARGIN = 10;
 export const MINIMAP_LINE_WIDTH = 1;
 export const MINIMAP_EAR_WIDTH = 8;
-export const MINIMAP_RULER_HTML
-  = '<div class="mask"></div><div class="slider"><div class="handle"><span></span></div><div class="inner"></div><div class="handle"><span></span></div></div><div class="mask"></div>';
 
 export const DPR = window.devicePixelRatio || 1;
 
@@ -47,7 +45,7 @@ export const ANIMATE_PROPS = [
   'begin 200 fast', 'end 200 fast', 'labelFromIndex 200 fast floor', 'labelToIndex 200 fast ceil',
 
   // X-axis labels
-  'xAxisScale',
+  'xAxisScale 400',
 
   // Viewport Y-axis
   'yMinViewport', 'yMaxViewport', 'yMinViewportSecond', 'yMaxViewportSecond',
@@ -56,5 +54,5 @@ export const ANIMATE_PROPS = [
   'yMinMinimap', 'yMaxMinimap', 'yMinMinimapSecond', 'yMaxMinimapSecond',
 
   // Y-axis labels
-  'yAxisScale 300', 'yAxisScaleSecond 300',
+  'yAxisScale', 'yAxisScaleSecond',
 ];

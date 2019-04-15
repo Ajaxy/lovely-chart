@@ -7,7 +7,6 @@ import {
   DEFAULT_RANGE,
   MINIMAP_HEIGHT,
   MINIMAP_EAR_WIDTH,
-  MINIMAP_RULER_HTML,
   MINIMAP_MARGIN,
   MINIMAP_LINE_WIDTH,
 } from './constants';
@@ -81,7 +80,10 @@ export function createMinimap(container, data, palette, rangeCallback) {
   function _setupRuler() {
     _ruler = createElement();
     _ruler.className = 'ruler';
-    _ruler.innerHTML = MINIMAP_RULER_HTML;
+    _ruler.innerHTML =
+      '<div class="mask"></div>' +
+      '<div class="slider"><div class="handle"><span></span></div><div class="inner"></div><div class="handle"><span></span></div></div>' +
+      '<div class="mask"></div>';
 
     _slider = _ruler.children[1];
 

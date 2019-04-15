@@ -1,1 +1,129 @@
-body{font:300 13px '-apple-system','HelveticaNeue',Helvetica,Arial,sans-serif;margin:0;padding:10px 0 50px 0;color:#222;background:white;transition:background-color 300ms ease-out;text-align:center}body.skin-night{color:white;background:#242f3e}#container{display:inline-block;width:100%;max-width:480px;text-align:left}a#skin-switcher{display:block;text-align:center;font-size:18px;color:#108be3;text-decoration:none;-webkit-tap-highlight-color:rgba(0,0,0,0);margin-bottom:50px}#killer{display:inline-block;width:100%;max-width:480px;text-align:center;transition:color 300ms ease-out}body.skin-night #killer{color:white}a#skin-switcher:hover,a#skin-switcher:active,a#skin-switcher:visited{color:rgba(16,139,227,0.71)}@keyframes flake-fall{0%{top:-15%}100%{top:100%}}@keyframes flake-shake{0%,100%{transform:translateX(0)}50%{transform:translateX(75px)}}.flake{position:fixed;top:-15%;z-index:999;pointer-events:none;user-select:none;cursor:default;animation-name:flake-fall,flake-shake;animation-duration:8s,2.5s;animation-play-state:running,running;animation-iteration-count:infinite,infinite;animation-timing-function:linear,ease-in-out}.flake:nth-of-type(0){animation-delay:1s,2s;left:1%}.flake:nth-of-type(1){animation-delay:3s,1s;left:10%}.flake:nth-of-type(2){animation-delay:2s,.4s;left:20%}.flake:nth-of-type(3){animation-delay:3.5s,2s;left:30%}.flake:nth-of-type(4){animation-delay:2s,3s;left:40%}.flake:nth-of-type(5){animation-delay:5s,7s;left:50%}.flake:nth-of-type(6){animation-delay:8s,2s;left:60%}.flake:nth-of-type(7){animation-delay:4s,0s;left:70%}.flake:nth-of-type(8){animation-delay:3s,1.5s;left:80%}.flake:nth-of-type(9){animation-delay:2.5s,1.5s;left:90%}
+body {
+  font: 300 13px '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 10px 0 50px 0;
+  color: #222222;
+  background: white;
+  transition: background-color 300ms ease-out;
+  text-align: center;
+}
+
+body.skin-night {
+  color: white;
+  background: #242F3E;
+}
+
+#container {
+  display: inline-block;
+  width: 100%;
+  max-width: 480px;
+  text-align: left;
+}
+
+a#skin-switcher {
+  display: block;
+  text-align: center;
+  font-size: 18px;
+  color: #108BE3;
+  text-decoration: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  margin-bottom: 50px;
+}
+
+#killer {
+  display: inline-block;
+  width: 100%;
+  max-width: 480px;
+  text-align: center;
+  transition: color 300ms ease-out;
+}
+
+body.skin-night #killer {
+  color: white;
+}
+
+a#skin-switcher:hover, a#skin-switcher:active, a#skin-switcher:visited {
+  color: rgba(16, 139, 227, 0.71);
+}
+
+@keyframes flake-fall {
+  0% {
+    top: -15%;
+  }
+  100% {
+    top: 100%;
+  }
+}
+
+@keyframes flake-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(75px);
+  }
+}
+
+.flake {
+  position: fixed;
+  top: -15%;
+  z-index: 999;
+  pointer-events: none;
+  user-select: none;
+  cursor: default;
+  animation-name: flake-fall, flake-shake;
+  animation-duration: 8s, 2.5s;
+  animation-play-state: running, running;
+  animation-iteration-count: infinite, infinite;
+  animation-timing-function: linear, ease-in-out;
+}
+
+.flake:nth-of-type(0) {
+  animation-delay: 1s, 2s;
+  left: 1%;
+}
+
+.flake:nth-of-type(1) {
+  animation-delay: 3s, 1s;
+  left: 10%;
+}
+
+.flake:nth-of-type(2) {
+  animation-delay: 2s, .4s;
+  left: 20%;
+}
+
+.flake:nth-of-type(3) {
+  animation-delay: 3.5s, 2s;
+  left: 30%;
+}
+
+.flake:nth-of-type(4) {
+  animation-delay: 2s, 3s;
+  left: 40%;
+}
+
+.flake:nth-of-type(5) {
+  animation-delay: 5s, 7s;
+  left: 50%;
+}
+
+.flake:nth-of-type(6) {
+  animation-delay: 8s, 2s;
+  left: 60%;
+}
+
+.flake:nth-of-type(7) {
+  animation-delay: 4s, 0s;
+  left: 70%;
+}
+
+.flake:nth-of-type(8) {
+  animation-delay: 3s, 1.5s;
+  left: 80%;
+}
+
+.flake:nth-of-type(9) {
+  animation-delay: 2.5s, 1.5s;
+  left: 90%;
+}

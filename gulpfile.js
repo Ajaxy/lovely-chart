@@ -1,6 +1,7 @@
 const path = require('path');
 const gulp = require('gulp');
 const merge = require('merge-stream');
+const order = require('gulp-order');
 const concat = require('gulp-concat');
 const replace = require('gulp-replace');
 const jsclosure = require('gulp-jsclosure');
@@ -12,25 +13,31 @@ gulp.task('prod', () => {
   return merge(
     gulp
       .src('src/lovely-chart/*.js')
+      .pipe(order([
+        '*constants*', '*LovelyChart*',
+        '*StateManager*', '*TransitionManager*', '*Header*', '*Axes*', '*Minimap*', '*Tooltip*', '*Tools*',
+        '*analyzeData*', '*points*', '*createProjection*', '*drawDatasets*', '*skin*',
+      ]))
       .pipe(concat('lovely-chart/LovelyChart.js'))
       .pipe(replace(/^import(.|\n)*?from.*?\n/gm, ''))
       .pipe(replace(/export /g, ''))
-      .pipe(jsclosure())
-      .pipe(minifyJs()),
+      .pipe(replace(/\n\s+\/\/ TODO.*/g, ''))
+      .pipe(jsclosure()),
+    // .pipe(minifyJs()),
     gulp
-      .src('src/*.js')
-      .pipe(minifyJs()),
+      .src('src/*.js'),
+    // .pipe(minifyJs()),
     gulp
-      .src('src/**/*.css')
-      .pipe(minifyCss()),
+      .src('src/**/*.css'),
+    // .pipe(minifyCss()),
     gulp
       .src('src/index.html')
       .pipe(replace('lovely-chart.scss', 'lovely-chart.css')),
     gulp
-      .src('src/**/*.!(js|css|json|scss|html)'),
+      .src('src/**/*.svg'),
     gulp
-    .src(['data/**/*.json'], { base: '.' })
-    .pipe(minifyJson()),
+      .src(['data/**/*.json'], { base: '.' })
+      .pipe(minifyJson()),
   )
     .pipe(gulp.dest('docs/stage2secret'));
 });
