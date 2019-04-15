@@ -45,7 +45,7 @@ function getSumsByX(points) {
   )));
 }
 
-// TODO cache for [0..1], use in state
+// TODO perf cache for [0..1], use in state
 function preparePercentage(points, bounds) {
   const sumsByX = getSumsByX(points);
 

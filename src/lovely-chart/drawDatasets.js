@@ -110,7 +110,6 @@ function drawBarsMask(context, projection, options) {
   context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
 }
 
-// TODO try draw overlaying
 function drawDatasetArea(context, points, projection, options) {
   context.beginPath();
 

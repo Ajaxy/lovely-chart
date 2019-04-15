@@ -1,5 +1,5 @@
 import { setupCanvas, clearCanvas } from './canvas';
-import { BALLOON_OFFSET, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
+import { BALLOON_OFFSET, PIE_BALLOON_MIN_DISTANCE, WEEK_DAYS, X_AXIS_HEIGHT } from './constants';
 import { formatInteger } from './format';
 import { buildCssColorFromState } from './skin';
 import { throttleWithRaf } from './fast';
@@ -128,9 +128,13 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
       return;
     }
 
+    const pointerVector = getPointerVector();
+    // TODO filter focused data
+    const shouldShowBalloon = data.isPie ? pointerVector.distance >= PIE_BALLOON_MIN_DISTANCE : true;
+
     if (!isExternal && onFocus) {
       if (data.isPie) {
-        onFocus(getPointerVector());
+        onFocus(pointerVector);
       } else {
         onFocus(labelIndex);
       }
@@ -148,7 +152,11 @@ export function createTooltip(container, data, plotSize, palette, onZoom, onFocu
       }))
       .filter(({ key }) => _state.filter[key]);
 
-    _updateBalloon(statistics, xPx, labelIndex);
+    if (shouldShowBalloon) {
+      _updateBalloon(statistics, xPx, labelIndex);
+    } else {
+      _hideBalloon();
+    }
 
     if (data.isLines || data.isAreas) {
       clearCanvas(_canvas, _context);

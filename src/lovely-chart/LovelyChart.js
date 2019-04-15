@@ -106,7 +106,7 @@ function createLovelyChart(params) {
     _axes = createAxes(_context, _data, _plotSize, params.palette);
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _minimap = createMinimap(_container, _data, params.palette, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize, params.palette, _zoomToDay, _onLabelFocus);
+    _tooltip = createTooltip(_container, _data, _plotSize, params.palette, _zoomToDay, _onFocus);
     createTools(_container, _data, _onFilterChange);
   }
 
@@ -154,7 +154,7 @@ function createLovelyChart(params) {
     );
     if (!_data.isPie) {
       _axes.drawYAxis(state, projection, secondaryProjection);
-      // TODO isChanged
+      // TODO check isChanged
       _axes.drawXAxis(state, projection);
     }
     _minimap.update(state);
@@ -251,8 +251,9 @@ function createLovelyChart(params) {
     });
   }
 
-  function _onLabelFocus(labelIndex) {
+  function _onFocus(labelIndex) {
     if (_data.isBars || _data.isPie) {
+      // TODO animate
       _stateManager.update({ focusOn: labelIndex });
     }
   }

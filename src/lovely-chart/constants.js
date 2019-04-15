@@ -9,6 +9,8 @@ export const PLOT_LINE_WIDTH = 2;
 export const PLOT_PIE_RADIUS_FACTOR = 0.9 / 2;
 export const PLOT_PIE_SHIFT = 10;
 
+export const PIE_BALLOON_MIN_DISTANCE = 150;
+
 export const AXES_FONT = '300 10px Helvetica, Arial, sans-serif';
 export const AXES_MAX_COLUMN_WIDTH = 45;
 export const AXES_MAX_ROW_HEIGHT = 50;

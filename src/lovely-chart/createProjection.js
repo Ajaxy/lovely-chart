@@ -15,7 +15,7 @@ export function createProjection(params) {
 
   let effectiveWidth = availableWidth;
 
-  // TODO get rid of padding jumps
+  // TODO bug get rid of padding jumps
   if (begin === 0) {
     effectiveWidth -= xPadding;
   }

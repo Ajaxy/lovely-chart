@@ -110,7 +110,6 @@ export function createAxes(context, data, plotSize, palette) {
 
     context.beginPath();
 
-    // TODO start from y0
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
       const [, yPx] = projection.toPixels(0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);

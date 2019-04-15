@@ -207,7 +207,6 @@ function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, pre
   };
 }
 
-// TODO use labels indexes
 function calculateXAxisScale(plotWidth, labelFromIndex, labelToIndex) {
   const viewportLabelsCount = labelToIndex - labelFromIndex;
   const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
