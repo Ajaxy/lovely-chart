@@ -22,6 +22,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
   let _canvasSize;
   let _ruler;
   let _slider;
+
   let _capturedOffset;
   let _range = {};
   let _state;
@@ -33,8 +34,9 @@ export function createMinimap(container, data, palette, rangeCallback) {
 
   function update(newState) {
     const { begin, end } = newState;
-    // TODO bug skip when is dragging
-    _updateRange({ begin, end }, true);
+    if (!_capturedOffset) {
+      _updateRange({ begin, end }, true);
+    }
 
     if (!_isStateChanged(newState)) {
       return;
@@ -88,6 +90,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
       {
         onCapture: _onDragCapture,
         onDrag: _onSliderDrag,
+        onRelease: _onDragRelease,
         draggingCursor: 'grabbing',
       },
     );
@@ -97,6 +100,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
       {
         onCapture: _onDragCapture,
         onDrag: _onLeftEarDrag,
+        onRelease: _onDragRelease,
         draggingCursor: 'ew-resize',
       },
     );
@@ -106,6 +110,7 @@ export function createMinimap(container, data, palette, rangeCallback) {
       {
         onCapture: _onDragCapture,
         onDrag: _onRightEarDrag,
+        onRelease: _onDragRelease,
         draggingCursor: 'ew-resize',
       },
     );
@@ -164,11 +169,15 @@ export function createMinimap(container, data, palette, rangeCallback) {
     _capturedOffset = e.target.offsetLeft;
   }
 
+  function _onDragRelease() {
+    _capturedOffset = null;
+  }
+
   function _onSliderDrag(moveEvent, captureEvent, { dragOffsetX }) {
     const minX1 = 0;
     const maxX1 = _canvasSize.width - _slider.offsetWidth;
 
-    const newX1 = Math.max(minX1, Math.min(_capturedOffset + dragOffsetX, maxX1));
+    const newX1 = Math.max(minX1, Math.min(_capturedOffset + dragOffsetX - MINIMAP_EAR_WIDTH, maxX1));
     const newX2 = newX1 + _slider.offsetWidth;
     const begin = newX1 / _canvasSize.width;
     const end = newX2 / _canvasSize.width;

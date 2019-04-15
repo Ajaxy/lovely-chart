@@ -33,7 +33,7 @@ export function setupDrag(element, options) {
     options.onCapture && options.onCapture(e);
   }
 
-  function onRelease() {
+  function onRelease(e) {
     if (captureEvent) {
       if (options.draggingCursor) {
         document.body.classList.remove(`cursor-${options.draggingCursor}`);
@@ -46,6 +46,8 @@ export function setupDrag(element, options) {
       removeEventListener(document, 'touchmove', onMove);
 
       captureEvent = null;
+
+      options.onRelease && options.onRelease(e);
     }
   }
 
