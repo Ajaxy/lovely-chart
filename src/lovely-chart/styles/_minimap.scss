@@ -29,6 +29,22 @@
         height: 100%;
         background: var(--minimap-mask);
         transition: background-color 300ms ease-out;
+
+        &:last-child {
+          position: relative;
+
+          &::after {
+            content: '';
+            display: block;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: -5px;
+            width: 5px;
+            background: var(--minimap-mask);
+            transition: background-color 300ms ease-out;
+          }
+        }
       }
 
       .slider {
