@@ -1,19 +1,5 @@
 import { createElement } from './minifiers';
 
-function toggleIn(element) {
-  // Remove and add `animated` class to re-trigger animation
-  element.classList.remove('animated');
-  element.classList.add('animated');
-  element.classList.remove('hidden');
-}
-
-function toggleOut(element) {
-  // Remove and add `animated` class to re-trigger animation
-  element.classList.remove('animated');
-  element.classList.add('animated');
-  element.classList.add('hidden');
-}
-
 export function toggleText(element, newText, className = '', inverse = false) {
   const container = element.parentNode;
   container.classList.add('transition-container');
@@ -31,8 +17,22 @@ export function toggleText(element, newText, className = '', inverse = false) {
   element.classList.add(inverse ? 'bottom' : 'top');
   container.insertBefore(newElement, element.nextSibling);
 
-  toggleIn(newElement);
-  toggleOut(element);
+  toggleElementIn(newElement);
+  toggleElementOut(element);
 
   return newElement;
+}
+
+function toggleElementIn(element) {
+  // Remove and add `animated` class to re-trigger animation
+  element.classList.remove('animated');
+  element.classList.add('animated');
+  element.classList.remove('hidden');
+}
+
+function toggleElementOut(element) {
+  // Remove and add `animated` class to re-trigger animation
+  element.classList.remove('animated');
+  element.classList.add('animated');
+  element.classList.add('hidden');
 }

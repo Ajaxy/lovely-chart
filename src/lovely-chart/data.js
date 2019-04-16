@@ -1,4 +1,4 @@
-import { getMaxMin } from './fast';
+import { getMaxMin } from './utils';
 import { buildDayLabels, buildTimeLabels } from './format';
 import { LABELS_KEY } from './constants';
 

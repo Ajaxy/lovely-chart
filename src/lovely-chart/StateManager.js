@@ -1,5 +1,5 @@
 import { createTransitionManager } from './TransitionManager';
-import { throttleWithRaf, getMaxMin, mergeArrays, proxyMerge, sumArrays } from './fast';
+import { throttleWithRaf, getMaxMin, mergeArrays, proxyMerge, sumArrays } from './utils';
 import {
   AXES_MAX_COLUMN_WIDTH,
   AXES_MAX_ROW_HEIGHT,

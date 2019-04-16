@@ -1,4 +1,4 @@
-import { proxyMerge } from './fast';
+import { proxyMerge } from './utils';
 
 export function createProjection(params) {
   const {

@@ -1,4 +1,4 @@
-import { debounce } from './fast';
+import { debounce } from './utils';
 
 export const hideOnScroll = (() => {
   const charts = [];

@@ -1,6 +1,6 @@
 import { setupCanvas, clearCanvas } from './canvas';
-import { preparePoints } from './points';
-import { createProjection } from './createProjection';
+import { preparePoints } from './preparePoints';
+import { createProjection } from './Projection';
 import { drawDatasets } from './drawDatasets';
 import { setupDrag } from './setupDrag';
 import {
@@ -10,7 +10,7 @@ import {
   MINIMAP_MARGIN,
   MINIMAP_LINE_WIDTH,
 } from './constants';
-import { throttleWithRaf } from './fast';
+import { throttleWithRaf } from './utils';
 import { createElement } from './minifiers';
 import { getDatasetMinimapVisibility } from './formulas';
 

@@ -18,9 +18,9 @@ gulp.task('prod', () => {
     gulp
       .src('src/lovely-chart/*.js')
       .pipe(order([
-        'index', '*constants*', '*LovelyChart*',
+        '*index*', '*constants*', '*LovelyChart*',
         '*StateManager*', '*TransitionManager*', '*Header*', '*Axes*', '*Minimap*', '*Tooltip*', '*Tools*', '*Zoomer*',
-        '*data*', '*points*', '*createProjection*', '*drawDatasets*', '*skin*',
+        '*canvas*', '*data*', '*preparePoints*', '*Projection*', '*drawDatasets*', '*skin*',
       ]))
       .pipe(concat('lovely-chart/LovelyChart.js'))
       .pipe(replace(/^import(.|\n)*?from.*?\n/gm, ''))

@@ -2,7 +2,7 @@ import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, PIE_BALLOON_MIN_DISTANCE, X_AXIS_HEIGHT } from './constants';
 import { formatInteger, getFullLabelDate } from './format';
 import { getCssColor } from './skin';
-import { throttle, throttleWithRaf } from './fast';
+import { throttle, throttleWithRaf } from './utils';
 import { addEventListener, createElement } from './minifiers';
 import { toggleText } from './toggleText';
 

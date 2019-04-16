@@ -1,7 +1,84 @@
-import { mergeArrays } from './fast';
 import { getCssColor } from './skin';
-import { PLOT_PIE_RADIUS_FACTOR, PLOT_PIE_SHIFT } from './constants';
+import { mergeArrays } from './utils';
 import { getPieTextShift, getPieTextSize } from './formulas';
+import { PLOT_PIE_RADIUS_FACTOR, PLOT_PIE_SHIFT } from './constants';
+
+export function drawDatasets(
+  context, state, data,
+  range, points, projection, secondaryPoints, secondaryProjection,
+  lineWidth, visibilities, colors, pieToArea,
+) {
+  data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
+    if (!visibilities[i]) {
+      return;
+    }
+
+    const options = {
+      color: getCssColor(colors, `${colorName}-line`),
+      lineWidth,
+      opacity: data.isStacked ? 1 : visibilities[i],
+    };
+
+    const datasetType = type === 'pie' && pieToArea ? 'area' : type;
+    let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
+    let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
+
+    if (datasetType === 'area') {
+      const { yMin, yMax } = projection.getParams();
+      const yHeight = yMax - yMin;
+      const bottomLine = [
+        { labelIndex: range.from, stackValue: 0 },
+        { labelIndex: range.to, stackValue: 0 },
+      ];
+      const topLine = [
+        { labelIndex: range.to, stackValue: yHeight },
+        { labelIndex: range.from, stackValue: yHeight },
+      ];
+
+      datasetPoints = mergeArrays([points[i - 1] || bottomLine, topLine]);
+    }
+
+    if (datasetType === 'pie') {
+      options.center = projection.getCenter();
+      options.radius = Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
+      options.pointerVector = state.focusOn;
+    }
+
+    if (datasetType === 'bar') {
+      const [x0] = projection.toPixels(0, 0);
+      const [x1] = projection.toPixels(1, 0);
+
+      options.lineWidth = x1 - x0;
+      options.focusOn = state.focusOn;
+    }
+
+    drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
+  });
+
+  if (state.focusOn && data.isBars) {
+    const [x0] = projection.toPixels(0, 0);
+    const [x1] = projection.toPixels(1, 0);
+
+    drawBarsMask(context, projection, {
+      focusOn: state.focusOn,
+      color: getCssColor(colors, 'mask'),
+      lineWidth: x1 - x0
+    });
+  }
+}
+
+function drawDataset(type, ...args) {
+  switch (type) {
+    case 'line':
+      return drawDatasetLine(...args);
+    case 'bar':
+      return drawDatasetBars(...args);
+    case 'area':
+      return drawDatasetArea(...args);
+    case 'pie':
+      return drawDatasetPie(...args);
+  }
+}
 
 function drawDatasetLine(context, points, projection, options) {
   context.beginPath();
@@ -25,20 +102,13 @@ function drawDatasetLine(context, points, projection, options) {
 // TODO try areas
 function drawDatasetBars(context, points, projection, options) {
   const { yMin } = projection.getParams();
-  let activePoint;
 
   context.save();
-
   context.globalAlpha = options.opacity;
   context.fillStyle = options.color;
 
   for (let j = 0, l = points.length; j < l; j++) {
     const { labelIndex, stackValue, stackOffset = 0 } = points[j];
-
-    // if (labelIndex === options.focusOn) {
-    //   activePoint = points[j];
-    //   continue;
-    // }
 
     const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
     const [x, yTo] = projection.toPixels(labelIndex, stackValue);
@@ -50,54 +120,7 @@ function drawDatasetBars(context, points, projection, options) {
     context.fillRect(rectX, rectY, rectW, rectH);
   }
 
-  // if (activePoint) {
-  //   drawBarsActivePoint(activePoint, context, projection, options);
-  // }
-
   context.restore();
-}
-
-function drawDatasetBarsWithLines(context, points, projection, options) {
-  const { yMin } = projection.getParams();
-
-  context.beginPath();
-
-  for (let j = 0, l = points.length; j < l; j++) {
-    const { labelIndex, stackValue, stackOffset = 0 } = points[j];
-    const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
-    const [x, yTo] = projection.toPixels(labelIndex, stackValue);
-
-    context.moveTo(x, yFrom);
-    context.lineTo(x, yFrom - yTo >= 1 ? yTo : yTo - 1);
-  }
-
-  const [x0] = projection.toPixels(0, 0);
-  const [x1] = projection.toPixels(1, 0);
-  const lineWidth = x1 - x0;
-
-  context.save();
-  context.strokeStyle = options.color;
-  context.lineWidth = lineWidth;
-  context.globalAlpha = options.opacity;
-  context.lineJoin = 'bevel';
-  context.lineCap = 'butt';
-  context.stroke();
-  context.restore();
-}
-
-function drawBarsActivePoint(activePoint, context, projection, options) {
-  const { yMin } = projection.getParams();
-  const { labelIndex, stackValue, stackOffset = 0 } = activePoint;
-  const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
-  const [x, yTo] = projection.toPixels(labelIndex, stackValue);
-
-  const rectX = x - options.lineWidth / 2;
-  const rectY = yTo;
-  const rectW = options.lineWidth;
-  const rectH = yFrom - yTo;
-
-  context.globalAlpha = options.opacity;
-  context.fillRect(rectX, rectY, rectW, rectH);
 }
 
 function drawBarsMask(context, projection, options) {
@@ -178,81 +201,4 @@ function drawDatasetPie(context, points, projection, options) {
   );
 
   context.restore();
-}
-
-function drawDataset(type, ...args) {
-  switch (type) {
-    case 'line':
-      return drawDatasetLine(...args);
-    case 'bar':
-      return drawDatasetBars(...args);
-    case 'area':
-      return drawDatasetArea(...args);
-    case 'pie':
-      return drawDatasetPie(...args);
-  }
-}
-
-export function drawDatasets(
-  context, state, data,
-  range, points, projection, secondaryPoints, secondaryProjection,
-  lineWidth, visibilities, colors, pieToArea,
-) {
-  data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
-    if (!visibilities[i]) {
-      return;
-    }
-
-    const options = {
-      color: getCssColor(colors, `${colorName}-line`),
-      lineWidth,
-      opacity: data.isStacked ? 1 : visibilities[i],
-    };
-
-    const datasetType = type === 'pie' && pieToArea ? 'area' : type;
-    let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
-    let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
-
-    if (datasetType === 'area') {
-      const { yMin, yMax } = projection.getParams();
-      const yHeight = yMax - yMin;
-      const bottomLine = [
-        { labelIndex: range.from, stackValue: 0 },
-        { labelIndex: range.to, stackValue: 0 },
-      ];
-      const topLine = [
-        { labelIndex: range.to, stackValue: yHeight },
-        { labelIndex: range.from, stackValue: yHeight },
-      ];
-
-      datasetPoints = mergeArrays([points[i - 1] || bottomLine, topLine]);
-    }
-
-    if (datasetType === 'pie') {
-      options.center = projection.getCenter();
-      options.radius = Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
-      options.pointerVector = state.focusOn;
-    }
-
-    if (datasetType === 'bar') {
-      const [x0] = projection.toPixels(0, 0);
-      const [x1] = projection.toPixels(1, 0);
-
-      options.lineWidth = x1 - x0;
-      options.focusOn = state.focusOn;
-    }
-
-    drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
-  });
-
-  if (state.focusOn && data.isBars) {
-    const [x0] = projection.toPixels(0, 0);
-    const [x1] = projection.toPixels(1, 0);
-
-    drawBarsMask(context, projection, {
-      focusOn: state.focusOn,
-      color: getCssColor(colors, 'mask'),
-      lineWidth: x1 - x0
-    });
-  }
 }

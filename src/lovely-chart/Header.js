@@ -1,6 +1,6 @@
 import { createElement, addEventListener } from './minifiers';
 import { toggleText } from './toggleText';
-import { throttle } from './fast';
+import { throttle } from './utils';
 
 export function createHeader(container, title, zoomOutCallback) {
   let _element;

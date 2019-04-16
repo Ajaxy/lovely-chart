@@ -3,7 +3,6 @@ import { getFullLabelDate } from './format';
 import { ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants';
 
 export function createZoomer(data, params, stateManager, header, minimap, tooltip, tools) {
-
   let _isZoomed = false;
   let _stateBeforeZoom;
   let _zoomedDateText;
@@ -23,6 +22,13 @@ export function createZoomer(data, params, stateManager, header, minimap, toolti
     dataPromise.then((newData) => _replaceData(newData, labelIndex));
   }
 
+  function zoomOut(state) {
+    tooltip.toggleIsZoomed(false);
+
+    const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
+    fetchData(params).then((newData) => _replaceData(newData, labelIndex));
+  }
+
   function _fetchDayData(date) {
     const { dataSource } = params;
     const month = date.getMonth() + 1;
@@ -31,13 +37,6 @@ export function createZoomer(data, params, stateManager, header, minimap, toolti
 
     return fetch(`${dataSource}/${path}.json`)
       .then((response) => response.json());
-  }
-
-  function zoomOut(state) {
-    tooltip.toggleIsZoomed(false);
-
-    const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
-    fetchData(params).then((newData) => _replaceData(newData, labelIndex));
   }
 
   function _replaceData(newData, labelIndex) {

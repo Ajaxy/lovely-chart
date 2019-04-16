@@ -1,4 +1,4 @@
-import { sumArrays } from './fast';
+import { sumArrays } from './utils';
 
 export function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
   let values = datasets.map(({ values }) => (
