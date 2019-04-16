@@ -1,17 +1,28 @@
 ;(function() {
-const DEFAULT_SKIN = 'skin-day';
+
+window.LovelyChart = {
+  create: createLovelyChart,
+  setupColors,
+  changeSkin,
+};
+
+const DPR = window.devicePixelRatio || 1;
 
 const LABELS_KEY = 'x';
 
 const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };
-const GUTTER = 10;
+const TRANSITION_DEFAULT_DURATION = 300;
+const DEFAULT_SKIN = 'skin-day';
+const DEFAULT_PALETTE = 'type-1';
 
+const GUTTER = 10;
 const PLOT_HEIGHT = 320;
 const PLOT_TOP_PADDING = 10;
 const PLOT_LINE_WIDTH = 2;
 const PLOT_PIE_RADIUS_FACTOR = 0.9 / 2;
 const PLOT_PIE_SHIFT = 10;
 
+const BALLOON_OFFSET = 20;
 const PIE_BALLOON_MIN_DISTANCE = 150;
 
 const AXES_FONT = '300 10px Helvetica, Arial, sans-serif';
@@ -26,20 +37,12 @@ const MINIMAP_MARGIN = 10;
 const MINIMAP_LINE_WIDTH = 1;
 const MINIMAP_EAR_WIDTH = 8;
 
-const DPR = window.devicePixelRatio || 1;
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-const BALLOON_OFFSET = 20;
-
-const TRANSITION_DEFAULT_DURATION = 300;
-
 const ZOOM_TIMEOUT = TRANSITION_DEFAULT_DURATION;
 const ZOOM_RANGE_DELTA = 0.1;
 const ZOOM_RANGE_MIDDLE = .5;
 
-const DEFAULT_PALETTE = 'type-1';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const ANIMATE_PROPS = [
   // Viewport X-axis
@@ -62,6 +65,8 @@ const ANIMATE_PROPS = [
 function createLovelyChart(params) {
   let _data;
 
+  let _stateManager;
+
   let _container;
   let _plot;
   let _context;
@@ -69,26 +74,34 @@ function createLovelyChart(params) {
 
   let _header;
   let _axes;
-  let _stateManager;
   let _minimap;
   let _tooltip;
   let _tools;
+  let _zoomer;
 
   let _state;
-  let _isZoomed = false;
-  let _zoomedDateText;
-  let _stateBeforeZoom;
 
   const _colors = createColors(params.palette);
-  _setupContainer();
 
-  _fetchData().then((data) => {
+  fetchData(params).then((data) => {
     _data = analyzeData(data, params.datasetColors);
     _setupComponents();
   });
 
   function redraw() {
     _stateManager.update();
+  }
+
+  function _setupComponents() {
+    _setupContainer();
+    _header = createHeader(_container, params.title, _onZoomOut);
+    _setupPlotCanvas();
+    _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
+    _axes = createAxes(_context, _data, _plotSize, _colors);
+    _minimap = createMinimap(_container, _data, _colors, _onRangeChange);
+    _tooltip = createTooltip(_container, _data, _plotSize, _colors, _onZoomIn, _onFocus);
+    _tools = createTools(_container, _data, _onFilterChange);
+    _zoomer = createZoomer(_data, params, _stateManager, _header, _minimap, _tooltip, _tools);
   }
 
   function _setupContainer() {
@@ -113,37 +126,6 @@ function createLovelyChart(params) {
       width: _plot.offsetWidth,
       height: _plot.offsetHeight,
     };
-  }
-
-  function _fetchData() {
-    const { data, dataSource } = params;
-
-    if (data) {
-      return Promise.resolve(data);
-    } else if (dataSource) {
-      return fetch(`${dataSource}/overview.json`)
-        .then((response) => response.json());
-    }
-  }
-
-  function _fetchDayData(date) {
-    const { dataSource } = params;
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
-
-    return fetch(`${dataSource}/${path}.json`)
-      .then((response) => response.json());
-  }
-
-  function _setupComponents() {
-    _header = createHeader(_container, params.title, _onZoomOut);
-    _setupPlotCanvas();
-    _axes = createAxes(_context, _data, _plotSize, _colors);
-    _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
-    _minimap = createMinimap(_container, _data, _colors, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize, _colors, _zoomToDay, _onFocus);
-    _tools = createTools(_container, _data, _onFilterChange);
   }
 
   function _onStateUpdate(state) {
@@ -182,7 +164,6 @@ function createLovelyChart(params) {
     }
 
     _header.setCaption(
-      _zoomedDateText ||
       `${_data.xLabels[state.labelFromIndex + 1].text} — ${_data.xLabels[state.labelToIndex - 1].text}`,
     );
 
@@ -208,130 +189,22 @@ function createLovelyChart(params) {
     _stateManager.update({ filter });
   }
 
-  function _zoomToDay(labelIndex) {
-    if (!params.dataSource || _isZoomed) {
-      return;
+  function _onFocus(focusOn) {
+    if (_data.isBars || _data.isPie) {
+      _stateManager.update({ focusOn });
     }
+  }
 
-    _stateBeforeZoom = _state;
-    _header.zoom(getFullLabelDate(_data.xLabels[labelIndex]));
-    _tooltip.toggleSpinner(true);
-    _tooltip.toggleIsZoomed(true);
-
-    const { value: date } = _data.xLabels[labelIndex];
-    const dataPromise = params.zoomToPie ? Promise.resolve(_generatePieData()) : _fetchDayData(new Date(date));
-    dataPromise.then((data) => _replaceData(data, labelIndex));
+  function _onZoomIn(labelIndex) {
+    _zoomer.zoomIn(_state, labelIndex);
   }
 
   function _onZoomOut() {
-    _tooltip.toggleIsZoomed(false);
-
-    const labelIndex = Math.round((_state.labelFromIndex + _state.labelToIndex) / 2);
-    _fetchData().then((data) => _replaceData(data, labelIndex));
-  }
-
-  function _replaceData(data, labelIndex) {
-    _tooltip.toggleSpinner(false);
-
-    const labelWidth = 1 / _data.xLabels.length;
-    const labelMiddle = labelIndex / (_data.xLabels.length - 1);
-    const filter = {};
-    _data.datasets.forEach(({ key }) => filter[key] = false);
-
-    _stateManager.update({
-      range: {
-        begin: labelMiddle - labelWidth / 2,
-        end: labelMiddle + labelWidth / 2,
-      },
-      filter,
-    });
-
-    setTimeout(() => {
-      if (!_isZoomed) {
-        _zoomedDateText = getFullLabelDate(_data.xLabels[labelIndex]);
-      } else {
-        _zoomedDateText = null;
-      }
-
-      Object.assign(_data, analyzeData(data, params.datasetColors, _isZoomed || params.zoomToPie ? 'days' : 'hours'));
-
-      if (params.noMinimapOnZoom) {
-        _minimap.toggle(_isZoomed);
-        _tools.redraw();
-      }
-
-      _stateManager.update({
-        range: {
-          begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
-          end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
-        },
-      }, true);
-
-      const daysCount = _isZoomed || params.zoomToPie ? _data.xLabels.length : _data.xLabels.length / 24;
-      const halfDayWidth = (1 / daysCount) / 2;
-      const filter = {};
-      _data.datasets.forEach(({ key }) => filter[key] = true);
-
-      let range;
-      if (_isZoomed) {
-        range = {
-          begin: _stateBeforeZoom.begin,
-          end: _stateBeforeZoom.end,
-        };
-      } else if (!params.noMinimapOnZoom) {
-        range = {
-          begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
-          end: ZOOM_RANGE_MIDDLE + halfDayWidth,
-        };
-      } else {
-        range = {
-          begin: 0,
-          end: 1,
-        };
-      }
-
-      _stateManager.update({ range, filter });
-
-      _isZoomed = !_isZoomed;
-    }, ZOOM_TIMEOUT);
-  }
-
-  function _generatePieData() {
-    return _fetchData().then((sourceData) => {
-      const pieData = Object.assign({}, sourceData);
-
-      pieData.columns = sourceData.columns.map((c) => {
-        const column = c.slice(_state.labelFromIndex + 1, _state.labelToIndex + 1);
-        column.unshift(c[0]);
-        return column;
-      });
-
-      Object.keys(pieData.types).forEach((key) => {
-        if (key !== 'x') {
-          pieData.types[key] = 'pie';
-        }
-      });
-
-      pieData.pie = true;
-
-      return pieData;
-    });
-  }
-
-  function _onFocus(labelIndex) {
-    if (_data.isBars || _data.isPie) {
-      _stateManager.update({ focusOn: labelIndex });
-    }
+    _zoomer.zoomOut(_state);
   }
 
   return { redraw };
 }
-
-window.LovelyChart = {
-  create: createLovelyChart,
-  setupColors,
-  changeSkin,
-};
 
 
 function createStateManager(data, viewportSize, callback) {
@@ -1437,31 +1310,165 @@ function createTools(container, data, filterCallback) {
 }
 
 
-function prepareDatasets(chartData, datasetColors = {}) {
-  const { columns, names, types, y_scaled: hasSecondYAxis } = chartData;
+function createZoomer(data, params, stateManager, header, minimap, tooltip, tools) {
+  let _isZoomed = false;
+  let _stateBeforeZoom;
+  let _zoomedDateText;
 
-  let labels = [];
-  const datasets = [];
-
-  columns.forEach((values, i) => {
-    const key = values.shift();
-
-    if (key === LABELS_KEY) {
-      labels = values;
+  function zoomIn(state, labelIndex) {
+    if (!params.dataSource || _isZoomed) {
       return;
     }
 
-    datasets.push({
-      key,
-      colorName: datasetColors[key],
-      name: names[key],
-      type: types[key],
-      values,
-      hasOwnYAxis: hasSecondYAxis && i === columns.length - 1,
-    });
-  });
+    _stateBeforeZoom = state;
+    header.zoom(getFullLabelDate(data.xLabels[labelIndex]));
+    tooltip.toggleSpinner(true);
+    tooltip.toggleIsZoomed(true);
 
-  return { datasets, labels };
+    const { value: date } = data.xLabels[labelIndex];
+    const dataPromise = params.zoomToPie ? Promise.resolve(_generatePieData(state)) : _fetchDayData(new Date(date));
+    dataPromise.then((newData) => _replaceData(newData, labelIndex));
+  }
+
+  function zoomOut(state) {
+    tooltip.toggleIsZoomed(false);
+
+    const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
+    fetchData(params).then((newData) => _replaceData(newData, labelIndex));
+  }
+
+  function _fetchDayData(date) {
+    const { dataSource } = params;
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
+
+    return fetch(`${dataSource}/${path}.json`)
+      .then((response) => response.json());
+  }
+
+  function _replaceData(newData, labelIndex) {
+    tooltip.toggleSpinner(false);
+
+    const labelWidth = 1 / data.xLabels.length;
+    const labelMiddle = labelIndex / (data.xLabels.length - 1);
+    const filter = {};
+    data.datasets.forEach(({ key }) => filter[key] = false);
+
+    stateManager.update({
+      range: {
+        begin: labelMiddle - labelWidth / 2,
+        end: labelMiddle + labelWidth / 2,
+      },
+      filter,
+    });
+
+    setTimeout(() => {
+      if (!_isZoomed) {
+        _zoomedDateText = getFullLabelDate(data.xLabels[labelIndex]);
+      } else {
+        _zoomedDateText = null;
+      }
+
+      Object.assign(data, analyzeData(newData, params.datasetColors, _isZoomed || params.zoomToPie ? 'days' : 'hours'));
+
+      if (params.noMinimapOnZoom) {
+        minimap.toggle(_isZoomed);
+        tools.redraw();
+      }
+
+      stateManager.update({
+        range: {
+          begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
+          end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
+        },
+      }, true);
+
+      const daysCount = _isZoomed || params.zoomToPie ? data.xLabels.length : data.xLabels.length / 24;
+      const halfDayWidth = (1 / daysCount) / 2;
+      const filter = {};
+      data.datasets.forEach(({ key }) => filter[key] = true);
+
+      let range;
+      if (_isZoomed) {
+        range = {
+          begin: _stateBeforeZoom.begin,
+          end: _stateBeforeZoom.end,
+        };
+      } else if (!params.noMinimapOnZoom) {
+        range = {
+          begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
+          end: ZOOM_RANGE_MIDDLE + halfDayWidth,
+        };
+      } else {
+        range = {
+          begin: 0,
+          end: 1,
+        };
+      }
+
+      stateManager.update({ range, filter });
+
+      _isZoomed = !_isZoomed;
+    }, ZOOM_TIMEOUT);
+  }
+
+  function _generatePieData(state) {
+    return fetchData(params).then((sourceData) => {
+      const pieData = Object.assign({}, sourceData);
+
+      pieData.columns = sourceData.columns.map((c) => {
+        const column = c.slice(state.labelFromIndex + 1, state.labelToIndex + 1);
+        column.unshift(c[0]);
+        return column;
+      });
+
+      Object.keys(pieData.types).forEach((key) => {
+        if (key !== 'x') {
+          pieData.types[key] = 'pie';
+        }
+      });
+
+      pieData.pie = true;
+
+      return pieData;
+    });
+  }
+
+  return { zoomIn, zoomOut };
+}
+
+
+function setupCanvas(container, { width, height }) {
+  const canvas = createElement('canvas');
+
+  canvas.width = width * DPR;
+  canvas.height = height * DPR;
+  canvas.style.width = '100%';
+  canvas.style.height = `${height}px`;
+
+  const context = canvas.getContext('2d');
+  context.scale(DPR, DPR);
+
+  container.appendChild(canvas);
+
+  return { canvas, context };
+}
+
+function clearCanvas(canvas, context) {
+  context.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+
+function fetchData(params) {
+  const { data, dataSource } = params;
+
+  if (data) {
+    return Promise.resolve(data);
+  } else if (dataSource) {
+    return fetch(`${dataSource}/overview.json`)
+      .then((response) => response.json());
+  }
 }
 
 function analyzeData(data, datasetColors, type) {
@@ -1498,6 +1505,33 @@ function analyzeData(data, datasetColors, type) {
     isBars: datasets.some(({ type }) => type === 'bar'),
     isAreas: datasets.some(({ type }) => type === 'area'),
   };
+}
+
+function prepareDatasets(chartData, datasetColors = {}) {
+  const { columns, names, types, y_scaled: hasSecondYAxis } = chartData;
+
+  let labels = [];
+  const datasets = [];
+
+  columns.forEach((values, i) => {
+    const key = values.shift();
+
+    if (key === LABELS_KEY) {
+      labels = values;
+      return;
+    }
+
+    datasets.push({
+      key,
+      colorName: datasetColors[key],
+      name: names[key],
+      type: types[key],
+      values,
+      hasOwnYAxis: hasSecondYAxis && i === columns.length - 1,
+    });
+  });
+
+  return { datasets, labels };
 }
 
 
@@ -1648,6 +1682,83 @@ function createProjection(params) {
 }
 
 
+function drawDatasets(
+  context, state, data,
+  range, points, projection, secondaryPoints, secondaryProjection,
+  lineWidth, visibilities, colors, pieToArea,
+) {
+  data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
+    if (!visibilities[i]) {
+      return;
+    }
+
+    const options = {
+      color: getCssColor(colors, `${colorName}-line`),
+      lineWidth,
+      opacity: data.isStacked ? 1 : visibilities[i],
+    };
+
+    const datasetType = type === 'pie' && pieToArea ? 'area' : type;
+    let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
+    let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
+
+    if (datasetType === 'area') {
+      const { yMin, yMax } = projection.getParams();
+      const yHeight = yMax - yMin;
+      const bottomLine = [
+        { labelIndex: range.from, stackValue: 0 },
+        { labelIndex: range.to, stackValue: 0 },
+      ];
+      const topLine = [
+        { labelIndex: range.to, stackValue: yHeight },
+        { labelIndex: range.from, stackValue: yHeight },
+      ];
+
+      datasetPoints = mergeArrays([points[i - 1] || bottomLine, topLine]);
+    }
+
+    if (datasetType === 'pie') {
+      options.center = projection.getCenter();
+      options.radius = Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
+      options.pointerVector = state.focusOn;
+    }
+
+    if (datasetType === 'bar') {
+      const [x0] = projection.toPixels(0, 0);
+      const [x1] = projection.toPixels(1, 0);
+
+      options.lineWidth = x1 - x0;
+      options.focusOn = state.focusOn;
+    }
+
+    drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
+  });
+
+  if (state.focusOn && data.isBars) {
+    const [x0] = projection.toPixels(0, 0);
+    const [x1] = projection.toPixels(1, 0);
+
+    drawBarsMask(context, projection, {
+      focusOn: state.focusOn,
+      color: getCssColor(colors, 'mask'),
+      lineWidth: x1 - x0
+    });
+  }
+}
+
+function drawDataset(type, ...args) {
+  switch (type) {
+    case 'line':
+      return drawDatasetLine(...args);
+    case 'bar':
+      return drawDatasetBars(...args);
+    case 'area':
+      return drawDatasetArea(...args);
+    case 'pie':
+      return drawDatasetPie(...args);
+  }
+}
+
 function drawDatasetLine(context, points, projection, options) {
   context.beginPath();
 
@@ -1668,20 +1779,13 @@ function drawDatasetLine(context, points, projection, options) {
 }
 function drawDatasetBars(context, points, projection, options) {
   const { yMin } = projection.getParams();
-  let activePoint;
 
   context.save();
-
   context.globalAlpha = options.opacity;
   context.fillStyle = options.color;
 
   for (let j = 0, l = points.length; j < l; j++) {
     const { labelIndex, stackValue, stackOffset = 0 } = points[j];
-
-    // if (labelIndex === options.focusOn) {
-    //   activePoint = points[j];
-    //   continue;
-    // }
 
     const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
     const [x, yTo] = projection.toPixels(labelIndex, stackValue);
@@ -1693,54 +1797,7 @@ function drawDatasetBars(context, points, projection, options) {
     context.fillRect(rectX, rectY, rectW, rectH);
   }
 
-  // if (activePoint) {
-  //   drawBarsActivePoint(activePoint, context, projection, options);
-  // }
-
   context.restore();
-}
-
-function drawDatasetBarsWithLines(context, points, projection, options) {
-  const { yMin } = projection.getParams();
-
-  context.beginPath();
-
-  for (let j = 0, l = points.length; j < l; j++) {
-    const { labelIndex, stackValue, stackOffset = 0 } = points[j];
-    const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
-    const [x, yTo] = projection.toPixels(labelIndex, stackValue);
-
-    context.moveTo(x, yFrom);
-    context.lineTo(x, yFrom - yTo >= 1 ? yTo : yTo - 1);
-  }
-
-  const [x0] = projection.toPixels(0, 0);
-  const [x1] = projection.toPixels(1, 0);
-  const lineWidth = x1 - x0;
-
-  context.save();
-  context.strokeStyle = options.color;
-  context.lineWidth = lineWidth;
-  context.globalAlpha = options.opacity;
-  context.lineJoin = 'bevel';
-  context.lineCap = 'butt';
-  context.stroke();
-  context.restore();
-}
-
-function drawBarsActivePoint(activePoint, context, projection, options) {
-  const { yMin } = projection.getParams();
-  const { labelIndex, stackValue, stackOffset = 0 } = activePoint;
-  const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
-  const [x, yTo] = projection.toPixels(labelIndex, stackValue);
-
-  const rectX = x - options.lineWidth / 2;
-  const rectY = yTo;
-  const rectW = options.lineWidth;
-  const rectH = yFrom - yTo;
-
-  context.globalAlpha = options.opacity;
-  context.fillRect(rectX, rectY, rectW, rectH);
 }
 
 function drawBarsMask(context, projection, options) {
@@ -1823,83 +1880,6 @@ function drawDatasetPie(context, points, projection, options) {
   context.restore();
 }
 
-function drawDataset(type, ...args) {
-  switch (type) {
-    case 'line':
-      return drawDatasetLine(...args);
-    case 'bar':
-      return drawDatasetBars(...args);
-    case 'area':
-      return drawDatasetArea(...args);
-    case 'pie':
-      return drawDatasetPie(...args);
-  }
-}
-
-function drawDatasets(
-  context, state, data,
-  range, points, projection, secondaryPoints, secondaryProjection,
-  lineWidth, visibilities, colors, pieToArea,
-) {
-  data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
-    if (!visibilities[i]) {
-      return;
-    }
-
-    const options = {
-      color: getCssColor(colors, `${colorName}-line`),
-      lineWidth,
-      opacity: data.isStacked ? 1 : visibilities[i],
-    };
-
-    const datasetType = type === 'pie' && pieToArea ? 'area' : type;
-    let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
-    let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
-
-    if (datasetType === 'area') {
-      const { yMin, yMax } = projection.getParams();
-      const yHeight = yMax - yMin;
-      const bottomLine = [
-        { labelIndex: range.from, stackValue: 0 },
-        { labelIndex: range.to, stackValue: 0 },
-      ];
-      const topLine = [
-        { labelIndex: range.to, stackValue: yHeight },
-        { labelIndex: range.from, stackValue: yHeight },
-      ];
-
-      datasetPoints = mergeArrays([points[i - 1] || bottomLine, topLine]);
-    }
-
-    if (datasetType === 'pie') {
-      options.center = projection.getCenter();
-      options.radius = Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
-      options.pointerVector = state.focusOn;
-    }
-
-    if (datasetType === 'bar') {
-      const [x0] = projection.toPixels(0, 0);
-      const [x1] = projection.toPixels(1, 0);
-
-      options.lineWidth = x1 - x0;
-      options.focusOn = state.focusOn;
-    }
-
-    drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
-  });
-
-  if (state.focusOn && data.isBars) {
-    const [x0] = projection.toPixels(0, 0);
-    const [x1] = projection.toPixels(1, 0);
-
-    drawBarsMask(context, projection, {
-      focusOn: state.focusOn,
-      color: getCssColor(colors, 'mask'),
-      lineWidth: x1 - x0
-    });
-  }
-}
-
 
 let allColors;
 let skin = DEFAULT_SKIN;
@@ -1949,141 +1929,6 @@ function hexToChannels(hexWithAlpha) {
 
 function buildCssColor([r, g, b, a = 1], opacity = 1) {
   return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
-}
-
-
-function setupCanvas(container, { width, height }) {
-  const canvas = createElement('canvas');
-
-  canvas.width = width * DPR;
-  canvas.height = height * DPR;
-  canvas.style.width = '100%';
-  canvas.style.height = `${height}px`;
-
-  const context = canvas.getContext('2d');
-  context.scale(DPR, DPR);
-
-  container.appendChild(canvas);
-
-  return { canvas, context };
-}
-
-function clearCanvas(canvas, context) {
-  context.clearRect(0, 0, canvas.width, canvas.height);
-}
-
-// https://jsperf.com/finding-maximum-element-in-an-array
-function getMaxMin(array) {
-  const length = array.length;
-  let max = array[0];
-  let min = array[0];
-
-  for (let i = 0; i < length; i++) {
-    const value = array[i];
-
-    if (value > max) {
-      max = value;
-    } else if (value < min) {
-      min = value;
-    }
-  }
-
-  return { max, min };
-}
-
-// https://jsperf.com/multi-array-concat/24
-function mergeArrays(arrays) {
-  return [].concat.apply([], arrays);
-}
-
-function sumArrays(arrays) {
-  const sums = [];
-  const n = arrays.length;
-
-  for (let i = 0, l = arrays[0].length; i < l; i++) {
-    sums[i] = 0;
-
-    for (let j = 0; j < n; j++) {
-      sums[i] += arrays[j][i];
-    }
-  }
-
-  return sums;
-}
-
-function proxyMerge(obj1, obj2) {
-  return new Proxy({}, {
-    get: (obj, prop) => {
-      return obj2[prop] !== undefined ? obj2[prop] : obj1[prop];
-    },
-  });
-}
-
-function throttle(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
-  let waiting = false;
-  let args;
-  let isPending;
-
-  return function (..._args) {
-    args = _args;
-    isPending = true;
-
-    if (!waiting) {
-      if (shouldRunFirst) {
-        isPending = false;
-        fn(...args);
-      }
-
-      waiting = true;
-
-      setTimeout(() => {
-        waiting = false;
-
-        if (shouldRunLast && isPending) {
-          fn(...args);
-        }
-      }, ms);
-    }
-  };
-}
-
-function throttleWithRaf(fn) {
-  let waiting = false;
-  let args;
-
-  return function (..._args) {
-    args = _args;
-
-    if (!waiting) {
-      waiting = true;
-
-      requestAnimationFrame(() => {
-        waiting = false;
-        fn(...args);
-      });
-    }
-  };
-}
-
-function debounce(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
-  let waitingTimeout = null;
-
-  return function () {
-    if (waitingTimeout) {
-      clearTimeout(waitingTimeout);
-      waitingTimeout = null;
-    } else if (shouldRunFirst) {
-      fn();
-    }
-
-    waitingTimeout = setTimeout(() => {
-      if (shouldRunLast) {
-        fn();
-      }
-
-      waitingTimeout = null;
-    }, ms);
-  };
 }
 
 
@@ -2304,20 +2149,6 @@ function setupDrag(element, options) {
 }
 
 
-function toggleIn(element) {
-  // Remove and add `animated` class to re-trigger animation
-  element.classList.remove('animated');
-  element.classList.add('animated');
-  element.classList.remove('hidden');
-}
-
-function toggleOut(element) {
-  // Remove and add `animated` class to re-trigger animation
-  element.classList.remove('animated');
-  element.classList.add('animated');
-  element.classList.add('hidden');
-}
-
 function toggleText(element, newText, className = '', inverse = false) {
   const container = element.parentNode;
   container.classList.add('transition-container');
@@ -2335,10 +2166,138 @@ function toggleText(element, newText, className = '', inverse = false) {
   element.classList.add(inverse ? 'bottom' : 'top');
   container.insertBefore(newElement, element.nextSibling);
 
-  toggleIn(newElement);
-  toggleOut(element);
+  toggleElementIn(newElement);
+  toggleElementOut(element);
 
   return newElement;
+}
+
+function toggleElementIn(element) {
+  // Remove and add `animated` class to re-trigger animation
+  element.classList.remove('animated');
+  element.classList.add('animated');
+  element.classList.remove('hidden');
+}
+
+function toggleElementOut(element) {
+  // Remove and add `animated` class to re-trigger animation
+  element.classList.remove('animated');
+  element.classList.add('animated');
+  element.classList.add('hidden');
+}
+
+// https://jsperf.com/finding-maximum-element-in-an-array
+function getMaxMin(array) {
+  const length = array.length;
+  let max = array[0];
+  let min = array[0];
+
+  for (let i = 0; i < length; i++) {
+    const value = array[i];
+
+    if (value > max) {
+      max = value;
+    } else if (value < min) {
+      min = value;
+    }
+  }
+
+  return { max, min };
+}
+
+// https://jsperf.com/multi-array-concat/24
+function mergeArrays(arrays) {
+  return [].concat.apply([], arrays);
+}
+
+function sumArrays(arrays) {
+  const sums = [];
+  const n = arrays.length;
+
+  for (let i = 0, l = arrays[0].length; i < l; i++) {
+    sums[i] = 0;
+
+    for (let j = 0; j < n; j++) {
+      sums[i] += arrays[j][i];
+    }
+  }
+
+  return sums;
+}
+
+function proxyMerge(obj1, obj2) {
+  return new Proxy({}, {
+    get: (obj, prop) => {
+      return obj2[prop] !== undefined ? obj2[prop] : obj1[prop];
+    },
+  });
+}
+
+function throttle(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
+  let waiting = false;
+  let args;
+  let isPending;
+
+  return function (..._args) {
+    args = _args;
+    isPending = true;
+
+    if (!waiting) {
+      if (shouldRunFirst) {
+        isPending = false;
+        fn(...args);
+      }
+
+      waiting = true;
+
+      setTimeout(() => {
+        waiting = false;
+
+        if (shouldRunLast && isPending) {
+          fn(...args);
+        }
+      }, ms);
+    }
+  };
+}
+
+function throttleWithRaf(fn) {
+  let waiting = false;
+  let args;
+
+  return function (..._args) {
+    args = _args;
+
+    if (!waiting) {
+      waiting = true;
+
+      requestAnimationFrame(() => {
+        waiting = false;
+        fn(...args);
+      });
+    }
+  };
+}
+
+function debounce(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
+  let waitingTimeout = null;
+
+  return function () {
+    if (waitingTimeout) {
+      clearTimeout(waitingTimeout);
+      waitingTimeout = null;
+    } else if (shouldRunFirst) {
+      fn();
+    }
+
+    waitingTimeout = setTimeout(() => {
+      if (shouldRunLast) {
+        fn();
+      }
+
+      waitingTimeout = null;
+    }, ms);
+  };
 }
 
 })();
