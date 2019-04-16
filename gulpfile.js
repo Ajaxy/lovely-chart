@@ -18,9 +18,9 @@ gulp.task('prod', () => {
     gulp
       .src('src/lovely-chart/*.js')
       .pipe(order([
-        '*constants*', '*LovelyChart*',
-        '*StateManager*', '*TransitionManager*', '*Header*', '*Axes*', '*Minimap*', '*Tooltip*', '*Tools*',
-        '*analyzeData*', '*points*', '*createProjection*', '*drawDatasets*', '*skin*',
+        'index', '*constants*', '*LovelyChart*',
+        '*StateManager*', '*TransitionManager*', '*Header*', '*Axes*', '*Minimap*', '*Tooltip*', '*Tools*', '*Zoomer*',
+        '*data*', '*points*', '*createProjection*', '*drawDatasets*', '*skin*',
       ]))
       .pipe(concat('lovely-chart/LovelyChart.js'))
       .pipe(replace(/^import(.|\n)*?from.*?\n/gm, ''))
@@ -39,7 +39,8 @@ gulp.task('prod', () => {
     // .pipe(minifyCss()),
     gulp
       .src('src/index.html')
-      .pipe(replace('lovely-chart.scss', 'lovely-chart.css')),
+      .pipe(replace('lovely-chart/styles/index.scss', 'lovely-chart/styles/lovely-chart.css'))
+      .pipe(replace('lovely-chart/index.js', 'lovely-chart/LovelyChart.js')),
     gulp
       .src('src/**/*.svg'),
     gulp

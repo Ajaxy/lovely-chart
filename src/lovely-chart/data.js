@@ -2,31 +2,15 @@ import { getMaxMin } from './fast';
 import { buildDayLabels, buildTimeLabels } from './format';
 import { LABELS_KEY } from './constants';
 
-function prepareDatasets(chartData, datasetColors = {}) {
-  const { columns, names, types, y_scaled: hasSecondYAxis } = chartData;
+export function fetchData(params) {
+  const { data, dataSource } = params;
 
-  let labels = [];
-  const datasets = [];
-
-  columns.forEach((values, i) => {
-    const key = values.shift();
-
-    if (key === LABELS_KEY) {
-      labels = values;
-      return;
-    }
-
-    datasets.push({
-      key,
-      colorName: datasetColors[key],
-      name: names[key],
-      type: types[key],
-      values,
-      hasOwnYAxis: hasSecondYAxis && i === columns.length - 1,
-    });
-  });
-
-  return { datasets, labels };
+  if (data) {
+    return Promise.resolve(data);
+  } else if (dataSource) {
+    return fetch(`${dataSource}/overview.json`)
+      .then((response) => response.json());
+  }
 }
 
 export function analyzeData(data, datasetColors, type) {
@@ -63,4 +47,31 @@ export function analyzeData(data, datasetColors, type) {
     isBars: datasets.some(({ type }) => type === 'bar'),
     isAreas: datasets.some(({ type }) => type === 'area'),
   };
+}
+
+function prepareDatasets(chartData, datasetColors = {}) {
+  const { columns, names, types, y_scaled: hasSecondYAxis } = chartData;
+
+  let labels = [];
+  const datasets = [];
+
+  columns.forEach((values, i) => {
+    const key = values.shift();
+
+    if (key === LABELS_KEY) {
+      labels = values;
+      return;
+    }
+
+    datasets.push({
+      key,
+      colorName: datasetColors[key],
+      name: names[key],
+      type: types[key],
+      values,
+      hasOwnYAxis: hasSecondYAxis && i === columns.length - 1,
+    });
+  });
+
+  return { datasets, labels };
 }
