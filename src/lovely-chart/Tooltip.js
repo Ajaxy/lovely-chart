@@ -22,6 +22,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   let _offsetY;
   let _clickedOnLabel = null;
 
+  let _isZoomed = false;
+
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
   const _throttledUpdateContent = throttle(_updateContent, 400, true, true);
 
@@ -41,6 +43,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function toggleIsZoomed(isZoomed) {
+    _isZoomed = isZoomed;
     _balloon.classList.toggle('zoomed', isZoomed);
   }
 
@@ -240,7 +243,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
     _balloon.classList.add('shown');
 
-    _throttledUpdateContent(getFullLabelDate(data.xLabels[labelIndex]), statistics);
+    const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex]);
+    _throttledUpdateContent(title, statistics);
   }
 
   function _updateContent(title, statistics) {

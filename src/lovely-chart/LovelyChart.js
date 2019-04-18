@@ -12,6 +12,7 @@ import { preparePoints } from './preparePoints';
 import { createProjection } from './Projection';
 import { drawDatasets } from './drawDatasets';
 import { createElement } from './minifiers';
+import { getFullLabelDate, getLabelDate } from './format';
 import { hideOnScroll } from './hideOnScroll';
 import {
   X_AXIS_HEIGHT,
@@ -125,9 +126,13 @@ export function createLovelyChart(params) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    _header.setCaption(
-      `${_data.xLabels[state.labelFromIndex + 1].text} — ${_data.xLabels[state.labelToIndex - 1].text}`,
-    );
+    _header.setCaption(_zoomer.isZoomed()
+      ? getFullLabelDate(_data.xLabels[state.labelFromIndex])
+      : (
+        `${getLabelDate(_data.xLabels[state.labelFromIndex + 1])}` +
+        ' - ' +
+        `${getLabelDate(_data.xLabels[state.labelToIndex - 1])}`
+      ));
 
     clearCanvas(_plot, _context);
     drawDatasets(

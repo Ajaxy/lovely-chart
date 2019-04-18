@@ -9,7 +9,7 @@ export function buildDayLabels(labels) {
 
     return ({
       value,
-      text: `${month} ${day}`,
+      text: `${day} ${month}`,
     });
   });
 }
@@ -50,8 +50,17 @@ export function formatInteger(n) {
 }
 
 export function getFullLabelDate(label) {
-  const { value, text } = label;
+  const { value } = label;
   const date = new Date(value);
 
-  return `${WEEK_DAYS[date.getDay()]}, ${text} ${date.getFullYear()}`;
+  return `${WEEK_DAYS[date.getDay()]}, ${getLabelDate(label)}`;
+}
+
+export function getLabelDate(label) {
+  const { value } = label;
+  const date = new Date(value);
+  const day = date.getDate();
+  const month = MONTHS[date.getMonth()];
+
+  return `${day} ${month} ${date.getFullYear()}`;
 }

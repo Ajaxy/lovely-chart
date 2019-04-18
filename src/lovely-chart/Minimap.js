@@ -10,7 +10,7 @@ import {
   MINIMAP_MARGIN,
   MINIMAP_LINE_WIDTH,
 } from './constants';
-import { throttleWithRaf } from './utils';
+import { proxyMerge, throttleWithRaf } from './utils';
 import { createElement } from './minifiers';
 import { getDatasetMinimapVisibility } from './formulas';
 
@@ -41,9 +41,9 @@ export function createMinimap(container, data, colors, rangeCallback) {
       return;
     }
 
-    _state = newState;
+    _state = proxyMerge(newState, { focusOn: null });
     clearCanvas(_canvas, _context);
-    _drawDatasets(newState);
+    _drawDatasets(_state);
   }
 
   function toggle(shouldShow) {

@@ -13,6 +13,7 @@ export const PLOT_TOP_PADDING = 10;
 export const PLOT_LINE_WIDTH = 2;
 export const PLOT_PIE_RADIUS_FACTOR = 0.9 / 2;
 export const PLOT_PIE_SHIFT = 10;
+export const PLOT_BARS_WIDTH_SHIFT = 0.5;
 
 export const BALLOON_OFFSET = 20;
 export const PIE_BALLOON_MIN_DISTANCE = 150;

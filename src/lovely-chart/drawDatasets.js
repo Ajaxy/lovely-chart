@@ -1,7 +1,7 @@
 import { getCssColor } from './skin';
 import { mergeArrays } from './utils';
 import { getPieTextShift, getPieTextSize } from './formulas';
-import { PLOT_PIE_RADIUS_FACTOR, PLOT_PIE_SHIFT } from './constants';
+import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_RADIUS_FACTOR, PLOT_PIE_SHIFT } from './constants';
 
 export function drawDatasets(
   context, state, data,
@@ -62,7 +62,7 @@ export function drawDatasets(
     drawBarsMask(context, projection, {
       focusOn: state.focusOn,
       color: getCssColor(colors, 'mask'),
-      lineWidth: x1 - x0
+      lineWidth: x1 - x0,
     });
   }
 }
@@ -114,7 +114,7 @@ function drawDatasetBars(context, points, projection, options) {
     const [x, yTo] = projection.toPixels(labelIndex, stackValue);
     const rectX = x - options.lineWidth / 2;
     const rectY = yTo;
-    const rectW = options.lineWidth + 0.5;
+    const rectW = options.opacity === 1 ? options.lineWidth + PLOT_BARS_WIDTH_SHIFT : options.lineWidth;
     const rectH = yFrom - yTo;
 
     context.fillRect(rectX, rectY, rectW, rectH);
@@ -130,7 +130,7 @@ function drawBarsMask(context, projection, options) {
   const [x] = projection.toPixels(options.focusOn, 0);
 
   context.fillStyle = options.color;
-  context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2, height);
+  context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT, height);
   context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
 }
 
@@ -197,7 +197,7 @@ function drawDatasetPie(context, points, projection, options) {
   context.fillStyle = 'white';
   const textShift = getPieTextShift(percent, radius);
   context.fillText(
-    `${Math.round(percent * 100)}%`, x + directionX * textShift + shiftX, y + directionY * textShift + shiftY
+    `${Math.round(percent * 100)}%`, x + directionX * textShift + shiftX, y + directionY * textShift + shiftY,
   );
 
   context.restore();

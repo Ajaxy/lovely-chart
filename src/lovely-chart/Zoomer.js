@@ -4,7 +4,8 @@ import { ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants';
 
 export function createZoomer(data, params, stateManager, header, minimap, tooltip, tools) {
   let _isZoomed = false;
-  let _stateBeforeZoom;
+  let _stateBeforeZoomIn;
+  let _stateBeforeZoomOut;
   let _zoomedDateText;
 
   function zoomIn(state, labelIndex) {
@@ -12,7 +13,7 @@ export function createZoomer(data, params, stateManager, header, minimap, toolti
       return;
     }
 
-    _stateBeforeZoom = state;
+    _stateBeforeZoomIn = state;
     header.zoom(getFullLabelDate(data.xLabels[labelIndex]));
     tooltip.toggleSpinner(true);
     tooltip.toggleIsZoomed(true);
@@ -23,10 +24,15 @@ export function createZoomer(data, params, stateManager, header, minimap, toolti
   }
 
   function zoomOut(state) {
+    _stateBeforeZoomOut = state;
     tooltip.toggleIsZoomed(false);
 
     const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
     fetchData(params).then((newData) => _replaceData(newData, labelIndex));
+  }
+
+  function isZoomed() {
+    return _isZoomed;
   }
 
   function _fetchDayData(date) {
@@ -74,29 +80,36 @@ export function createZoomer(data, params, stateManager, header, minimap, toolti
           begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
           end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
         },
+        focusOn: null,
       }, true);
 
       const daysCount = _isZoomed || params.zoomToPie ? data.xLabels.length : data.xLabels.length / 24;
       const halfDayWidth = (1 / daysCount) / 2;
-      const filter = {};
-      data.datasets.forEach(({ key }) => filter[key] = true);
 
       let range;
+      let filter;
+
       if (_isZoomed) {
         range = {
-          begin: _stateBeforeZoom.begin,
-          end: _stateBeforeZoom.end,
+          begin: _stateBeforeZoomIn.begin,
+          end: _stateBeforeZoomIn.end,
         };
-      } else if (!params.noMinimapOnZoom) {
-        range = {
-          begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
-          end: ZOOM_RANGE_MIDDLE + halfDayWidth,
-        };
+        filter = params.noMinimapOnZoom ? _stateBeforeZoomIn.filter : _stateBeforeZoomOut.filter;
       } else {
-        range = {
-          begin: 0,
-          end: 1,
-        };
+        if (params.noMinimapOnZoom) {
+          range = {
+            begin: 0,
+            end: 1,
+          };
+          filter = {};
+          data.datasets.forEach(({ key }) => filter[key] = true);
+        } else {
+          range = {
+            begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
+            end: ZOOM_RANGE_MIDDLE + halfDayWidth,
+          };
+          filter = _stateBeforeZoomIn.filter;
+        }
       }
 
       stateManager.update({ range, filter });
@@ -127,5 +140,5 @@ export function createZoomer(data, params, stateManager, header, minimap, toolti
     });
   }
 
-  return { zoomIn, zoomOut };
+  return { zoomIn, zoomOut, isZoomed };
 }

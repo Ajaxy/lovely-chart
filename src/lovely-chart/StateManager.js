@@ -120,7 +120,7 @@ function calculateState(data, viewportSize, range, filter, focusOn, prevState) {
       yAxisScaleSecond,
       labelFromIndex: Math.max(0, labelFromIndex - 1),
       labelToIndex: Math.min(labelToIndex + 1, totalXWidth),
-      filter,
+      filter: Object.assign({}, filter),
       focusOn: focusOn !== undefined ? focusOn : prevState.focusOn,
     },
     yRanges,
@@ -170,8 +170,8 @@ function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState,
     const filteredValues = datasets.map(({ values }) => values);
     const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
     const viewportMaxMin = getMaxMin(mergeArrays(viewportValues));
-    const yMinViewportReal = viewportMaxMin.min || prevState.yMinViewport;
-    yMaxViewport = viewportMaxMin.max || prevState.yMaxViewport;
+    const yMinViewportReal = viewportMaxMin.min !== undefined ? viewportMaxMin.min : prevState.yMinViewport;
+    yMaxViewport = viewportMaxMin.max !== undefined ? viewportMaxMin.max : prevState.yMaxViewport;
     yMinViewport = yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
   }
 
