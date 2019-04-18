@@ -297,6 +297,7 @@ body.cursor-grabbing, body.cursor-grabbing * {
   float: left;
 }
 .lovely-chart .header .caption {
+  font-size: 12px;
   text-align: right;
   float: right;
 }

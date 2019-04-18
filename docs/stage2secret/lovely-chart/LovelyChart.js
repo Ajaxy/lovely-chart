@@ -21,6 +21,7 @@ const PLOT_TOP_PADDING = 10;
 const PLOT_LINE_WIDTH = 2;
 const PLOT_PIE_RADIUS_FACTOR = 0.9 / 2;
 const PLOT_PIE_SHIFT = 10;
+const PLOT_BARS_WIDTH_SHIFT = 0.5;
 
 const BALLOON_OFFSET = 20;
 const PIE_BALLOON_MIN_DISTANCE = 150;
@@ -163,9 +164,13 @@ function createLovelyChart(params) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    _header.setCaption(
-      `${_data.xLabels[state.labelFromIndex + 1].text} — ${_data.xLabels[state.labelToIndex - 1].text}`,
-    );
+    _header.setCaption(_zoomer.isZoomed()
+      ? getFullLabelDate(_data.xLabels[state.labelFromIndex])
+      : (
+        `${getLabelDate(_data.xLabels[state.labelFromIndex + 1])}` +
+        ' - ' +
+        `${getLabelDate(_data.xLabels[state.labelToIndex - 1])}`
+      ));
 
     clearCanvas(_plot, _context);
     drawDatasets(
@@ -316,7 +321,7 @@ function calculateState(data, viewportSize, range, filter, focusOn, prevState) {
       yAxisScaleSecond,
       labelFromIndex: Math.max(0, labelFromIndex - 1),
       labelToIndex: Math.min(labelToIndex + 1, totalXWidth),
-      filter,
+      filter: Object.assign({}, filter),
       focusOn: focusOn !== undefined ? focusOn : prevState.focusOn,
     },
     yRanges,
@@ -366,8 +371,8 @@ function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState,
     const filteredValues = datasets.map(({ values }) => values);
     const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
     const viewportMaxMin = getMaxMin(mergeArrays(viewportValues));
-    const yMinViewportReal = viewportMaxMin.min || prevState.yMinViewport;
-    yMaxViewport = viewportMaxMin.max || prevState.yMaxViewport;
+    const yMinViewportReal = viewportMaxMin.min !== undefined ? viewportMaxMin.min : prevState.yMinViewport;
+    yMaxViewport = viewportMaxMin.max !== undefined ? viewportMaxMin.max : prevState.yMaxViewport;
     yMinViewport = yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
   }
 
@@ -733,9 +738,9 @@ function createMinimap(container, data, colors, rangeCallback) {
       return;
     }
 
-    _state = newState;
+    _state = proxyMerge(newState, { focusOn: null });
     clearCanvas(_canvas, _context);
-    _drawDatasets(newState);
+    _drawDatasets(_state);
   }
 
   function toggle(shouldShow) {
@@ -949,6 +954,8 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   let _offsetY;
   let _clickedOnLabel = null;
 
+  let _isZoomed = false;
+
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
   const _throttledUpdateContent = throttle(_updateContent, 400, true, true);
 
@@ -968,6 +975,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   }
 
   function toggleIsZoomed(isZoomed) {
+    _isZoomed = isZoomed;
     _balloon.classList.toggle('zoomed', isZoomed);
   }
 
@@ -1164,7 +1172,8 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
     _balloon.classList.add('shown');
 
-    _throttledUpdateContent(getFullLabelDate(data.xLabels[labelIndex]), statistics);
+    const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex]);
+    _throttledUpdateContent(title, statistics);
   }
 
   function _updateContent(title, statistics) {
@@ -1312,7 +1321,8 @@ function createTools(container, data, filterCallback) {
 
 function createZoomer(data, params, stateManager, header, minimap, tooltip, tools) {
   let _isZoomed = false;
-  let _stateBeforeZoom;
+  let _stateBeforeZoomIn;
+  let _stateBeforeZoomOut;
   let _zoomedDateText;
 
   function zoomIn(state, labelIndex) {
@@ -1320,7 +1330,7 @@ function createZoomer(data, params, stateManager, header, minimap, tooltip, tool
       return;
     }
 
-    _stateBeforeZoom = state;
+    _stateBeforeZoomIn = state;
     header.zoom(getFullLabelDate(data.xLabels[labelIndex]));
     tooltip.toggleSpinner(true);
     tooltip.toggleIsZoomed(true);
@@ -1331,10 +1341,15 @@ function createZoomer(data, params, stateManager, header, minimap, tooltip, tool
   }
 
   function zoomOut(state) {
+    _stateBeforeZoomOut = state;
     tooltip.toggleIsZoomed(false);
 
     const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
     fetchData(params).then((newData) => _replaceData(newData, labelIndex));
+  }
+
+  function isZoomed() {
+    return _isZoomed;
   }
 
   function _fetchDayData(date) {
@@ -1382,29 +1397,36 @@ function createZoomer(data, params, stateManager, header, minimap, tooltip, tool
           begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
           end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
         },
+        focusOn: null,
       }, true);
 
       const daysCount = _isZoomed || params.zoomToPie ? data.xLabels.length : data.xLabels.length / 24;
       const halfDayWidth = (1 / daysCount) / 2;
-      const filter = {};
-      data.datasets.forEach(({ key }) => filter[key] = true);
 
       let range;
+      let filter;
+
       if (_isZoomed) {
         range = {
-          begin: _stateBeforeZoom.begin,
-          end: _stateBeforeZoom.end,
+          begin: _stateBeforeZoomIn.begin,
+          end: _stateBeforeZoomIn.end,
         };
-      } else if (!params.noMinimapOnZoom) {
-        range = {
-          begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
-          end: ZOOM_RANGE_MIDDLE + halfDayWidth,
-        };
+        filter = params.noMinimapOnZoom ? _stateBeforeZoomIn.filter : _stateBeforeZoomOut.filter;
       } else {
-        range = {
-          begin: 0,
-          end: 1,
-        };
+        if (params.noMinimapOnZoom) {
+          range = {
+            begin: 0,
+            end: 1,
+          };
+          filter = {};
+          data.datasets.forEach(({ key }) => filter[key] = true);
+        } else {
+          range = {
+            begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
+            end: ZOOM_RANGE_MIDDLE + halfDayWidth,
+          };
+          filter = _stateBeforeZoomIn.filter;
+        }
       }
 
       stateManager.update({ range, filter });
@@ -1435,7 +1457,7 @@ function createZoomer(data, params, stateManager, header, minimap, tooltip, tool
     });
   }
 
-  return { zoomIn, zoomOut };
+  return { zoomIn, zoomOut, isZoomed };
 }
 
 
@@ -1741,7 +1763,7 @@ function drawDatasets(
     drawBarsMask(context, projection, {
       focusOn: state.focusOn,
       color: getCssColor(colors, 'mask'),
-      lineWidth: x1 - x0
+      lineWidth: x1 - x0,
     });
   }
 }
@@ -1791,7 +1813,7 @@ function drawDatasetBars(context, points, projection, options) {
     const [x, yTo] = projection.toPixels(labelIndex, stackValue);
     const rectX = x - options.lineWidth / 2;
     const rectY = yTo;
-    const rectW = options.lineWidth + 0.5;
+    const rectW = options.opacity === 1 ? options.lineWidth + PLOT_BARS_WIDTH_SHIFT : options.lineWidth;
     const rectH = yFrom - yTo;
 
     context.fillRect(rectX, rectY, rectW, rectH);
@@ -1807,7 +1829,7 @@ function drawBarsMask(context, projection, options) {
   const [x] = projection.toPixels(options.focusOn, 0);
 
   context.fillStyle = options.color;
-  context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2, height);
+  context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT, height);
   context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
 }
 
@@ -1874,7 +1896,7 @@ function drawDatasetPie(context, points, projection, options) {
   context.fillStyle = 'white';
   const textShift = getPieTextShift(percent, radius);
   context.fillText(
-    `${Math.round(percent * 100)}%`, x + directionX * textShift + shiftX, y + directionY * textShift + shiftY
+    `${Math.round(percent * 100)}%`, x + directionX * textShift + shiftX, y + directionY * textShift + shiftY,
   );
 
   context.restore();
@@ -1941,7 +1963,7 @@ function buildDayLabels(labels) {
 
     return ({
       value,
-      text: `${month} ${day}`,
+      text: `${day} ${month}`,
     });
   });
 }
@@ -1980,10 +2002,19 @@ function formatInteger(n) {
 }
 
 function getFullLabelDate(label) {
-  const { value, text } = label;
+  const { value } = label;
   const date = new Date(value);
 
-  return `${WEEK_DAYS[date.getDay()]}, ${text} ${date.getFullYear()}`;
+  return `${WEEK_DAYS[date.getDay()]}, ${getLabelDate(label)}`;
+}
+
+function getLabelDate(label) {
+  const { value } = label;
+  const date = new Date(value);
+  const day = date.getDate();
+  const month = MONTHS[date.getMonth()];
+
+  return `${day} ${month} ${date.getFullYear()}`;
 }
 
 
