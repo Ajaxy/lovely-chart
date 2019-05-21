@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "rm -rf dist/* && cp -r ./data dist/ && parcel src/index.html",
     "dev-win": "n-clean dist && n-copy --source data --destination dist/data \"**\" && parcel src/index.html",
-    "prod": "rm -rf docs/stage2secret && sass src/lovely-chart/styles/index.scss src/lovely-chart/styles/lovely-chart.css --no-source-map && gulp prod"
+    "prod": "rm -rf docs/finalBattle && sass src/lovely-chart/styles/index.scss src/lovely-chart/styles/lovely-chart.css --no-source-map && gulp prod"
   },
   "keywords": [],
   "author": "",
