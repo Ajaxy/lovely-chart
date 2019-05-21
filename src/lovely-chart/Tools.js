@@ -17,15 +17,15 @@ export function createTools(container, data, filterCallback) {
     }
 
     _setupLayout();
-    _element.classList.add('transparent');
+    _element.classList.add('lovely-chart--state-transparent');
     requestAnimationFrame(() => {
-      _element.classList.remove('transparent');
+      _element.classList.remove('lovely-chart--state-transparent');
     });
   }
 
   function _setupLayout() {
     _element = createElement();
-    _element.className = 'tools';
+    _element.className = 'lovely-chart--tools';
 
     if (data.datasets.length < 2) {
       _element.className += ' lovely-chart--state-hidden';
@@ -35,8 +35,8 @@ export function createTools(container, data, filterCallback) {
       const control = createElement('a');
       control.href = '#';
       control.dataset.key = key;
-      control.className = `checkbox ${colorName} checked`;
-      control.innerHTML = `<span class="circle"></span><span class="label">${name}</span>`;
+      control.className = `lovely-chart--button lovely-chart--color-${colorName} lovely-chart--state-checked`;
+      control.innerHTML = `<span class="lovely-chart--button-check"></span><span class="lovely-chart--button-label">${name}</span>`;
 
       control.addEventListener('click', (e) => {
         e.preventDefault();
@@ -66,31 +66,31 @@ export function createTools(container, data, filterCallback) {
 
   function _updateFilter(button, isLongPress = false) {
     const buttons = Array.from(_element.getElementsByTagName('a'));
-    const isSingleChecked = _element.querySelectorAll('.checked').length === 1;
+    const isSingleChecked = _element.querySelectorAll('.lovely-chart--state-checked').length === 1;
 
     if (button) {
-      if (button.classList.contains('checked') && isSingleChecked) {
+      if (button.classList.contains('lovely-chart--state-checked') && isSingleChecked) {
         if (isLongPress) {
-          buttons.forEach((b) => b.classList.add('checked'));
-          button.classList.remove('checked');
+          buttons.forEach((b) => b.classList.add('lovely-chart--state-checked'));
+          button.classList.remove('lovely-chart--state-checked');
         } else {
-          button.classList.remove('shake');
+          button.classList.remove('lovely-chart--state-shake');
           requestAnimationFrame(() => {
-            button.classList.add('shake');
+            button.classList.add('lovely-chart--state-shake');
           });
         }
       } else if (isLongPress) {
-        buttons.forEach((b) => b.classList.remove('checked'));
-        button.classList.add('checked');
+        buttons.forEach((b) => b.classList.remove('lovely-chart--state-checked'));
+        button.classList.add('lovely-chart--state-checked');
       } else {
-        button.classList.toggle('checked');
+        button.classList.toggle('lovely-chart--state-checked');
       }
     }
 
     const filter = {};
 
     buttons.forEach((input) => {
-      filter[input.dataset.key] = input.classList.contains('checked');
+      filter[input.dataset.key] = input.classList.contains('lovely-chart--state-checked');
     });
 
     filterCallback(filter);
