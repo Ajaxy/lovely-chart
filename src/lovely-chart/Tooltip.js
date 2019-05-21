@@ -119,7 +119,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       return;
     }
 
-    const labelIndex = _projection.findClosesLabelIndex(_offsetX);
+    const labelIndex = _projection.findClosestLabelIndex(_offsetX);
     onZoom(labelIndex);
   }
 
@@ -135,7 +135,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _getLabelIndex() {
-    const labelIndex = _projection.findClosesLabelIndex(_offsetX);
+    const labelIndex = _projection.findClosestLabelIndex(_offsetX);
     return labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex ? null : labelIndex;
   }
 

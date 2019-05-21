@@ -39,7 +39,7 @@ export function createProjection(params) {
     ];
   }
 
-  function findClosesLabelIndex(xPx) {
+  function findClosestLabelIndex(xPx) {
     return Math.round((xPx + xOffsetPx) / xFactor);
   }
 
@@ -64,7 +64,7 @@ export function createProjection(params) {
 
   return {
     toPixels,
-    findClosesLabelIndex,
+    findClosestLabelIndex,
     copy,
     getCenter,
     getSize,
