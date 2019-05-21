@@ -18,7 +18,7 @@ export const hideOnScroll = (() => {
 
   function showAll() {
     charts.forEach((chart) => {
-      chart.classList.remove('hidden');
+      chart.classList.remove('lovely-chart--state-invisible');
     });
   }
 
@@ -26,7 +26,7 @@ export const hideOnScroll = (() => {
     charts.forEach((chart) => {
       const { top, bottom } = chart.getBoundingClientRect();
       const shouldHide = bottom < 0 || top > window.innerHeight;
-      chart.classList.toggle('hidden', shouldHide);
+      chart.classList.toggle('lovely-chart--state-invisible', shouldHide);
     });
   }
 

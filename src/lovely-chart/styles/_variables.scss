@@ -1,5 +1,4 @@
-:root {
-  --background: #ffffff;
+.lovely-chart--container {
   --text-color: #222222;
   --minimap-mask: #{rgba(#E2EEF9, 60%)};
   --minimap-slider: #C0D1E1;
@@ -10,9 +9,8 @@
   --x-axis-text: #8E8E93;
   --y-axis-text: #8E8E93;
   --mask: #{rgba(#FFFFFF, 50%)};
-  --killer-button: #35AADC;
 
-  .lovely-chart.palette-type-1 {
+  &.lovely-chart--palette-type-1 {
     --red-line: #FE3C30;
     --red-button: #E65850;
     --red-text: #F34C44;
@@ -30,7 +28,7 @@
     --yellow-text: #E4AE1B;
   }
 
-  .lovely-chart.palette-type-2 {
+  &.lovely-chart--palette-type-2 {
     --blue-line: #3497ED;
     --blue-button: #3497ED;
     --blue-text: #108BE3;
@@ -67,7 +65,7 @@
     --y-axis-text: #{rgba(#252529, 60%)};
   }
 
-  .lovely-chart.palette-type-3 {
+  &.lovely-chart--palette-type-3 {
     --blue-line: #64ADED;
     --blue-button: #3896E8;
     --blue-text: #3896E8;
@@ -82,8 +80,7 @@
   }
 }
 
-body.skin-night {
-  --background: rgb(36, 47, 62);
+body.skin-night .lovely-chart--container {
   --text-color: #ffffff;
   --minimap-mask: #{rgba(#304259, 60%)};
   --minimap-slider: #56626D;
@@ -95,7 +92,7 @@ body.skin-night {
   --y-axis-text: #{rgba(#A3B1C2, 60%)};
   --mask: #{rgba(#242F3E, 50%)};
 
-  .lovely-chart.palette-type-1 {
+  &.lovely-chart--palette-type-1 {
     --red-line: #E6574F;
     --red-button: #CF5D57;
     --red-text: #F7655E;
@@ -113,7 +110,7 @@ body.skin-night {
     --yellow-text: #DEB93F;
   }
 
-  .lovely-chart.palette-type-2 {
+  &.lovely-chart--palette-type-2 {
     --blue-line: #4681BB;
     --blue-button: #4681BB;
     --blue-text: #5199DF;
@@ -150,7 +147,7 @@ body.skin-night {
     --y-axis-text: #{rgba(#A3B1C2, 60%)};
   }
 
-  .lovely-chart.palette-type-3 {
+  &.lovely-chart--palette-type-3 {
     --blue-line: #4082CE;
     --blue-button: #4082CE;
     --blue-text: #4082CE;

@@ -67,7 +67,7 @@ export function createLovelyChart(params) {
 
   function _setupContainer() {
     _container = createElement();
-    _container.className = `lovely-chart palette-${params.palette || DEFAULT_PALETTE}`;
+    _container.className = `lovely-chart--container lovely-chart--palette-${params.palette || DEFAULT_PALETTE}`;
 
     hideOnScroll(_container);
 

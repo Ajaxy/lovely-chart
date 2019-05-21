@@ -1,4 +1,4 @@
-.lovely-chart {
+.lovely-chart--container {
   a.checkbox {
     border: 1px solid #E6ECF0;
     background-color: transparent;
@@ -136,15 +136,6 @@
       &.checked {
         background-color: var(--orange-button);
       }
-    }
-  }
-
-  #killer-feature {
-    border-color: var(--killer-button);
-    color: var(--killer-button);
-
-    &.checked {
-      background-color: var(--killer-button);
     }
   }
 }
