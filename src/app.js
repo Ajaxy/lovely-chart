@@ -86,25 +86,4 @@ document.addEventListener('DOMContentLoaded', () => {
       chart.redraw();
     });
   });
-
-  document.getElementById('killer-feature').addEventListener('click', (e) => {
-    e.preventDefault();
-
-    e.currentTarget.classList.toggle('checked');
-
-    if (!snow) {
-      snow = document.createElement('div');
-      let html = '';
-      for (let i = 0; i < 12; i++) {
-        html += '<div class="flake">❄️</div>';
-      }
-      snow.innerHTML = html;
-    }
-
-    if (snow.parentNode) {
-      document.body.removeChild(snow);
-    } else {
-      document.body.appendChild(snow);
-    }
-  });
 });
