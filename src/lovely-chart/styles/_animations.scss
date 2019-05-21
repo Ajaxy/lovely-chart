@@ -1,4 +1,4 @@
-@keyframes shake {
+@keyframes lovely-chart--animation-shake {
   0% {
     transform: translateX(-3px);
   }
@@ -28,7 +28,7 @@
   }
 }
 
-@keyframes fadeIn {
+@keyframes lovely-chart--animation-fadeIn {
   from {
     opacity: 0;
     transform: scale3d(.5, .5, 1);
@@ -44,7 +44,7 @@
   }
 }
 
-@keyframes fadeOut {
+@keyframes lovely-chart--animation-fadeOut {
   from {
     opacity: 1;
     transform: scale3d(1, 1, 1);
@@ -60,7 +60,17 @@
   }
 }
 
-.lovely-chart {
+@keyframes lovely-chart--animation-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg)
+  }
+}
+
+.lovely-chart--container {
   .transition-container {
     position: relative;
   }
@@ -105,12 +115,12 @@
     animation-duration: 200ms;
 
     &.hidden {
-      animation-name: fadeOut;
+      animation-name: lovely-chart--animation-fadeOut;
       animation-duration: 300ms;
     }
 
     &:not(.hidden) {
-      animation-name: fadeIn;
+      animation-name: lovely-chart--animation-fadeIn;
     }
   }
 }

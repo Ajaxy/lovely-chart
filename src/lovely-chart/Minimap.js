@@ -47,17 +47,17 @@ export function createMinimap(container, data, colors, rangeCallback) {
   }
 
   function toggle(shouldShow) {
-    _element.classList.toggle('hidden', !shouldShow);
+    _element.classList.toggle('lovely-chart--state-hidden', !shouldShow);
 
     requestAnimationFrame(() => {
-      _element.classList.toggle('transparent', !shouldShow);
+      _element.classList.toggle('lovely-chart--state-transparent', !shouldShow);
     });
   }
 
   function _setupLayout() {
     _element = createElement();
 
-    _element.className = 'minimap';
+    _element.className = 'lovely-chart--minimap';
     _element.style.height = `${MINIMAP_HEIGHT}px`;
 
     _setupCanvas();
@@ -87,11 +87,15 @@ export function createMinimap(container, data, colors, rangeCallback) {
 
   function _setupRuler() {
     _ruler = createElement();
-    _ruler.className = 'ruler';
+    _ruler.className = 'lovely-chart--minimap-ruler';
     _ruler.innerHTML =
-      '<div class="mask"></div>' +
-      '<div class="slider"><div class="handle"><span></span></div><div class="inner"></div><div class="handle"><span></span></div></div>' +
-      '<div class="mask"></div>';
+      '<div class="lovely-chart--minimap-mask"></div>' +
+      '<div class="lovely-chart--minimap-slider">' +
+      '<div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div>' +
+      '<div class="lovely-chart--minimap-slider-inner"></div>' +
+      '<div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div>' +
+      '</div>' +
+      '<div class="lovely-chart--minimap-mask"></div>';
 
     _slider = _ruler.children[1];
 
