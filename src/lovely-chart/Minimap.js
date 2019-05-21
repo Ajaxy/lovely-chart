@@ -2,7 +2,7 @@ import { setupCanvas, clearCanvas } from './canvas';
 import { preparePoints } from './preparePoints';
 import { createProjection } from './Projection';
 import { drawDatasets } from './drawDatasets';
-import { setupDrag } from './setupDrag';
+import { captureEvents } from './captureEvents';
 import {
   DEFAULT_RANGE,
   MINIMAP_HEIGHT,
@@ -95,7 +95,7 @@ export function createMinimap(container, data, colors, rangeCallback) {
 
     _slider = _ruler.children[1];
 
-    setupDrag(
+    captureEvents(
       _slider.children[1],
       {
         onCapture: _onDragCapture,
@@ -105,7 +105,7 @@ export function createMinimap(container, data, colors, rangeCallback) {
       },
     );
 
-    setupDrag(
+    captureEvents(
       _slider.children[0],
       {
         onCapture: _onDragCapture,
@@ -115,7 +115,7 @@ export function createMinimap(container, data, colors, rangeCallback) {
       },
     );
 
-    setupDrag(
+    captureEvents(
       _slider.children[2],
       {
         onCapture: _onDragCapture,

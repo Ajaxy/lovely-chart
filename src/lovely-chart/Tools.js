@@ -1,4 +1,5 @@
 import { createElement } from './minifiers';
+import { captureEvents } from './captureEvents';
 
 export function createTools(container, data, filterCallback) {
   let _element;
@@ -36,23 +37,51 @@ export function createTools(container, data, filterCallback) {
       control.dataset.key = key;
       control.className = `checkbox ${colorName} checked`;
       control.innerHTML = `<span class="circle"></span><span class="label">${name}</span>`;
-      control.addEventListener('click', _updateFilter);
+
+      control.addEventListener('click', (e) => {
+        e.preventDefault();
+
+        if (!control.dataset.clickPrevented) {
+          _updateFilter(control);
+        }
+
+        delete control.dataset.clickPrevented;
+      });
+
+      captureEvents(control, {
+        onLongPress: () => {
+          if (!('ontouchstart' in window)) {
+            control.dataset.clickPrevented = 'true';
+          }
+
+          _updateFilter(control, true);
+        },
+      });
+
       _element.appendChild(control);
     });
 
     container.appendChild(_element);
   }
 
-  function _updateFilter(e) {
-    if (e) {
-      e.preventDefault();
-      const button = e.currentTarget;
+  function _updateFilter(button, isLongPress = false) {
+    const buttons = Array.from(_element.getElementsByTagName('a'));
+    const isSingleChecked = _element.querySelectorAll('.checked').length === 1;
 
-      if (button.classList.contains('checked') && _element.querySelectorAll('.checked').length < 2) {
-        button.classList.remove('shake');
-        requestAnimationFrame(() => {
-          button.classList.add('shake')
-        });
+    if (button) {
+      if (button.classList.contains('checked') && isSingleChecked) {
+        if (isLongPress) {
+          buttons.forEach((b) => b.classList.add('checked'));
+          button.classList.remove('checked');
+        } else {
+          button.classList.remove('shake');
+          requestAnimationFrame(() => {
+            button.classList.add('shake');
+          });
+        }
+      } else if (isLongPress) {
+        buttons.forEach((b) => b.classList.remove('checked'));
+        button.classList.add('checked');
       } else {
         button.classList.toggle('checked');
       }
@@ -60,7 +89,7 @@ export function createTools(container, data, filterCallback) {
 
     const filter = {};
 
-    Array.from(_element.getElementsByTagName('a')).forEach((input) => {
+    buttons.forEach((input) => {
       filter[input.dataset.key] = input.classList.contains('checked');
     });
 

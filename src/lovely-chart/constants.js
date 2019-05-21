@@ -6,6 +6,7 @@ export const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };
 export const TRANSITION_DEFAULT_DURATION = 300;
 export const DEFAULT_SKIN = 'skin-day';
 export const DEFAULT_PALETTE = 'type-1';
+export const LONG_PRESS_TIMEOUT = 500;
 
 export const GUTTER = 10;
 export const PLOT_HEIGHT = 320;

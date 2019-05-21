@@ -1,14 +1,11 @@
 import { addEventListener, removeEventListener } from './minifiers';
+import { LONG_PRESS_TIMEOUT } from './constants';
 
-export function setupDrag(element, options) {
+export function captureEvents(element, options) {
   let captureEvent = null;
+  let longPressTimeout = null;
 
   function onCapture(e) {
-    if (e.target !== element) {
-      return;
-    }
-
-    e.preventDefault();
     captureEvent = e;
 
     if (e.type === 'mousedown') {
@@ -31,10 +28,19 @@ export function setupDrag(element, options) {
     }
 
     options.onCapture && options.onCapture(e);
+
+    if (options.onLongPress) {
+      longPressTimeout = setTimeout(() => options.onLongPress(), LONG_PRESS_TIMEOUT);
+    }
   }
 
   function onRelease(e) {
     if (captureEvent) {
+      if (longPressTimeout) {
+        clearTimeout(longPressTimeout);
+        longPressTimeout = null;
+      }
+
       if (options.draggingCursor) {
         document.body.classList.remove(`cursor-${options.draggingCursor}`);
       }
@@ -53,11 +59,16 @@ export function setupDrag(element, options) {
 
   function onMove(e) {
     if (captureEvent) {
+      if (longPressTimeout) {
+        clearTimeout(longPressTimeout);
+        longPressTimeout = null;
+      }
+
       if (e.type === 'touchmove' && e.pageX === undefined) {
         e.pageX = e.touches[0].pageX;
       }
 
-      options.onDrag(e, captureEvent, {
+      options.onDrag && options.onDrag(e, captureEvent, {
         dragOffsetX: e.pageX - captureEvent.pageX,
       });
     }
