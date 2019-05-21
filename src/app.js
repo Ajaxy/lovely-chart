@@ -76,9 +76,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('skin-switcher').addEventListener('click', (e) => {
     e.preventDefault();
 
-    document.body.classList.toggle('skin-night');
+    document.documentElement.classList.toggle('dark');
 
-    const skin = document.body.classList.contains('skin-night') ? 'skin-night' : 'skin-day';
+    const skin = document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
     e.target.innerText = `Switch to ${(skin === 'skin-night') ? 'Day' : 'Night'} Mode`;
 
     LovelyChart.changeSkin(skin);
