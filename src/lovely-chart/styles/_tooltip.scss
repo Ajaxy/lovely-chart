@@ -1,128 +1,124 @@
-.lovely-chart--container {
-  .tooltip {
+.lovely-chart--tooltip {
+  position: absolute;
+  top: 30px;
+  left: 0;
+}
+
+.lovely-chart--tooltip-balloon {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  min-width: 130px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  white-space: nowrap;
+
+  background: var(--tooltip-background);
+  color: var(--text-color);
+  box-shadow: 0 1px 2px 1px rgba(211, 211, 211, 0.8);
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+  // transition: opacity 200ms ease-out, background-color 300ms ease-out;
+  cursor: pointer;
+  pointer-events: none;
+
+  &.lovely-chart--state-shown {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  &.lovely-chart--state-zoomed {
+    cursor: default;
+
+    .title::after {
+      display: none;
+    }
+  }
+
+  &.lovely-chart--state-loading {
+    .lovely-chart--spinner {
+      opacity: 1;
+    }
+  }
+
+  .lovely-chart--spinner {
     position: absolute;
-    top: 30px;
-    left: 0;
+    top: 7px;
+    right: 8px;
+    background: var(--tooltip-background);
+    opacity: 0;
+    transition: opacity 500ms ease-out;
+  }
+}
 
-    .balloon {
-      position: absolute;
-      top: 5px;
-      left: 0;
-      min-width: 130px;
-      border-radius: 8px;
-      padding: 8px 10px;
-      white-space: nowrap;
+.lovely-chart--tooltip-title {
+  font-size: 12px;
+  font-weight: 700;
+  position: relative;
+  height: 14px;
 
-      background: var(--tooltip-background);
-      color: var(--text-color);
-      box-shadow: 0 1px 2px 1px rgba(211, 211, 211, 0.8);
-      opacity: 0;
-      transition: opacity 200ms ease-out;
-      // transition: opacity 200ms ease-out, background-color 300ms ease-out;
-      cursor: pointer;
-      pointer-events: none;
+  &::after {
+    content: '';
+    display: block;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 12px;
+    height: 12px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' version='1.1' id='Capa_1' x='0px' y='0px' width='512px' height='512px' viewBox='0 0 451.846 451.847' style='enable-background:new 0 0 451.846 451.847;' xml:space='preserve' class=''%3E%3Cg%3E%3Cg%3E%3Cpath d='M345.441,248.292L151.154,442.573c-12.359,12.365-32.397,12.365-44.75,0c-12.354-12.354-12.354-32.391,0-44.744 L278.318,225.92L106.409,54.017c-12.354-12.359-12.354-32.394,0-44.748c12.354-12.359,32.391-12.359,44.75,0l194.287,194.284 c6.177,6.18,9.262,14.271,9.262,22.366C354.708,234.018,351.617,242.115,345.441,248.292z' data-original='%23000000' class='active-path' data-old_color='%23757B84' fill='%23D2D5D7'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 75%;
+  }
+}
 
-      &.shown {
-        opacity: 1;
-        pointer-events: auto;
-      }
+.lovely-chart--tooltip-legend {
+  padding-top: 5px;
+}
 
-      .title {
-        font-size: 12px;
-        font-weight: 700;
-        position: relative;
-        height: 14px;
+.lovely-chart--tooltip-dataset {
+  height: 20px;
+  line-height: 20px;
+  color: var(--text-color);
 
-        &::after {
-          content: '';
-          display: block;
-          position: absolute;
-          right: 0;
-          top: 0;
-          width: 12px;
-          height: 12px;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' version='1.1' id='Capa_1' x='0px' y='0px' width='512px' height='512px' viewBox='0 0 451.846 451.847' style='enable-background:new 0 0 451.846 451.847;' xml:space='preserve' class=''%3E%3Cg%3E%3Cg%3E%3Cpath d='M345.441,248.292L151.154,442.573c-12.359,12.365-32.397,12.365-44.75,0c-12.354-12.354-12.354-32.391,0-44.744 L278.318,225.92L106.409,54.017c-12.354-12.359-12.354-32.394,0-44.748c12.354-12.359,32.391-12.359,44.75,0l194.287,194.284 c6.177,6.18,9.262,14.271,9.262,22.366C354.708,234.018,351.617,242.115,345.441,248.292z' data-original='%23000000' class='active-path' data-old_color='%23757B84' fill='%23D2D5D7'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-          background-position: center;
-          background-repeat: no-repeat;
-          background-size: 75%;
-        }
-      }
+  .lovely-chart--tooltip-dataset-value {
+    float: right;
+    font-weight: 700;
 
-      &.zoomed {
-        cursor: default;
+    &.lovely-chart--color-red {
+      color: var(--red-text);
+    }
 
-        .title::after {
-          display: none;
-        }
-      }
+    &.lovely-chart--color-green {
+      color: var(--green-text);
+    }
 
-      .legend {
-        padding-top: 5px;
+    &.lovely-chart--color-light-green {
+      color: var(--light-green-text);
+    }
 
-        .dataset {
-          height: 20px;
-          line-height: 20px;
-          color: var(--text-color);
+    &.lovely-chart--color-blue {
+      color: var(--blue-text);
+    }
 
-          .value {
-            float: right;
-            font-weight: 700;
+    &.lovely-chart--color-dark-blue {
+      color: var(--dark-blue-text);
+    }
 
-            &.red {
-              color: var(--red-text);
-            }
+    &.lovely-chart--color-light-blue {
+      color: var(--light-blue-text);
+    }
 
-            &.green {
-              color: var(--green-text);
-            }
+    &.lovely-chart--color-yellow {
+      color: var(--yellow-text);
+    }
 
-            &.light-green {
-              color: var(--light-green-text);
-            }
-
-            &.blue {
-              color: var(--blue-text);
-            }
-
-            &.dark-blue {
-              color: var(--dark-blue-text);
-            }
-
-            &.light-blue {
-              color: var(--light-blue-text);
-            }
-
-            &.yellow {
-              color: var(--yellow-text);
-            }
-
-            &.orange {
-              color: var(--orange-text);
-            }
-          }
-        }
-      }
-
-      .spinner {
-        position: absolute;
-        top: 7px;
-        right: 8px;
-        background: var(--tooltip-background);
-        opacity: 0;
-        transition: opacity 500ms ease-out;
-      }
-
-      &.loading {
-        .spinner {
-          opacity: 1;
-        }
-      }
+    &.lovely-chart--color-orange {
+      color: var(--orange-text);
     }
   }
 }
 
-body.skin-night .lovely-chart {
-  .tooltip .balloon {
-    box-shadow: none;
-  }
+body.skin-night .lovely-chart--tooltip-balloon {
+  box-shadow: none;
 }

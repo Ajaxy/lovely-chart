@@ -39,17 +39,17 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function toggleSpinner(isLoading) {
-    _balloon.classList.toggle('loading', isLoading);
+    _balloon.classList.toggle('lovely-chart--state-loading', isLoading);
   }
 
   function toggleIsZoomed(isZoomed) {
     _isZoomed = isZoomed;
-    _balloon.classList.toggle('zoomed', isZoomed);
+    _balloon.classList.toggle('lovely-chart--state-zoomed', isZoomed);
   }
 
   function _setupLayout() {
     _element = createElement();
-    _element.className = 'tooltip';
+    _element.className = 'lovely-chart--tooltip';
 
     _setupCanvas();
     _setupBalloon();
@@ -76,8 +76,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
   function _setupBalloon() {
     _balloon = createElement();
-    _balloon.className = 'balloon';
-    _balloon.innerHTML = '<div class="title"></div><div class="legend"></div><div class="spinner"></div>';
+    _balloon.className = 'lovely-chart--tooltip-balloon';
+    _balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
 
     addEventListener(_balloon, 'click', _onBalloonClick);
 
@@ -115,7 +115,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _onBalloonClick() {
-    if (_balloon.classList.contains('zoomed')) {
+    if (_balloon.classList.contains('lovely-chart--state-zoomed')) {
       return;
     }
 
@@ -241,7 +241,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
 
     _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
-    _balloon.classList.add('shown');
+    _balloon.classList.add('lovely-chart--state-shown');
 
     const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex]);
     _throttledUpdateContent(title, statistics);
@@ -254,7 +254,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     if (!titleContainer.innerHTML || !currentTitle) {
       titleContainer.innerHTML = `<span>${title}</span>`;
     } else if (currentTitle.innerHTML !== title) {
-      toggleText(currentTitle, title, 'title-inner');
+      toggleText(currentTitle, title, 'lovely-chart--tooltip-title-inner');
     }
 
     const dataSetContainer = _balloon.children[1];
@@ -266,11 +266,11 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       value = formatInteger(value);
 
       const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
-      const className = `value lovely-chart--position-right ${colorName}`;
+      const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
 
       if (!currentDataSet) {
         const newDataSet = createElement();
-        newDataSet.className = 'dataset';
+        newDataSet.className = 'lovely-chart--tooltip-dataset';
         newDataSet.setAttribute('data-present', 'true');
         newDataSet.setAttribute('data-name', name);
         newDataSet.innerHTML = `<span>${name}</span><span class="${className}">${value}</span>`;
@@ -278,7 +278,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       } else {
         currentDataSet.setAttribute('data-present', 'true');
 
-        const valueElement = currentDataSet.querySelector(`.value.${colorName}:not(.lovely-chart--state-hidden)`);
+        const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${colorName}:not(.lovely-chart--state-hidden)`);
         if (valueElement.innerHTML !== value) {
           toggleText(valueElement, value, className);
         }
@@ -292,7 +292,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _hideBalloon() {
-    _balloon.classList.remove('shown');
+    _balloon.classList.remove('lovely-chart--state-shown');
   }
 
   function getPointerVector() {
