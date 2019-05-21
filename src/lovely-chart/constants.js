@@ -2,7 +2,7 @@ export const DPR = window.devicePixelRatio || 1;
 
 export const LABELS_KEY = 'x';
 
-export const DEFAULT_RANGE = { begin: 0.333, end: 0.667 };
+export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
 export const TRANSITION_DEFAULT_DURATION = 300;
 export const DEFAULT_SKIN = 'skin-day';
 export const DEFAULT_PALETTE = 'type-1';
