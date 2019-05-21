@@ -20,7 +20,7 @@ export function createHeader(container, title, zoomOutCallback) {
       _captionElement.innerHTML = caption;
       _isFirstUpdate = false;
     } else if (_captionElement.innerHTML !== caption) {
-      _captionElement = toggleText(_captionElement, caption, 'caption right');
+      _captionElement = toggleText(_captionElement, caption, 'caption lovely-chart--position-right');
     }
   }
 
@@ -43,7 +43,7 @@ export function createHeader(container, title, zoomOutCallback) {
     _element.appendChild(_titleElement);
 
     _captionElement = createElement();
-    _captionElement.className = 'caption right';
+    _captionElement.className = 'caption lovely-chart--position-right';
     _element.appendChild(_captionElement);
 
     container.appendChild(_element);

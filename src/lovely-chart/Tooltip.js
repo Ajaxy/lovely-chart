@@ -249,7 +249,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
   function _updateContent(title, statistics) {
     const titleContainer = _balloon.children[0];
-    const currentTitle = titleContainer.querySelector(':not(.hidden)');
+    const currentTitle = titleContainer.querySelector(':not(.lovely-chart--state-hidden)');
 
     if (!titleContainer.innerHTML || !currentTitle) {
       titleContainer.innerHTML = `<span>${title}</span>`;
@@ -266,7 +266,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       value = formatInteger(value);
 
       const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
-      const className = `value right ${colorName}`;
+      const className = `value lovely-chart--position-right ${colorName}`;
 
       if (!currentDataSet) {
         const newDataSet = createElement();
@@ -278,7 +278,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       } else {
         currentDataSet.setAttribute('data-present', 'true');
 
-        const valueElement = currentDataSet.querySelector(`.value.${colorName}:not(.hidden)`);
+        const valueElement = currentDataSet.querySelector(`.value.${colorName}:not(.lovely-chart--state-hidden)`);
         if (valueElement.innerHTML !== value) {
           toggleText(valueElement, value, className);
         }

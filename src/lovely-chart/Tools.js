@@ -10,7 +10,7 @@ export function createTools(container, data, filterCallback) {
   function redraw() {
     if (_element) {
       const oldElement = _element;
-      oldElement.classList.add('hidden');
+      oldElement.classList.add('lovely-chart--state-hidden');
       setTimeout(() => {
         oldElement.parentNode.removeChild(oldElement);
       }, 500);
@@ -28,7 +28,7 @@ export function createTools(container, data, filterCallback) {
     _element.className = 'tools';
 
     if (data.datasets.length < 2) {
-      _element.className += ' hidden';
+      _element.className += ' lovely-chart--state-hidden';
     }
 
     data.datasets.forEach(({ key, name, colorName }) => {
