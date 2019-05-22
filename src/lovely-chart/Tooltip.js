@@ -262,7 +262,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       dataSet.setAttribute('data-present', 'false');
     });
 
-    const totalValue = statistics.map(({ value }) => value).reduce((a, v) => a + v);
+    const totalValue = statistics.reduce((a, x) => a + x.value, 0);
 
     statistics.forEach(({ name, colorName, value }) => {
       const percentageValue = (value / totalValue * 100).toFixed(0);
@@ -304,7 +304,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       }
     });
 
-    if (data.isBars && statistics.length > 3) {
+    if (data.isBars && data.isStacked) {
       _renderTotal(dataSetContainer, formatInteger(totalValue));
     }
 
