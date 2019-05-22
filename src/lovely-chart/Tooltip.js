@@ -243,7 +243,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
     _balloon.classList.add('lovely-chart--state-shown');
 
-    const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex]);
+    const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex], true);
     _throttledUpdateContent(title, statistics);
   }
 
