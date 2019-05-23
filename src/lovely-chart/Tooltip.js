@@ -162,10 +162,6 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       }
     }
 
-    const statFilter = data.isPie ?
-      ({ value }) => _isPieSectorSelected(value, pointerVector) :
-      ({ key }) => _state.filter[key];
-
     const [xPx] = _projection.toPixels(labelIndex, 0);
     const statistics = data.datasets
       .map(({ key, name, colorName, values, hasOwnYAxis }, i) => ({
@@ -176,10 +172,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         hasOwnYAxis,
         originalIndex: i,
       }))
-      .filter(statFilter);
+      .filter(({ key }) => _state.filter[key]);
 
     if (statistics.length && shouldShowBalloon) {
-      _updateBalloon(statistics, xPx, labelIndex);
+      _updateBalloon(statistics, labelIndex);
     } else {
       _hideBalloon();
     }
@@ -248,7 +244,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
   }
 
-  function _updateBalloon(statistics, xPx, labelIndex) {
+  function _updateBalloon(statistics, labelIndex) {
     _balloon.style.transform = `translateX(${_getBalloonLeftOffset(labelIndex)}px) translateZ(0)`;
     _balloon.classList.add('lovely-chart--state-shown');
 
@@ -258,12 +254,22 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
   function _updateContent(title, statistics) {
     const titleContainer = _balloon.children[0];
-    const currentTitle = titleContainer.querySelector(':not(.lovely-chart--state-hidden)');
 
-    if (!titleContainer.innerHTML || !currentTitle) {
-      titleContainer.innerHTML = `<span>${title}</span>`;
-    } else if (currentTitle.innerHTML !== title) {
-      toggleText(currentTitle, title, 'lovely-chart--tooltip-title-inner');
+    if (data.isPie) {
+      if (titleContainer.classList.contains('lovely-chart--tooltip-title')) {
+        titleContainer.style.display = 'none';
+      }
+    } else {
+      if (titleContainer.style.display === 'none') {
+        titleContainer.style.display = '';
+      }
+      const currentTitle = titleContainer.querySelector(':not(.lovely-chart--state-hidden)');
+
+      if (!titleContainer.innerHTML || !currentTitle) {
+        titleContainer.innerHTML = `<span>${title}</span>`;
+      } else if (currentTitle.innerHTML !== title) {
+        toggleText(currentTitle, title, 'lovely-chart--tooltip-title-inner');
+      }
     }
 
     const dataSetContainer = _balloon.children[1];
@@ -286,7 +292,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         newDataSet.setAttribute('data-present', 'true');
         newDataSet.setAttribute('data-name', name);
         newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${value}</span>`;
-        if (data.isPercentage) {
+        if (data.isPercentage && !data.isPie) {
           newDataSet.innerHTML = `<span class="lovely-chart--percentage-title lovely-chart--position-left">${percentageValue}%</span>` + newDataSet.innerHTML;
         }
 
@@ -304,11 +310,18 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
           toggleText(valueElement, value, className);
         }
 
-        if(data.isPercentage) {
+        if (data.isPercentage && !data.isPie) {
           const percentageElement = currentDataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
-          if (percentageElement.innerHTML !== percentageValue) {
+          if (!percentageElement) {
+            const newPercentageTitle = createElement('span');
+            newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
+            newPercentageTitle.innerHTML = `${percentageValue}%`;
+            currentDataSet.prepend(newPercentageTitle);
+          } else if (percentageElement.innerHTML !== percentageValue) {
             toggleText(percentageElement, `${percentageValue}%`, 'lovely-chart--percentage-title lovely-chart--position-left');
           }
+        } else if (data.isPercentage) {
+          Array.from(currentDataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach(e => e.remove());
         }
       }
     });
