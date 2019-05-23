@@ -81,6 +81,10 @@
   line-height: 20px;
   color: var(--text-color);
 
+  &:only-child {
+    margin-top: -5px;
+  }
+
   .lovely-chart--tooltip-dataset-value {
     float: right;
     font-weight: 700;

@@ -248,8 +248,23 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     _balloon.style.transform = `translateX(${_getBalloonLeftOffset(labelIndex)}px) translateZ(0)`;
     _balloon.classList.add('lovely-chart--state-shown');
 
-    const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex], true);
-    _throttledUpdateContent(title, statistics);
+    if (data.isPie) {
+      _updateContent(null, statistics);
+    } else {
+      const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex], true);
+      _throttledUpdateContent(title, statistics);
+    }
+  }
+
+  function _isPieSectorSelected(statistics, value, totalValue, index, pointerVector) {
+    const offset = index > 0 ? statistics.slice(0, index).reduce((a, x) => a + x.value, 0) : 0;
+    const beginAngle = offset / totalValue * Math.PI * 2 - Math.PI / 2;
+    const endAngle = (offset + value) / totalValue * Math.PI * 2 - Math.PI / 2;
+
+    return pointerVector &&
+      beginAngle <= pointerVector.angle &&
+      pointerVector.angle < endAngle &&
+      pointerVector.distance <= getPieRadius(_projection);
   }
 
   function _updateContent(title, statistics) {
@@ -278,8 +293,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     });
 
     const totalValue = statistics.reduce((a, x) => a + x.value, 0);
+    const pointerVector = getPointerVector();
+    const finalStatistics = data.isPie ? statistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : statistics;
 
-    statistics.forEach(({ name, colorName, value }) => {
+    finalStatistics.forEach(({ name, colorName, value }) => {
       const percentageValue = (value / totalValue * 100).toFixed(0);
       value = formatInteger(value);
 
