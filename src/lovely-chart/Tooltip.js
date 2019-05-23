@@ -238,13 +238,19 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     _context.stroke();
   }
 
-  function _updateBalloon(statistics, xPx, labelIndex) {
+  function _getBalloonLeftOffset(labelIndex) {
     const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
-    const left = labelIndex < meanLabel
-      ? _offsetX + BALLOON_OFFSET
-      : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
+    const { angle } = getPointerVector();
 
-    _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
+    const shouldPlaceRight = data.isPie ? angle > 1.5 : labelIndex < meanLabel;
+
+    return shouldPlaceRight
+        ? _offsetX + BALLOON_OFFSET
+        : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
+  }
+
+  function _updateBalloon(statistics, xPx, labelIndex) {
+    _balloon.style.transform = `translateX(${_getBalloonLeftOffset(labelIndex)}px) translateZ(0)`;
     _balloon.classList.add('lovely-chart--state-shown');
 
     const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex], true);
