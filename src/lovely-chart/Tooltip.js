@@ -237,7 +237,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
     const { angle } = getPointerVector();
 
-    const shouldPlaceRight = data.isPie ? angle > 1.5 : labelIndex < meanLabel;
+    const shouldPlaceRight = data.isPie ? angle > Math.PI / 2 : labelIndex < meanLabel;
 
     return shouldPlaceRight
         ? _offsetX + BALLOON_OFFSET
