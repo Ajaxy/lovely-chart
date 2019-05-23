@@ -243,7 +243,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
     _balloon.classList.add('lovely-chart--state-shown');
 
-    const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex]);
+    const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex], true);
     _throttledUpdateContent(title, statistics);
   }
 
@@ -262,7 +262,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       dataSet.setAttribute('data-present', 'false');
     });
 
+    const totalValue = statistics.reduce((a, x) => a + x.value, 0);
+
     statistics.forEach(({ name, colorName, value }) => {
+      const percentageValue = (value / totalValue * 100).toFixed(0);
       value = formatInteger(value);
 
       const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
@@ -273,8 +276,17 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         newDataSet.className = 'lovely-chart--tooltip-dataset';
         newDataSet.setAttribute('data-present', 'true');
         newDataSet.setAttribute('data-name', name);
-        newDataSet.innerHTML = `<span>${name}</span><span class="${className}">${value}</span>`;
-        dataSetContainer.appendChild(newDataSet);
+        newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${value}</span>`;
+        if (data.isPercentage) {
+          newDataSet.innerHTML = `<span class="lovely-chart--percentage-title lovely-chart--position-left">${percentageValue}%</span>` + newDataSet.innerHTML;
+        }
+
+        const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
+        if (totalText) {
+          dataSetContainer.insertBefore(newDataSet, totalText);
+        } else {
+          dataSetContainer.appendChild(newDataSet);
+        }
       } else {
         currentDataSet.setAttribute('data-present', 'true');
 
@@ -282,13 +294,44 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         if (valueElement.innerHTML !== value) {
           toggleText(valueElement, value, className);
         }
+
+        if(data.isPercentage) {
+          const percentageElement = currentDataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
+          if (percentageElement.innerHTML !== percentageValue) {
+            toggleText(percentageElement, `${percentageValue}%`, 'lovely-chart--percentage-title lovely-chart--position-left');
+          }
+        }
       }
     });
+
+    if (data.isBars && data.isStacked) {
+      _renderTotal(dataSetContainer, formatInteger(totalValue));
+    }
 
     Array.from(dataSetContainer.querySelectorAll('[data-present="false"]'))
       .forEach((dataSet) => {
         dataSet.remove();
       });
+  }
+
+  function _renderTotal(dataSetContainer, totalValue) {
+    const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
+    if (!totalText) {
+      const newTotalText = createElement();
+      newTotalText.className = 'lovely-chart--tooltip-dataset';
+      newTotalText.setAttribute('data-present', 'true');
+      newTotalText.setAttribute('data-total', 'true');
+      newTotalText.innerHTML = `<span>All</span><span class="${className}">${totalValue}</span>`;
+      dataSetContainer.appendChild(newTotalText);
+    } else {
+      totalText.setAttribute('data-present', 'true');
+
+      const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
+        if (valueElement.innerHTML !== totalValue) {
+          toggleText(valueElement, totalValue, className);
+        }
+    }
   }
 
   function _hideBalloon() {

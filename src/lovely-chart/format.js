@@ -1,11 +1,11 @@
-import { MONTHS, WEEK_DAYS } from './constants';
+import { MONTHS, MONTHS_SHORT, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
 
 
 export function buildDayLabels(labels) {
   return labels.map((value) => {
     const date = new Date(value);
     const day = date.getDate();
-    const month = MONTHS[date.getMonth()];
+    const month = MONTHS_SHORT[date.getMonth()];
 
     return ({
       value,
@@ -49,18 +49,20 @@ export function formatInteger(n) {
   return String(n).replace(/\d(?=(\d{3})+$)/g, '$& ');
 }
 
-export function getFullLabelDate(label) {
+export function getFullLabelDate(label, short = false) {
   const { value } = label;
   const date = new Date(value);
+  const weekDaysArray = short ? WEEK_DAYS_SHORT : WEEK_DAYS;
 
-  return `${WEEK_DAYS[date.getDay()]}, ${getLabelDate(label)}`;
+  return `${weekDaysArray[date.getDay()]}, ${getLabelDate(label, short)}`;
 }
 
-export function getLabelDate(label) {
+export function getLabelDate(label, short = false) {
   const { value } = label;
   const date = new Date(value);
   const day = date.getDate();
-  const month = MONTHS[date.getMonth()];
+  const monthsArray = short ? MONTHS_SHORT : MONTHS;
+  const month = monthsArray[date.getMonth()];
 
   return `${day} ${month} ${date.getFullYear()}`;
 }
