@@ -1,5 +1,6 @@
 import { setupCanvas, clearCanvas } from './canvas';
-import { BALLOON_OFFSET, PIE_BALLOON_MIN_DISTANCE, X_AXIS_HEIGHT } from './constants';
+import { BALLOON_OFFSET, X_AXIS_HEIGHT } from './constants';
+import { getPieRadius } from './formulas';
 import { formatInteger, getFullLabelDate } from './format';
 import { getCssColor } from './skin';
 import { throttle, throttleWithRaf } from './utils';
@@ -151,8 +152,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
 
     const pointerVector = getPointerVector();
-    // TODO filter focused data
-    const shouldShowBalloon = data.isPie ? pointerVector.distance >= PIE_BALLOON_MIN_DISTANCE : true;
+    const shouldShowBalloon = data.isPie ? pointerVector.distance <= getPieRadius(_projection) : true;
 
     if (!isExternal && onFocus) {
       if (data.isPie) {
@@ -161,6 +161,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         onFocus(labelIndex);
       }
     }
+
+    const statFilter = data.isPie ?
+      ({ value }) => _isPieSectorSelected(value, pointerVector) :
+      ({ key }) => _state.filter[key];
 
     const [xPx] = _projection.toPixels(labelIndex, 0);
     const statistics = data.datasets
@@ -172,7 +176,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         hasOwnYAxis,
         originalIndex: i,
       }))
-      .filter(({ key }) => _state.filter[key]);
+      .filter(statFilter);
 
     if (statistics.length && shouldShowBalloon) {
       _updateBalloon(statistics, xPx, labelIndex);

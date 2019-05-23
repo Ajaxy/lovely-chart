@@ -1,4 +1,4 @@
-import { GUTTER } from './constants';
+import { GUTTER, PLOT_PIE_RADIUS_FACTOR } from './constants';
 
 export function xScaleLevelToStep(scaleLevel) {
   return Math.pow(2, scaleLevel);
@@ -33,6 +33,10 @@ export function applyXEdgeOpacity(opacity, yPx) {
   return (yPx - GUTTER <= GUTTER * 2)
     ? Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2))
     : opacity;
+}
+
+export function getPieRadius(projection) {
+  return Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
 }
 
 export function getPieTextSize(percent, radius) {

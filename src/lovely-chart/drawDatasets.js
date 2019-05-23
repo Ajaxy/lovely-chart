@@ -1,7 +1,7 @@
 import { getCssColor } from './skin';
 import { mergeArrays } from './utils';
-import { getPieTextShift, getPieTextSize } from './formulas';
-import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_RADIUS_FACTOR, PLOT_PIE_SHIFT } from './constants';
+import { getPieRadius, getPieTextShift, getPieTextSize } from './formulas';
+import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT } from './constants';
 
 export function drawDatasets(
   context, state, data,
@@ -40,7 +40,7 @@ export function drawDatasets(
 
     if (datasetType === 'pie') {
       options.center = projection.getCenter();
-      options.radius = Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
+      options.radius = getPieRadius(projection);
       options.pointerVector = state.focusOn;
     }
 
