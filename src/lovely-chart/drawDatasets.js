@@ -6,7 +6,7 @@ import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT } from './constants';
 export function drawDatasets(
   context, state, data,
   range, points, projection, secondaryPoints, secondaryProjection,
-  lineWidth, visibilities, colors, pieToArea,
+  lineWidth, visibilities, colors, pieToBar,
 ) {
   data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
@@ -19,7 +19,7 @@ export function drawDatasets(
       opacity: data.isStacked ? 1 : visibilities[i],
     };
 
-    const datasetType = type === 'pie' && pieToArea ? 'area' : type;
+    const datasetType = type === 'pie' && pieToBar ? 'bar' : type;
     let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
     let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
 
