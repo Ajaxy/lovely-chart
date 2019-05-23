@@ -244,8 +244,12 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
   }
 
+  function _getBalloonTopOffset() {
+    return data.isPie ? `${_offsetY}px` : 0;
+  }
+
   function _updateBalloon(statistics, labelIndex) {
-    _balloon.style.transform = `translateX(${_getBalloonLeftOffset(labelIndex)}px) translateZ(0)`;
+    _balloon.style.transform = `translate3D(${_getBalloonLeftOffset(labelIndex)}px, ${_getBalloonTopOffset()}, 0)`;
     _balloon.classList.add('lovely-chart--state-shown');
 
     if (data.isPie) {
