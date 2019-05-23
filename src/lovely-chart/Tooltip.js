@@ -184,9 +184,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       _hideBalloon();
     }
 
+    clearCanvas(_canvas, _context);
     if (data.isLines || data.isAreas) {
-      clearCanvas(_canvas, _context);
-
       if (data.isLines) {
         _drawCircles(statistics, labelIndex);
       }
