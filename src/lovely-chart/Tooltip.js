@@ -309,7 +309,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     const finalStatistics = data.isPie ? statistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : statistics;
 
     finalStatistics.forEach(({ name, colorName, value }) => {
-      const percentageValue = (value / totalValue * 100).toFixed(0);
+      const percentageValue = Math.round(value / totalValue * 100);
       value = formatInteger(value);
 
       const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
@@ -346,7 +346,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
             newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
             newPercentageTitle.innerHTML = `${percentageValue}%`;
             currentDataSet.prepend(newPercentageTitle);
-          } else if (percentageElement.innerHTML !== percentageValue) {
+          } else if (percentageElement.innerHTML !== `${percentageValue}%`) {
             toggleText(percentageElement, `${percentageValue}%`, 'lovely-chart--percentage-title lovely-chart--position-left');
           }
         } else if (data.isPercentage) {
