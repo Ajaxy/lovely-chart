@@ -56,6 +56,7 @@
   font-weight: 700;
   position: relative;
   height: 14px;
+  padding-bottom: 5px;
 
   &::after {
     content: '';
@@ -72,18 +73,10 @@
   }
 }
 
-.lovely-chart--tooltip-legend {
-  padding-top: 5px;
-}
-
 .lovely-chart--tooltip-dataset {
   height: 20px;
   line-height: 20px;
   color: var(--text-color);
-
-  &:only-child {
-    margin-top: -5px;
-  }
 
   .lovely-chart--tooltip-dataset-value {
     float: right;
