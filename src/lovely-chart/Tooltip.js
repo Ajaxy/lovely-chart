@@ -1,7 +1,7 @@
 import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, X_AXIS_HEIGHT } from './constants';
-import { getPieRadius } from './formulas';
-import { formatInteger, getFullLabelDate } from './format';
+import { getPieRadius, isDataRange } from './formulas';
+import { formatInteger, getLabelDate, getFullLabelDate } from './format';
 import { getCssColor } from './skin';
 import { throttle, throttleWithRaf } from './utils';
 import { addEventListener, createElement } from './minifiers';
@@ -263,9 +263,20 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     if (data.isPie) {
       _updateContent(null, statistics);
     } else {
-      const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex], true);
-      _throttledUpdateContent(title, statistics);
+      _throttledUpdateContent(_getTitle(data, labelIndex), statistics);
     }
+  }
+
+  function _getTitle(data, labelIndex) {
+    if (_isZoomed) {
+      if (isDataRange(data.xLabels[_state.labelFromIndex + 1], data.xLabels[_state.labelToIndex - 1])) {
+        return getLabelDate(data.xLabels[labelIndex], true, { displayYear: false, displayHours: true });
+      }
+
+      return data.xLabels[labelIndex].text;
+    }
+
+    return getFullLabelDate(data.xLabels[labelIndex], true);
   }
 
   function _isPieSectorSelected(statistics, value, totalValue, index, pointerVector) {

@@ -21,7 +21,9 @@ import {
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
   DEFAULT_PALETTE,
+  MILISECONDS_IN_DAY,
 } from './constants';
+import { isDataRange } from './formulas';
 
 export function createLovelyChart(params) {
   let _data;
@@ -126,13 +128,14 @@ export function createLovelyChart(params) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    _header.setCaption(_zoomer.isZoomed()
-      ? getFullLabelDate(_data.xLabels[state.labelFromIndex])
-      : (
-        `${getLabelDate(_data.xLabels[state.labelFromIndex + 1])}` +
-        ' - ' +
-        `${getLabelDate(_data.xLabels[state.labelToIndex - 1])}`
-      ));
+    _header.setCaption(
+      !_zoomer.isZoomed() || isDataRange(_data.xLabels[state.labelFromIndex + 1], _data.xLabels[state.labelToIndex - 1]) ?
+        (
+          `${getLabelDate(_data.xLabels[state.labelFromIndex + 1])}` +
+          ' - ' +
+          `${getLabelDate(_data.xLabels[state.labelToIndex - 1])}`
+        ) :
+        getFullLabelDate(_data.xLabels[state.labelFromIndex]));
 
     clearCanvas(_plot, _context);
     drawDatasets(
