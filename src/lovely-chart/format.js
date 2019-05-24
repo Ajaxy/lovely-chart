@@ -50,19 +50,25 @@ export function formatInteger(n) {
 }
 
 export function getFullLabelDate(label, short = false) {
-  const { value } = label;
-  const date = new Date(value);
-  const weekDaysArray = short ? WEEK_DAYS_SHORT : WEEK_DAYS;
-
-  return `${weekDaysArray[date.getDay()]}, ${getLabelDate(label, short)}`;
+  return getLabelDate(label, short, { displayWeekDay: true });
 }
 
-export function getLabelDate(label, short = false) {
+export function getLabelDate(label, short = false, { displayWeekDay = false, displayYear = true, displayHours = false } = {}) {
   const { value } = label;
   const date = new Date(value);
-  const day = date.getDate();
   const monthsArray = short ? MONTHS_SHORT : MONTHS;
-  const month = monthsArray[date.getMonth()];
+  const weekDaysArray = short ? WEEK_DAYS_SHORT : WEEK_DAYS;
 
-  return `${day} ${month} ${date.getFullYear()}`;
+  let string = `${date.getUTCDate()} ${monthsArray[date.getUTCMonth()]}`;
+  if (displayWeekDay) {
+    string = `${weekDaysArray[date.getUTCDay()]}, ` + string;
+  }
+  if (displayYear) {
+    string += ` ${date.getUTCFullYear()}`;
+  }
+  if (displayHours) {
+    string += `, ${('0' + date.getUTCHours()).slice(-2)}:${('0' + date.getUTCMinutes()).slice(-2)}`
+  }
+
+  return string;
 }

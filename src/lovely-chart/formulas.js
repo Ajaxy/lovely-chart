@@ -1,4 +1,4 @@
-import { GUTTER, PLOT_PIE_RADIUS_FACTOR } from './constants';
+import { GUTTER, PLOT_PIE_RADIUS_FACTOR, MILISECONDS_IN_DAY } from './constants';
 
 export function xScaleLevelToStep(scaleLevel) {
   return Math.pow(2, scaleLevel);
@@ -49,4 +49,8 @@ export function getPieTextShift(percent, radius, shift) {
 
 export function getDatasetMinimapVisibility(state, key) {
   return Math.max(0, Math.min(state[`opacity#${key}`] * 2 - 1, 1));
+}
+
+export function isDataRange(labelFrom, labelTo) {
+  return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
 }
