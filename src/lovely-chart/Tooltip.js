@@ -300,62 +300,84 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
   }
 
-  function _updateContent(title, statistics) {
-    _updateTitle(title);
+  function _insertNewDataSet(dataSetContainer, { name, colorName, value }, totalValue) {
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
+    const newDataSet = createElement();
+    newDataSet.className = 'lovely-chart--tooltip-dataset';
+    newDataSet.setAttribute('data-present', 'true');
+    newDataSet.setAttribute('data-name', name);
+    newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${value}</span>`;
+    _updatePercentageValue(newDataSet, value, totalValue);
 
+    const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
+    if (totalText) {
+      dataSetContainer.insertBefore(newDataSet, totalText);
+    } else {
+      dataSetContainer.appendChild(newDataSet);
+    }
+  }
+
+  function _updateDataSet(currentDataSet, { colorName, value } = {}, totalValue) {
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
+    currentDataSet.setAttribute('data-present', 'true');
+
+    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${colorName}:not(.lovely-chart--state-hidden)`);
+    const formattedValue = formatInteger(value);
+    if (valueElement.innerHTML !== formattedValue) {
+      toggleText(valueElement, formattedValue, className);
+    }
+
+    _updatePercentageValue(currentDataSet, value, totalValue);
+  }
+
+  function _updatePercentageValue(dataSet, value, totalValue) {
+    if (!data.isPercentage) {
+      return;
+    }
+
+    if (data.isPie) {
+      Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach(e => e.remove());
+      return;
+    }
+
+    const percentageValue = Math.round(value / totalValue * 100);
+    const percentageElement = dataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
+
+    if (!percentageElement) {
+      const newPercentageTitle = createElement('span');
+      newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
+      newPercentageTitle.innerHTML = `${percentageValue}%`;
+      dataSet.prepend(newPercentageTitle);
+    } else if (percentageElement.innerHTML !== `${percentageValue}%`) {
+      toggleText(percentageElement, `${percentageValue}%`, 'lovely-chart--percentage-title lovely-chart--position-left');
+    }
+  }
+
+  function _updateDataSets(statistics) {
     const dataSetContainer = _balloon.children[1];
+    if (data.isPie) {
+      dataSetContainer.classList.add('lovely-chart--tooltip-legend-pie');
+    }
+
     Array.from(dataSetContainer.children).forEach((dataSet) => {
-      dataSet.setAttribute('data-present', 'false');
+      if (!data.isPie && dataSetContainer.classList.contains('lovely-chart--tooltip-legend-pie')) {
+        dataSet.remove();
+      } else {
+        dataSet.setAttribute('data-present', 'false');
+      }
     });
 
     const totalValue = statistics.reduce((a, x) => a + x.value, 0);
     const pointerVector = getPointerVector();
     const finalStatistics = data.isPie ? statistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : statistics;
 
-    finalStatistics.forEach(({ name, colorName, value }) => {
-      const percentageValue = Math.round(value / totalValue * 100);
-      value = formatInteger(value);
-
-      const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
-      const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
+    finalStatistics.forEach((statItem) => {
+      const currentDataSet = dataSetContainer.querySelector(`[data-name="${statItem.name}"]`);
 
       if (!currentDataSet) {
-        const newDataSet = createElement();
-        newDataSet.className = 'lovely-chart--tooltip-dataset';
-        newDataSet.setAttribute('data-present', 'true');
-        newDataSet.setAttribute('data-name', name);
-        newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${value}</span>`;
-        if (data.isPercentage && !data.isPie) {
-          newDataSet.innerHTML = `<span class="lovely-chart--percentage-title lovely-chart--position-left">${percentageValue}%</span>` + newDataSet.innerHTML;
-        }
-
-        const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
-        if (totalText) {
-          dataSetContainer.insertBefore(newDataSet, totalText);
-        } else {
-          dataSetContainer.appendChild(newDataSet);
-        }
+        _insertNewDataSet(dataSetContainer, statItem, totalValue);
       } else {
-        currentDataSet.setAttribute('data-present', 'true');
-
-        const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${colorName}:not(.lovely-chart--state-hidden)`);
-        if (valueElement.innerHTML !== value) {
-          toggleText(valueElement, value, className);
-        }
-
-        if (data.isPercentage && !data.isPie) {
-          const percentageElement = currentDataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
-          if (!percentageElement) {
-            const newPercentageTitle = createElement('span');
-            newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
-            newPercentageTitle.innerHTML = `${percentageValue}%`;
-            currentDataSet.prepend(newPercentageTitle);
-          } else if (percentageElement.innerHTML !== `${percentageValue}%`) {
-            toggleText(percentageElement, `${percentageValue}%`, 'lovely-chart--percentage-title lovely-chart--position-left');
-          }
-        } else if (data.isPercentage) {
-          Array.from(currentDataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach(e => e.remove());
-        }
+        _updateDataSet(currentDataSet, statItem, totalValue);
       }
     });
 
@@ -367,6 +389,11 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       .forEach((dataSet) => {
         dataSet.remove();
       });
+  }
+
+  function _updateContent(title, statistics) {
+    _updateTitle(title);
+    _updateDataSets(statistics);
   }
 
   function _renderTotal(dataSetContainer, totalValue) {
