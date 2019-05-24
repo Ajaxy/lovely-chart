@@ -279,11 +279,11 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       pointerVector.distance <= getPieRadius(_projection);
   }
 
-  function _updateContent(title, statistics) {
+  function _updateTitle(title) {
     const titleContainer = _balloon.children[0];
 
     if (data.isPie) {
-      if (titleContainer.classList.contains('lovely-chart--tooltip-title')) {
+      if (titleContainer) {
         titleContainer.style.display = 'none';
       }
     } else {
@@ -298,6 +298,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         toggleText(currentTitle, title, 'lovely-chart--tooltip-title-inner');
       }
     }
+  }
+
+  function _updateContent(title, statistics) {
+    _updateTitle(title);
 
     const dataSetContainer = _balloon.children[1];
     Array.from(dataSetContainer.children).forEach((dataSet) => {
