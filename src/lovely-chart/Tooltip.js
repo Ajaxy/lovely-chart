@@ -307,7 +307,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     newDataSet.setAttribute('data-present', 'true');
     newDataSet.setAttribute('data-name', name);
     newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${value}</span>`;
-    _updatePercentageValue(newDataSet, value, totalValue);
+    _renderPercentageValue(newDataSet, value, totalValue);
 
     const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
     if (totalText) {
@@ -327,10 +327,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       toggleText(valueElement, formattedValue, className);
     }
 
-    _updatePercentageValue(currentDataSet, value, totalValue);
+    _renderPercentageValue(currentDataSet, value, totalValue);
   }
 
-  function _updatePercentageValue(dataSet, value, totalValue) {
+  function _renderPercentageValue(dataSet, value, totalValue) {
     if (!data.isPercentage) {
       return;
     }
