@@ -164,7 +164,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
     function getValue(values, labelIndex) {
       if (data.isPie) {
-        return values.slice(_state.labelFromIndex, _state.labelToIndex).reduce((a, x) => a + x, 0);
+        return values.slice(_state.labelFromIndex, _state.labelToIndex + 1).reduce((a, x) => a + x, 0);
       }
 
       return values[labelIndex];
@@ -270,13 +270,13 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   function _getTitle(data, labelIndex) {
     if (_isZoomed) {
       if (isDataRange(data.xLabels[_state.labelFromIndex + 1], data.xLabels[_state.labelToIndex - 1])) {
-        return getLabelDate(data.xLabels[labelIndex], true, { displayYear: false, displayHours: true });
+        return getLabelDate(data.xLabels[labelIndex], { isShort: true, displayYear: false, displayHours: true });
       }
 
       return data.xLabels[labelIndex].text;
     }
 
-    return getFullLabelDate(data.xLabels[labelIndex], true);
+    return getFullLabelDate(data.xLabels[labelIndex], { isShort: true });
   }
 
   function _isPieSectorSelected(statistics, value, totalValue, index, pointerVector) {
