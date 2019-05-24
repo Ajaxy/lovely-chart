@@ -49,15 +49,15 @@ export function formatInteger(n) {
   return String(n).replace(/\d(?=(\d{3})+$)/g, '$& ');
 }
 
-export function getFullLabelDate(label, short = false) {
-  return getLabelDate(label, short, { displayWeekDay: true });
+export function getFullLabelDate(label, { isShort = false } = {}) {
+  return getLabelDate(label, { isShort, displayWeekDay: true });
 }
 
-export function getLabelDate(label, short = false, { displayWeekDay = false, displayYear = true, displayHours = false } = {}) {
+export function getLabelDate(label, { isShort = false, displayWeekDay = false, displayYear = true, displayHours = false } = {}) {
   const { value } = label;
   const date = new Date(value);
-  const monthsArray = short ? MONTHS_SHORT : MONTHS;
-  const weekDaysArray = short ? WEEK_DAYS_SHORT : WEEK_DAYS;
+  const monthsArray = isShort ? MONTHS_SHORT : MONTHS;
+  const weekDaysArray = isShort ? WEEK_DAYS_SHORT : WEEK_DAYS;
 
   let string = `${date.getUTCDate()} ${monthsArray[date.getUTCMonth()]}`;
   if (displayWeekDay) {
