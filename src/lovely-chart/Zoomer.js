@@ -112,7 +112,11 @@ export function createZoomer(data, params, stateManager, header, minimap, toolti
         }
       }
 
-      stateManager.update({ range, filter });
+      stateManager.update({
+        range,
+        filter,
+        minimapDelta: _isZoomed ? null : range.end - range.begin,
+      });
 
       _isZoomed = !_isZoomed;
     }, ZOOM_TIMEOUT);

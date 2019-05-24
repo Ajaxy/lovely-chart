@@ -18,12 +18,12 @@ export function createStateManager(data, viewportSize, callback) {
 
   let _state = {};
 
-  function update({ range = {}, filter = {}, focusOn } = {}, noTransition) {
+  function update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
     Object.assign(_range, range);
     Object.assign(_filter, filter);
 
     const prevState = _state;
-    _state = calculateState(data, viewportSize, _range, _filter, focusOn, prevState);
+    _state = calculateState(data, viewportSize, _range, _filter, focusOn, minimapDelta, prevState);
 
     if (!noTransition) {
       _transitionConfig.forEach(({ prop, duration, options }) => {
@@ -81,7 +81,7 @@ export function createStateManager(data, viewportSize, callback) {
   return { update };
 }
 
-function calculateState(data, viewportSize, range, filter, focusOn, prevState) {
+function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
   const { begin, end } = range;
   const totalXWidth = data.xLabels.length - 1;
 
@@ -122,6 +122,7 @@ function calculateState(data, viewportSize, range, filter, focusOn, prevState) {
       labelToIndex: Math.min(labelToIndex + 1, totalXWidth),
       filter: Object.assign({}, filter),
       focusOn: focusOn !== undefined ? focusOn : prevState.focusOn,
+      minimapDelta: minimapDelta !== undefined ? minimapDelta : prevState.minimapDelta,
     },
     yRanges,
     datasetsOpacity,
