@@ -162,13 +162,21 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       }
     }
 
+    function getValue(values, labelIndex) {
+      if (data.isPie) {
+        return values.slice(_state.labelFromIndex, _state.labelToIndex).reduce((a, x) => a + x, 0);
+      }
+
+      return values[labelIndex];
+    }
+
     const [xPx] = _projection.toPixels(labelIndex, 0);
     const statistics = data.datasets
       .map(({ key, name, colorName, values, hasOwnYAxis }, i) => ({
         key,
         name,
         colorName,
-        value: values[labelIndex],
+        value: getValue(values, labelIndex),
         hasOwnYAxis,
         originalIndex: i,
       }))
