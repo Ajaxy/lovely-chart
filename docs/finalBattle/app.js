@@ -76,35 +76,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('skin-switcher').addEventListener('click', (e) => {
     e.preventDefault();
 
-    document.body.classList.toggle('skin-night');
+    document.documentElement.classList.toggle('dark');
 
-    const skin = document.body.classList.contains('skin-night') ? 'skin-night' : 'skin-day';
+    const skin = document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
     e.target.innerText = `Switch to ${(skin === 'skin-night') ? 'Day' : 'Night'} Mode`;
 
     LovelyChart.changeSkin(skin);
     charts.forEach((chart) => {
       chart.redraw();
     });
-  });
-
-  document.getElementById('killer-feature').addEventListener('click', (e) => {
-    e.preventDefault();
-
-    e.currentTarget.classList.toggle('checked');
-
-    if (!snow) {
-      snow = document.createElement('div');
-      let html = '';
-      for (let i = 0; i < 12; i++) {
-        html += '<div class="flake">❄️</div>';
-      }
-      snow.innerHTML = html;
-    }
-
-    if (snow.parentNode) {
-      document.body.removeChild(snow);
-    } else {
-      document.body.appendChild(snow);
-    }
   });
 });

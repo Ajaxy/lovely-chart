@@ -1,5 +1,4 @@
-:root {
-  --background: #ffffff;
+.lovely-chart--container {
   --text-color: #222222;
   --minimap-mask: rgba(226, 238, 249, 0.6);
   --minimap-slider: #C0D1E1;
@@ -10,9 +9,8 @@
   --x-axis-text: #8E8E93;
   --y-axis-text: #8E8E93;
   --mask: rgba(255, 255, 255, 0.5);
-  --killer-button: #35AADC;
 }
-:root .lovely-chart.palette-type-1 {
+.lovely-chart--container.lovely-chart--palette-type-1 {
   --red-line: #FE3C30;
   --red-button: #E65850;
   --red-text: #F34C44;
@@ -26,7 +24,7 @@
   --yellow-button: #F5BD25;
   --yellow-text: #E4AE1B;
 }
-:root .lovely-chart.palette-type-2 {
+.lovely-chart--container.lovely-chart--palette-type-2 {
   --blue-line: #3497ED;
   --blue-button: #3497ED;
   --blue-text: #108BE3;
@@ -54,7 +52,7 @@
   --x-axis-text: rgba(37, 37, 41, 0.6);
   --y-axis-text: rgba(37, 37, 41, 0.6);
 }
-:root .lovely-chart.palette-type-3 {
+.lovely-chart--container.lovely-chart--palette-type-3 {
   --blue-line: #64ADED;
   --blue-button: #3896E8;
   --blue-text: #3896E8;
@@ -66,8 +64,7 @@
   --light-blue-text: #5CBCDF;
 }
 
-body.skin-night {
-  --background: rgb(36, 47, 62);
+html.dark .lovely-chart--container {
   --text-color: #ffffff;
   --minimap-mask: rgba(48, 66, 89, 0.6);
   --minimap-slider: #56626D;
@@ -79,7 +76,7 @@ body.skin-night {
   --y-axis-text: rgba(163, 177, 194, 0.6);
   --mask: rgba(36, 47, 62, 0.5);
 }
-body.skin-night .lovely-chart.palette-type-1 {
+html.dark .lovely-chart--container.lovely-chart--palette-type-1 {
   --red-line: #E6574F;
   --red-button: #CF5D57;
   --red-text: #F7655E;
@@ -93,7 +90,7 @@ body.skin-night .lovely-chart.palette-type-1 {
   --yellow-button: #C9AF4F;
   --yellow-text: #DEB93F;
 }
-body.skin-night .lovely-chart.palette-type-2 {
+html.dark .lovely-chart--container.lovely-chart--palette-type-2 {
   --blue-line: #4681BB;
   --blue-button: #4681BB;
   --blue-text: #5199DF;
@@ -121,7 +118,7 @@ body.skin-night .lovely-chart.palette-type-2 {
   --x-axis-text: rgba(236, 242, 248, 0.5);
   --y-axis-text: rgba(163, 177, 194, 0.6);
 }
-body.skin-night .lovely-chart.palette-type-3 {
+html.dark .lovely-chart--container.lovely-chart--palette-type-3 {
   --blue-line: #4082CE;
   --blue-button: #4082CE;
   --blue-text: #4082CE;
@@ -133,7 +130,7 @@ body.skin-night .lovely-chart.palette-type-3 {
   --light-blue-text: #4697B3;
 }
 
-@keyframes shake {
+@keyframes lovely-chart--animation-shake {
   0% {
     transform: translateX(-3px);
   }
@@ -156,7 +153,7 @@ body.skin-night .lovely-chart.palette-type-3 {
     transform: translateX(0);
   }
 }
-@keyframes fadeIn {
+@keyframes lovely-chart--animation-fadeIn {
   from {
     opacity: 0;
     transform: scale3d(0.5, 0.5, 1);
@@ -169,7 +166,7 @@ body.skin-night .lovely-chart.palette-type-3 {
     transform: scale3d(1, 1, 1);
   }
 }
-@keyframes fadeOut {
+@keyframes lovely-chart--animation-fadeOut {
   from {
     opacity: 1;
     transform: scale3d(1, 1, 1);
@@ -182,50 +179,60 @@ body.skin-night .lovely-chart.palette-type-3 {
     transform: scale3d(0.5, 0.5, 1);
   }
 }
-.lovely-chart .transition-container {
+@keyframes lovely-chart--animation-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.lovely-chart--transition-container {
   position: relative;
 }
-.lovely-chart .transition {
+
+.lovely-chart--transition {
   position: absolute;
   top: 0;
   bottom: 0;
 }
-.lovely-chart .transition.top {
+.lovely-chart--transition.lovely-chart--position-top {
   transform-origin: top left;
 }
-.lovely-chart .transition.top.right {
+.lovely-chart--transition.lovely-chart--position-top.lovely-chart--position-right {
   transform-origin: top right;
 }
-.lovely-chart .transition.bottom {
+.lovely-chart--transition.lovely-chart--position-bottom {
   transform-origin: bottom left;
 }
-.lovely-chart .transition.bottom.right {
+.lovely-chart--transition.lovely-chart--position-bottom.lovely-chart--position-right {
   transform-origin: bottom right;
 }
-.lovely-chart .transition.left {
+.lovely-chart--transition.lovely-chart--position-left {
   left: 0;
 }
-.lovely-chart .transition.right {
+.lovely-chart--transition.lovely-chart--position-right {
   right: 0;
 }
-.lovely-chart .transition.hidden {
+.lovely-chart--transition.lovely-chart--state-hidden {
   opacity: 0;
 }
-.lovely-chart .animated {
+
+.lovely-chart--state-animated {
   animation-fill-mode: forwards;
   animation-timing-function: ease-out;
   animation-duration: 200ms;
 }
-.lovely-chart .animated.hidden {
-  animation-name: fadeOut;
+.lovely-chart--state-animated.lovely-chart--state-hidden {
+  animation-name: lovely-chart--animation-fadeOut;
   animation-duration: 300ms;
 }
-.lovely-chart .animated:not(.hidden) {
-  animation-name: fadeIn;
+.lovely-chart--state-animated:not(.lovely-chart--state-hidden) {
+  animation-name: lovely-chart--animation-fadeIn;
 }
 
-.lovely-chart {
-  font: 300 13px Helvetica, Arial, sans-serif;
+.lovely-chart--container {
+  font: 300 13px "-apple-system", "HelveticaNeue", Helvetica, Arial, sans-serif;
   color: #222222;
   position: relative;
   margin-bottom: 50px;
@@ -234,11 +241,11 @@ body.skin-night .lovely-chart.palette-type-3 {
   -webkit-user-select: none;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
-.lovely-chart.hidden {
+.lovely-chart--container.lovely-chart--state-invisible {
   visibility: hidden;
 }
-.lovely-chart > canvas,
-.lovely-chart .tooltip canvas {
+.lovely-chart--container > canvas,
+.lovely-chart--container .lovely-chart--tooltip canvas {
   margin-top: 10px;
 }
 
@@ -250,94 +257,83 @@ body.cursor-grabbing, body.cursor-grabbing * {
   cursor: grabbing !important;
 }
 
-.spinner {
+.lovely-chart--spinner {
   width: 16px;
   height: 16px;
   position: relative;
 }
-.spinner.big {
+.lovely-chart--spinner.lovely-chart--size-big {
   width: 64px;
   height: 64px;
 }
-.spinner::after {
+.lovely-chart--spinner::after {
   content: "";
   position: absolute;
   top: 0;
   left: 0;
   bottom: 0;
   right: 0;
-  background: url("./icon-spinner.svg");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' version='1.1' width='512px' height='512px' viewBox='0 0 16 16'%3E%3Cg%3E%3Cpath fill='%23D2D5D7' d='M9.9 0.2l-0.2 1c3 0.8 5.3 3.5 5.3 6.8 0 3.9-3.1 7-7 7s-7-3.1-7-7c0-3.3 2.3-6 5.3-6.8l-0.2-1c-3.5 0.9-6.1 4.1-6.1 7.8 0 4.4 3.6 8 8 8s8-3.6 8-8c0-3.7-2.6-6.9-6.1-7.8z' data-original='%23444444' class='active-path' data-old_color='%23444444'/%3E%3C/g%3E%3C/svg%3E%0A");
   background-size: 100%;
-  animation: spin 1s infinite linear;
+  animation: lovely-chart--animation-spin 1s infinite linear;
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-.lovely-chart .header {
+.lovely-chart--header {
   height: 30px;
   font-weight: 600;
   margin: 0 10px;
 }
-.lovely-chart .header .title, .lovely-chart .header .caption {
+.lovely-chart--header-title, .lovely-chart--header-caption {
   color: var(--text-color);
   line-height: 30px;
 }
-.lovely-chart .header .title.hidden, .lovely-chart .header .caption.hidden {
+.lovely-chart--header-title.lovely-chart--state-hidden, .lovely-chart--header-caption.lovely-chart--state-hidden {
   opacity: 0;
   pointer-events: none;
 }
-.lovely-chart .header .title {
+.lovely-chart--header-title {
   font-size: 16px;
   float: left;
 }
-.lovely-chart .header .caption {
+.lovely-chart--header-caption {
   font-size: 12px;
   text-align: right;
   float: right;
 }
-.lovely-chart .header .zoom-out {
+.lovely-chart--header-zoom-out-control {
   display: flex;
   align-items: center;
   color: var(--zoom-out-text);
   cursor: pointer;
 }
-.lovely-chart .header .zoom-out::before {
+.lovely-chart--header-zoom-out-control::before {
   content: "";
   display: inline-block;
   margin-right: 6px;
   width: 16px;
   height: 16px;
-  background: url("./icon-zoom-out.svg");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' version='1.1' id='Capa_1' x='0px' y='0px' viewBox='0 0 512 512' style='enable-background:new 0 0 512 512;' xml:space='preserve' width='512px' height='512px'%3E%3Cg%3E%3Cg%3E%3Cpath d='M497.938,430.063l-112-112c-0.367-0.367-0.805-0.613-1.18-0.965C404.438,285.332,416,248.035,416,208 C416,93.313,322.695,0,208,0S0,93.313,0,208s93.305,208,208,208c40.035,0,77.332-11.563,109.098-31.242 c0.354,0.375,0.598,0.813,0.965,1.18l112,112C439.43,507.313,451.719,512,464,512c12.281,0,24.57-4.688,33.938-14.063 C516.688,479.203,516.688,448.797,497.938,430.063z M64,208c0-79.406,64.602-144,144-144s144,64.594,144,144 c0,79.406-64.602,144-144,144S64,287.406,64,208z' data-original='%23000000' class='active-path' data-old_color='%232d98e6' fill='%232d98e6'/%3E%3Cpath d='M272,176H144c-17.672,0-32,14.328-32,32s14.328,32,32,32h128c17.672,0,32-14.328,32-32S289.672,176,272,176z' data-original='%23000000' class='active-path' data-old_color='%232d98e6' fill='%232d98e6'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
   background-size: 100%;
 }
 
-.lovely-chart .minimap {
+.lovely-chart--minimap {
   position: relative;
-  background: var(--background);
   margin: 0 10px 16px 10px;
   border-radius: 6px;
   overflow: hidden;
   opacity: 1;
   transition: opacity 400ms ease;
 }
-.lovely-chart .minimap.hidden {
+.lovely-chart--minimap.lovely-chart--state-hidden {
   display: none;
 }
-.lovely-chart .minimap.transparent {
+.lovely-chart--minimap.lovely-chart--state-transparent {
   opacity: 0;
 }
-.lovely-chart .minimap canvas {
-  background: var(--background);
-}
-.lovely-chart .minimap .ruler {
+
+.lovely-chart--minimap-ruler {
   position: absolute;
   top: 0;
   left: 0;
@@ -347,16 +343,17 @@ body.cursor-grabbing, body.cursor-grabbing * {
   -webkit-user-select: none;
   user-select: none;
 }
-.lovely-chart .minimap .ruler .mask {
+
+.lovely-chart--minimap-mask {
   display: inline-block;
   width: 33.3%;
   height: 100%;
   background: var(--minimap-mask);
 }
-.lovely-chart .minimap .ruler .mask:last-child {
+.lovely-chart--minimap-mask:last-child {
   position: relative;
 }
-.lovely-chart .minimap .ruler .mask:last-child::after {
+.lovely-chart--minimap-mask:last-child::after {
   content: "";
   display: block;
   position: absolute;
@@ -366,14 +363,15 @@ body.cursor-grabbing, body.cursor-grabbing * {
   width: 5px;
   background: var(--minimap-mask);
 }
-.lovely-chart .minimap .ruler .slider {
+
+.lovely-chart--minimap-slider {
   display: inline-block;
   box-sizing: border-box;
   width: 33.3%;
   height: 100%;
   min-width: 16px;
 }
-.lovely-chart .minimap .ruler .slider > .inner {
+.lovely-chart--minimap-slider-inner {
   box-sizing: border-box;
   border-top: 1px solid var(--minimap-slider);
   border-bottom: 1px solid var(--minimap-slider);
@@ -383,26 +381,26 @@ body.cursor-grabbing, body.cursor-grabbing * {
   background: transparent !important;
   cursor: grab;
 }
-.lovely-chart .minimap .ruler .slider > .handle {
-  background: var(--minimap-mask);
+.lovely-chart--minimap-slider-handle {
   width: 8px;
   height: 100%;
   position: relative;
+  background: var(--minimap-mask);
   cursor: ew-resize;
 }
-.lovely-chart .minimap .ruler .slider > .handle::before, .lovely-chart .minimap .ruler .slider > .handle::after {
+.lovely-chart--minimap-slider-handle::before, .lovely-chart--minimap-slider-handle::after {
   content: "";
   display: block;
   position: absolute;
 }
-.lovely-chart .minimap .ruler .slider > .handle::before {
+.lovely-chart--minimap-slider-handle::before {
   background: var(--minimap-slider);
   top: 0;
   bottom: 0;
   right: 0;
   left: 0;
 }
-.lovely-chart .minimap .ruler .slider > .handle span {
+.lovely-chart--minimap-slider-handle-pin {
   display: block;
   position: absolute;
   background: #ffffff;
@@ -412,42 +410,43 @@ body.cursor-grabbing, body.cursor-grabbing * {
   left: calc(50% - 1px);
   pointer-events: none;
 }
-.lovely-chart .minimap .ruler .slider > .handle:first-child {
+.lovely-chart--minimap-slider-handle:first-child {
   float: left;
 }
-.lovely-chart .minimap .ruler .slider > .handle:first-child::before {
+.lovely-chart--minimap-slider-handle:first-child::before {
   border-top-left-radius: 6px;
   border-bottom-left-radius: 6px;
 }
-.lovely-chart .minimap .ruler .slider > .handle:last-child {
+.lovely-chart--minimap-slider-handle:last-child {
   float: right;
 }
-.lovely-chart .minimap .ruler .slider > .handle:last-child::before {
+.lovely-chart--minimap-slider-handle:last-child::before {
   border-top-right-radius: 6px;
   border-bottom-right-radius: 6px;
 }
 @media (pointer: coarse) {
-  .lovely-chart .minimap .ruler .slider > .handle:after {
+  .lovely-chart--minimap-slider-handle:after {
     top: -10px;
     bottom: -10px;
     z-index: 1;
   }
-  .lovely-chart .minimap .ruler .slider > .handle:first-child:after {
+  .lovely-chart--minimap-slider-handle:first-child:after {
     left: -26px;
     right: 0;
   }
-  .lovely-chart .minimap .ruler .slider > .handle:last-child:after {
+  .lovely-chart--minimap-slider-handle:last-child:after {
     left: 0;
     right: -26px;
   }
 }
 
-.lovely-chart .tooltip {
+.lovely-chart--tooltip {
   position: absolute;
   top: 30px;
   left: 0;
 }
-.lovely-chart .tooltip .balloon {
+
+.lovely-chart--tooltip-balloon {
   position: absolute;
   top: 5px;
   left: 0;
@@ -463,72 +462,20 @@ body.cursor-grabbing, body.cursor-grabbing * {
   cursor: pointer;
   pointer-events: none;
 }
-.lovely-chart .tooltip .balloon.shown {
+.lovely-chart--tooltip-balloon.lovely-chart--state-shown {
   opacity: 1;
   pointer-events: auto;
 }
-.lovely-chart .tooltip .balloon .title {
-  font-size: 12px;
-  font-weight: 700;
-  position: relative;
-  height: 14px;
-}
-.lovely-chart .tooltip .balloon .title::after {
-  content: "";
-  display: block;
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 12px;
-  height: 12px;
-  background-image: url("./icon-arrow-right.svg");
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: 75%;
-}
-.lovely-chart .tooltip .balloon.zoomed {
+.lovely-chart--tooltip-balloon.lovely-chart--state-zoomed {
   cursor: default;
 }
-.lovely-chart .tooltip .balloon.zoomed .title::after {
+.lovely-chart--tooltip-balloon.lovely-chart--state-zoomed .title::after {
   display: none;
 }
-.lovely-chart .tooltip .balloon .legend {
-  padding-top: 5px;
+.lovely-chart--tooltip-balloon.lovely-chart--state-loading .lovely-chart--spinner {
+  opacity: 1;
 }
-.lovely-chart .tooltip .balloon .legend .dataset {
-  height: 20px;
-  line-height: 20px;
-  color: var(--text-color);
-}
-.lovely-chart .tooltip .balloon .legend .dataset .value {
-  float: right;
-  font-weight: 700;
-}
-.lovely-chart .tooltip .balloon .legend .dataset .value.red {
-  color: var(--red-text);
-}
-.lovely-chart .tooltip .balloon .legend .dataset .value.green {
-  color: var(--green-text);
-}
-.lovely-chart .tooltip .balloon .legend .dataset .value.light-green {
-  color: var(--light-green-text);
-}
-.lovely-chart .tooltip .balloon .legend .dataset .value.blue {
-  color: var(--blue-text);
-}
-.lovely-chart .tooltip .balloon .legend .dataset .value.dark-blue {
-  color: var(--dark-blue-text);
-}
-.lovely-chart .tooltip .balloon .legend .dataset .value.light-blue {
-  color: var(--light-blue-text);
-}
-.lovely-chart .tooltip .balloon .legend .dataset .value.yellow {
-  color: var(--yellow-text);
-}
-.lovely-chart .tooltip .balloon .legend .dataset .value.orange {
-  color: var(--orange-text);
-}
-.lovely-chart .tooltip .balloon .spinner {
+.lovely-chart--tooltip-balloon .lovely-chart--spinner {
   position: absolute;
   top: 7px;
   right: 8px;
@@ -536,27 +483,96 @@ body.cursor-grabbing, body.cursor-grabbing * {
   opacity: 0;
   transition: opacity 500ms ease-out;
 }
-.lovely-chart .tooltip .balloon.loading .spinner {
-  opacity: 1;
+
+.lovely-chart--tooltip-title {
+  font-size: 12px;
+  font-weight: 700;
+  position: relative;
+  height: 14px;
+}
+.lovely-chart--tooltip-title::after {
+  content: "";
+  display: block;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 12px;
+  height: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' version='1.1' id='Capa_1' x='0px' y='0px' width='512px' height='512px' viewBox='0 0 451.846 451.847' style='enable-background:new 0 0 451.846 451.847;' xml:space='preserve' class=''%3E%3Cg%3E%3Cg%3E%3Cpath d='M345.441,248.292L151.154,442.573c-12.359,12.365-32.397,12.365-44.75,0c-12.354-12.354-12.354-32.391,0-44.744 L278.318,225.92L106.409,54.017c-12.354-12.359-12.354-32.394,0-44.748c12.354-12.359,32.391-12.359,44.75,0l194.287,194.284 c6.177,6.18,9.262,14.271,9.262,22.366C354.708,234.018,351.617,242.115,345.441,248.292z' data-original='%23000000' class='active-path' data-old_color='%23757B84' fill='%23D2D5D7'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 75%;
 }
 
-body.skin-night .lovely-chart .tooltip .balloon {
+.lovely-chart--tooltip-legend {
+  padding-top: 5px;
+}
+
+.lovely-chart--tooltip-dataset {
+  height: 20px;
+  line-height: 20px;
+  color: var(--text-color);
+}
+.lovely-chart--tooltip-dataset:only-child {
+  margin-top: -5px;
+}
+.lovely-chart--tooltip-dataset .lovely-chart--tooltip-dataset-value {
+  float: right;
+  font-weight: 700;
+}
+.lovely-chart--tooltip-dataset .lovely-chart--tooltip-dataset-value.lovely-chart--color-red {
+  color: var(--red-text);
+}
+.lovely-chart--tooltip-dataset .lovely-chart--tooltip-dataset-value.lovely-chart--color-green {
+  color: var(--green-text);
+}
+.lovely-chart--tooltip-dataset .lovely-chart--tooltip-dataset-value.lovely-chart--color-light-green {
+  color: var(--light-green-text);
+}
+.lovely-chart--tooltip-dataset .lovely-chart--tooltip-dataset-value.lovely-chart--color-blue {
+  color: var(--blue-text);
+}
+.lovely-chart--tooltip-dataset .lovely-chart--tooltip-dataset-value.lovely-chart--color-dark-blue {
+  color: var(--dark-blue-text);
+}
+.lovely-chart--tooltip-dataset .lovely-chart--tooltip-dataset-value.lovely-chart--color-light-blue {
+  color: var(--light-blue-text);
+}
+.lovely-chart--tooltip-dataset .lovely-chart--tooltip-dataset-value.lovely-chart--color-yellow {
+  color: var(--yellow-text);
+}
+.lovely-chart--tooltip-dataset .lovely-chart--tooltip-dataset-value.lovely-chart--color-orange {
+  color: var(--orange-text);
+}
+
+.lovely-chart--percentage-title {
+  display: inline-block;
+  font-weight: 700;
+  width: 25px;
+  margin-right: 5px;
+  text-align: right;
+}
+.lovely-chart--percentage-title.lovely-chart--transition ~ .lovely-chart--dataset-title {
+  padding-left: 30px;
+}
+
+html.dark .lovely-chart--tooltip-balloon {
   box-shadow: none;
 }
 
-.lovely-chart .tools {
+.lovely-chart--tools {
   opacity: 1;
   transition: opacity 400ms ease;
   padding: 0 10px 16px 10px;
 }
-.lovely-chart .tools.hidden {
+.lovely-chart--tools.lovely-chart--state-hidden {
   display: none;
 }
-.lovely-chart .tools.transparent {
+.lovely-chart--tools.lovely-chart--state-transparent {
   opacity: 0;
 }
 
-.lovely-chart a.checkbox {
+.lovely-chart--button {
   border: 1px solid #E6ECF0;
   background-color: transparent;
   padding: 7px 7px;
@@ -570,7 +586,78 @@ body.skin-night .lovely-chart .tooltip .balloon {
   background: transparent;
   color: var(--text-color);
 }
-.lovely-chart a.checkbox .circle {
+.lovely-chart--button.lovely-chart--state-checked {
+  background-color: var(--text-color);
+  animation-duration: 500ms;
+}
+.lovely-chart--button.lovely-chart--state-checked .lovely-chart--button-check {
+  opacity: 1;
+}
+.lovely-chart--button.lovely-chart--state-checked .lovely-chart--button-label {
+  color: #ffffff;
+  transform: translateX(6px);
+}
+.lovely-chart--button.lovely-chart--state-shake {
+  animation-name: lovely-chart--animation-shake;
+}
+.lovely-chart--button.lovely-chart--color-red {
+  border-color: var(--red-button);
+  color: var(--red-button);
+}
+.lovely-chart--button.lovely-chart--color-red.lovely-chart--state-checked {
+  background-color: var(--red-button);
+}
+.lovely-chart--button.lovely-chart--color-green {
+  border-color: var(--green-button);
+  color: var(--green-button);
+}
+.lovely-chart--button.lovely-chart--color-green.lovely-chart--state-checked {
+  background-color: var(--green-button);
+}
+.lovely-chart--button.lovely-chart--color-light-green {
+  border-color: var(--light-green-button);
+  color: var(--light-green-button);
+}
+.lovely-chart--button.lovely-chart--color-light-green.lovely-chart--state-checked {
+  background-color: var(--light-green-button);
+}
+.lovely-chart--button.lovely-chart--color-blue {
+  border-color: var(--blue-button);
+  color: var(--blue-button);
+}
+.lovely-chart--button.lovely-chart--color-blue.lovely-chart--state-checked {
+  background-color: var(--blue-button);
+}
+.lovely-chart--button.lovely-chart--color-dark-blue {
+  border-color: var(--dark-blue-button);
+  color: var(--dark-blue-button);
+}
+.lovely-chart--button.lovely-chart--color-dark-blue.lovely-chart--state-checked {
+  background-color: var(--dark-blue-button);
+}
+.lovely-chart--button.lovely-chart--color-light-blue {
+  border-color: var(--light-blue-button);
+  color: var(--light-blue-button);
+}
+.lovely-chart--button.lovely-chart--color-light-blue.lovely-chart--state-checked {
+  background-color: var(--light-blue-button);
+}
+.lovely-chart--button.lovely-chart--color-yellow {
+  border-color: var(--yellow-button);
+  color: var(--yellow-button);
+}
+.lovely-chart--button.lovely-chart--color-yellow.lovely-chart--state-checked {
+  background-color: var(--yellow-button);
+}
+.lovely-chart--button.lovely-chart--color-orange {
+  border-color: var(--orange-button);
+  color: var(--orange-button);
+}
+.lovely-chart--button.lovely-chart--color-orange.lovely-chart--state-checked {
+  background-color: var(--orange-button);
+}
+
+.lovely-chart--button-check {
   display: inline-block;
   position: absolute;
   top: 7px;
@@ -580,7 +667,7 @@ body.skin-night .lovely-chart .tooltip .balloon {
   opacity: 0;
   transition: opacity 300ms ease-out;
 }
-.lovely-chart a.checkbox .circle::after {
+.lovely-chart--button-check::after {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -589,91 +676,15 @@ body.skin-night .lovely-chart .tooltip .balloon {
   height: 12px;
   margin-left: -6px;
   margin-top: -6px;
-  background-image: url("./icon-ok.svg");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -256 1792 1792' version='1.1'%0A%3E%3Cg transform='matrix(1,0,0,-1,7.5932203,1217.0847)' id='g3003'%3E%3Cpath d='m 1671,970 q 0,-40 -28,-68 L 919,178 783,42 Q 755,14 715,14 675,14 647,42 L 511,178 149,540 q -28,28 -28,68 0,40 28,68 l 136,136 q 28,28 68,28 40,0 68,-28 l 294,-295 656,657 q 28,28 68,28 40,0 68,-28 l 136,-136 q 28,-28 28,-68 z' style='fill:white'/%3E%3C/g%3E%3C/svg%3E");
   background-size: 100%;
 }
-.lovely-chart a.checkbox .label {
+
+.lovely-chart--button-label {
   display: inline-block;
   font-weight: 300;
   line-height: 20px;
   color: inherit;
   padding: 0 13px;
   transition: transform 300ms ease-out, color 300ms ease-out;
-}
-.lovely-chart a.checkbox.checked {
-  background-color: var(--text-color);
-  animation-duration: 500ms;
-}
-.lovely-chart a.checkbox.checked .circle {
-  opacity: 1;
-}
-.lovely-chart a.checkbox.checked .label {
-  color: #ffffff;
-  transform: translateX(6px);
-}
-.lovely-chart a.checkbox.shake {
-  animation-name: shake;
-}
-.lovely-chart a.checkbox.red {
-  border-color: var(--red-button);
-  color: var(--red-button);
-}
-.lovely-chart a.checkbox.red.checked {
-  background-color: var(--red-button);
-}
-.lovely-chart a.checkbox.green {
-  border-color: var(--green-button);
-  color: var(--green-button);
-}
-.lovely-chart a.checkbox.green.checked {
-  background-color: var(--green-button);
-}
-.lovely-chart a.checkbox.light-green {
-  border-color: var(--light-green-button);
-  color: var(--light-green-button);
-}
-.lovely-chart a.checkbox.light-green.checked {
-  background-color: var(--light-green-button);
-}
-.lovely-chart a.checkbox.blue {
-  border-color: var(--blue-button);
-  color: var(--blue-button);
-}
-.lovely-chart a.checkbox.blue.checked {
-  background-color: var(--blue-button);
-}
-.lovely-chart a.checkbox.dark-blue {
-  border-color: var(--dark-blue-button);
-  color: var(--dark-blue-button);
-}
-.lovely-chart a.checkbox.dark-blue.checked {
-  background-color: var(--dark-blue-button);
-}
-.lovely-chart a.checkbox.light-blue {
-  border-color: var(--light-blue-button);
-  color: var(--light-blue-button);
-}
-.lovely-chart a.checkbox.light-blue.checked {
-  background-color: var(--light-blue-button);
-}
-.lovely-chart a.checkbox.yellow {
-  border-color: var(--yellow-button);
-  color: var(--yellow-button);
-}
-.lovely-chart a.checkbox.yellow.checked {
-  background-color: var(--yellow-button);
-}
-.lovely-chart a.checkbox.orange {
-  border-color: var(--orange-button);
-  color: var(--orange-button);
-}
-.lovely-chart a.checkbox.orange.checked {
-  background-color: var(--orange-button);
-}
-.lovely-chart #killer-feature {
-  border-color: var(--killer-button);
-  color: var(--killer-button);
-}
-.lovely-chart #killer-feature.checked {
-  background-color: var(--killer-button);
 }

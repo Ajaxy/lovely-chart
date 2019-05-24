@@ -43,8 +43,10 @@ const ZOOM_TIMEOUT = TRANSITION_DEFAULT_DURATION;
 const ZOOM_RANGE_DELTA = 0.1;
 const ZOOM_RANGE_MIDDLE = .5;
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const ANIMATE_PROPS = [
   // Viewport X-axis
@@ -108,7 +110,7 @@ function createLovelyChart(params) {
 
   function _setupContainer() {
     _container = createElement();
-    _container.className = `lovely-chart palette-${params.palette || DEFAULT_PALETTE}`;
+    _container.className = `lovely-chart--container lovely-chart--palette-${params.palette || DEFAULT_PALETTE}`;
 
     hideOnScroll(_container);
 
@@ -222,12 +224,12 @@ function createStateManager(data, viewportSize, callback) {
 
   let _state = {};
 
-  function update({ range = {}, filter = {}, focusOn } = {}, noTransition) {
+  function update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
     Object.assign(_range, range);
     Object.assign(_filter, filter);
 
     const prevState = _state;
-    _state = calculateState(data, viewportSize, _range, _filter, focusOn, prevState);
+    _state = calculateState(data, viewportSize, _range, _filter, focusOn, minimapDelta, prevState);
 
     if (!noTransition) {
       _transitionConfig.forEach(({ prop, duration, options }) => {
@@ -285,7 +287,7 @@ function createStateManager(data, viewportSize, callback) {
   return { update };
 }
 
-function calculateState(data, viewportSize, range, filter, focusOn, prevState) {
+function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
   const { begin, end } = range;
   const totalXWidth = data.xLabels.length - 1;
 
@@ -324,6 +326,7 @@ function calculateState(data, viewportSize, range, filter, focusOn, prevState) {
       labelToIndex: Math.min(labelToIndex + 1, totalXWidth),
       filter: Object.assign({}, filter),
       focusOn: focusOn !== undefined ? focusOn : prevState.focusOn,
+      minimapDelta: minimapDelta !== undefined ? minimapDelta : prevState.minimapDelta,
     },
     yRanges,
     datasetsOpacity,
@@ -528,14 +531,14 @@ function createHeader(container, title, zoomOutCallback) {
       _captionElement.innerHTML = caption;
       _isFirstUpdate = false;
     } else if (_captionElement.innerHTML !== caption) {
-      _captionElement = toggleText(_captionElement, caption, 'caption right');
+      _captionElement = toggleText(_captionElement, caption, 'lovely-chart--header-caption lovely-chart--position-right');
     }
   }
 
   function zoom(caption) {
     _isZoomed = true;
 
-    _zoomOutElement = toggleText(_titleElement, 'Zoom Out', 'title zoom-out');
+    _zoomOutElement = toggleText(_titleElement, 'Zoom Out', 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
     addEventListener(_zoomOutElement, 'click', _onZoomOut);
 
     setCaption(caption);
@@ -543,15 +546,15 @@ function createHeader(container, title, zoomOutCallback) {
 
   function _setupLayout() {
     _element = createElement();
-    _element.className = 'header';
+    _element.className = 'lovely-chart--header';
 
     _titleElement = createElement();
-    _titleElement.className = 'title';
+    _titleElement.className = 'lovely-chart--header-title';
     _titleElement.innerHTML = title;
     _element.appendChild(_titleElement);
 
     _captionElement = createElement();
-    _captionElement.className = 'caption right';
+    _captionElement.className = 'lovely-chart--header-caption lovely-chart--position-right';
     _element.appendChild(_captionElement);
 
     container.appendChild(_element);
@@ -560,7 +563,7 @@ function createHeader(container, title, zoomOutCallback) {
   function _onZoomOut() {
     _isZoomed = true;
 
-    _titleElement = toggleText(_zoomOutElement, title, 'title', true);
+    _titleElement = toggleText(_zoomOutElement, title, 'lovely-chart--header-title', true);
 
     zoomOutCallback();
   }
@@ -745,17 +748,17 @@ function createMinimap(container, data, colors, rangeCallback) {
   }
 
   function toggle(shouldShow) {
-    _element.classList.toggle('hidden', !shouldShow);
+    _element.classList.toggle('lovely-chart--state-hidden', !shouldShow);
 
     requestAnimationFrame(() => {
-      _element.classList.toggle('transparent', !shouldShow);
+      _element.classList.toggle('lovely-chart--state-transparent', !shouldShow);
     });
   }
 
   function _setupLayout() {
     _element = createElement();
 
-    _element.className = 'minimap';
+    _element.className = 'lovely-chart--minimap';
     _element.style.height = `${MINIMAP_HEIGHT}px`;
 
     _setupCanvas();
@@ -785,11 +788,15 @@ function createMinimap(container, data, colors, rangeCallback) {
 
   function _setupRuler() {
     _ruler = createElement();
-    _ruler.className = 'ruler';
+    _ruler.className = 'lovely-chart--minimap-ruler';
     _ruler.innerHTML =
-      '<div class="mask"></div>' +
-      '<div class="slider"><div class="handle"><span></span></div><div class="inner"></div><div class="handle"><span></span></div></div>' +
-      '<div class="mask"></div>';
+      '<div class="lovely-chart--minimap-mask"></div>' +
+      '<div class="lovely-chart--minimap-slider">' +
+      '<div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div>' +
+      '<div class="lovely-chart--minimap-slider-inner"></div>' +
+      '<div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div>' +
+      '</div>' +
+      '<div class="lovely-chart--minimap-mask"></div>';
 
     _slider = _ruler.children[1];
 
@@ -914,7 +921,12 @@ function createMinimap(container, data, colors, rangeCallback) {
   }
 
   function _updateRange(range, isExternal) {
-    const nextRange = Object.assign({}, _range, range);
+    let nextRange = Object.assign({}, _range, range);
+
+    if (_state && _state.minimapDelta && !isExternal) {
+      nextRange = _adjustDiscreteRange(nextRange);
+    }
+
     if (nextRange.begin === _range.begin && nextRange.end === _range.end) {
       return;
     }
@@ -925,6 +937,19 @@ function createMinimap(container, data, colors, rangeCallback) {
     if (!isExternal) {
       rangeCallback(_range);
     }
+  }
+
+  function _adjustDiscreteRange(nextRange) {
+    const beginChange = nextRange.begin - _range.begin;
+    const endChange = nextRange.end - _range.end;
+    const beginAbs = Math.abs(beginChange);
+    const endAbs = Math.abs(endChange);
+    const beginDirection = beginAbs ? beginChange / beginAbs : 1;
+    const endDirection = endAbs ? endChange / endAbs : 1;
+    const begin = _range.begin + Math.floor(beginAbs / _state.minimapDelta) * _state.minimapDelta * beginDirection;
+    const end = _range.end + Math.floor(endAbs / _state.minimapDelta) * _state.minimapDelta * endDirection;
+
+    return { begin, end };
   }
 
   function _updateRuler() {
@@ -972,17 +997,17 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   }
 
   function toggleSpinner(isLoading) {
-    _balloon.classList.toggle('loading', isLoading);
+    _balloon.classList.toggle('lovely-chart--state-loading', isLoading);
   }
 
   function toggleIsZoomed(isZoomed) {
     _isZoomed = isZoomed;
-    _balloon.classList.toggle('zoomed', isZoomed);
+    _balloon.classList.toggle('lovely-chart--state-zoomed', isZoomed);
   }
 
   function _setupLayout() {
     _element = createElement();
-    _element.className = 'tooltip';
+    _element.className = 'lovely-chart--tooltip';
 
     _setupCanvas();
     _setupBalloon();
@@ -1009,8 +1034,8 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
 
   function _setupBalloon() {
     _balloon = createElement();
-    _balloon.className = 'balloon';
-    _balloon.innerHTML = '<div class="title"></div><div class="legend"></div><div class="spinner"></div>';
+    _balloon.className = 'lovely-chart--tooltip-balloon';
+    _balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
 
     addEventListener(_balloon, 'click', _onBalloonClick);
 
@@ -1048,7 +1073,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   }
 
   function _onBalloonClick() {
-    if (_balloon.classList.contains('zoomed')) {
+    if (_balloon.classList.contains('lovely-chart--state-zoomed')) {
       return;
     }
 
@@ -1084,7 +1109,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     }
 
     const pointerVector = getPointerVector();
-    const shouldShowBalloon = data.isPie ? pointerVector.distance >= PIE_BALLOON_MIN_DISTANCE : true;
+    const shouldShowBalloon = data.isPie ? pointerVector.distance <= getPieRadius(_projection) : true;
 
     if (!isExternal && onFocus) {
       if (data.isPie) {
@@ -1107,14 +1132,13 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       .filter(({ key }) => _state.filter[key]);
 
     if (statistics.length && shouldShowBalloon) {
-      _updateBalloon(statistics, xPx, labelIndex);
+      _updateBalloon(statistics, labelIndex);
     } else {
       _hideBalloon();
     }
 
+    clearCanvas(_canvas, _context);
     if (data.isLines || data.isAreas) {
-      clearCanvas(_canvas, _context);
-
       if (data.isLines) {
         _drawCircles(statistics, labelIndex);
       }
@@ -1164,27 +1188,62 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     _context.stroke();
   }
 
-  function _updateBalloon(statistics, xPx, labelIndex) {
+  function _getBalloonLeftOffset(labelIndex) {
     const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
-    const left = labelIndex < meanLabel
-      ? _offsetX + BALLOON_OFFSET
-      : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
+    const { angle } = getPointerVector();
 
-    _balloon.style.transform = `translateX(${left}px) translateZ(0)`;
-    _balloon.classList.add('shown');
+    const shouldPlaceRight = data.isPie ? angle > Math.PI / 2 : labelIndex < meanLabel;
 
-    const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex]);
-    _throttledUpdateContent(title, statistics);
+    return shouldPlaceRight
+        ? _offsetX + BALLOON_OFFSET
+        : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
+  }
+
+  function _getBalloonTopOffset() {
+    return data.isPie ? `${_offsetY}px` : 0;
+  }
+
+  function _updateBalloon(statistics, labelIndex) {
+    _balloon.style.transform = `translate3D(${_getBalloonLeftOffset(labelIndex)}px, ${_getBalloonTopOffset()}, 0)`;
+    _balloon.classList.add('lovely-chart--state-shown');
+
+    if (data.isPie) {
+      _updateContent(null, statistics);
+    } else {
+      const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex], true);
+      _throttledUpdateContent(title, statistics);
+    }
+  }
+
+  function _isPieSectorSelected(statistics, value, totalValue, index, pointerVector) {
+    const offset = index > 0 ? statistics.slice(0, index).reduce((a, x) => a + x.value, 0) : 0;
+    const beginAngle = offset / totalValue * Math.PI * 2 - Math.PI / 2;
+    const endAngle = (offset + value) / totalValue * Math.PI * 2 - Math.PI / 2;
+
+    return pointerVector &&
+      beginAngle <= pointerVector.angle &&
+      pointerVector.angle < endAngle &&
+      pointerVector.distance <= getPieRadius(_projection);
   }
 
   function _updateContent(title, statistics) {
     const titleContainer = _balloon.children[0];
-    const currentTitle = titleContainer.querySelector(':not(.hidden)');
 
-    if (!titleContainer.innerHTML || !currentTitle) {
-      titleContainer.innerHTML = `<span>${title}</span>`;
-    } else if (currentTitle.innerHTML !== title) {
-      toggleText(currentTitle, title, 'title-inner');
+    if (data.isPie) {
+      if (titleContainer.classList.contains('lovely-chart--tooltip-title')) {
+        titleContainer.style.display = 'none';
+      }
+    } else {
+      if (titleContainer.style.display === 'none') {
+        titleContainer.style.display = '';
+      }
+      const currentTitle = titleContainer.querySelector(':not(.lovely-chart--state-hidden)');
+
+      if (!titleContainer.innerHTML || !currentTitle) {
+        titleContainer.innerHTML = `<span>${title}</span>`;
+      } else if (currentTitle.innerHTML !== title) {
+        toggleText(currentTitle, title, 'lovely-chart--tooltip-title-inner');
+      }
     }
 
     const dataSetContainer = _balloon.children[1];
@@ -1192,28 +1251,60 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       dataSet.setAttribute('data-present', 'false');
     });
 
-    statistics.forEach(({ name, colorName, value }) => {
+    const totalValue = statistics.reduce((a, x) => a + x.value, 0);
+    const pointerVector = getPointerVector();
+    const finalStatistics = data.isPie ? statistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : statistics;
+
+    finalStatistics.forEach(({ name, colorName, value }) => {
+      const percentageValue = (value / totalValue * 100).toFixed(0);
       value = formatInteger(value);
 
       const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
-      const className = `value right ${colorName}`;
+      const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
 
       if (!currentDataSet) {
         const newDataSet = createElement();
-        newDataSet.className = 'dataset';
+        newDataSet.className = 'lovely-chart--tooltip-dataset';
         newDataSet.setAttribute('data-present', 'true');
         newDataSet.setAttribute('data-name', name);
-        newDataSet.innerHTML = `<span>${name}</span><span class="${className}">${value}</span>`;
-        dataSetContainer.appendChild(newDataSet);
+        newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${value}</span>`;
+        if (data.isPercentage && !data.isPie) {
+          newDataSet.innerHTML = `<span class="lovely-chart--percentage-title lovely-chart--position-left">${percentageValue}%</span>` + newDataSet.innerHTML;
+        }
+
+        const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
+        if (totalText) {
+          dataSetContainer.insertBefore(newDataSet, totalText);
+        } else {
+          dataSetContainer.appendChild(newDataSet);
+        }
       } else {
         currentDataSet.setAttribute('data-present', 'true');
 
-        const valueElement = currentDataSet.querySelector(`.value.${colorName}:not(.hidden)`);
+        const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${colorName}:not(.lovely-chart--state-hidden)`);
         if (valueElement.innerHTML !== value) {
           toggleText(valueElement, value, className);
         }
+
+        if (data.isPercentage && !data.isPie) {
+          const percentageElement = currentDataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
+          if (!percentageElement) {
+            const newPercentageTitle = createElement('span');
+            newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
+            newPercentageTitle.innerHTML = `${percentageValue}%`;
+            currentDataSet.prepend(newPercentageTitle);
+          } else if (percentageElement.innerHTML !== percentageValue) {
+            toggleText(percentageElement, `${percentageValue}%`, 'lovely-chart--percentage-title lovely-chart--position-left');
+          }
+        } else if (data.isPercentage) {
+          Array.from(currentDataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach(e => e.remove());
+        }
       }
     });
+
+    if (data.isBars && data.isStacked) {
+      _renderTotal(dataSetContainer, formatInteger(totalValue));
+    }
 
     Array.from(dataSetContainer.querySelectorAll('[data-present="false"]'))
       .forEach((dataSet) => {
@@ -1221,8 +1312,28 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       });
   }
 
+  function _renderTotal(dataSetContainer, totalValue) {
+    const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
+    if (!totalText) {
+      const newTotalText = createElement();
+      newTotalText.className = 'lovely-chart--tooltip-dataset';
+      newTotalText.setAttribute('data-present', 'true');
+      newTotalText.setAttribute('data-total', 'true');
+      newTotalText.innerHTML = `<span>All</span><span class="${className}">${totalValue}</span>`;
+      dataSetContainer.appendChild(newTotalText);
+    } else {
+      totalText.setAttribute('data-present', 'true');
+
+      const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
+        if (valueElement.innerHTML !== totalValue) {
+          toggleText(valueElement, totalValue, className);
+        }
+    }
+  }
+
   function _hideBalloon() {
-    _balloon.classList.remove('shown');
+    _balloon.classList.remove('lovely-chart--state-shown');
   }
 
   function getPointerVector() {
@@ -1256,33 +1367,33 @@ function createTools(container, data, filterCallback) {
   function redraw() {
     if (_element) {
       const oldElement = _element;
-      oldElement.classList.add('hidden');
+      oldElement.classList.add('lovely-chart--state-hidden');
       setTimeout(() => {
         oldElement.parentNode.removeChild(oldElement);
       }, 500);
     }
 
     _setupLayout();
-    _element.classList.add('transparent');
+    _element.classList.add('lovely-chart--state-transparent');
     requestAnimationFrame(() => {
-      _element.classList.remove('transparent');
+      _element.classList.remove('lovely-chart--state-transparent');
     });
   }
 
   function _setupLayout() {
     _element = createElement();
-    _element.className = 'tools';
+    _element.className = 'lovely-chart--tools';
 
     if (data.datasets.length < 2) {
-      _element.className += ' hidden';
+      _element.className += ' lovely-chart--state-hidden';
     }
 
     data.datasets.forEach(({ key, name, colorName }) => {
       const control = createElement('a');
       control.href = '#';
       control.dataset.key = key;
-      control.className = `checkbox ${colorName} checked`;
-      control.innerHTML = `<span class="circle"></span><span class="label">${name}</span>`;
+      control.className = `lovely-chart--button lovely-chart--color-${colorName} lovely-chart--state-checked`;
+      control.innerHTML = `<span class="lovely-chart--button-check"></span><span class="lovely-chart--button-label">${name}</span>`;
 
       control.addEventListener('click', (e) => {
         e.preventDefault();
@@ -1312,31 +1423,31 @@ function createTools(container, data, filterCallback) {
 
   function _updateFilter(button, isLongPress = false) {
     const buttons = Array.from(_element.getElementsByTagName('a'));
-    const isSingleChecked = _element.querySelectorAll('.checked').length === 1;
+    const isSingleChecked = _element.querySelectorAll('.lovely-chart--state-checked').length === 1;
 
     if (button) {
-      if (button.classList.contains('checked') && isSingleChecked) {
+      if (button.classList.contains('lovely-chart--state-checked') && isSingleChecked) {
         if (isLongPress) {
-          buttons.forEach((b) => b.classList.add('checked'));
-          button.classList.remove('checked');
+          buttons.forEach((b) => b.classList.add('lovely-chart--state-checked'));
+          button.classList.remove('lovely-chart--state-checked');
         } else {
-          button.classList.remove('shake');
+          button.classList.remove('lovely-chart--state-shake');
           requestAnimationFrame(() => {
-            button.classList.add('shake');
+            button.classList.add('lovely-chart--state-shake');
           });
         }
       } else if (isLongPress) {
-        buttons.forEach((b) => b.classList.remove('checked'));
-        button.classList.add('checked');
+        buttons.forEach((b) => b.classList.remove('lovely-chart--state-checked'));
+        button.classList.add('lovely-chart--state-checked');
       } else {
-        button.classList.toggle('checked');
+        button.classList.toggle('lovely-chart--state-checked');
       }
     }
 
     const filter = {};
 
     buttons.forEach((input) => {
-      filter[input.dataset.key] = input.classList.contains('checked');
+      filter[input.dataset.key] = input.classList.contains('lovely-chart--state-checked');
     });
 
     filterCallback(filter);
@@ -1458,7 +1569,11 @@ function createZoomer(data, params, stateManager, header, minimap, tooltip, tool
         }
       }
 
-      stateManager.update({ range, filter });
+      stateManager.update({
+        range,
+        filter,
+        minimapDelta: _isZoomed ? null : range.end - range.begin,
+      });
 
       _isZoomed = !_isZoomed;
     }, ZOOM_TIMEOUT);
@@ -1736,7 +1851,7 @@ function createProjection(params) {
 function drawDatasets(
   context, state, data,
   range, points, projection, secondaryPoints, secondaryProjection,
-  lineWidth, visibilities, colors, pieToArea,
+  lineWidth, visibilities, colors, pieToBar,
 ) {
   data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
@@ -1749,7 +1864,7 @@ function drawDatasets(
       opacity: data.isStacked ? 1 : visibilities[i],
     };
 
-    const datasetType = type === 'pie' && pieToArea ? 'area' : type;
+    const datasetType = type === 'pie' && pieToBar ? 'bar' : type;
     let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
     let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
 
@@ -1770,7 +1885,7 @@ function drawDatasets(
 
     if (datasetType === 'pie') {
       options.center = projection.getCenter();
-      options.radius = Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
+      options.radius = getPieRadius(projection);
       options.pointerVector = state.focusOn;
     }
 
@@ -2066,7 +2181,7 @@ function buildDayLabels(labels) {
   return labels.map((value) => {
     const date = new Date(value);
     const day = date.getDate();
-    const month = MONTHS[date.getMonth()];
+    const month = MONTHS_SHORT[date.getMonth()];
 
     return ({
       value,
@@ -2108,18 +2223,20 @@ function formatInteger(n) {
   return String(n).replace(/\d(?=(\d{3})+$)/g, '$& ');
 }
 
-function getFullLabelDate(label) {
+function getFullLabelDate(label, short = false) {
   const { value } = label;
   const date = new Date(value);
+  const weekDaysArray = short ? WEEK_DAYS_SHORT : WEEK_DAYS;
 
-  return `${WEEK_DAYS[date.getDay()]}, ${getLabelDate(label)}`;
+  return `${weekDaysArray[date.getDay()]}, ${getLabelDate(label, short)}`;
 }
 
-function getLabelDate(label) {
+function getLabelDate(label, short = false) {
   const { value } = label;
   const date = new Date(value);
   const day = date.getDate();
-  const month = MONTHS[date.getMonth()];
+  const monthsArray = short ? MONTHS_SHORT : MONTHS;
+  const month = monthsArray[date.getMonth()];
 
   return `${day} ${month} ${date.getFullYear()}`;
 }
@@ -2160,6 +2277,10 @@ function applyXEdgeOpacity(opacity, yPx) {
     : opacity;
 }
 
+function getPieRadius(projection) {
+  return Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
+}
+
 function getPieTextSize(percent, radius) {
   return (radius + percent * 150) / 8;
 }
@@ -2191,7 +2312,7 @@ const hideOnScroll = (() => {
 
   function showAll() {
     charts.forEach((chart) => {
-      chart.classList.remove('hidden');
+      chart.classList.remove('lovely-chart--state-invisible');
     });
   }
 
@@ -2199,7 +2320,7 @@ const hideOnScroll = (() => {
     charts.forEach((chart) => {
       const { top, bottom } = chart.getBoundingClientRect();
       const shouldHide = bottom < 0 || top > window.innerHeight;
-      chart.classList.toggle('hidden', shouldHide);
+      chart.classList.toggle('lovely-chart--state-invisible', shouldHide);
     });
   }
 
@@ -2221,19 +2342,19 @@ function removeEventListener(element, event, cb) {
 
 function toggleText(element, newText, className = '', inverse = false) {
   const container = element.parentNode;
-  container.classList.add('transition-container');
+  container.classList.add('lovely-chart--transition-container');
 
   const newElement = createElement(element.tagName);
-  newElement.className = `${className} transition ${inverse ? 'top' : 'bottom'} hidden`;
+  newElement.className = `${className} lovely-chart--transition lovely-chart--position-${inverse ? 'top' : 'bottom'} lovely-chart--state-hidden`;
   newElement.innerHTML = newText;
 
   const selector = className.length ? `.${className.split(' ').join('.')}` : '';
-  const oldElements = container.querySelectorAll(`${selector}.hidden`);
+  const oldElements = container.querySelectorAll(`${selector}.lovely-chart--state-hidden`);
   oldElements.forEach(e => e.remove());
 
-  element.classList.add('transition');
-  element.classList.remove('bottom', 'top');
-  element.classList.add(inverse ? 'bottom' : 'top');
+  element.classList.add('lovely-chart--transition');
+  element.classList.remove('lovely-chart--position-bottom', 'lovely-chart--position-top');
+  element.classList.add(inverse ? 'lovely-chart--position-bottom' : 'lovely-chart--position-top');
   container.insertBefore(newElement, element.nextSibling);
 
   toggleElementIn(newElement);
@@ -2244,16 +2365,16 @@ function toggleText(element, newText, className = '', inverse = false) {
 
 function toggleElementIn(element) {
   // Remove and add `animated` class to re-trigger animation
-  element.classList.remove('animated');
-  element.classList.add('animated');
-  element.classList.remove('hidden');
+  element.classList.remove('lovely-chart--state-animated');
+  element.classList.add('lovely-chart--state-animated');
+  element.classList.remove('lovely-chart--state-hidden');
 }
 
 function toggleElementOut(element) {
   // Remove and add `animated` class to re-trigger animation
-  element.classList.remove('animated');
-  element.classList.add('animated');
-  element.classList.add('hidden');
+  element.classList.remove('lovely-chart--state-animated');
+  element.classList.add('lovely-chart--state-animated');
+  element.classList.add('lovely-chart--state-hidden');
 }
 
 // https://jsperf.com/finding-maximum-element-in-an-array
