@@ -48,6 +48,8 @@ const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
+
 const ANIMATE_PROPS = [
   // Viewport X-axis
   'begin 200 fast', 'end 200 fast', 'labelFromIndex 200 fast floor', 'labelToIndex 200 fast ceil',
@@ -167,13 +169,14 @@ function createLovelyChart(params) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    _header.setCaption(_zoomer.isZoomed()
-      ? getFullLabelDate(_data.xLabels[state.labelFromIndex])
-      : (
-        `${getLabelDate(_data.xLabels[state.labelFromIndex + 1])}` +
-        ' - ' +
-        `${getLabelDate(_data.xLabels[state.labelToIndex - 1])}`
-      ));
+    _header.setCaption(
+      !_zoomer.isZoomed() || isDataRange(_data.xLabels[state.labelFromIndex + 1], _data.xLabels[state.labelToIndex - 1]) ?
+        (
+          `${getLabelDate(_data.xLabels[state.labelFromIndex + 1])}` +
+          ' - ' +
+          `${getLabelDate(_data.xLabels[state.labelToIndex - 1])}`
+        ) :
+        getFullLabelDate(_data.xLabels[state.labelFromIndex]));
 
     clearCanvas(_plot, _context);
     drawDatasets(
@@ -1119,13 +1122,21 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       }
     }
 
+    function getValue(values, labelIndex) {
+      if (data.isPie) {
+        return values.slice(_state.labelFromIndex, _state.labelToIndex + 1).reduce((a, x) => a + x, 0);
+      }
+
+      return values[labelIndex];
+    }
+
     const [xPx] = _projection.toPixels(labelIndex, 0);
     const statistics = data.datasets
       .map(({ key, name, colorName, values, hasOwnYAxis }, i) => ({
         key,
         name,
         colorName,
-        value: values[labelIndex],
+        value: getValue(values, labelIndex),
         hasOwnYAxis,
         originalIndex: i,
       }))
@@ -1210,9 +1221,20 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     if (data.isPie) {
       _updateContent(null, statistics);
     } else {
-      const title = _isZoomed ? data.xLabels[labelIndex].text : getFullLabelDate(data.xLabels[labelIndex], true);
-      _throttledUpdateContent(title, statistics);
+      _throttledUpdateContent(_getTitle(data, labelIndex), statistics);
     }
+  }
+
+  function _getTitle(data, labelIndex) {
+    if (_isZoomed) {
+      if (isDataRange(data.xLabels[_state.labelFromIndex + 1], data.xLabels[_state.labelToIndex - 1])) {
+        return getLabelDate(data.xLabels[labelIndex], { isShort: true, displayYear: false, displayHours: true });
+      }
+
+      return data.xLabels[labelIndex].text;
+    }
+
+    return getFullLabelDate(data.xLabels[labelIndex], { isShort: true });
   }
 
   function _isPieSectorSelected(statistics, value, totalValue, index, pointerVector) {
@@ -1226,11 +1248,11 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       pointerVector.distance <= getPieRadius(_projection);
   }
 
-  function _updateContent(title, statistics) {
+  function _updateTitle(title) {
     const titleContainer = _balloon.children[0];
 
     if (data.isPie) {
-      if (titleContainer.classList.contains('lovely-chart--tooltip-title')) {
+      if (titleContainer) {
         titleContainer.style.display = 'none';
       }
     } else {
@@ -1245,60 +1267,86 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
         toggleText(currentTitle, title, 'lovely-chart--tooltip-title-inner');
       }
     }
+  }
 
+  function _insertNewDataSet(dataSetContainer, { name, colorName, value }, totalValue) {
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
+    const newDataSet = createElement();
+    newDataSet.className = 'lovely-chart--tooltip-dataset';
+    newDataSet.setAttribute('data-present', 'true');
+    newDataSet.setAttribute('data-name', name);
+    newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${value}</span>`;
+    _renderPercentageValue(newDataSet, value, totalValue);
+
+    const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
+    if (totalText) {
+      dataSetContainer.insertBefore(newDataSet, totalText);
+    } else {
+      dataSetContainer.appendChild(newDataSet);
+    }
+  }
+
+  function _updateDataSet(currentDataSet, { colorName, value } = {}, totalValue) {
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
+    currentDataSet.setAttribute('data-present', 'true');
+
+    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${colorName}:not(.lovely-chart--state-hidden)`);
+    const formattedValue = formatInteger(value);
+    if (valueElement.innerHTML !== formattedValue) {
+      toggleText(valueElement, formattedValue, className);
+    }
+
+    _renderPercentageValue(currentDataSet, value, totalValue);
+  }
+
+  function _renderPercentageValue(dataSet, value, totalValue) {
+    if (!data.isPercentage) {
+      return;
+    }
+
+    if (data.isPie) {
+      Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach(e => e.remove());
+      return;
+    }
+
+    const percentageValue = Math.round(value / totalValue * 100);
+    const percentageElement = dataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
+
+    if (!percentageElement) {
+      const newPercentageTitle = createElement('span');
+      newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
+      newPercentageTitle.innerHTML = `${percentageValue}%`;
+      dataSet.prepend(newPercentageTitle);
+    } else if (percentageElement.innerHTML !== `${percentageValue}%`) {
+      toggleText(percentageElement, `${percentageValue}%`, 'lovely-chart--percentage-title lovely-chart--position-left');
+    }
+  }
+
+  function _updateDataSets(statistics) {
     const dataSetContainer = _balloon.children[1];
+    if (data.isPie) {
+      dataSetContainer.classList.add('lovely-chart--tooltip-legend-pie');
+    }
+
     Array.from(dataSetContainer.children).forEach((dataSet) => {
-      dataSet.setAttribute('data-present', 'false');
+      if (!data.isPie && dataSetContainer.classList.contains('lovely-chart--tooltip-legend-pie')) {
+        dataSet.remove();
+      } else {
+        dataSet.setAttribute('data-present', 'false');
+      }
     });
 
     const totalValue = statistics.reduce((a, x) => a + x.value, 0);
     const pointerVector = getPointerVector();
     const finalStatistics = data.isPie ? statistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : statistics;
 
-    finalStatistics.forEach(({ name, colorName, value }) => {
-      const percentageValue = (value / totalValue * 100).toFixed(0);
-      value = formatInteger(value);
-
-      const currentDataSet = dataSetContainer.querySelector(`[data-name="${name}"]`);
-      const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
+    finalStatistics.forEach((statItem) => {
+      const currentDataSet = dataSetContainer.querySelector(`[data-name="${statItem.name}"]`);
 
       if (!currentDataSet) {
-        const newDataSet = createElement();
-        newDataSet.className = 'lovely-chart--tooltip-dataset';
-        newDataSet.setAttribute('data-present', 'true');
-        newDataSet.setAttribute('data-name', name);
-        newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${value}</span>`;
-        if (data.isPercentage && !data.isPie) {
-          newDataSet.innerHTML = `<span class="lovely-chart--percentage-title lovely-chart--position-left">${percentageValue}%</span>` + newDataSet.innerHTML;
-        }
-
-        const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
-        if (totalText) {
-          dataSetContainer.insertBefore(newDataSet, totalText);
-        } else {
-          dataSetContainer.appendChild(newDataSet);
-        }
+        _insertNewDataSet(dataSetContainer, statItem, totalValue);
       } else {
-        currentDataSet.setAttribute('data-present', 'true');
-
-        const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${colorName}:not(.lovely-chart--state-hidden)`);
-        if (valueElement.innerHTML !== value) {
-          toggleText(valueElement, value, className);
-        }
-
-        if (data.isPercentage && !data.isPie) {
-          const percentageElement = currentDataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
-          if (!percentageElement) {
-            const newPercentageTitle = createElement('span');
-            newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
-            newPercentageTitle.innerHTML = `${percentageValue}%`;
-            currentDataSet.prepend(newPercentageTitle);
-          } else if (percentageElement.innerHTML !== percentageValue) {
-            toggleText(percentageElement, `${percentageValue}%`, 'lovely-chart--percentage-title lovely-chart--position-left');
-          }
-        } else if (data.isPercentage) {
-          Array.from(currentDataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach(e => e.remove());
-        }
+        _updateDataSet(currentDataSet, statItem, totalValue);
       }
     });
 
@@ -1310,6 +1358,11 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       .forEach((dataSet) => {
         dataSet.remove();
       });
+  }
+
+  function _updateContent(title, statistics) {
+    _updateTitle(title);
+    _updateDataSets(statistics);
   }
 
   function _renderTotal(dataSetContainer, totalValue) {
@@ -2223,22 +2276,28 @@ function formatInteger(n) {
   return String(n).replace(/\d(?=(\d{3})+$)/g, '$& ');
 }
 
-function getFullLabelDate(label, short = false) {
-  const { value } = label;
-  const date = new Date(value);
-  const weekDaysArray = short ? WEEK_DAYS_SHORT : WEEK_DAYS;
-
-  return `${weekDaysArray[date.getDay()]}, ${getLabelDate(label, short)}`;
+function getFullLabelDate(label, { isShort = false } = {}) {
+  return getLabelDate(label, { isShort, displayWeekDay: true });
 }
 
-function getLabelDate(label, short = false) {
+function getLabelDate(label, { isShort = false, displayWeekDay = false, displayYear = true, displayHours = false } = {}) {
   const { value } = label;
   const date = new Date(value);
-  const day = date.getDate();
-  const monthsArray = short ? MONTHS_SHORT : MONTHS;
-  const month = monthsArray[date.getMonth()];
+  const monthsArray = isShort ? MONTHS_SHORT : MONTHS;
+  const weekDaysArray = isShort ? WEEK_DAYS_SHORT : WEEK_DAYS;
 
-  return `${day} ${month} ${date.getFullYear()}`;
+  let string = `${date.getUTCDate()} ${monthsArray[date.getUTCMonth()]}`;
+  if (displayWeekDay) {
+    string = `${weekDaysArray[date.getUTCDay()]}, ` + string;
+  }
+  if (displayYear) {
+    string += ` ${date.getUTCFullYear()}`;
+  }
+  if (displayHours) {
+    string += `, ${('0' + date.getUTCHours()).slice(-2)}:${('0' + date.getUTCMinutes()).slice(-2)}`
+  }
+
+  return string;
 }
 
 
@@ -2291,6 +2350,10 @@ function getPieTextShift(percent, radius, shift) {
 
 function getDatasetMinimapVisibility(state, key) {
   return Math.max(0, Math.min(state[`opacity#${key}`] * 2 - 1, 1));
+}
+
+function isDataRange(labelFrom, labelTo) {
+  return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
 }
 
 

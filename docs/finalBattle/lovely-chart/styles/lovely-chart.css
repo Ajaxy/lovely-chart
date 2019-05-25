@@ -489,6 +489,7 @@ body.cursor-grabbing, body.cursor-grabbing * {
   font-weight: 700;
   position: relative;
   height: 14px;
+  padding-bottom: 5px;
 }
 .lovely-chart--tooltip-title::after {
   content: "";
@@ -504,17 +505,10 @@ body.cursor-grabbing, body.cursor-grabbing * {
   background-size: 75%;
 }
 
-.lovely-chart--tooltip-legend {
-  padding-top: 5px;
-}
-
 .lovely-chart--tooltip-dataset {
   height: 20px;
   line-height: 20px;
   color: var(--text-color);
-}
-.lovely-chart--tooltip-dataset:only-child {
-  margin-top: -5px;
 }
 .lovely-chart--tooltip-dataset .lovely-chart--tooltip-dataset-value {
   float: right;
