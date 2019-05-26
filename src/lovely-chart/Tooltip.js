@@ -45,12 +45,12 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
   function toggleIsZoomed(isZoomed) {
     _isZoomed = isZoomed;
-    _balloon.classList.toggle('lovely-chart--state-zoomed', isZoomed);
+    _balloon.classList.toggle('lovely-chart--state-inactive', isZoomed);
   }
 
   function _setupLayout() {
     _element = createElement();
-    _element.className = 'lovely-chart--tooltip';
+    _element.className = `lovely-chart--tooltip${!data.onZoom ? ' lovely-chart--state-inactive' : ''}`;
 
     _setupCanvas();
     _setupBalloon();
@@ -118,7 +118,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _onBalloonClick() {
-    if (_balloon.classList.contains('lovely-chart--state-zoomed')) {
+    if (_balloon.classList.contains('lovely-chart--state-inactive')) {
       return;
     }
 
