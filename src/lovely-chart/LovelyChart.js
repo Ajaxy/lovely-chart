@@ -60,13 +60,12 @@ export function createLovelyChart(container, data) {
     _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
     _tools = createTools(_element, _data, _onFilterChange);
     _zoomer = _data.isZoomable && createZoomer(_data, data, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
+    hideOnScroll(_element);
   }
 
   function _setupContainer() {
     _element = createElement();
     _element.className = `lovely-chart--container${_data.shouldZoomToPie ? ' lovely-chart--container-type-pie' : ''}`;
-
-    hideOnScroll(_element);
 
     container.appendChild(_element);
   }
@@ -196,12 +195,12 @@ export function createLovelyChart(container, data) {
       endIndex = state.labelToIndex;
     }
 
-    return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex]) ?
-        (
-          `${getLabelDate(_data.xLabels[startIndex])}` +
-          ' - ' +
-          `${getLabelDate(_data.xLabels[endIndex])}`
-        ) :
-        getFullLabelDate(_data.xLabels[startIndex + 1]);
+    return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex])
+      ? (
+        `${getLabelDate(_data.xLabels[startIndex])}` +
+        ' - ' +
+        `${getLabelDate(_data.xLabels[endIndex])}`
+      )
+      : getFullLabelDate(_data.xLabels[startIndex + 1]);
   }
 }
