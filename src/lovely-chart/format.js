@@ -1,6 +1,5 @@
 import { MONTHS, MONTHS_SHORT, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
 
-
 export function buildDayLabels(labels) {
   return labels.map((value) => {
     const date = new Date(value);

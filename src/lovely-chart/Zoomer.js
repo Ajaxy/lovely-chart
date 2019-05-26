@@ -119,7 +119,7 @@ export function createZoomer(data, params, stateManager, header, minimap, toolti
       });
 
       _isZoomed = !_isZoomed;
-    }, ZOOM_TIMEOUT);
+    }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
   }
 
   function _generatePieData(state) {

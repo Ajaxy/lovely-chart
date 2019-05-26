@@ -49,6 +49,10 @@ export function createStateManager(data, viewportSize, callback) {
     }
   }
 
+  function hasAnimations() {
+    return _transitions.isFast();
+  }
+
   function _buildTransitionConfig() {
     const transitionConfig = [];
     const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 300`);
@@ -75,10 +79,11 @@ export function createStateManager(data, viewportSize, callback) {
   }
 
   function _runCallback() {
-    callback(proxyMerge(_state, _transitions.getState()));
+    const state = _transitions.isFast() ? proxyMerge(_state, _transitions.getState()) : _state;
+    callback(state);
   }
 
-  return { update };
+  return { update, hasAnimations };
 }
 
 function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {

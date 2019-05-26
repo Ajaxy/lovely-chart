@@ -17,7 +17,6 @@ export const PLOT_PIE_SHIFT = 10;
 export const PLOT_BARS_WIDTH_SHIFT = 0.5;
 
 export const BALLOON_OFFSET = 20;
-export const PIE_BALLOON_MIN_DISTANCE = 150;
 
 export const AXES_FONT = '300 10px Helvetica, Arial, sans-serif';
 export const AXES_MAX_COLUMN_WIDTH = 45;
@@ -41,6 +40,9 @@ export const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'
 export const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
+
+export const SPEED_TEST_INTERVAL = 200;
+export const SPEED_TEST_FAST_FPS = 8;
 
 export const ANIMATE_PROPS = [
   // Viewport X-axis

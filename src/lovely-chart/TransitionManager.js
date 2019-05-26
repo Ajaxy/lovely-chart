@@ -1,4 +1,4 @@
-import { TRANSITION_DEFAULT_DURATION } from './constants';
+import { SPEED_TEST_FAST_FPS, SPEED_TEST_INTERVAL, TRANSITION_DEFAULT_DURATION } from './constants';
 
 function transition(t) {
   // faster
@@ -12,6 +12,12 @@ export function createTransitionManager(onTick) {
 
   let _nextFrame = null;
 
+  let _testStartedAt = null;
+  let _fps = null;
+  let _testingFps = null;
+  let _slowDetectedAt = null;
+  let _startedAsSlow = null;
+
   function add(prop, from, to, duration, options) {
     _transitions[prop] = {
       from,
@@ -24,6 +30,7 @@ export function createTransitionManager(onTick) {
     };
 
     if (!_nextFrame) {
+      _resetSpeedTest();
       _nextFrame = requestAnimationFrame(_tick);
     }
   }
@@ -60,7 +67,17 @@ export function createTransitionManager(onTick) {
     return Boolean(Object.keys(_transitions).length);
   }
 
+  function isFast(forceCheck) {
+    if (!forceCheck && (_startedAsSlow || _slowDetectedAt)) {
+      return false;
+    }
+
+    return _fps === null || _fps >= SPEED_TEST_FAST_FPS;
+  }
+
   function _tick() {
+    _speedTest();
+
     const state = {};
 
     Object.keys(_transitions).forEach((prop) => {
@@ -90,5 +107,29 @@ export function createTransitionManager(onTick) {
     }
   }
 
-  return { add, remove, get, getState, isRunning };
+  function _resetSpeedTest() {
+    _testStartedAt = null;
+    _testingFps = null;
+    if (_slowDetectedAt && Date.now() - _slowDetectedAt > 5000) {
+      _slowDetectedAt = null;
+    }
+    _startedAsSlow = Boolean(_slowDetectedAt) || !isFast(true);
+  }
+
+  function _speedTest() {
+    if (!_testStartedAt || (Date.now() - _testStartedAt) >= SPEED_TEST_INTERVAL) {
+      if (_testingFps) {
+        _fps = _testingFps;
+        if (!_slowDetectedAt && !isFast(true)) {
+          _slowDetectedAt = Date.now();
+        }
+      }
+      _testStartedAt = Date.now();
+      _testingFps = 0;
+    } else {
+      _testingFps++;
+    }
+  }
+
+  return { add, remove, get, getState, isRunning, isFast };
 }
