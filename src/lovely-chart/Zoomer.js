@@ -1,4 +1,4 @@
-import { fetchData, analyzeData } from './data';
+import { analyzeData } from './data';
 import { getFullLabelDate } from './format';
 import { ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants';
 import { createColors } from './skin';
@@ -7,7 +7,6 @@ export function createZoomer(data, overviewData, colors, stateManager, header, m
   let _isZoomed = false;
   let _stateBeforeZoomIn;
   let _stateBeforeZoomOut;
-  let _zoomedDateText;
 
   function zoomIn(state, labelIndex) {
     if (_isZoomed) {
@@ -18,7 +17,7 @@ export function createZoomer(data, overviewData, colors, stateManager, header, m
 
     _stateBeforeZoomIn = state;
     header.zoom(getFullLabelDate(label));
-    tooltip.toggleSpinner(true);
+    tooltip.toggleLoading(true);
     tooltip.toggleIsZoomed(true);
 
     const { value: date } = label;
@@ -28,6 +27,7 @@ export function createZoomer(data, overviewData, colors, stateManager, header, m
 
   function zoomOut(state) {
     _stateBeforeZoomOut = state;
+    tooltip.toggleLoading(true);
     tooltip.toggleIsZoomed(false);
 
     const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
@@ -39,8 +39,6 @@ export function createZoomer(data, overviewData, colors, stateManager, header, m
   }
 
   function _replaceData(newRawData, labelIndex) {
-    tooltip.toggleSpinner(false);
-
     const labelWidth = 1 / data.xLabels.length;
     const labelMiddle = labelIndex / (data.xLabels.length - 1);
     const filter = {};
@@ -57,12 +55,6 @@ export function createZoomer(data, overviewData, colors, stateManager, header, m
     });
 
     setTimeout(() => {
-      if (!_isZoomed) {
-        _zoomedDateText = getFullLabelDate(data.xLabels[labelIndex]);
-      } else {
-        _zoomedDateText = null;
-      }
-
       Object.assign(data, newData);
       if (shouldZoomToLines) {
         Object.assign(colors, createColors(newRawData.colors));
@@ -117,6 +109,7 @@ export function createZoomer(data, overviewData, colors, stateManager, header, m
       });
 
       _isZoomed = !_isZoomed;
+      tooltip.toggleLoading(false);
     }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
   }
 

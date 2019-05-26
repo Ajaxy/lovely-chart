@@ -2,6 +2,24 @@
   position: absolute;
   top: 30px;
   left: 0;
+
+  &::before {
+    content: '';
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background-color: var(--background-color);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .3s ease-in-out;
+  }
+
+  &.lovely-chart--state-loading::before {
+    opacity: 1;
+  }
 }
 
 .lovely-chart--tooltip-balloon {

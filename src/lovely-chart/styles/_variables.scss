@@ -1,4 +1,5 @@
 .lovely-chart--container {
+  --background-color: #ffffff;
   --text-color: #222222;
   --minimap-mask: #{rgba(#E2EEF9, 60%)};
   --minimap-slider: #C0D1E1;
@@ -9,6 +10,7 @@
 }
 
 html.dark .lovely-chart--container {
+  --background-color: #242F3E;
   --text-color: #ffffff;
   --minimap-mask: #{rgba(#304259, 60%)};
   --minimap-slider: #56626D;
