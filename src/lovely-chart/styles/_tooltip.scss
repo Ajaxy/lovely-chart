@@ -27,10 +27,10 @@
     pointer-events: auto;
   }
 
-  &.lovely-chart--state-zoomed {
+  &.lovely-chart--state-inactive {
     cursor: default;
 
-    .title::after {
+    .lovely-chart--tooltip-title::after {
       display: none;
     }
   }
