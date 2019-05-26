@@ -125,7 +125,7 @@ html.dark .lovely-chart--container {
   font: 300 13px "-apple-system", "HelveticaNeue", Helvetica, Arial, sans-serif;
   color: #222222;
   position: relative;
-  margin-bottom: 150px;
+  margin-bottom: 100px;
   text-align: left;
   overflow: hidden;
   -webkit-user-select: none;
@@ -162,7 +162,7 @@ html.dark .lovely-chart--container {
     -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
     transform: rotate(-360deg);
   }
-  100% {
+  75% {
     clip-path: circle(32% at center calc(50% - 7.5px));
     -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
     transform: rotate(0);
@@ -174,12 +174,12 @@ html.dark .lovely-chart--container {
     -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
     transform: rotate(360deg);
   }
-  75% {
+  50% {
     clip-path: circle(32% at center calc(50% - 7.5px));
     -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
     transform: rotate(0);
   }
-  100% {
+  75% {
     clip-path: circle(80% at center calc(50% - 7.5px));
     -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
     transform: rotate(0);

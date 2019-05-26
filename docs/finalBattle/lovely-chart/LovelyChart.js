@@ -224,6 +224,7 @@ function createLovelyChart(container, data) {
   }
 
   function _redraw() {
+    Object.assign(_data, analyzeData(data));
     _element.remove();
     _setupComponents();
   }
@@ -233,8 +234,8 @@ function createLovelyChart(container, data) {
     let endIndex;
 
     if (_zoomer && _zoomer.isZoomed()) {
-      startIndex = state.labelFromIndex + 1;
-      endIndex = state.labelToIndex - 1;
+      startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
+      endIndex = state.labelToIndex === state.totalXWidth - 1 ? state.labelToIndex : state.labelToIndex - 1;
     } else {
       startIndex = state.labelFromIndex;
       endIndex = state.labelToIndex;
@@ -246,7 +247,7 @@ function createLovelyChart(container, data) {
         ' - ' +
         `${getLabelDate(_data.xLabels[endIndex])}`
       )
-      : getFullLabelDate(_data.xLabels[startIndex + 1]);
+      : getFullLabelDate(_data.xLabels[startIndex]);
   }
 }
 
@@ -1660,7 +1661,7 @@ function createZoomer(data, overviewData, colors, stateManager, container, heade
     }
 
     const { value: date } = label;
-    const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(state)) : data.onZoom(date);
+    const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(labelIndex)) : data.onZoom(date);
     dataPromise.then((newData) => _replaceData(newData, labelIndex));
   }
 
@@ -1706,6 +1707,8 @@ function createZoomer(data, overviewData, colors, stateManager, container, heade
       if (shouldZoomToLines) {
         minimap.toggle(_isZoomed);
         tools.redraw();
+        container.style.width = `${container.scrollWidth}px`;
+        container.style.height = `${container.scrollHeight}px`;
       }
 
       stateManager.update({
@@ -1762,11 +1765,11 @@ function createZoomer(data, overviewData, colors, stateManager, container, heade
     }, stateManager.hasAnimations() ? 1000 : 0)
   }
 
-  function _generatePieData(state) {
+  function _generatePieData(labelIndex) {
     const pieData = Object.assign({}, overviewData);
 
     pieData.columns = overviewData.columns.map((c) => {
-      const column = c.slice(state.labelFromIndex + 1, state.labelToIndex + 1);
+      const column = c.slice(labelIndex - 3 + 1, labelIndex + 4 + 1);
       column.unshift(c[0]);
       return column;
     });
@@ -2153,7 +2156,9 @@ function drawDatasetBars(context, points, projection, options) {
     const [x, yTo] = toPixels(projection, labelIndex, stackValue);
     const rectX = x - options.lineWidth / 2;
     const rectY = yTo;
-    const rectW = options.opacity === 1 ? options.lineWidth + PLOT_BARS_WIDTH_SHIFT : options.lineWidth;
+    const rectW = options.opacity === 1 ?
+      options.lineWidth + PLOT_BARS_WIDTH_SHIFT :
+      options.lineWidth + PLOT_BARS_WIDTH_SHIFT * (options.opacity / 2);
     const rectH = yFrom - yTo;
 
     context.fillRect(rectX, rectY, rectW, rectH);
@@ -2576,8 +2581,8 @@ const hideOnScroll = (() => {
       const shouldHide = bottom < 0 || top > window.innerHeight;
 
       if (!chartEl.classList.contains('lovely-chart--state-invisible')) {
-        chartEl.style.width = `${chartEl.offsetWidth}px`;
-        chartEl.style.height = `${chartEl.offsetHeight}px`;
+        chartEl.style.width = `${chartEl.scrollWidth}px`;
+        chartEl.style.height = `${chartEl.scrollHeight}px`;
       }
 
       chartEl.classList.toggle('lovely-chart--state-invisible', shouldHide);
