@@ -605,9 +605,6 @@ function createHeader(container, title, zoomOutCallback) {
   let _zoomOutElement;
   let _captionElement;
 
-  let _isZoomed = false;
-  let _isFirstUpdate = true;
-
   const setCaptionThrottled = throttle(setCaption, 400, false, true);
 
   _setupLayout();
@@ -615,15 +612,12 @@ function createHeader(container, title, zoomOutCallback) {
   function setCaption(caption) {
     if (!_captionElement.innerHTML) {
       _captionElement.innerHTML = caption;
-      _isFirstUpdate = false;
     } else if (_captionElement.innerHTML !== caption) {
       _captionElement = toggleText(_captionElement, caption, 'lovely-chart--header-caption lovely-chart--position-right');
     }
   }
 
   function zoom(caption) {
-    _isZoomed = true;
-
     _zoomOutElement = toggleText(_titleElement, 'Zoom Out', 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
     addEventListener(_zoomOutElement, 'click', _onZoomOut);
 
@@ -647,8 +641,6 @@ function createHeader(container, title, zoomOutCallback) {
   }
 
   function _onZoomOut() {
-    _isZoomed = true;
-
     _titleElement = toggleText(_zoomOutElement, title, 'lovely-chart--header-title', true);
 
     zoomOutCallback();
@@ -703,10 +695,7 @@ function createAxes(context, data, plotSize, colors) {
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
     if (data.isPercentage) {
-      _drawYAxisPercents(
-        projection,
-        yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
-      );
+      _drawYAxisPercents(projection);
     } else {
       _drawYAxisScaled(
         state,
@@ -804,8 +793,9 @@ function createAxes(context, data, plotSize, colors) {
     context.stroke();
   }
 
-  function _drawYAxisPercents(projection, yMax) {
+  function _drawYAxisPercents(projection) {
     const percentValues = [0, 0.25, 0.50, 0.75, 1];
+    const [, height] = projection.getSize();
 
     context.font = AXES_FONT;
     context.textAlign = 'left';
@@ -815,10 +805,9 @@ function createAxes(context, data, plotSize, colors) {
     context.beginPath();
 
     percentValues.forEach((value) => {
-      const [, yPx] = toPixels(projection, 0, value * yMax);
+      const yPx = height - height * value + PLOT_TOP_PADDING;
 
       context.fillStyle = getCssColor(colors, 'y-axis-text', 1);
-
       context.fillText(`${value * 100}%`, GUTTER, yPx - GUTTER / 4);
 
       context.moveTo(GUTTER, yPx);
@@ -1117,7 +1106,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   let _isZooming = false;
 
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
-  const _throttledUpdateContent = throttle(_updateContent, 400, true, true);
+  const _throttledUpdateContent = throttle(_updateContent, 100, true, true);
 
   _setupLayout();
 
@@ -1406,8 +1395,8 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
 
       if (!titleContainer.innerHTML || !currentTitle) {
         titleContainer.innerHTML = `<span>${title}</span>`;
-      } else if (currentTitle.innerHTML !== title) {
-        toggleText(currentTitle, title, 'lovely-chart--tooltip-title-inner');
+      } else {
+        currentTitle.innerHTML = title;
       }
     }
   }
@@ -1430,14 +1419,10 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   }
 
   function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${data.colors[key].slice(1)}`;
     currentDataSet.setAttribute('data-present', 'true');
 
     const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${data.colors[key].slice(1)}:not(.lovely-chart--state-hidden)`);
-    const formattedValue = formatInteger(value);
-    if (valueElement.innerHTML !== formattedValue) {
-      toggleText(valueElement, formattedValue, className);
-    }
+    valueElement.innerHTML = formatInteger(value);
 
     _renderPercentageValue(currentDataSet, value, totalValue);
   }
@@ -1460,8 +1445,8 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
       newPercentageTitle.innerHTML = `${percentageValue}%`;
       dataSet.prepend(newPercentageTitle);
-    } else if (percentageElement.innerHTML !== `${percentageValue}%`) {
-      toggleText(percentageElement, `${percentageValue}%`, 'lovely-chart--percentage-title lovely-chart--position-left');
+    } else {
+      percentageElement.innerHTML = `${percentageValue}%`;
     }
   }
 
@@ -1522,9 +1507,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       totalText.setAttribute('data-present', 'true');
 
       const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
-        if (valueElement.innerHTML !== totalValue) {
-          toggleText(valueElement, totalValue, className);
-        }
+      valueElement.innerHTML = totalValue;
     }
   }
 
