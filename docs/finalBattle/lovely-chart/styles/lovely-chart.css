@@ -130,6 +130,7 @@ html.dark .lovely-chart--container {
   overflow: hidden;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  -webkit-touch-callout: none;
 }
 .lovely-chart--container.lovely-chart--state-invisible > * {
   display: none;
@@ -168,6 +169,25 @@ html.dark .lovely-chart--container {
     transform: rotate(0);
   }
 }
+@media (max-width: 480px) {
+  @keyframes lovely-chart--animation-pie-transition-in {
+    0% {
+      clip-path: circle(80% at center calc(50% - 7.5px));
+      -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
+      transform: rotate(-360deg);
+    }
+    25% {
+      clip-path: circle(40% at center calc(50% - 7.5px));
+      -webkit-clip-path: circle(40% at center calc(50% - 7.5px));
+      transform: rotate(-360deg);
+    }
+    75% {
+      clip-path: circle(40% at center calc(50% - 7.5px));
+      -webkit-clip-path: circle(40% at center calc(50% - 7.5px));
+      transform: rotate(0);
+    }
+  }
+}
 @keyframes lovely-chart--animation-pie-transition-out {
   0% {
     clip-path: circle(32% at center calc(50% - 7.5px));
@@ -183,6 +203,25 @@ html.dark .lovely-chart--container {
     clip-path: circle(80% at center calc(50% - 7.5px));
     -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
     transform: rotate(0);
+  }
+}
+@media (max-width: 480px) {
+  @keyframes lovely-chart--animation-pie-transition-out {
+    0% {
+      clip-path: circle(40% at center calc(50% - 7.5px));
+      -webkit-clip-path: circle(40% at center calc(50% - 7.5px));
+      transform: rotate(360deg);
+    }
+    50% {
+      clip-path: circle(40% at center calc(50% - 7.5px));
+      -webkit-clip-path: circle(40% at center calc(50% - 7.5px));
+      transform: rotate(0);
+    }
+    75% {
+      clip-path: circle(80% at center calc(50% - 7.5px));
+      -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
+      transform: rotate(0);
+    }
   }
 }
 body.cursor-ew-resize, body.cursor-ew-resize * {
