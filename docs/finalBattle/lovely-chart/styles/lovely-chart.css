@@ -158,25 +158,25 @@ html.dark .lovely-chart--container {
     transform: rotate(-360deg);
   }
   25% {
-    clip-path: circle(31% at center calc(50% - 7.5px));
-    -webkit-clip-path: circle(31% at center calc(50% - 7.5px));
+    clip-path: circle(32% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
     transform: rotate(-360deg);
   }
   100% {
-    clip-path: circle(31% at center calc(50% - 7.5px));
-    -webkit-clip-path: circle(31% at center calc(50% - 7.5px));
+    clip-path: circle(32% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
     transform: rotate(0);
   }
 }
 @keyframes lovely-chart--animation-pie-transition-out {
   0% {
-    clip-path: circle(31% at center calc(50% - 7.5px));
-    -webkit-clip-path: circle(31% at center calc(50% - 7.5px));
+    clip-path: circle(32% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
     transform: rotate(360deg);
   }
   75% {
-    clip-path: circle(31% at center calc(50% - 7.5px));
-    -webkit-clip-path: circle(31% at center calc(50% - 7.5px));
+    clip-path: circle(32% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
     transform: rotate(0);
   }
   100% {
