@@ -24,6 +24,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   let _clickedOnLabel = null;
 
   let _isZoomed = false;
+  let _isZooming = false;
 
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
   const _throttledUpdateContent = throttle(_updateContent, 400, true, true);
@@ -44,6 +45,11 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function toggleIsZoomed(isZoomed) {
+    if (isZoomed !== _isZoomed) {
+      _isZooming = true;
+      _hideBalloon();
+      _clear();
+    }
     _isZoomed = isZoomed;
     _balloon.classList.toggle('lovely-chart--state-inactive', isZoomed);
   }
@@ -92,6 +98,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       return;
     }
 
+    _isZooming = false;
+
     const pageOffset = _getPageOffset(_element);
     _offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
     _offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
@@ -106,6 +114,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _onClick(e) {
+    if (_isZooming) {
+      return;
+    }
+
     const oldLabelIndex = _clickedOnLabel;
 
     _clickedOnLabel = null;
@@ -143,7 +155,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _selectLabel(isExternal) {
-    if (!_offsetX || !_state) {
+    if (!_offsetX || !_state || _isZooming) {
       return;
     }
 
