@@ -1,12 +1,13 @@
 import { getCssColor } from './skin';
 import { mergeArrays } from './utils';
-import { getPieRadius, getPieTextShift, getPieTextSize } from './formulas';
+import { getPieRadius, getPieTextShift, getPieTextSize, getSimplificationDelta } from './formulas';
 import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT } from './constants';
+import { simplify } from './simplify';
 
 export function drawDatasets(
   context, state, data,
   range, points, projection, secondaryPoints, secondaryProjection,
-  lineWidth, visibilities, colors, pieToBar,
+  lineWidth, visibilities, colors, pieToBar, simplification,
 ) {
   data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
@@ -17,6 +18,7 @@ export function drawDatasets(
       color: getCssColor(colors, `dataset#${key}`),
       lineWidth,
       opacity: data.isStacked ? 1 : visibilities[i],
+      simplification,
     };
 
     const datasetType = type === 'pie' && pieToBar ? 'bar' : type;
@@ -83,11 +85,21 @@ function drawDataset(type, ...args) {
 function drawDatasetLine(context, points, projection, options) {
   context.beginPath();
 
+  let pixels = [];
+
   for (let j = 0, l = points.length; j < l; j++) {
     const { labelIndex, stackValue } = points[j];
-    const [x, y] = projection.toPixels(labelIndex, stackValue);
-    context.lineTo(x, y);
+    pixels.push(projection.toPixels(labelIndex, stackValue));
   }
+
+  if (options.simplification) {
+    const simplifierFn = simplify(pixels);
+    pixels = simplifierFn(options.simplification).points;
+  }
+
+  pixels.forEach(([x, y]) => {
+    context.lineTo(x, y);
+  });
 
   context.save();
   context.strokeStyle = options.color;
@@ -137,11 +149,21 @@ function drawBarsMask(context, projection, options) {
 function drawDatasetArea(context, points, projection, options) {
   context.beginPath();
 
+  let pixels = [];
+
   for (let j = 0, l = points.length; j < l; j++) {
     const { labelIndex, stackValue } = points[j];
-    const [x, y] = projection.toPixels(labelIndex, stackValue);
-    context.lineTo(x, y);
+    pixels.push(projection.toPixels(labelIndex, stackValue));
   }
+
+  if (options.simplification) {
+    const simplifierFn = simplify(pixels);
+    pixels = simplifierFn(options.simplification).points;
+  }
+
+  pixels.forEach(([x, y]) => {
+    context.lineTo(x, y);
+  });
 
   context.save();
   context.fillStyle = options.color;

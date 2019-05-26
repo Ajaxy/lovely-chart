@@ -9,10 +9,11 @@ import {
   MINIMAP_EAR_WIDTH,
   MINIMAP_MARGIN,
   MINIMAP_LINE_WIDTH,
+  SIMPLIFIER_MINIMAP_FACTOR,
 } from './constants';
 import { proxyMerge, throttleWithRaf } from './utils';
 import { createElement } from './minifiers';
-import { getDatasetMinimapVisibility } from './formulas';
+import { getDatasetMinimapVisibility, getSimplificationDelta } from './formulas';
 
 export function createMinimap(container, data, colors, rangeCallback) {
   let _element;
@@ -172,10 +173,13 @@ export function createMinimap(container, data, colors, rangeCallback) {
       secondaryProjection = projection.copy(bounds);
     }
 
+    const totalPoints = points.reduce((a, p) => a + p.length, 0);
+    const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_MINIMAP_FACTOR;
+
     drawDatasets(
       _context, state, data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      MINIMAP_LINE_WIDTH, visibilities, colors, true,
+      MINIMAP_LINE_WIDTH, visibilities, colors, true, simplification,
     );
   }
 
