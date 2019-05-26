@@ -179,6 +179,7 @@ export function createLovelyChart(container, data) {
   }
 
   function _redraw() {
+    Object.assign(_data, analyzeData(data));
     _element.remove();
     _setupComponents();
   }

@@ -30,8 +30,8 @@ export const hideOnScroll = (() => {
       const shouldHide = bottom < 0 || top > window.innerHeight;
 
       if (!chartEl.classList.contains('lovely-chart--state-invisible')) {
-        chartEl.style.width = `${chartEl.offsetWidth}px`;
-        chartEl.style.height = `${chartEl.offsetHeight}px`;
+        chartEl.style.width = `${chartEl.scrollWidth}px`;
+        chartEl.style.height = `${chartEl.scrollHeight}px`;
       }
 
       chartEl.classList.toggle('lovely-chart--state-invisible', shouldHide);

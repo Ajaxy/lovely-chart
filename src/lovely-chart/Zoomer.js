@@ -71,6 +71,8 @@ export function createZoomer(data, overviewData, colors, stateManager, container
       if (shouldZoomToLines) {
         minimap.toggle(_isZoomed);
         tools.redraw();
+        container.style.width = `${container.scrollWidth}px`;
+        container.style.height = `${container.scrollHeight}px`;
       }
 
       stateManager.update({
