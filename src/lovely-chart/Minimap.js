@@ -9,11 +9,12 @@ import {
   MINIMAP_EAR_WIDTH,
   MINIMAP_MARGIN,
   MINIMAP_LINE_WIDTH,
+  MINIMAP_MAX_ANIMATED_DATASETS,
   SIMPLIFIER_MINIMAP_FACTOR,
 } from './constants';
 import { proxyMerge, throttleWithRaf } from './utils';
 import { createElement } from './minifiers';
-import { getDatasetMinimapVisibility, getSimplificationDelta } from './formulas';
+import { getSimplificationDelta } from './formulas';
 
 export function createMinimap(container, data, colors, rangeCallback) {
   let _element;
@@ -38,12 +39,17 @@ export function createMinimap(container, data, colors, rangeCallback) {
       _updateRange({ begin, end }, true);
     }
 
+    if (data.datasets.length >= MINIMAP_MAX_ANIMATED_DATASETS) {
+      newState = newState.static;
+    }
+
     if (!_isStateChanged(newState)) {
       return;
     }
 
     _state = proxyMerge(newState, { focusOn: null });
     clearCanvas(_canvas, _context);
+
     _drawDatasets(_state);
   }
 
@@ -138,10 +144,17 @@ export function createMinimap(container, data, colors, rangeCallback) {
       return true;
     }
 
-    const keys = data.datasets.map(({ key }) => `opacity#${key}`);
-    keys.push('yMaxMinimap');
+    const { datasets } = data;
 
-    return keys.some((key) => _state[key] !== newState[key]);
+    if (datasets.some(({ key }) => _state[`opacity#${key}`] !== newState[`opacity#${key}`])) {
+      return true;
+    }
+
+    if (_state.yMaxMinimap !== newState.yMaxMinimap) {
+      return true;
+    }
+
+    return false;
   }
 
   function _drawDatasets(state = {}) {
@@ -160,7 +173,7 @@ export function createMinimap(container, data, colors, rangeCallback) {
       availableHeight: _canvasSize.height,
       yPadding: 1,
     };
-    const visibilities = datasets.map(({ key }) => getDatasetMinimapVisibility(state, key));
+    const visibilities = datasets.map(({ key }) => _state[`opacity#${key}`]);
     const points = preparePoints(data, datasets, range, visibilities, boundsAndParams, true);
     const projection = createProjection(boundsAndParams);
 

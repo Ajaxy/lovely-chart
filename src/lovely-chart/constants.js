@@ -28,6 +28,7 @@ export const MINIMAP_HEIGHT = 40;
 export const MINIMAP_MARGIN = 10;
 export const MINIMAP_LINE_WIDTH = 1;
 export const MINIMAP_EAR_WIDTH = 8;
+export const MINIMAP_MAX_ANIMATED_DATASETS = 4;
 
 export const ZOOM_TIMEOUT = TRANSITION_DEFAULT_DURATION;
 export const ZOOM_RANGE_DELTA = 0.1;
@@ -41,7 +42,7 @@ export const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
 
 export const SPEED_TEST_INTERVAL = 200;
-export const SPEED_TEST_FAST_FPS = 8;
+export const SPEED_TEST_FAST_FPS = 4;
 
 export const SIMPLIFIER_MIN_POINTS = 1000;
 export const SIMPLIFIER_PLOT_FACTOR = 1;

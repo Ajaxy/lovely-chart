@@ -6,7 +6,7 @@ export function preparePoints(data, datasets, range, visibilities, bounds, pieTo
   ));
 
   if (data.isPie && !pieToArea) {
-    values = prepareSumsByY(values);
+    values = prepareSumsByX(values);
   }
 
   const points = values.map((datasetValues, i) => (
@@ -30,6 +30,7 @@ export function preparePoints(data, datasets, range, visibilities, bounds, pieTo
   if (data.isPercentage) {
     preparePercentage(points, bounds);
   }
+
   if (data.isStacked) {
     prepareStacked(points);
   }
@@ -37,7 +38,7 @@ export function preparePoints(data, datasets, range, visibilities, bounds, pieTo
   return points;
 }
 
-function getSumsByX(points) {
+function getSumsByY(points) {
   return sumArrays(points.map((datasetPoints) => (
     datasetPoints.map(({ visibleValue }) => visibleValue)
   )));
@@ -45,11 +46,11 @@ function getSumsByX(points) {
 
 // TODO perf cache for [0..1], use in state
 function preparePercentage(points, bounds) {
-  const sumsByX = getSumsByX(points);
+  const sumsByY = getSumsByY(points);
 
   points.forEach((datasetPoints) => {
     datasetPoints.forEach((point, j) => {
-      point.percent = point.visibleValue / sumsByX[j];
+      point.percent = point.visibleValue / sumsByY[j];
       point.visibleValue = point.percent * bounds.yMax;
     });
   });
@@ -71,7 +72,7 @@ function prepareStacked(points) {
   });
 }
 
-function prepareSumsByY(values) {
+function prepareSumsByX(values) {
   return values.map((datasetValues) => (
     [datasetValues.reduce((sum, value) => sum + value, 0)]
   ));

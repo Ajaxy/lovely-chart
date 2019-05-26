@@ -44,7 +44,7 @@ export function createStateManager(data, viewportSize, callback) {
       });
     }
 
-    if (!_transitions.isRunning()) {
+    if (!_transitions.isRunning() || !_transitions.isFast()) {
       _runCallbackOnRaf();
     }
   }
@@ -80,6 +80,7 @@ export function createStateManager(data, viewportSize, callback) {
 
   function _runCallback() {
     const state = _transitions.isFast() ? proxyMerge(_state, _transitions.getState()) : _state;
+    state.static = _state;
     callback(state);
   }
 

@@ -76,6 +76,7 @@ export function createTransitionManager(onTick) {
   }
 
   function _tick() {
+    const isSlow = !isFast();
     _speedTest();
 
     const state = {};
@@ -100,7 +101,9 @@ export function createTransitionManager(onTick) {
       }
     });
 
-    onTick(state);
+    if (!isSlow) {
+      onTick(state);
+    }
 
     if (isRunning()) {
       _nextFrame = requestAnimationFrame(_tick);

@@ -47,14 +47,10 @@ export function getPieTextShift(percent, radius, shift) {
   return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
 }
 
-export function getDatasetMinimapVisibility(state, key) {
-  return Math.max(0, Math.min(state[`opacity#${key}`] * 2 - 1, 1));
-}
-
 export function isDataRange(labelFrom, labelTo) {
   return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
 }
 
 export function getSimplificationDelta(pointsLength) {
-  return pointsLength >= SIMPLIFIER_MIN_POINTS ? Math.min(0.5 + ((pointsLength / 1000) * 1.5), 2) : 0;
+  return pointsLength >= SIMPLIFIER_MIN_POINTS ? Math.min((pointsLength / 1000), 1) : 0;
 }
