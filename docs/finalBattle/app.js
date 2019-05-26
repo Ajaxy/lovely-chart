@@ -1,75 +1,37 @@
 const CHARTS = [{
-  containerId: 'container',
   title: 'Followers',
-  palette: 'type-1',
-  dataSource: 'data/1',
-  datasetColors: {
-    y0: 'green',
-    y1: 'red',
-  },
 }, {
-  containerId: 'container',
   title: 'Interactions',
-  palette: 'type-1',
-  dataSource: 'data/2',
-  datasetColors: {
-    y0: 'blue',
-    y1: 'yellow',
-  },
 }, {
-  containerId: 'container',
   title: 'Messages',
-  palette: 'type-2',
-  dataSource: 'data/3',
-  datasetColors: {
-    y0: 'light-blue',
-    y1: 'blue',
-    y2: 'light-green',
-    y3: 'green',
-    y4: 'yellow',
-    y5: 'orange',
-    y6: 'red',
-  },
 }, {
-  containerId: 'container',
   title: 'Views',
-  palette: 'type-3',
-  dataSource: 'data/4',
-  datasetColors: {
-    y0: 'blue',
-    y1: 'light-blue',
-    y2: 'dark-blue',
-  },
   noMinimapOnZoom: true,
 }, {
-  containerId: 'container',
   title: 'Apps',
-  palette: 'type-2',
-  dataSource: 'data/5',
   zoomToPie: true,
-  datasetColors: {
-    y0: 'light-blue',
-    y1: 'blue',
-    y2: 'light-green',
-    y3: 'green',
-    y4: 'yellow',
-    y5: 'orange',
-  },
 }];
 
-let charts = [];
-let snow;
-
 document.addEventListener('DOMContentLoaded', () => {
-  fetch('./data/colors.json')
-    .then((response) => response.json())
-    .then((colors) => {
-      LovelyChart.setupColors(colors);
+  const container = document.getElementById('container');
 
-      CHARTS.forEach((params) => {
-        charts.push(LovelyChart.create(params));
+  Promise.all(CHARTS.map(({ title }, i) => {
+    return fetch(`data/${i + 1}/overview.json`)
+      .then((response) => response.json())
+      .then((data) => {
+        function onZoom(date) {
+          return fetchDayData(`data/${i + 1}`, date);
+        }
+
+        const params = Object.assign({ title }, data);
+        if (i < 4) {
+          params.x_on_zoom = onZoom;
+        }
+
+        Chart.render(container, params);
       });
-
+  }))
+    .then(() => {
       document.querySelector('#spinner-main').classList.add('hidden');
     });
 
@@ -77,13 +39,19 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
 
     document.documentElement.classList.toggle('dark');
+    document.documentElement.dispatchEvent(new Event('darkmode'));
 
     const skin = document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
     e.target.innerText = `Switch to ${(skin === 'skin-night') ? 'Day' : 'Night'} Mode`;
-
-    LovelyChart.changeSkin(skin);
-    charts.forEach((chart) => {
-      chart.redraw();
-    });
   });
 });
+
+function fetchDayData(dataSource, timestamp) {
+  const date = new Date(timestamp);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
+
+  return fetch(`${dataSource}/${path}.json`)
+    .then((response) => response.json());
+}

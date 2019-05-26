@@ -1,9 +1,7 @@
 ;(function() {
 
-window.LovelyChart = {
-  create: createLovelyChart,
-  setupColors,
-  changeSkin,
+window.Chart = {
+  render: createLovelyChart,
 };
 
 const DPR = window.devicePixelRatio || 1;
@@ -13,7 +11,6 @@ const LABELS_KEY = 'x';
 const DEFAULT_RANGE = { begin: 0.8, end: 1 };
 const TRANSITION_DEFAULT_DURATION = 300;
 const DEFAULT_SKIN = 'skin-day';
-const DEFAULT_PALETTE = 'type-1';
 const LONG_PRESS_TIMEOUT = 500;
 
 const GUTTER = 10;
@@ -25,7 +22,6 @@ const PLOT_PIE_SHIFT = 10;
 const PLOT_BARS_WIDTH_SHIFT = 0.5;
 
 const BALLOON_OFFSET = 20;
-const PIE_BALLOON_MIN_DISTANCE = 150;
 
 const AXES_FONT = '300 10px Helvetica, Arial, sans-serif';
 const AXES_MAX_COLUMN_WIDTH = 45;
@@ -50,6 +46,9 @@ const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
 
+const SPEED_TEST_INTERVAL = 200;
+const SPEED_TEST_FAST_FPS = 8;
+
 const ANIMATE_PROPS = [
   // Viewport X-axis
   'begin 200 fast', 'end 200 fast', 'labelFromIndex 200 fast floor', 'labelToIndex 200 fast ceil',
@@ -68,12 +67,10 @@ const ANIMATE_PROPS = [
 ];
 
 
-function createLovelyChart(params) {
-  let _data;
-
+function createLovelyChart(container, data) {
   let _stateManager;
 
-  let _container;
+  let _element;
   let _plot;
   let _context;
   let _plotSize;
@@ -87,47 +84,44 @@ function createLovelyChart(params) {
 
   let _state;
 
-  const _colors = createColors(params.palette);
+  const _colors = createColors(data.colors);
+  const _data = analyzeData(data);
 
-  fetchData(params).then((data) => {
-    _data = analyzeData(data, params.datasetColors);
-    _setupComponents();
-  });
+  const _redrawDebounced = debounce(_redraw, 500, false, true);
 
-  function redraw() {
-    _stateManager.update();
-  }
+  _setupComponents();
+  _setupGlobalListeners();
 
   function _setupComponents() {
     _setupContainer();
-    _header = createHeader(_container, params.title, _onZoomOut);
+    _header = createHeader(_element, data.title, _onZoomOut);
     _setupPlotCanvas();
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _axes = createAxes(_context, _data, _plotSize, _colors);
-    _minimap = createMinimap(_container, _data, _colors, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize, _colors, _onZoomIn, _onFocus);
-    _tools = createTools(_container, _data, _onFilterChange);
-    _zoomer = createZoomer(_data, params, _stateManager, _header, _minimap, _tooltip, _tools);
+    _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
+    _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
+    _tools = createTools(_element, _data, _onFilterChange);
+    _zoomer = _data.isZoomable && createZoomer(_data, data, _colors, _stateManager, _header, _minimap, _tooltip, _tools);
   }
 
   function _setupContainer() {
-    _container = createElement();
-    _container.className = `lovely-chart--container lovely-chart--palette-${params.palette || DEFAULT_PALETTE}`;
+    _element = createElement();
+    _element.className = `lovely-chart--container`;
 
-    hideOnScroll(_container);
+    hideOnScroll(_element);
 
-    const parentContainer = document.getElementById(params.containerId);
-    parentContainer.appendChild(_container);
+    container.appendChild(_element);
   }
 
   function _setupPlotCanvas() {
-    const { canvas, context } = setupCanvas(_container, {
-      width: _container.clientWidth,
+    const { canvas, context } = setupCanvas(_element, {
+      width: _element.clientWidth,
       height: PLOT_HEIGHT,
     });
 
     _plot = canvas;
     _context = context;
+
     _plotSize = {
       width: _plot.offsetWidth,
       height: _plot.offsetHeight,
@@ -169,14 +163,19 @@ function createLovelyChart(params) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    _header.setCaption(
-      !_zoomer.isZoomed() || isDataRange(_data.xLabels[state.labelFromIndex + 1], _data.xLabels[state.labelToIndex - 1]) ?
-        (
+    const headerCaption =
+      (
+        !_zoomer ||
+        !_zoomer.isZoomed() ||
+        isDataRange(_data.xLabels[state.labelFromIndex + 1], _data.xLabels[state.labelToIndex - 1])
+      )
+        ? (
           `${getLabelDate(_data.xLabels[state.labelFromIndex + 1])}` +
           ' - ' +
           `${getLabelDate(_data.xLabels[state.labelToIndex - 1])}`
-        ) :
-        getFullLabelDate(_data.xLabels[state.labelFromIndex]));
+        )
+        : getFullLabelDate(_data.xLabels[state.labelFromIndex]);
+    _header.setCaption(headerCaption);
 
     clearCanvas(_plot, _context);
     drawDatasets(
@@ -214,7 +213,24 @@ function createLovelyChart(params) {
     _zoomer.zoomOut(_state);
   }
 
-  return { redraw };
+  function _setupGlobalListeners() {
+    document.documentElement.addEventListener('darkmode', () => {
+      _stateManager.update();
+    });
+
+    window.addEventListener('resize', () => {
+      _redrawDebounced();
+    });
+
+    window.addEventListener('orientationchange', () => {
+      _redrawDebounced();
+    });
+  }
+
+  function _redraw() {
+    _element.remove();
+    _setupComponents();
+  }
 }
 
 
@@ -258,6 +274,10 @@ function createStateManager(data, viewportSize, callback) {
     }
   }
 
+  function hasAnimations() {
+    return _transitions.isFast();
+  }
+
   function _buildTransitionConfig() {
     const transitionConfig = [];
     const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 300`);
@@ -284,10 +304,11 @@ function createStateManager(data, viewportSize, callback) {
   }
 
   function _runCallback() {
-    callback(proxyMerge(_state, _transitions.getState()));
+    const state = _transitions.isFast() ? proxyMerge(_state, _transitions.getState()) : _state;
+    callback(state);
   }
 
-  return { update };
+  return { update, hasAnimations };
 }
 
 function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
@@ -435,6 +456,12 @@ function createTransitionManager(onTick) {
 
   let _nextFrame = null;
 
+  let _testStartedAt = null;
+  let _fps = null;
+  let _testingFps = null;
+  let _slowDetectedAt = null;
+  let _startedAsSlow = null;
+
   function add(prop, from, to, duration, options) {
     _transitions[prop] = {
       from,
@@ -447,6 +474,7 @@ function createTransitionManager(onTick) {
     };
 
     if (!_nextFrame) {
+      _resetSpeedTest();
       _nextFrame = requestAnimationFrame(_tick);
     }
   }
@@ -482,7 +510,17 @@ function createTransitionManager(onTick) {
     return Boolean(Object.keys(_transitions).length);
   }
 
+  function isFast(forceCheck) {
+    if (!forceCheck && (_startedAsSlow || _slowDetectedAt)) {
+      return false;
+    }
+
+    return _fps === null || _fps >= SPEED_TEST_FAST_FPS;
+  }
+
   function _tick() {
+    _speedTest();
+
     const state = {};
 
     Object.keys(_transitions).forEach((prop) => {
@@ -512,7 +550,31 @@ function createTransitionManager(onTick) {
     }
   }
 
-  return { add, remove, get, getState, isRunning };
+  function _resetSpeedTest() {
+    _testStartedAt = null;
+    _testingFps = null;
+    if (_slowDetectedAt && Date.now() - _slowDetectedAt > 5000) {
+      _slowDetectedAt = null;
+    }
+    _startedAsSlow = Boolean(_slowDetectedAt) || !isFast(true);
+  }
+
+  function _speedTest() {
+    if (!_testStartedAt || (Date.now() - _testStartedAt) >= SPEED_TEST_INTERVAL) {
+      if (_testingFps) {
+        _fps = _testingFps;
+        if (!_slowDetectedAt && !isFast(true)) {
+          _slowDetectedAt = Date.now();
+        }
+      }
+      _testStartedAt = Date.now();
+      _testingFps = 0;
+    } else {
+      _testingFps++;
+    }
+  }
+
+  return { add, remove, get, getState, isRunning, isFast };
 }
 
 
@@ -616,7 +678,7 @@ function createAxes(context, data, plotSize, colors) {
       yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
       yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
     } = state;
-    const color = secondaryProjection && data.datasets[0].colorName;
+    const colorKey = secondaryProjection && `dataset#${data.datasets[0].key}`;
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
     _drawYAxisScaled(
@@ -626,7 +688,7 @@ function createAxes(context, data, plotSize, colors) {
       yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
       yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
       yAxisScaleFrom ? yAxisScaleProgress : 1,
-      color,
+      colorKey,
     );
 
     if (yAxisScaleProgress > 0 && isYChanging) {
@@ -637,13 +699,13 @@ function createAxes(context, data, plotSize, colors) {
         yMinViewportFrom !== undefined ? yMinViewportFrom : yMinViewport,
         yMaxViewportFrom !== undefined ? yMaxViewportFrom : yMaxViewport,
         1 - yAxisScaleProgress,
-        color,
+        colorKey,
       );
     }
 
     if (secondaryProjection) {
       const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
-      const secondaryColor = data.datasets[data.datasets.length - 1].colorName;
+      const secondaryColorKey = `dataset#${data.datasets[data.datasets.length - 1].key}`;
       const isYChanging = yMinViewportSecondFrom !== undefined || yMaxViewportSecondFrom !== undefined;
 
       _drawYAxisScaled(
@@ -653,7 +715,7 @@ function createAxes(context, data, plotSize, colors) {
         yMinViewportSecondTo !== undefined ? yMinViewportSecondTo : yMinViewportSecond,
         yMaxViewportSecondTo !== undefined ? yMaxViewportSecondTo : yMaxViewportSecond,
         yAxisScaleSecondFrom ? yAxisScaleSecondProgress : 1,
-        secondaryColor,
+        secondaryColorKey,
         true,
       );
 
@@ -665,14 +727,14 @@ function createAxes(context, data, plotSize, colors) {
           yMinViewportSecondFrom !== undefined ? yMinViewportSecondFrom : yMinViewportSecond,
           yMaxViewportSecondFrom !== undefined ? yMaxViewportSecondFrom : yMaxViewportSecond,
           1 - yAxisScaleSecondProgress,
-          secondaryColor,
+          secondaryColorKey,
           true,
         );
       }
     }
   }
 
-  function _drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorName = null, isSecondary = false) {
+  function _drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorKey = null, isSecondary = false) {
     const step = yScaleLevelToStep(scaleLevel);
     const firstVisibleValue = Math.ceil(yMin / step) * step;
     const lastVisibleValue = Math.floor(yMax / step) * step;
@@ -689,8 +751,8 @@ function createAxes(context, data, plotSize, colors) {
       const [, yPx] = projection.toPixels(0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
-      context.fillStyle = colorName
-        ? getCssColor(colors, `${colorName}-text`, textOpacity)
+      context.fillStyle = colorKey
+        ? getCssColor(colors, colorKey, textOpacity)
         : getCssColor(colors, 'y-axis-text', textOpacity);
 
       if (!isSecondary) {
@@ -700,7 +762,7 @@ function createAxes(context, data, plotSize, colors) {
       }
 
       if (isSecondary) {
-        context.strokeStyle = getCssColor(colors, `${colorName}-text`, opacity);
+        context.strokeStyle = getCssColor(colors, colorKey, opacity);
 
         context.moveTo(plotSize.width - GUTTER, yPx);
         context.lineTo(plotSize.width - GUTTER * 2, yPx);
@@ -1040,7 +1102,9 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     _balloon.className = 'lovely-chart--tooltip-balloon';
     _balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
 
-    addEventListener(_balloon, 'click', _onBalloonClick);
+    if (data.isZoomable) {
+      addEventListener(_balloon, 'click', _onBalloonClick);
+    }
 
     _element.appendChild(_balloon);
   }
@@ -1106,7 +1170,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     }
 
     const labelIndex = _getLabelIndex();
-    if (!labelIndex) {
+    if (labelIndex === null) {
       _clear(isExternal);
       return;
     }
@@ -1132,10 +1196,9 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
 
     const [xPx] = _projection.toPixels(labelIndex, 0);
     const statistics = data.datasets
-      .map(({ key, name, colorName, values, hasOwnYAxis }, i) => ({
+      .map(({ key, name, values, hasOwnYAxis }, i) => ({
         key,
         name,
-        colorName,
         value: getValue(values, labelIndex),
         hasOwnYAxis,
         originalIndex: i,
@@ -1159,7 +1222,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   }
 
   function _drawCircles(statistics, labelIndex) {
-    statistics.forEach(({ value, colorName, hasOwnYAxis, originalIndex }) => {
+    statistics.forEach(({ value, key, hasOwnYAxis, originalIndex }) => {
       const pointIndex = labelIndex - _state.labelFromIndex;
       const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[originalIndex][pointIndex];
 
@@ -1172,7 +1235,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
         : _projection.toPixels(labelIndex, point.stackValue);
       _drawCircle(
         [x, y],
-        getCssColor(colors, `${colorName}-line`),
+        getCssColor(colors, `dataset#${key}`),
         getCssColor(colors, 'background'),
       );
     });
@@ -1269,8 +1332,8 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     }
   }
 
-  function _insertNewDataSet(dataSetContainer, { name, colorName, value }, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
+  function _insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-dataset-${key}`;
     const newDataSet = createElement();
     newDataSet.className = 'lovely-chart--tooltip-dataset';
     newDataSet.setAttribute('data-present', 'true');
@@ -1286,11 +1349,11 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     }
   }
 
-  function _updateDataSet(currentDataSet, { colorName, value } = {}, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
+  function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-dataset-${key}`;
     currentDataSet.setAttribute('data-present', 'true');
 
-    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${colorName}:not(.lovely-chart--state-hidden)`);
+    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-dataset-${key}:not(.lovely-chart--state-hidden)`);
     const formattedValue = formatInteger(value);
     if (valueElement.innerHTML !== formattedValue) {
       toggleText(valueElement, formattedValue, className);
@@ -1441,11 +1504,11 @@ function createTools(container, data, filterCallback) {
       _element.className += ' lovely-chart--state-hidden';
     }
 
-    data.datasets.forEach(({ key, name, colorName }) => {
+    data.datasets.forEach(({ key, name }) => {
       const control = createElement('a');
       control.href = '#';
       control.dataset.key = key;
-      control.className = `lovely-chart--button lovely-chart--color-${colorName} lovely-chart--state-checked`;
+      control.className = `lovely-chart--button lovely-chart--color-dataset-${key} lovely-chart--state-checked`;
       control.innerHTML = `<span class="lovely-chart--button-check"></span><span class="lovely-chart--button-label">${name}</span>`;
 
       control.addEventListener('click', (e) => {
@@ -1512,24 +1575,26 @@ function createTools(container, data, filterCallback) {
 }
 
 
-function createZoomer(data, params, stateManager, header, minimap, tooltip, tools) {
+function createZoomer(data, overviewData, colors, stateManager, header, minimap, tooltip, tools) {
   let _isZoomed = false;
   let _stateBeforeZoomIn;
   let _stateBeforeZoomOut;
   let _zoomedDateText;
 
   function zoomIn(state, labelIndex) {
-    if (!params.dataSource || _isZoomed) {
+    if (_isZoomed) {
       return;
     }
 
+    const label = data.xLabels[labelIndex];
+
     _stateBeforeZoomIn = state;
-    header.zoom(getFullLabelDate(data.xLabels[labelIndex]));
+    header.zoom(getFullLabelDate(label));
     tooltip.toggleSpinner(true);
     tooltip.toggleIsZoomed(true);
 
-    const { value: date } = data.xLabels[labelIndex];
-    const dataPromise = params.zoomToPie ? Promise.resolve(_generatePieData(state)) : _fetchDayData(new Date(date));
+    const { value: date } = label;
+    const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(state)) : data.onZoom(date);
     dataPromise.then((newData) => _replaceData(newData, labelIndex));
   }
 
@@ -1538,30 +1603,22 @@ function createZoomer(data, params, stateManager, header, minimap, tooltip, tool
     tooltip.toggleIsZoomed(false);
 
     const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
-    fetchData(params).then((newData) => _replaceData(newData, labelIndex));
+    _replaceData(overviewData, labelIndex);
   }
 
   function isZoomed() {
     return _isZoomed;
   }
 
-  function _fetchDayData(date) {
-    const { dataSource } = params;
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
-
-    return fetch(`${dataSource}/${path}.json`)
-      .then((response) => response.json());
-  }
-
-  function _replaceData(newData, labelIndex) {
+  function _replaceData(newRawData, labelIndex) {
     tooltip.toggleSpinner(false);
 
     const labelWidth = 1 / data.xLabels.length;
     const labelMiddle = labelIndex / (data.xLabels.length - 1);
     const filter = {};
     data.datasets.forEach(({ key }) => filter[key] = false);
+    const newData = analyzeData(newRawData, _isZoomed || data.shouldZoomToPie ? 'days' : 'hours');
+    const shouldZoomToLines = Object.keys(data.datasets).length !== Object.keys(newData.datasets).length;
 
     stateManager.update({
       range: {
@@ -1578,9 +1635,12 @@ function createZoomer(data, params, stateManager, header, minimap, tooltip, tool
         _zoomedDateText = null;
       }
 
-      Object.assign(data, analyzeData(newData, params.datasetColors, _isZoomed || params.zoomToPie ? 'days' : 'hours'));
+      Object.assign(data, newData);
+      if (shouldZoomToLines) {
+        Object.assign(colors, createColors(newRawData.colors));
+      }
 
-      if (params.noMinimapOnZoom) {
+      if (shouldZoomToLines) {
         minimap.toggle(_isZoomed);
         tools.redraw();
       }
@@ -1593,7 +1653,7 @@ function createZoomer(data, params, stateManager, header, minimap, tooltip, tool
         focusOn: null,
       }, true);
 
-      const daysCount = _isZoomed || params.zoomToPie ? data.xLabels.length : data.xLabels.length / 24;
+      const daysCount = _isZoomed || data.shouldZoomToPie ? data.xLabels.length : data.xLabels.length / 24;
       const halfDayWidth = (1 / daysCount) / 2;
 
       let range;
@@ -1604,9 +1664,9 @@ function createZoomer(data, params, stateManager, header, minimap, tooltip, tool
           begin: _stateBeforeZoomIn.begin,
           end: _stateBeforeZoomIn.end,
         };
-        filter = params.noMinimapOnZoom ? _stateBeforeZoomIn.filter : _stateBeforeZoomOut.filter;
+        filter = shouldZoomToLines ? _stateBeforeZoomIn.filter : _stateBeforeZoomOut.filter;
       } else {
-        if (params.noMinimapOnZoom) {
+        if (shouldZoomToLines) {
           range = {
             begin: 0,
             end: 1,
@@ -1629,29 +1689,28 @@ function createZoomer(data, params, stateManager, header, minimap, tooltip, tool
       });
 
       _isZoomed = !_isZoomed;
-    }, ZOOM_TIMEOUT);
+    }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
   }
 
   function _generatePieData(state) {
-    return fetchData(params).then((sourceData) => {
-      const pieData = Object.assign({}, sourceData);
+    const pieData = Object.assign({}, overviewData);
 
-      pieData.columns = sourceData.columns.map((c) => {
-        const column = c.slice(state.labelFromIndex + 1, state.labelToIndex + 1);
-        column.unshift(c[0]);
-        return column;
-      });
-
-      Object.keys(pieData.types).forEach((key) => {
-        if (key !== 'x') {
-          pieData.types[key] = 'pie';
-        }
-      });
-
-      pieData.pie = true;
-
-      return pieData;
+    pieData.columns = overviewData.columns.map((c) => {
+      const column = c.slice(state.labelFromIndex + 1, state.labelToIndex + 1);
+      column.unshift(c[0]);
+      return column;
     });
+
+    pieData.types = {};
+    Object.keys(overviewData.types).forEach((key) => {
+      if (key !== 'x') {
+        pieData.types[key] = 'pie';
+      }
+    });
+
+    pieData.pie = true;
+
+    return pieData;
   }
 
   return { zoomIn, zoomOut, isZoomed };
@@ -1679,19 +1738,8 @@ function clearCanvas(canvas, context) {
 }
 
 
-function fetchData(params) {
-  const { data, dataSource } = params;
-
-  if (data) {
-    return Promise.resolve(data);
-  } else if (dataSource) {
-    return fetch(`${dataSource}/overview.json`)
-      .then((response) => response.json());
-  }
-}
-
-function analyzeData(data, datasetColors, type) {
-  const { datasets, labels } = prepareDatasets(data, datasetColors);
+function analyzeData(data, type) {
+  const { datasets, labels } = prepareDatasets(data);
 
   let totalYMin = Infinity;
   let totalYMax = -Infinity;
@@ -1711,7 +1759,7 @@ function analyzeData(data, datasetColors, type) {
     dataset.yMax = yMax;
   });
 
-  return {
+  const analyzed = {
     datasets,
     yMin: totalYMin,
     yMax: totalYMax,
@@ -1723,16 +1771,23 @@ function analyzeData(data, datasetColors, type) {
     isLines: datasets.some(({ type }) => type === 'line'),
     isBars: datasets.some(({ type }) => type === 'bar'),
     isAreas: datasets.some(({ type }) => type === 'area'),
+    onZoom: data.x_on_zoom,
   };
+
+  analyzed.shouldZoomToPie = !analyzed.onZoom && analyzed.isPercentage;
+  analyzed.isZoomable = analyzed.onZoom || analyzed.shouldZoomToPie;
+
+  return analyzed;
 }
 
-function prepareDatasets(chartData, datasetColors = {}) {
+function prepareDatasets(chartData) {
   const { columns, names, types, y_scaled: hasSecondYAxis } = chartData;
 
   let labels = [];
   const datasets = [];
 
-  columns.forEach((values, i) => {
+  columns.forEach((originalValues, i) => {
+    const values = originalValues.slice(0);
     const key = values.shift();
 
     if (key === LABELS_KEY) {
@@ -1742,7 +1797,6 @@ function prepareDatasets(chartData, datasetColors = {}) {
 
     datasets.push({
       key,
-      colorName: datasetColors[key],
       name: names[key],
       type: types[key],
       values,
@@ -1906,13 +1960,13 @@ function drawDatasets(
   range, points, projection, secondaryPoints, secondaryProjection,
   lineWidth, visibilities, colors, pieToBar,
 ) {
-  data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
+  data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
       return;
     }
 
     const options = {
-      color: getCssColor(colors, `${colorName}-line`),
+      color: getCssColor(colors, `dataset#${key}`),
       lineWidth,
       opacity: data.isStacked ? 1 : visibilities[i],
     };
@@ -2100,31 +2154,53 @@ function drawDatasetPie(context, points, projection, options) {
 }
 
 
-let allColors;
 let skin = DEFAULT_SKIN;
 
-function setupColors(_colors) {
-  allColors = _colors;
-}
+const COLORS = {
+  'skin-day': {
+    'background': '#FFFFFF',
+    'text-color': '#222222',
+    'minimap-mask': '#E2EEF9/0.6',
+    'minimap-slider': '#C0D1E1',
+    'grid-lines': '#182D3B/0.1',
+    'zoom-out-text': '#108BE3',
+    'tooltip-background': '#FFFFFF',
+    'tooltip-arrow': '#D2D5D7',
+    'mask': '#FFFFFF/0.5',
+    'x-axis-text': '#252529/0.6',
+    'y-axis-text': '#252529/0.6',
+  },
+  'skin-night': {
+    'background': '#242F3E',
+    'text-color': '#FFFFFF',
+    'minimap-mask': '#304259/0.6',
+    'minimap-slider': '#56626D',
+    'grid-lines': '#FFFFFF/0.1',
+    'zoom-out-text': '#48AAF0',
+    'tooltip-background': '#1c2533',
+    'tooltip-arrow': '#D2D5D7',
+    'mask': '#242F3E/0.5',
+    'x-axis-text': '#A3B1C2/0.6',
+    'y-axis-text': '#A3B1C2/0.6',
+  },
+};
 
-function changeSkin(_skin) {
-  skin = _skin;
-}
+document.documentElement.addEventListener('darkmode', () => {
+  skin = document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
+});
 
-function createColors(palette) {
+function createColors(datasetColors) {
   const colors = {};
 
   ['skin-day', 'skin-night'].forEach((skin) => {
     colors[skin] = {};
 
-    Object.keys(allColors[skin]).forEach((prop) => {
-      const channels = hexToChannels(allColors[skin][prop]);
+    Object.keys(COLORS[skin]).forEach((prop) => {
+      colors[skin][prop] = hexToChannels(COLORS[skin][prop]);
+    });
 
-      if (prop.startsWith(`palette-${palette}`)) {
-        colors[skin][prop.replace(`palette-${palette}-`, '')] = channels;
-      } else if (!prop.startsWith(`palette-`)) {
-        colors[skin][prop] = channels;
-      }
+    Object.keys(datasetColors).forEach((key) => {
+      colors[skin][`dataset#${key}`] = hexToChannels(datasetColors[key]);
     });
   });
 
@@ -2227,7 +2303,6 @@ function captureEvents(element, options) {
   addEventListener(element, 'mousedown', onCapture);
   addEventListener(element, 'touchstart', onCapture);
 }
-
 
 
 function buildDayLabels(labels) {
