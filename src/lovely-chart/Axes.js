@@ -1,4 +1,4 @@
-import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants';
+import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, X_AXIS_SHIFT_START, PLOT_TOP_PADDING } from './constants';
 import { humanize } from './format';
 import { getCssColor } from './skin';
 import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
@@ -46,10 +46,7 @@ export function createAxes(context, data, plotSize, colors) {
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
     if (data.isPercentage) {
-      _drawYAxisPercents(
-        projection,
-        yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
-      );
+      _drawYAxisPercents(projection);
     } else {
       _drawYAxisScaled(
         state,
@@ -147,8 +144,9 @@ export function createAxes(context, data, plotSize, colors) {
     context.stroke();
   }
 
-  function _drawYAxisPercents(projection, yMax) {
+  function _drawYAxisPercents(projection) {
     const percentValues = [0, 0.25, 0.50, 0.75, 1];
+    const [, height] = projection.getSize();
 
     context.font = AXES_FONT;
     context.textAlign = 'left';
@@ -158,10 +156,9 @@ export function createAxes(context, data, plotSize, colors) {
     context.beginPath();
 
     percentValues.forEach((value) => {
-      const [, yPx] = toPixels(projection, 0, value * yMax);
+      const yPx = height - height * value + PLOT_TOP_PADDING;
 
       context.fillStyle = getCssColor(colors, 'y-axis-text', 1);
-
       context.fillText(`${value * 100}%`, GUTTER, yPx - GUTTER / 4);
 
       context.moveTo(GUTTER, yPx);
