@@ -49,7 +49,7 @@
     transform: rotate(-360deg);
   }
 
-  100% {
+  75% {
     clip-path: circle(31% at center calc(50% - 7.5px));
     -webkit-clip-path: circle(31% at center calc(50% - 7.5px));
     transform: rotate(0);
@@ -63,13 +63,13 @@
     transform: rotate(360deg);
   }
 
-  75% {
+  50% {
     clip-path: circle(31% at center calc(50% - 7.5px));
     -webkit-clip-path: circle(31% at center calc(50% - 7.5px));
     transform: rotate(0);
   }
 
-  100% {
+  75% {
     clip-path: circle(80% at center calc(50% - 7.5px));
     -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
     transform: rotate(0);
