@@ -6,7 +6,7 @@ import { createTooltip } from './Tooltip';
 import { createTools } from './Tools';
 import { createZoomer } from './Zoomer';
 import { createColors } from './skin';
-import { fetchData, analyzeData } from './data';
+import { analyzeData } from './data';
 import { setupCanvas, clearCanvas } from './canvas';
 import { preparePoints } from './preparePoints';
 import { createProjection } from './Projection';
@@ -22,13 +22,12 @@ import {
   PLOT_LINE_WIDTH,
 } from './constants';
 import { isDataRange } from './formulas';
+import { debounce } from './utils';
 
-export function createLovelyChart(params) {
-  let _data;
-
+export function createLovelyChart(container, data) {
   let _stateManager;
 
-  let _container;
+  let _element;
   let _plot;
   let _context;
   let _plotSize;
@@ -42,50 +41,44 @@ export function createLovelyChart(params) {
 
   let _state;
 
-  let _colors;
+  const _colors = createColors(data.colors);
+  const _data = analyzeData(data);
 
-  fetchData(params).then((data) => {
-    _colors = createColors(data.colors);
-    _data = analyzeData(data);
-    _setupComponents();
-  });
+  const _redrawDebounced = debounce(_redraw, 500, false, true);
 
-  function redraw() {
-    _stateManager.update();
-  }
+  _setupComponents();
+  _setupGlobalListeners();
 
   function _setupComponents() {
     _setupContainer();
-    _header = createHeader(_container, params.title, _onZoomOut);
+    _header = createHeader(_element, data.title, _onZoomOut);
     _setupPlotCanvas();
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _axes = createAxes(_context, _data, _plotSize, _colors);
-    _minimap = createMinimap(_container, _data, _colors, _onRangeChange);
-    _tooltip = createTooltip(_container, _data, _plotSize, _colors, _onZoomIn, _onFocus);
-    _tools = createTools(_container, _data, _onFilterChange);
-    _zoomer = createZoomer(_data, params, _stateManager, _header, _minimap, _tooltip, _tools);
+    _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
+    _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
+    _tools = createTools(_element, _data, _onFilterChange);
+    _zoomer = _data.isZoomable && createZoomer(_data, data, _colors, _stateManager, _header, _minimap, _tooltip, _tools);
   }
 
   function _setupContainer() {
-    _container = createElement();
-    _container.className = `lovely-chart--container`;
+    _element = createElement();
+    _element.className = `lovely-chart--container`;
 
-    hideOnScroll(_container);
+    hideOnScroll(_element);
 
-    const parentContainer = document.getElementById(params.containerId);
-    parentContainer.appendChild(_container);
+    container.appendChild(_element);
   }
 
   function _setupPlotCanvas() {
-    const { canvas, context } = setupCanvas(_container, {
-      width: _container.clientWidth,
+    const { canvas, context } = setupCanvas(_element, {
+      width: _element.clientWidth,
       height: PLOT_HEIGHT,
     });
 
     _plot = canvas;
     _context = context;
 
-    // TODO support resize
     _plotSize = {
       width: _plot.offsetWidth,
       height: _plot.offsetHeight,
@@ -127,14 +120,19 @@ export function createLovelyChart(params) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    _header.setCaption(
-      !_zoomer.isZoomed() || isDataRange(_data.xLabels[state.labelFromIndex + 1], _data.xLabels[state.labelToIndex - 1]) ?
-        (
+    const headerCaption =
+      (
+        !_zoomer ||
+        !_zoomer.isZoomed() ||
+        isDataRange(_data.xLabels[state.labelFromIndex + 1], _data.xLabels[state.labelToIndex - 1])
+      )
+        ? (
           `${getLabelDate(_data.xLabels[state.labelFromIndex + 1])}` +
           ' - ' +
           `${getLabelDate(_data.xLabels[state.labelToIndex - 1])}`
-        ) :
-        getFullLabelDate(_data.xLabels[state.labelFromIndex]));
+        )
+        : getFullLabelDate(_data.xLabels[state.labelFromIndex]);
+    _header.setCaption(headerCaption);
 
     clearCanvas(_plot, _context);
     drawDatasets(
@@ -174,5 +172,22 @@ export function createLovelyChart(params) {
     _zoomer.zoomOut(_state);
   }
 
-  return { redraw };
+  function _setupGlobalListeners() {
+    document.documentElement.addEventListener('darkmode', () => {
+      _stateManager.update();
+    });
+
+    window.addEventListener('resize', () => {
+      _redrawDebounced();
+    });
+
+    window.addEventListener('orientationchange', () => {
+      _redrawDebounced();
+    });
+  }
+
+  function _redraw() {
+    _element.remove();
+    _setupComponents();
+  }
 }

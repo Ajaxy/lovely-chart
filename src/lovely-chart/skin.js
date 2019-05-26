@@ -31,9 +31,9 @@ const COLORS = {
   },
 };
 
-export function changeSkin(_skin) {
-  skin = _skin;
-}
+document.documentElement.addEventListener('darkmode', () => {
+  skin = document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
+});
 
 export function createColors(datasetColors) {
   const colors = {};

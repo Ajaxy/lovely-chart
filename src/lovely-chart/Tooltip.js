@@ -80,7 +80,9 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     _balloon.className = 'lovely-chart--tooltip-balloon';
     _balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
 
-    addEventListener(_balloon, 'click', _onBalloonClick);
+    if (data.isZoomable) {
+      addEventListener(_balloon, 'click', _onBalloonClick);
+    }
 
     _element.appendChild(_balloon);
   }
@@ -146,7 +148,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
 
     const labelIndex = _getLabelIndex();
-    if (!labelIndex) {
+    if (labelIndex === null) {
       _clear(isExternal);
       return;
     }

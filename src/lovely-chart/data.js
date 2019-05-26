@@ -2,19 +2,8 @@ import { getMaxMin } from './utils';
 import { buildDayLabels, buildTimeLabels } from './format';
 import { LABELS_KEY } from './constants';
 
-export function fetchData(params) {
-  const { data, dataSource } = params;
-
-  if (data) {
-    return Promise.resolve(data);
-  } else if (dataSource) {
-    return fetch(`${dataSource}/overview.json`)
-      .then((response) => response.json());
-  }
-}
-
 export function analyzeData(data, type) {
-  const { datasets, labels, colors } = prepareDatasets(data);
+  const { datasets, labels } = prepareDatasets(data);
 
   let totalYMin = Infinity;
   let totalYMax = -Infinity;
@@ -34,9 +23,8 @@ export function analyzeData(data, type) {
     dataset.yMax = yMax;
   });
 
-  return {
+  const analyzed = {
     datasets,
-    colors,
     yMin: totalYMin,
     yMax: totalYMax,
     xLabels: type === 'hours' ? buildTimeLabels(labels) : buildDayLabels(labels),
@@ -47,7 +35,13 @@ export function analyzeData(data, type) {
     isLines: datasets.some(({ type }) => type === 'line'),
     isBars: datasets.some(({ type }) => type === 'bar'),
     isAreas: datasets.some(({ type }) => type === 'area'),
+    onZoom: data.x_on_zoom,
   };
+
+  analyzed.shouldZoomToPie = !analyzed.onZoom && analyzed.isPercentage;
+  analyzed.isZoomable = analyzed.onZoom || analyzed.shouldZoomToPie;
+
+  return analyzed;
 }
 
 function prepareDatasets(chartData) {
@@ -56,7 +50,8 @@ function prepareDatasets(chartData) {
   let labels = [];
   const datasets = [];
 
-  columns.forEach((values, i) => {
+  columns.forEach((originalValues, i) => {
+    const values = originalValues.slice(0);
     const key = values.shift();
 
     if (key === LABELS_KEY) {
