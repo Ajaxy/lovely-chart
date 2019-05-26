@@ -188,8 +188,9 @@ export function createLovelyChart(container, data) {
     let endIndex;
 
     if (_zoomer && _zoomer.isZoomed()) {
-      startIndex = state.labelFromIndex + 1;
-      endIndex = state.labelToIndex - 1;
+      // TODO Fix label
+      startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
+      endIndex = state.labelToIndex === state.totalXWidth - 1 ? state.labelToIndex : state.labelToIndex - 1;
     } else {
       startIndex = state.labelFromIndex;
       endIndex = state.labelToIndex;
@@ -201,6 +202,6 @@ export function createLovelyChart(container, data) {
         ' - ' +
         `${getLabelDate(_data.xLabels[endIndex])}`
       )
-      : getFullLabelDate(_data.xLabels[startIndex + 1]);
+      : getFullLabelDate(_data.xLabels[startIndex]);
   }
 }

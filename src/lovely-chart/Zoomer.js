@@ -25,7 +25,7 @@ export function createZoomer(data, overviewData, colors, stateManager, container
     }
 
     const { value: date } = label;
-    const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(state)) : data.onZoom(date);
+    const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(labelIndex)) : data.onZoom(date);
     dataPromise.then((newData) => _replaceData(newData, labelIndex));
   }
 
@@ -127,11 +127,11 @@ export function createZoomer(data, overviewData, colors, stateManager, container
     }, stateManager.hasAnimations() ? 1000 : 0)
   }
 
-  function _generatePieData(state) {
+  function _generatePieData(labelIndex) {
     const pieData = Object.assign({}, overviewData);
 
     pieData.columns = overviewData.columns.map((c) => {
-      const column = c.slice(state.labelFromIndex + 1, state.labelToIndex + 1);
+      const column = c.slice(labelIndex - 3 + 1, labelIndex + 4 + 1);
       column.unshift(c[0]);
       return column;
     });
