@@ -41,9 +41,8 @@ document.documentElement.addEventListener('darkmode', () => {
   skin = document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
 });
 
-export function createColors(dataset) {
+export function createColors(datasetColors) {
   const colors = {};
-  const datasetColors = dataset.colors;
   const baseClass = `.lovely-chart--color`;
 
   ['skin-day', 'skin-night'].forEach((skin) => {
