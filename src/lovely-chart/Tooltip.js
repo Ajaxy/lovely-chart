@@ -40,8 +40,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     _selectLabel(true);
   }
 
-  function toggleSpinner(isLoading) {
-    _balloon.classList.toggle('lovely-chart--state-loading', isLoading);
+  function toggleLoading(isLoading) {
+    _element.classList.toggle('lovely-chart--state-loading', isLoading);
   }
 
   function toggleIsZoomed(isZoomed) {
@@ -461,6 +461,6 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     return el.getBoundingClientRect();
   }
 
-  return { update, toggleSpinner, toggleIsZoomed };
+  return { update, toggleLoading, toggleIsZoomed };
 }
 
