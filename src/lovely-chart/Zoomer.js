@@ -65,7 +65,7 @@ export function createZoomer(data, overviewData, colors, stateManager, header, m
 
       Object.assign(data, newData);
       if (shouldZoomToLines) {
-        Object.assign(colors, createColors(newRawData));
+        Object.assign(colors, createColors(newRawData.colors));
       }
 
       if (shouldZoomToLines) {

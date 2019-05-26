@@ -41,7 +41,7 @@ export function createLovelyChart(container, data) {
 
   let _state;
 
-  const _colors = createColors(data);
+  const _colors = createColors(data.colors);
   const _data = analyzeData(data);
 
   const _redrawDebounced = debounce(_redraw, 500, false, true);
@@ -120,26 +120,7 @@ export function createLovelyChart(container, data) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    let startIndex;
-    let endIndex;
-
-    if (_zoomer && _zoomer.isZoomed()) {
-      startIndex = state.labelFromIndex + 1;
-      endIndex = state.labelToIndex - 1;
-    } else {
-      startIndex = state.labelFromIndex;
-      endIndex = state.labelToIndex;
-    }
-
-    const headerCaption = isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex]) ?
-        (
-          `${getLabelDate(_data.xLabels[startIndex])}` +
-          ' - ' +
-          `${getLabelDate(_data.xLabels[endIndex])}`
-        ) :
-        getFullLabelDate(_data.xLabels[startIndex + 1]);
-
-    _header.setCaption(headerCaption);
+    _header.setCaption(_getCaption(state));
 
     clearCanvas(_plot, _context);
     drawDatasets(
@@ -196,5 +177,26 @@ export function createLovelyChart(container, data) {
   function _redraw() {
     _element.remove();
     _setupComponents();
+  }
+
+  function _getCaption(state) {
+    let startIndex;
+    let endIndex;
+
+    if (_zoomer && _zoomer.isZoomed()) {
+      startIndex = state.labelFromIndex + 1;
+      endIndex = state.labelToIndex - 1;
+    } else {
+      startIndex = state.labelFromIndex;
+      endIndex = state.labelToIndex;
+    }
+
+    return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex]) ?
+        (
+          `${getLabelDate(_data.xLabels[startIndex])}` +
+          ' - ' +
+          `${getLabelDate(_data.xLabels[endIndex])}`
+        ) :
+        getFullLabelDate(_data.xLabels[startIndex + 1]);
   }
 }
