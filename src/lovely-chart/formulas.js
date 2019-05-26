@@ -1,4 +1,4 @@
-import { GUTTER, PLOT_PIE_RADIUS_FACTOR, MILISECONDS_IN_DAY } from './constants';
+import { GUTTER, PLOT_PIE_RADIUS_FACTOR, MILISECONDS_IN_DAY, SIMPLIFIER_MIN_POINTS } from './constants';
 
 export function xScaleLevelToStep(scaleLevel) {
   return Math.pow(2, scaleLevel);
@@ -10,7 +10,7 @@ export function xStepToScaleLevel(step) {
 
 const SCALE_LEVELS = [
   1, 2, 8, 18, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000,
-  250000, 500000, 1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000
+  250000, 500000, 1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000,
 ];
 
 export function yScaleLevelToStep(scaleLevel) {
@@ -53,4 +53,8 @@ export function getDatasetMinimapVisibility(state, key) {
 
 export function isDataRange(labelFrom, labelTo) {
   return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
+}
+
+export function getSimplificationDelta(pointsLength) {
+  return pointsLength >= SIMPLIFIER_MIN_POINTS ? Math.min(0.5 + ((pointsLength / 1000) * 1.5), 2) : 0;
 }

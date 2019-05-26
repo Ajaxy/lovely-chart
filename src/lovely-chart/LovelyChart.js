@@ -20,8 +20,9 @@ import {
   PLOT_TOP_PADDING,
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
+  SIMPLIFIER_PLOT_FACTOR,
 } from './constants';
-import { isDataRange } from './formulas';
+import { getSimplificationDelta, isDataRange } from './formulas';
 import { debounce } from './utils';
 
 export function createLovelyChart(container, data) {
@@ -123,10 +124,14 @@ export function createLovelyChart(container, data) {
     _header.setCaption(_getCaption(state));
 
     clearCanvas(_plot, _context);
+
+    const totalPoints = points.reduce((a, p) => a + p.length, 0);
+    const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_PLOT_FACTOR;
+
     drawDatasets(
       _context, state, _data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      PLOT_LINE_WIDTH, visibilities, _colors,
+      PLOT_LINE_WIDTH, visibilities, _colors, false, simplification,
     );
     if (!_data.isPie) {
       _axes.drawYAxis(state, projection, secondaryProjection);
