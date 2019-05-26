@@ -44,15 +44,22 @@ export function createAxes(context, data, plotSize, colors) {
     const colorKey = secondaryProjection && `dataset#${data.datasets[0].key}`;
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
-    _drawYAxisScaled(
-      state,
-      projection,
-      Math.round(yAxisScaleTo || yAxisScale),
-      yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
-      yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
-      yAxisScaleFrom ? yAxisScaleProgress : 1,
-      colorKey,
-    );
+    if (data.isPercentage) {
+      _drawYAxisPercents(
+        projection,
+        yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
+      );
+    } else {
+      _drawYAxisScaled(
+        state,
+        projection,
+        Math.round(yAxisScaleTo || yAxisScale),
+        yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
+        yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
+        yAxisScaleFrom ? yAxisScaleProgress : 1,
+        colorKey,
+      );
+    }
 
     if (yAxisScaleProgress > 0 && isYChanging) {
       _drawYAxisScaled(
@@ -135,6 +142,31 @@ export function createAxes(context, data, plotSize, colors) {
         context.lineTo(plotSize.width - GUTTER, yPx);
       }
     }
+
+    context.stroke();
+  }
+
+  function _drawYAxisPercents(projection, yMax) {
+    const percentValues = [0, 0.25, 0.50, 0.75, 1];
+
+    context.font = AXES_FONT;
+    context.textAlign = 'left';
+    context.textBaseline = 'bottom';
+    context.lineWidth = 1;
+
+    context.beginPath();
+
+    percentValues.forEach((value) => {
+      const [, yPx] = projection.toPixels(0, value * yMax);
+
+      context.fillStyle = getCssColor(colors, 'y-axis-text', 1);
+
+      context.fillText(`${value * 100}%`, GUTTER, yPx - GUTTER / 4);
+
+      context.moveTo(GUTTER, yPx);
+      context.strokeStyle = getCssColor(colors, 'grid-lines', 1);
+      context.lineTo(plotSize.width - GUTTER, yPx);
+    });
 
     context.stroke();
   }
