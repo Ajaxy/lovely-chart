@@ -1,5 +1,5 @@
 import { createLovelyChart } from './LovelyChart';
 
-window.Chart = {
+window.Graph = {
   render: createLovelyChart,
 };

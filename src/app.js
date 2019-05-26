@@ -6,10 +6,8 @@ const CHARTS = [{
   title: 'Messages',
 }, {
   title: 'Views',
-  noMinimapOnZoom: true,
 }, {
   title: 'Apps',
-  zoomToPie: true,
 }];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
           params.x_on_zoom = onZoom;
         }
 
-        Chart.render(container, params);
+        Graph.render(container, params);
       });
   }))
     .then(() => {
