@@ -1063,14 +1063,8 @@ function createMinimap(container, data, colors, rangeCallback) {
   }
 
   function _adjustDiscreteRange(nextRange) {
-    const beginChange = nextRange.begin - _range.begin;
-    const endChange = nextRange.end - _range.end;
-    const beginAbs = Math.abs(beginChange);
-    const endAbs = Math.abs(endChange);
-    const beginDirection = beginAbs ? beginChange / beginAbs : 1;
-    const endDirection = endAbs ? endChange / endAbs : 1;
-    const begin = _range.begin + Math.floor(beginAbs / _state.minimapDelta) * _state.minimapDelta * beginDirection;
-    const end = _range.end + Math.floor(endAbs / _state.minimapDelta) * _state.minimapDelta * endDirection;
+    const begin = Math.round(nextRange.begin / _state.minimapDelta) * _state.minimapDelta;
+    const end = Math.round(nextRange.end / _state.minimapDelta) * _state.minimapDelta;
 
     return { begin, end };
   }
@@ -1122,13 +1116,15 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
 
   function toggleLoading(isLoading) {
     _balloon.classList.toggle('lovely-chart--state-loading', isLoading);
+
+    if (!isLoading) {
+      _clear();
+    }
   }
 
   function toggleIsZoomed(isZoomed) {
     if (isZoomed !== _isZoomed) {
       _isZooming = true;
-      _hideBalloon();
-      _clear();
     }
     _isZoomed = isZoomed;
     _balloon.classList.toggle('lovely-chart--state-inactive', isZoomed);
@@ -1650,7 +1646,6 @@ function createZoomer(data, overviewData, colors, stateManager, container, heade
     const label = data.xLabels[labelIndex];
 
     _stateBeforeZoomIn = state;
-    header.zoom(getFullLabelDate(label));
     tooltip.toggleLoading(true);
     tooltip.toggleIsZoomed(true);
     if (data.shouldZoomToPie) {
@@ -1660,10 +1655,14 @@ function createZoomer(data, overviewData, colors, stateManager, container, heade
 
     const { value: date } = label;
     const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(labelIndex)) : data.onZoom(date);
-    dataPromise.then((newData) => _replaceData(newData, labelIndex));
+    dataPromise.then((newData) => _replaceData(newData, labelIndex, label));
   }
 
   function zoomOut(state) {
+    if (!_isZoomed) {
+      return;
+    }
+
     _stateBeforeZoomOut = state;
     tooltip.toggleLoading(true);
     tooltip.toggleIsZoomed(false);
@@ -1680,7 +1679,7 @@ function createZoomer(data, overviewData, colors, stateManager, container, heade
     return _isZoomed;
   }
 
-  function _replaceData(newRawData, labelIndex) {
+  function _replaceData(newRawData, labelIndex, zoomInLabel) {
     const labelWidth = 1 / data.xLabels.length;
     const labelMiddle = labelIndex / (data.xLabels.length - 1);
     const filter = {};
@@ -1751,6 +1750,10 @@ function createZoomer(data, overviewData, colors, stateManager, container, heade
         filter,
         minimapDelta: _isZoomed ? null : range.end - range.begin,
       });
+
+      if (zoomInLabel) {
+        header.zoom(getFullLabelDate(zoomInLabel));
+      }
 
       _isZoomed = !_isZoomed;
       tooltip.toggleLoading(false);
