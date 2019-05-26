@@ -5,7 +5,6 @@ import { formatInteger, getLabelDate, getFullLabelDate } from './format';
 import { getCssColor } from './skin';
 import { throttle, throttleWithRaf } from './utils';
 import { addEventListener, createElement } from './minifiers';
-import { toggleText } from './toggleText';
 import { toPixels } from './Projection';
 
 export function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
@@ -28,7 +27,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   let _isZooming = false;
 
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
-  const _throttledUpdateContent = throttle(_updateContent, 400, true, true);
+  const _throttledUpdateContent = throttle(_updateContent, 100, true, true);
 
   _setupLayout();
 
@@ -319,8 +318,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
       if (!titleContainer.innerHTML || !currentTitle) {
         titleContainer.innerHTML = `<span>${title}</span>`;
-      } else if (currentTitle.innerHTML !== title) {
-        toggleText(currentTitle, title, 'lovely-chart--tooltip-title-inner');
+      } else {
+        currentTitle.innerHTML = title;
       }
     }
   }
@@ -343,14 +342,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${data.colors[key].slice(1)}`;
     currentDataSet.setAttribute('data-present', 'true');
 
     const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${data.colors[key].slice(1)}:not(.lovely-chart--state-hidden)`);
-    const formattedValue = formatInteger(value);
-    if (valueElement.innerHTML !== formattedValue) {
-      toggleText(valueElement, formattedValue, className);
-    }
+    valueElement.innerHTML = formatInteger(value);
 
     _renderPercentageValue(currentDataSet, value, totalValue);
   }
@@ -373,8 +368,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
       newPercentageTitle.innerHTML = `${percentageValue}%`;
       dataSet.prepend(newPercentageTitle);
-    } else if (percentageElement.innerHTML !== `${percentageValue}%`) {
-      toggleText(percentageElement, `${percentageValue}%`, 'lovely-chart--percentage-title lovely-chart--position-left');
+    } else {
+      percentageElement.innerHTML = `${percentageValue}%`;
     }
   }
 
@@ -435,9 +430,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       totalText.setAttribute('data-present', 'true');
 
       const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
-        if (valueElement.innerHTML !== totalValue) {
-          toggleText(valueElement, totalValue, className);
-        }
+      valueElement.innerHTML = totalValue;
     }
   }
 
