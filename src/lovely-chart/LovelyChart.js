@@ -120,18 +120,25 @@ export function createLovelyChart(container, data) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    const headerCaption =
-      (
-        !_zoomer ||
-        !_zoomer.isZoomed() ||
-        isDataRange(_data.xLabels[state.labelFromIndex + 1], _data.xLabels[state.labelToIndex - 1])
-      )
-        ? (
-          `${getLabelDate(_data.xLabels[state.labelFromIndex + 1])}` +
+    let startIndex;
+    let endIndex;
+
+    if (_zoomer && _zoomer.isZoomed()) {
+      startIndex = state.labelFromIndex + 1;
+      endIndex = state.labelToIndex - 1;
+    } else {
+      startIndex = state.labelFromIndex;
+      endIndex = state.labelToIndex;
+    }
+
+    const headerCaption = isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex]) ?
+        (
+          `${getLabelDate(_data.xLabels[startIndex])}` +
           ' - ' +
-          `${getLabelDate(_data.xLabels[state.labelToIndex - 1])}`
-        )
-        : getFullLabelDate(_data.xLabels[state.labelFromIndex]);
+          `${getLabelDate(_data.xLabels[endIndex])}`
+        ) :
+        getFullLabelDate(_data.xLabels[startIndex + 1]);
+
     _header.setCaption(headerCaption);
 
     clearCanvas(_plot, _context);
