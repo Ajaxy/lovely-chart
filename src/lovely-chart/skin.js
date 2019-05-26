@@ -31,12 +31,20 @@ const COLORS = {
   },
 };
 
+const styleElement = document.createElement('style');
+styleElement.type = 'text/css';
+styleElement.appendChild(document.createTextNode(''));
+document.head.appendChild(styleElement);
+const styleSheet = styleElement.sheet;
+
 document.documentElement.addEventListener('darkmode', () => {
   skin = document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
 });
 
-export function createColors(datasetColors) {
+export function createColors(dataset) {
   const colors = {};
+  const datasetColors = dataset.colors;
+  const baseClass = `.lovely-chart--color`;
 
   ['skin-day', 'skin-night'].forEach((skin) => {
     colors[skin] = {};
@@ -47,6 +55,10 @@ export function createColors(datasetColors) {
 
     Object.keys(datasetColors).forEach((key) => {
       colors[skin][`dataset#${key}`] = hexToChannels(datasetColors[key]);
+
+      addCssRule(styleSheet, `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`, `color: ${datasetColors[key]}`);
+      addCssRule(styleSheet, `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`, `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`);
+      addCssRule(styleSheet, `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`, `background-color: ${datasetColors[key]}`);
     });
   });
 
@@ -70,4 +82,8 @@ function hexToChannels(hexWithAlpha) {
 
 function buildCssColor([r, g, b, a = 1], opacity = 1) {
   return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
+}
+
+function addCssRule(sheet, selector, rule) {
+  sheet.insertRule(`${selector} { ${rule} }`, sheet.cssRules.length);
 }

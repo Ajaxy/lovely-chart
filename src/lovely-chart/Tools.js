@@ -35,7 +35,7 @@ export function createTools(container, data, filterCallback) {
       const control = createElement('a');
       control.href = '#';
       control.dataset.key = key;
-      control.className = `lovely-chart--button lovely-chart--color-dataset-${key} lovely-chart--state-checked`;
+      control.className = `lovely-chart--button lovely-chart--color-${data.colors[key].slice(1)} lovely-chart--state-checked`;
       control.innerHTML = `<span class="lovely-chart--button-check"></span><span class="lovely-chart--button-label">${name}</span>`;
 
       control.addEventListener('click', (e) => {

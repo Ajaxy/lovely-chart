@@ -25,6 +25,7 @@ export function analyzeData(data, type) {
 
   const analyzed = {
     datasets,
+    colors: data.colors,
     yMin: totalYMin,
     yMax: totalYMax,
     xLabels: type === 'hours' ? buildTimeLabels(labels) : buildDayLabels(labels),

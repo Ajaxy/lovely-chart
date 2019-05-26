@@ -313,7 +313,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-dataset-${key}`;
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${data.colors[key].slice(1)}`;
     const newDataSet = createElement();
     newDataSet.className = 'lovely-chart--tooltip-dataset';
     newDataSet.setAttribute('data-present', 'true');
@@ -330,10 +330,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-dataset-${key}`;
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${data.colors[key].slice(1)}`;
     currentDataSet.setAttribute('data-present', 'true');
 
-    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-dataset-${key}:not(.lovely-chart--state-hidden)`);
+    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${data.colors[key].slice(1)}:not(.lovely-chart--state-hidden)`);
     const formattedValue = formatInteger(value);
     if (valueElement.innerHTML !== formattedValue) {
       toggleText(valueElement, formattedValue, className);
