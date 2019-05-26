@@ -2370,7 +2370,7 @@ function captureEvents(element, options) {
     }
 
     if (options.draggingCursor) {
-      document.body.classList.add(`cursor-${options.draggingCursor}`);
+      document.documentElement.classList.add(`cursor-${options.draggingCursor}`);
     }
 
     options.onCapture && options.onCapture(e);
@@ -2388,7 +2388,7 @@ function captureEvents(element, options) {
       }
 
       if (options.draggingCursor) {
-        document.body.classList.remove(`cursor-${options.draggingCursor}`);
+        document.documentElement.classList.remove(`cursor-${options.draggingCursor}`);
       }
 
       removeEventListener(document, 'mouseup', onRelease);
