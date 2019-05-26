@@ -27,11 +27,11 @@
     pointer-events: auto;
   }
 
-  &.lovely-chart--state-inactive {
+  .lovely-chart--state-inactive & {
     cursor: default;
 
     .lovely-chart--tooltip-title::after {
-      display: none;
+      display: none!important;
     }
   }
 

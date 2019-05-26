@@ -121,11 +121,11 @@
   }
 }
 
-body.cursor-ew-resize, body.cursor-ew-resize * {
+html.cursor-ew-resize, html.cursor-ew-resize * {
   cursor: ew-resize !important;
 }
 
-body.cursor-grabbing, body.cursor-grabbing * {
+html.cursor-grabbing, html.cursor-grabbing * {
   cursor: grabbing !important;
 }
 
