@@ -257,14 +257,8 @@ export function createMinimap(container, data, colors, rangeCallback) {
 
   function _adjustDiscreteRange(nextRange) {
     // TODO sometimes beginChange and endChange are different for slider drag because of pixels division
-    const beginChange = nextRange.begin - _range.begin;
-    const endChange = nextRange.end - _range.end;
-    const beginAbs = Math.abs(beginChange);
-    const endAbs = Math.abs(endChange);
-    const beginDirection = beginAbs ? beginChange / beginAbs : 1;
-    const endDirection = endAbs ? endChange / endAbs : 1;
-    const begin = _range.begin + Math.floor(beginAbs / _state.minimapDelta) * _state.minimapDelta * beginDirection;
-    const end = _range.end + Math.floor(endAbs / _state.minimapDelta) * _state.minimapDelta * endDirection;
+    const begin = Math.round(nextRange.begin / _state.minimapDelta) * _state.minimapDelta;
+    const end = Math.round(nextRange.end / _state.minimapDelta) * _state.minimapDelta;
 
     return { begin, end };
   }
