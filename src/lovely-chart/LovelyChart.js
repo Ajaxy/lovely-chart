@@ -41,7 +41,7 @@ export function createLovelyChart(container, data) {
 
   let _state;
 
-  const _colors = createColors(data.colors);
+  const _colors = createColors(data);
   const _data = analyzeData(data);
 
   const _redrawDebounced = debounce(_redraw, 500, false, true);
