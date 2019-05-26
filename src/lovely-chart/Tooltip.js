@@ -6,6 +6,7 @@ import { getCssColor } from './skin';
 import { throttle, throttleWithRaf } from './utils';
 import { addEventListener, createElement } from './minifiers';
 import { toggleText } from './toggleText';
+import { toPixels } from './Projection';
 
 export function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   let _state;
@@ -184,7 +185,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       return values[labelIndex];
     }
 
-    const [xPx] = _projection.toPixels(labelIndex, 0);
+    const [xPx] = toPixels(_projection, labelIndex, 0);
     const statistics = data.datasets
       .map(({ key, name, values, hasOwnYAxis }, i) => ({
         key,
@@ -221,8 +222,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       }
 
       const [x, y] = hasOwnYAxis
-        ? _secondaryProjection.toPixels(labelIndex, point.stackValue)
-        : _projection.toPixels(labelIndex, point.stackValue);
+        ? toPixels(_secondaryProjection, labelIndex, point.stackValue)
+        : toPixels(_projection, labelIndex, point.stackValue);
 
       // TODO animate
       _drawCircle(

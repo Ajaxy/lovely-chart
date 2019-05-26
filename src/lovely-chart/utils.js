@@ -40,7 +40,13 @@ export function sumArrays(arrays) {
 export function proxyMerge(obj1, obj2) {
   return new Proxy({}, {
     get: (obj, prop) => {
-      return obj2[prop] !== undefined ? obj2[prop] : obj1[prop];
+      if (obj[prop] !== undefined) {
+        return obj[prop];
+      } else if (obj2[prop] !== undefined) {
+        return obj2[prop];
+      } else {
+        return obj1[prop];
+      }
     },
   });
 }

@@ -2,6 +2,7 @@ import { GUTTER, AXES_FONT, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constant
 import { humanize } from './format';
 import { getCssColor } from './skin';
 import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
+import { toPixels } from './Projection';
 
 export function createAxes(context, data, plotSize, colors) {
   function drawXAxis(state, projection) {
@@ -24,7 +25,7 @@ export function createAxes(context, data, plotSize, colors) {
       }
 
       const label = data.xLabels[i];
-      const [xPx] = projection.toPixels(i, 0);
+      const [xPx] = toPixels(projection, i, 0);
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
       opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width);
 
@@ -118,7 +119,7 @@ export function createAxes(context, data, plotSize, colors) {
     context.beginPath();
 
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
-      const [, yPx] = projection.toPixels(0, value);
+      const [, yPx] = toPixels(projection, 0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
       context.fillStyle = colorKey
@@ -157,7 +158,7 @@ export function createAxes(context, data, plotSize, colors) {
     context.beginPath();
 
     percentValues.forEach((value) => {
-      const [, yPx] = projection.toPixels(0, value * yMax);
+      const [, yPx] = toPixels(projection, 0, value * yMax);
 
       context.fillStyle = getCssColor(colors, 'y-axis-text', 1);
 

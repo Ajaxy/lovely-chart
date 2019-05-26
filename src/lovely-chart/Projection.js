@@ -32,11 +32,8 @@ export function createProjection(params) {
   const yFactor = effectiveHeight / (yMax - yMin);
   const yOffsetPx = yMin * yFactor;
 
-  function toPixels(labelIndex, value) {
-    return [
-      labelIndex * xFactor - xOffsetPx,
-      availableHeight - (value * yFactor - yOffsetPx),
-    ];
+  function getState() {
+    return { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx };
   }
 
   function findClosestLabelIndex(xPx) {
@@ -63,11 +60,20 @@ export function createProjection(params) {
   }
 
   return {
-    toPixels,
     findClosestLabelIndex,
     copy,
     getCenter,
     getSize,
     getParams,
+    getState,
   };
+}
+
+export function toPixels(projection, labelIndex, value) {
+  const { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx } = projection.getState();
+
+  return [
+    labelIndex * xFactor - xOffsetPx,
+    availableHeight - (value * yFactor - yOffsetPx),
+  ];
 }
