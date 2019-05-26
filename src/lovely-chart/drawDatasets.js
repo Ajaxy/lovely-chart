@@ -129,7 +129,7 @@ function drawDatasetBars(context, points, projection, options) {
     const rectY = yTo;
     const rectW = options.opacity === 1 ?
       options.lineWidth + PLOT_BARS_WIDTH_SHIFT :
-      options.lineWidth + PLOT_BARS_WIDTH_SHIFT * (options.opacity / 2);
+      options.lineWidth + PLOT_BARS_WIDTH_SHIFT * options.opacity;
     const rectH = yFrom - yTo;
 
     context.fillRect(rectX, rectY, rectW, rectH);

@@ -50,9 +50,7 @@ export function createTools(container, data, filterCallback) {
 
       captureEvents(control, {
         onLongPress: () => {
-          if (!('ontouchstart' in window)) {
-            control.dataset.clickPrevented = 'true';
-          }
+          control.dataset.clickPrevented = 'true';
 
           _updateFilter(control, true);
         },
