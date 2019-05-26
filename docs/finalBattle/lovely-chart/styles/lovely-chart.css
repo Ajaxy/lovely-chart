@@ -1,4 +1,5 @@
 .lovely-chart--container {
+  --background-color: #ffffff;
   --text-color: #222222;
   --minimap-mask: rgba(226, 238, 249, 0.6);
   --minimap-slider: #C0D1E1;
@@ -9,6 +10,7 @@
 }
 
 html.dark .lovely-chart--container {
+  --background-color: #242F3E;
   --text-color: #ffffff;
   --minimap-mask: rgba(48, 66, 89, 0.6);
   --minimap-slider: #56626D;
@@ -123,20 +125,66 @@ html.dark .lovely-chart--container {
   font: 300 13px "-apple-system", "HelveticaNeue", Helvetica, Arial, sans-serif;
   color: #222222;
   position: relative;
-  margin-bottom: 50px;
+  margin-bottom: 150px;
   text-align: left;
   overflow: hidden;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
-.lovely-chart--container.lovely-chart--state-invisible {
-  visibility: hidden;
+.lovely-chart--container.lovely-chart--state-invisible > * {
+  display: none;
 }
 .lovely-chart--container > canvas,
 .lovely-chart--container .lovely-chart--tooltip canvas {
   margin-top: 10px;
 }
 
+.lovely-chart--container-type-pie.lovely-chart--state-animating > canvas {
+  transform-origin: center calc(50% - 7.5px);
+}
+.lovely-chart--container-type-pie.lovely-chart--state-animating.lovely-chart--state-zoomed-in > canvas {
+  animation: lovely-chart--animation-pie-transition-in 0.6s;
+  animation-timing-function: ease-out;
+}
+.lovely-chart--container-type-pie.lovely-chart--state-animating:not(.lovely-chart--state-zoomed-in) > canvas {
+  animation: lovely-chart--animation-pie-transition-out 0.55s;
+  animation-timing-function: ease-in;
+}
+
+@keyframes lovely-chart--animation-pie-transition-in {
+  0% {
+    clip-path: circle(80% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
+    transform: rotate(-360deg);
+  }
+  25% {
+    clip-path: circle(31% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(31% at center calc(50% - 7.5px));
+    transform: rotate(-360deg);
+  }
+  100% {
+    clip-path: circle(31% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(31% at center calc(50% - 7.5px));
+    transform: rotate(0);
+  }
+}
+@keyframes lovely-chart--animation-pie-transition-out {
+  0% {
+    clip-path: circle(31% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(31% at center calc(50% - 7.5px));
+    transform: rotate(360deg);
+  }
+  75% {
+    clip-path: circle(31% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(31% at center calc(50% - 7.5px));
+    transform: rotate(0);
+  }
+  100% {
+    clip-path: circle(80% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
+    transform: rotate(0);
+  }
+}
 body.cursor-ew-resize, body.cursor-ew-resize * {
   cursor: ew-resize !important;
 }
@@ -354,10 +402,10 @@ body.cursor-grabbing, body.cursor-grabbing * {
   opacity: 1;
   pointer-events: auto;
 }
-.lovely-chart--tooltip-balloon.lovely-chart--state-zoomed {
+.lovely-chart--tooltip-balloon.lovely-chart--state-inactive {
   cursor: default;
 }
-.lovely-chart--tooltip-balloon.lovely-chart--state-zoomed .title::after {
+.lovely-chart--tooltip-balloon.lovely-chart--state-inactive .lovely-chart--tooltip-title::after {
   display: none;
 }
 .lovely-chart--tooltip-balloon.lovely-chart--state-loading .lovely-chart--spinner {

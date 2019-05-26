@@ -1,6 +1,6 @@
 ;(function() {
 
-window.Chart = {
+window.Graph = {
   render: createLovelyChart,
 };
 
@@ -15,7 +15,7 @@ const LONG_PRESS_TIMEOUT = 500;
 
 const GUTTER = 10;
 const PLOT_HEIGHT = 320;
-const PLOT_TOP_PADDING = 10;
+const PLOT_TOP_PADDING = 15;
 const PLOT_LINE_WIDTH = 2;
 const PLOT_PIE_RADIUS_FACTOR = 0.9 / 2;
 const PLOT_PIE_SHIFT = 10;
@@ -34,6 +34,7 @@ const MINIMAP_HEIGHT = 40;
 const MINIMAP_MARGIN = 10;
 const MINIMAP_LINE_WIDTH = 1;
 const MINIMAP_EAR_WIDTH = 8;
+const MINIMAP_MAX_ANIMATED_DATASETS = 4;
 
 const ZOOM_TIMEOUT = TRANSITION_DEFAULT_DURATION;
 const ZOOM_RANGE_DELTA = 0.1;
@@ -47,7 +48,11 @@ const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
 
 const SPEED_TEST_INTERVAL = 200;
-const SPEED_TEST_FAST_FPS = 8;
+const SPEED_TEST_FAST_FPS = 4;
+
+const SIMPLIFIER_MIN_POINTS = 1000;
+const SIMPLIFIER_PLOT_FACTOR = 1;
+const SIMPLIFIER_MINIMAP_FACTOR = 0.5;
 
 const ANIMATE_PROPS = [
   // Viewport X-axis
@@ -101,14 +106,13 @@ function createLovelyChart(container, data) {
     _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
     _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
     _tools = createTools(_element, _data, _onFilterChange);
-    _zoomer = _data.isZoomable && createZoomer(_data, data, _colors, _stateManager, _header, _minimap, _tooltip, _tools);
+    _zoomer = _data.isZoomable && createZoomer(_data, data, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
+    hideOnScroll(_element);
   }
 
   function _setupContainer() {
     _element = createElement();
-    _element.className = `lovely-chart--container`;
-
-    hideOnScroll(_element);
+    _element.className = `lovely-chart--container${_data.shouldZoomToPie ? ' lovely-chart--container-type-pie' : ''}`;
 
     container.appendChild(_element);
   }
@@ -163,25 +167,17 @@ function createLovelyChart(container, data) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    const headerCaption =
-      (
-        !_zoomer ||
-        !_zoomer.isZoomed() ||
-        isDataRange(_data.xLabels[state.labelFromIndex + 1], _data.xLabels[state.labelToIndex - 1])
-      )
-        ? (
-          `${getLabelDate(_data.xLabels[state.labelFromIndex + 1])}` +
-          ' - ' +
-          `${getLabelDate(_data.xLabels[state.labelToIndex - 1])}`
-        )
-        : getFullLabelDate(_data.xLabels[state.labelFromIndex]);
-    _header.setCaption(headerCaption);
+    _header.setCaption(_getCaption(state));
 
     clearCanvas(_plot, _context);
+
+    const totalPoints = points.reduce((a, p) => a + p.length, 0);
+    const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_PLOT_FACTOR;
+
     drawDatasets(
       _context, state, _data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      PLOT_LINE_WIDTH, visibilities, _colors,
+      PLOT_LINE_WIDTH, visibilities, _colors, false, simplification,
     );
     if (!_data.isPie) {
       _axes.drawYAxis(state, projection, secondaryProjection);
@@ -231,6 +227,27 @@ function createLovelyChart(container, data) {
     _element.remove();
     _setupComponents();
   }
+
+  function _getCaption(state) {
+    let startIndex;
+    let endIndex;
+
+    if (_zoomer && _zoomer.isZoomed()) {
+      startIndex = state.labelFromIndex + 1;
+      endIndex = state.labelToIndex - 1;
+    } else {
+      startIndex = state.labelFromIndex;
+      endIndex = state.labelToIndex;
+    }
+
+    return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex])
+      ? (
+        `${getLabelDate(_data.xLabels[startIndex])}` +
+        ' - ' +
+        `${getLabelDate(_data.xLabels[endIndex])}`
+      )
+      : getFullLabelDate(_data.xLabels[startIndex + 1]);
+  }
 }
 
 
@@ -269,7 +286,7 @@ function createStateManager(data, viewportSize, callback) {
       });
     }
 
-    if (!_transitions.isRunning()) {
+    if (!_transitions.isRunning() || !_transitions.isFast()) {
       _runCallbackOnRaf();
     }
   }
@@ -305,6 +322,7 @@ function createStateManager(data, viewportSize, callback) {
 
   function _runCallback() {
     const state = _transitions.isFast() ? proxyMerge(_state, _transitions.getState()) : _state;
+    state.static = _state;
     callback(state);
   }
 
@@ -519,6 +537,7 @@ function createTransitionManager(onTick) {
   }
 
   function _tick() {
+    const isSlow = !isFast();
     _speedTest();
 
     const state = {};
@@ -543,7 +562,9 @@ function createTransitionManager(onTick) {
       }
     });
 
-    onTick(state);
+    if (!isSlow) {
+      onTick(state);
+    }
 
     if (isRunning()) {
       _nextFrame = requestAnimationFrame(_tick);
@@ -661,7 +682,7 @@ function createAxes(context, data, plotSize, colors) {
       }
 
       const label = data.xLabels[i];
-      const [xPx] = projection.toPixels(i, 0);
+      const [xPx] = toPixels(projection, i, 0);
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
       opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width);
 
@@ -681,15 +702,22 @@ function createAxes(context, data, plotSize, colors) {
     const colorKey = secondaryProjection && `dataset#${data.datasets[0].key}`;
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
-    _drawYAxisScaled(
-      state,
-      projection,
-      Math.round(yAxisScaleTo || yAxisScale),
-      yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
-      yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
-      yAxisScaleFrom ? yAxisScaleProgress : 1,
-      colorKey,
-    );
+    if (data.isPercentage) {
+      _drawYAxisPercents(
+        projection,
+        yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
+      );
+    } else {
+      _drawYAxisScaled(
+        state,
+        projection,
+        Math.round(yAxisScaleTo || yAxisScale),
+        yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
+        yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
+        yAxisScaleFrom ? yAxisScaleProgress : 1,
+        colorKey,
+      );
+    }
 
     if (yAxisScaleProgress > 0 && isYChanging) {
       _drawYAxisScaled(
@@ -748,7 +776,7 @@ function createAxes(context, data, plotSize, colors) {
     context.beginPath();
 
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
-      const [, yPx] = projection.toPixels(0, value);
+      const [, yPx] = toPixels(projection, 0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
       context.fillStyle = colorKey
@@ -772,6 +800,31 @@ function createAxes(context, data, plotSize, colors) {
         context.lineTo(plotSize.width - GUTTER, yPx);
       }
     }
+
+    context.stroke();
+  }
+
+  function _drawYAxisPercents(projection, yMax) {
+    const percentValues = [0, 0.25, 0.50, 0.75, 1];
+
+    context.font = AXES_FONT;
+    context.textAlign = 'left';
+    context.textBaseline = 'bottom';
+    context.lineWidth = 1;
+
+    context.beginPath();
+
+    percentValues.forEach((value) => {
+      const [, yPx] = toPixels(projection, 0, value * yMax);
+
+      context.fillStyle = getCssColor(colors, 'y-axis-text', 1);
+
+      context.fillText(`${value * 100}%`, GUTTER, yPx - GUTTER / 4);
+
+      context.moveTo(GUTTER, yPx);
+      context.strokeStyle = getCssColor(colors, 'grid-lines', 1);
+      context.lineTo(plotSize.width - GUTTER, yPx);
+    });
 
     context.stroke();
   }
@@ -803,12 +856,17 @@ function createMinimap(container, data, colors, rangeCallback) {
       _updateRange({ begin, end }, true);
     }
 
+    if (data.datasets.length >= MINIMAP_MAX_ANIMATED_DATASETS) {
+      newState = newState.static;
+    }
+
     if (!_isStateChanged(newState)) {
       return;
     }
 
     _state = proxyMerge(newState, { focusOn: null });
     clearCanvas(_canvas, _context);
+
     _drawDatasets(_state);
   }
 
@@ -903,10 +961,17 @@ function createMinimap(container, data, colors, rangeCallback) {
       return true;
     }
 
-    const keys = data.datasets.map(({ key }) => `opacity#${key}`);
-    keys.push('yMaxMinimap');
+    const { datasets } = data;
 
-    return keys.some((key) => _state[key] !== newState[key]);
+    if (datasets.some(({ key }) => _state[`opacity#${key}`] !== newState[`opacity#${key}`])) {
+      return true;
+    }
+
+    if (_state.yMaxMinimap !== newState.yMaxMinimap) {
+      return true;
+    }
+
+    return false;
   }
 
   function _drawDatasets(state = {}) {
@@ -925,7 +990,7 @@ function createMinimap(container, data, colors, rangeCallback) {
       availableHeight: _canvasSize.height,
       yPadding: 1,
     };
-    const visibilities = datasets.map(({ key }) => getDatasetMinimapVisibility(state, key));
+    const visibilities = datasets.map(({ key }) => _state[`opacity#${key}`]);
     const points = preparePoints(data, datasets, range, visibilities, boundsAndParams, true);
     const projection = createProjection(boundsAndParams);
 
@@ -938,10 +1003,13 @@ function createMinimap(container, data, colors, rangeCallback) {
       secondaryProjection = projection.copy(bounds);
     }
 
+    const totalPoints = points.reduce((a, p) => a + p.length, 0);
+    const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_MINIMAP_FACTOR;
+
     drawDatasets(
       _context, state, data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      MINIMAP_LINE_WIDTH, visibilities, colors, true,
+      MINIMAP_LINE_WIDTH, visibilities, colors, true, simplification,
     );
   }
 
@@ -1046,6 +1114,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   let _clickedOnLabel = null;
 
   let _isZoomed = false;
+  let _isZooming = false;
 
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
   const _throttledUpdateContent = throttle(_updateContent, 400, true, true);
@@ -1061,18 +1130,23 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     _selectLabel(true);
   }
 
-  function toggleSpinner(isLoading) {
+  function toggleLoading(isLoading) {
     _balloon.classList.toggle('lovely-chart--state-loading', isLoading);
   }
 
   function toggleIsZoomed(isZoomed) {
+    if (isZoomed !== _isZoomed) {
+      _isZooming = true;
+      _hideBalloon();
+      _clear();
+    }
     _isZoomed = isZoomed;
-    _balloon.classList.toggle('lovely-chart--state-zoomed', isZoomed);
+    _balloon.classList.toggle('lovely-chart--state-inactive', isZoomed);
   }
 
   function _setupLayout() {
     _element = createElement();
-    _element.className = 'lovely-chart--tooltip';
+    _element.className = `lovely-chart--tooltip${!data.onZoom ? ' lovely-chart--state-inactive' : ''}`;
 
     _setupCanvas();
     _setupBalloon();
@@ -1114,6 +1188,8 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       return;
     }
 
+    _isZooming = false;
+
     const pageOffset = _getPageOffset(_element);
     _offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
     _offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
@@ -1128,6 +1204,10 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   }
 
   function _onClick(e) {
+    if (_isZooming) {
+      return;
+    }
+
     const oldLabelIndex = _clickedOnLabel;
 
     _clickedOnLabel = null;
@@ -1140,7 +1220,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   }
 
   function _onBalloonClick() {
-    if (_balloon.classList.contains('lovely-chart--state-zoomed')) {
+    if (_balloon.classList.contains('lovely-chart--state-inactive')) {
       return;
     }
 
@@ -1165,7 +1245,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   }
 
   function _selectLabel(isExternal) {
-    if (!_offsetX || !_state) {
+    if (!_offsetX || !_state || _isZooming) {
       return;
     }
 
@@ -1194,7 +1274,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       return values[labelIndex];
     }
 
-    const [xPx] = _projection.toPixels(labelIndex, 0);
+    const [xPx] = toPixels(_projection, labelIndex, 0);
     const statistics = data.datasets
       .map(({ key, name, values, hasOwnYAxis }, i) => ({
         key,
@@ -1231,8 +1311,8 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
       }
 
       const [x, y] = hasOwnYAxis
-        ? _secondaryProjection.toPixels(labelIndex, point.stackValue)
-        : _projection.toPixels(labelIndex, point.stackValue);
+        ? toPixels(_secondaryProjection, labelIndex, point.stackValue)
+        : toPixels(_projection, labelIndex, point.stackValue);
       _drawCircle(
         [x, y],
         getCssColor(colors, `dataset#${key}`),
@@ -1333,7 +1413,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   }
 
   function _insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-dataset-${key}`;
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${data.colors[key].slice(1)}`;
     const newDataSet = createElement();
     newDataSet.className = 'lovely-chart--tooltip-dataset';
     newDataSet.setAttribute('data-present', 'true');
@@ -1350,10 +1430,10 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   }
 
   function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-dataset-${key}`;
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${data.colors[key].slice(1)}`;
     currentDataSet.setAttribute('data-present', 'true');
 
-    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-dataset-${key}:not(.lovely-chart--state-hidden)`);
+    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${data.colors[key].slice(1)}:not(.lovely-chart--state-hidden)`);
     const formattedValue = formatInteger(value);
     if (valueElement.innerHTML !== formattedValue) {
       toggleText(valueElement, formattedValue, className);
@@ -1469,7 +1549,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     return el.getBoundingClientRect();
   }
 
-  return { update, toggleSpinner, toggleIsZoomed };
+  return { update, toggleLoading, toggleIsZoomed };
 }
 
 
@@ -1508,7 +1588,7 @@ function createTools(container, data, filterCallback) {
       const control = createElement('a');
       control.href = '#';
       control.dataset.key = key;
-      control.className = `lovely-chart--button lovely-chart--color-dataset-${key} lovely-chart--state-checked`;
+      control.className = `lovely-chart--button lovely-chart--color-${data.colors[key].slice(1)} lovely-chart--state-checked`;
       control.innerHTML = `<span class="lovely-chart--button-check"></span><span class="lovely-chart--button-label">${name}</span>`;
 
       control.addEventListener('click', (e) => {
@@ -1575,11 +1655,10 @@ function createTools(container, data, filterCallback) {
 }
 
 
-function createZoomer(data, overviewData, colors, stateManager, header, minimap, tooltip, tools) {
+function createZoomer(data, overviewData, colors, stateManager, container, header, minimap, tooltip, tools) {
   let _isZoomed = false;
   let _stateBeforeZoomIn;
   let _stateBeforeZoomOut;
-  let _zoomedDateText;
 
   function zoomIn(state, labelIndex) {
     if (_isZoomed) {
@@ -1590,8 +1669,12 @@ function createZoomer(data, overviewData, colors, stateManager, header, minimap,
 
     _stateBeforeZoomIn = state;
     header.zoom(getFullLabelDate(label));
-    tooltip.toggleSpinner(true);
+    tooltip.toggleLoading(true);
     tooltip.toggleIsZoomed(true);
+    if (data.shouldZoomToPie) {
+      container.classList.add('lovely-chart--state-zoomed-in');
+      container.classList.add('lovely-chart--state-animating');
+    }
 
     const { value: date } = label;
     const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(state)) : data.onZoom(date);
@@ -1600,7 +1683,12 @@ function createZoomer(data, overviewData, colors, stateManager, header, minimap,
 
   function zoomOut(state) {
     _stateBeforeZoomOut = state;
+    tooltip.toggleLoading(true);
     tooltip.toggleIsZoomed(false);
+    if (data.shouldZoomToPie) {
+      container.classList.remove('lovely-chart--state-zoomed-in');
+      container.classList.add('lovely-chart--state-animating');
+    }
 
     const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
     _replaceData(overviewData, labelIndex);
@@ -1611,8 +1699,6 @@ function createZoomer(data, overviewData, colors, stateManager, header, minimap,
   }
 
   function _replaceData(newRawData, labelIndex) {
-    tooltip.toggleSpinner(false);
-
     const labelWidth = 1 / data.xLabels.length;
     const labelMiddle = labelIndex / (data.xLabels.length - 1);
     const filter = {};
@@ -1629,12 +1715,6 @@ function createZoomer(data, overviewData, colors, stateManager, header, minimap,
     });
 
     setTimeout(() => {
-      if (!_isZoomed) {
-        _zoomedDateText = getFullLabelDate(data.xLabels[labelIndex]);
-      } else {
-        _zoomedDateText = null;
-      }
-
       Object.assign(data, newData);
       if (shouldZoomToLines) {
         Object.assign(colors, createColors(newRawData.colors));
@@ -1689,7 +1769,14 @@ function createZoomer(data, overviewData, colors, stateManager, header, minimap,
       });
 
       _isZoomed = !_isZoomed;
+      tooltip.toggleLoading(false);
     }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
+
+    setTimeout(() => {
+      if (data.shouldZoomToPie) {
+        container.classList.remove('lovely-chart--state-animating');
+      }
+    }, stateManager.hasAnimations() ? 1000 : 0)
   }
 
   function _generatePieData(state) {
@@ -1761,6 +1848,7 @@ function analyzeData(data, type) {
 
   const analyzed = {
     datasets,
+    colors: data.colors,
     yMin: totalYMin,
     yMax: totalYMax,
     xLabels: type === 'hours' ? buildTimeLabels(labels) : buildDayLabels(labels),
@@ -1814,7 +1902,7 @@ function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
   ));
 
   if (data.isPie && !pieToArea) {
-    values = prepareSumsByY(values);
+    values = prepareSumsByX(values);
   }
 
   const points = values.map((datasetValues, i) => (
@@ -1838,6 +1926,7 @@ function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
   if (data.isPercentage) {
     preparePercentage(points, bounds);
   }
+
   if (data.isStacked) {
     prepareStacked(points);
   }
@@ -1845,17 +1934,17 @@ function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
   return points;
 }
 
-function getSumsByX(points) {
+function getSumsByY(points) {
   return sumArrays(points.map((datasetPoints) => (
     datasetPoints.map(({ visibleValue }) => visibleValue)
   )));
 }
 function preparePercentage(points, bounds) {
-  const sumsByX = getSumsByX(points);
+  const sumsByY = getSumsByY(points);
 
   points.forEach((datasetPoints) => {
     datasetPoints.forEach((point, j) => {
-      point.percent = point.visibleValue / sumsByX[j];
+      point.percent = point.visibleValue / sumsByY[j];
       point.visibleValue = point.percent * bounds.yMax;
     });
   });
@@ -1877,7 +1966,7 @@ function prepareStacked(points) {
   });
 }
 
-function prepareSumsByY(values) {
+function prepareSumsByX(values) {
   return values.map((datasetValues) => (
     [datasetValues.reduce((sum, value) => sum + value, 0)]
   ));
@@ -1914,11 +2003,8 @@ function createProjection(params) {
   const yFactor = effectiveHeight / (yMax - yMin);
   const yOffsetPx = yMin * yFactor;
 
-  function toPixels(labelIndex, value) {
-    return [
-      labelIndex * xFactor - xOffsetPx,
-      availableHeight - (value * yFactor - yOffsetPx),
-    ];
+  function getState() {
+    return { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx };
   }
 
   function findClosestLabelIndex(xPx) {
@@ -1945,20 +2031,29 @@ function createProjection(params) {
   }
 
   return {
-    toPixels,
     findClosestLabelIndex,
     copy,
     getCenter,
     getSize,
     getParams,
+    getState,
   };
+}
+
+function toPixels(projection, labelIndex, value) {
+  const { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx } = projection.getState();
+
+  return [
+    labelIndex * xFactor - xOffsetPx,
+    availableHeight - (value * yFactor - yOffsetPx),
+  ];
 }
 
 
 function drawDatasets(
   context, state, data,
   range, points, projection, secondaryPoints, secondaryProjection,
-  lineWidth, visibilities, colors, pieToBar,
+  lineWidth, visibilities, colors, pieToBar, simplification,
 ) {
   data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
@@ -1969,6 +2064,7 @@ function drawDatasets(
       color: getCssColor(colors, `dataset#${key}`),
       lineWidth,
       opacity: data.isStacked ? 1 : visibilities[i],
+      simplification,
     };
 
     const datasetType = type === 'pie' && pieToBar ? 'bar' : type;
@@ -1997,8 +2093,8 @@ function drawDatasets(
     }
 
     if (datasetType === 'bar') {
-      const [x0] = projection.toPixels(0, 0);
-      const [x1] = projection.toPixels(1, 0);
+      const [x0] = toPixels(projection, 0, 0);
+      const [x1] = toPixels(projection, 1, 0);
 
       options.lineWidth = x1 - x0;
       options.focusOn = state.focusOn;
@@ -2008,8 +2104,8 @@ function drawDatasets(
   });
 
   if (state.focusOn && data.isBars) {
-    const [x0] = projection.toPixels(0, 0);
-    const [x1] = projection.toPixels(1, 0);
+    const [x0] = toPixels(projection, 0, 0);
+    const [x1] = toPixels(projection, 1, 0);
 
     drawBarsMask(context, projection, {
       focusOn: state.focusOn,
@@ -2035,11 +2131,21 @@ function drawDataset(type, ...args) {
 function drawDatasetLine(context, points, projection, options) {
   context.beginPath();
 
+  let pixels = [];
+
   for (let j = 0, l = points.length; j < l; j++) {
     const { labelIndex, stackValue } = points[j];
-    const [x, y] = projection.toPixels(labelIndex, stackValue);
-    context.lineTo(x, y);
+    pixels.push(toPixels(projection, labelIndex, stackValue));
   }
+
+  if (options.simplification) {
+    const simplifierFn = simplify(pixels);
+    pixels = simplifierFn(options.simplification).points;
+  }
+
+  pixels.forEach(([x, y]) => {
+    context.lineTo(x, y);
+  });
 
   context.save();
   context.strokeStyle = options.color;
@@ -2060,8 +2166,8 @@ function drawDatasetBars(context, points, projection, options) {
   for (let j = 0, l = points.length; j < l; j++) {
     const { labelIndex, stackValue, stackOffset = 0 } = points[j];
 
-    const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
-    const [x, yTo] = projection.toPixels(labelIndex, stackValue);
+    const [, yFrom] = toPixels(projection, labelIndex, Math.max(stackOffset, yMin));
+    const [x, yTo] = toPixels(projection, labelIndex, stackValue);
     const rectX = x - options.lineWidth / 2;
     const rectY = yTo;
     const rectW = options.opacity === 1 ? options.lineWidth + PLOT_BARS_WIDTH_SHIFT : options.lineWidth;
@@ -2077,7 +2183,7 @@ function drawBarsMask(context, projection, options) {
   const [xCenter, yCenter] = projection.getCenter();
   const [width, height] = projection.getSize();
 
-  const [x] = projection.toPixels(options.focusOn, 0);
+  const [x] = toPixels(projection, options.focusOn, 0);
 
   context.fillStyle = options.color;
   context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT, height);
@@ -2087,11 +2193,21 @@ function drawBarsMask(context, projection, options) {
 function drawDatasetArea(context, points, projection, options) {
   context.beginPath();
 
+  let pixels = [];
+
   for (let j = 0, l = points.length; j < l; j++) {
     const { labelIndex, stackValue } = points[j];
-    const [x, y] = projection.toPixels(labelIndex, stackValue);
-    context.lineTo(x, y);
+    pixels.push(toPixels(projection, labelIndex, stackValue));
   }
+
+  if (options.simplification) {
+    const simplifierFn = simplify(pixels);
+    pixels = simplifierFn(options.simplification).points;
+  }
+
+  pixels.forEach(([x, y]) => {
+    context.lineTo(x, y);
+  });
 
   context.save();
   context.fillStyle = options.color;
@@ -2185,12 +2301,19 @@ const COLORS = {
   },
 };
 
+const styleElement = document.createElement('style');
+styleElement.type = 'text/css';
+styleElement.appendChild(document.createTextNode(''));
+document.head.appendChild(styleElement);
+const styleSheet = styleElement.sheet;
+
 document.documentElement.addEventListener('darkmode', () => {
   skin = document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
 });
 
 function createColors(datasetColors) {
   const colors = {};
+  const baseClass = `.lovely-chart--color`;
 
   ['skin-day', 'skin-night'].forEach((skin) => {
     colors[skin] = {};
@@ -2201,6 +2324,10 @@ function createColors(datasetColors) {
 
     Object.keys(datasetColors).forEach((key) => {
       colors[skin][`dataset#${key}`] = hexToChannels(datasetColors[key]);
+
+      addCssRule(styleSheet, `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`, `color: ${datasetColors[key]}`);
+      addCssRule(styleSheet, `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`, `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`);
+      addCssRule(styleSheet, `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`, `background-color: ${datasetColors[key]}`);
     });
   });
 
@@ -2224,6 +2351,10 @@ function hexToChannels(hexWithAlpha) {
 
 function buildCssColor([r, g, b, a = 1], opacity = 1) {
   return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
+}
+
+function addCssRule(sheet, selector, rule) {
+  sheet.insertRule(`${selector} { ${rule} }`, sheet.cssRules.length);
 }
 
 
@@ -2386,7 +2517,7 @@ function xStepToScaleLevel(step) {
 
 const SCALE_LEVELS = [
   1, 2, 8, 18, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000,
-  250000, 500000, 1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000
+  250000, 500000, 1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000,
 ];
 
 function yScaleLevelToStep(scaleLevel) {
@@ -2423,42 +2554,50 @@ function getPieTextShift(percent, radius, shift) {
   return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
 }
 
-function getDatasetMinimapVisibility(state, key) {
-  return Math.max(0, Math.min(state[`opacity#${key}`] * 2 - 1, 1));
-}
-
 function isDataRange(labelFrom, labelTo) {
   return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
 }
 
+function getSimplificationDelta(pointsLength) {
+  return pointsLength >= SIMPLIFIER_MIN_POINTS ? Math.min((pointsLength / 1000), 1) : 0;
+}
+
 
 const hideOnScroll = (() => {
-  const charts = [];
+  const chartEls = [];
   const showAllDebounced = debounce(showAll, 500, true, false);
   const hideScrolledDebounced = debounce(hideScrolled, 500, false, true);
 
-  function setup(chart) {
-    charts.push(chart);
+  function setup(chartEl) {
+    chartEls.push(chartEl);
 
-    if (charts.length === 1) {
+    if (chartEls.length === 1) {
       window.onscroll = () => {
         showAllDebounced();
         hideScrolledDebounced();
       };
+    } else {
+      hideScrolledDebounced();
     }
   }
 
   function showAll() {
-    charts.forEach((chart) => {
-      chart.classList.remove('lovely-chart--state-invisible');
+    chartEls.forEach((chartEl) => {
+      chartEl.classList.remove('lovely-chart--state-invisible');
     });
   }
 
   function hideScrolled() {
-    charts.forEach((chart) => {
-      const { top, bottom } = chart.getBoundingClientRect();
+    chartEls.forEach((chartEl) => {
+      const { top, bottom } = chartEl.getBoundingClientRect();
       const shouldHide = bottom < 0 || top > window.innerHeight;
-      chart.classList.toggle('lovely-chart--state-invisible', shouldHide);
+
+      if (!chartEl.classList.contains('lovely-chart--state-invisible')) {
+        chartEl.style.width = `${chartEl.offsetWidth}px`;
+        chartEl.style.height = `${chartEl.offsetHeight}px`;
+      }
+
+      chartEl.classList.toggle('lovely-chart--state-invisible', shouldHide);
     });
   }
 
@@ -2476,6 +2615,208 @@ function addEventListener(element, event, cb) {
 function removeEventListener(element, event, cb) {
   element.removeEventListener(event, cb);
 }
+
+const simplify = (() => {
+  function simplify(points, indexes, fixedPoints) {
+    if (points.length < 6) {
+      return function () {
+        return {
+          points: points,
+          indexes: indexes,
+          removed: [],
+        };
+      };
+    }
+
+    let worker = precalculate(points, fixedPoints);
+
+    return function (delta) {
+      let result = [],
+        resultIndexes = [],
+        removed = [];
+
+      let delta2 = delta * delta,
+        markers = worker(delta2);
+
+      for (let i = 0, l = points.length; i < l; i++) {
+        if (markers[i] >= delta2 || i == 0 || i == l - 1) {
+          result.push(points[i]);
+          resultIndexes.push(indexes ? indexes[i] : i);
+        } else {
+          removed.push(i);
+        }
+      }
+      return {
+        points: result,
+        indexes: resultIndexes,
+        removed: removed,
+      };
+    };
+  }
+
+  let E1 = 1.0 / Math.pow(2, 22), // максимальная дельта
+    MAXLIMIT = 100000;
+
+  function precalculate(points, fixedPoints) {
+
+    let len = points.length,
+      distances = [],
+      queue = [],
+      maximumDelta;
+    for (let i = 0, l = points.length; i < l; ++i) {
+      distances[i] = 0;
+    }
+
+    if (!fixedPoints) {
+      fixedPoints = [];
+    }
+
+    //инициализируем дерево срединным значением
+    //чтобы не попадает в ситуации когда начало линии близко к концу(те полигон)
+    //и правильные расчеты сложны
+    let subdivisionTree = 0;
+
+    for (let i = 0, l = fixedPoints.length; i < l; ++i) {
+      distances[fixedPoints[i]] = MAXLIMIT;
+    }
+
+
+    function worker(params) {
+
+      let start = params.start,
+        end = params.end,
+        record = params.record,
+        currentLimit = params.currentLimit,
+        usedDistance = 0;
+
+      if (!record) {
+        //let deltaShifts = getDeltaShifts(points);
+        let usedIndex = -1,
+          vector = [
+            points[end][0] - points[start][0],
+            points[end][1] - points[start][1],
+          ];
+        for (let i = 0, l = fixedPoints.length; i < l; ++i) {
+          let fixId = fixedPoints[i];
+          if (fixId > start) {
+            if (fixId < end) {
+              usedIndex = fixId;
+              usedDistance = MAXLIMIT;
+              break;
+            } else {
+              break;
+            }
+          }
+        }
+        if (usedIndex < 0) {
+          if (Math.abs(vector[0]) > E1 || Math.abs(vector[1]) > E1) {
+            let vectorLength = vector[0] * vector[0] + vector[1] * vector[1],
+              vectorLength_1 = +1.0 / vectorLength;
+
+            for (let i = start + 1; i < end; ++i) {
+              let segmentDistance = pointToSegmentDistanceSquare(points[i], points[start], points[end], vector, vectorLength_1);
+
+              if (segmentDistance > usedDistance) {
+                usedIndex = i;
+                usedDistance = segmentDistance;
+              }
+            }
+
+          } else {
+            //фиксируем на среднинной точке
+            usedIndex = Math.round((start + end) * 0.5);
+            usedDistance = currentLimit;
+          }
+          distances[usedIndex] = usedDistance;
+        }
+        record = {
+          start: start,
+          end: end,
+          index: usedIndex,
+          distance: usedDistance,
+        };
+      }
+
+      if (record.index && record.distance > maximumDelta) {
+        if (record.index - start >= 2) {
+          queue.push({
+            start: start,
+            end: record.index,
+            record: record.left,
+            currentLimit: record.distance,
+            parent: record,
+            parentProperty: 'left',
+          });
+        }
+        if (end - record.index >= 2) {
+          queue.push({
+            start: record.index,
+            end: end,
+            record: record.right,
+            currentLimit: record.distance,
+            parent: record,
+            parentProperty: 'right',
+          });
+        }
+      }
+
+      return record;
+    }
+
+    function tick() {
+      let request = queue.pop(),
+        result = worker(request);
+
+      if (request.parent && request.parentProperty) {
+        request.parent[request.parentProperty] = result;
+      }
+
+      return result;
+    }
+
+    return function (delta) {
+      maximumDelta = delta;
+      queue.push({
+        start: 0,
+        end: len - 1,
+        record: subdivisionTree,
+        currentLimit: MAXLIMIT,
+      });
+      subdivisionTree = tick();
+
+      while (queue.length) {
+        tick();
+      }
+
+      return distances;
+    };
+
+  }
+
+  function pointToSegmentDistanceSquare(p, v1, v2, dv, dvlen_1) {
+
+    let t;
+    let vx = +v1[0],
+      vy = +v1[1];
+
+    t = +((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * (dvlen_1);
+
+    if (t > 1) {
+      vx = +v2[0];
+      vy = +v2[1];
+    } else if (t > 0) {
+      vx += +dv[0] * t;
+      vy += +dv[1] * t;
+    }
+
+    let a = +p[0] - vx,
+      b = +p[1] - vy;
+
+    return +a * a + b * b;
+  }
+
+  return simplify;
+})();
 
 
 function toggleText(element, newText, className = '', inverse = false) {
@@ -2557,7 +2898,13 @@ function sumArrays(arrays) {
 function proxyMerge(obj1, obj2) {
   return new Proxy({}, {
     get: (obj, prop) => {
-      return obj2[prop] !== undefined ? obj2[prop] : obj1[prop];
+      if (obj[prop] !== undefined) {
+        return obj[prop];
+      } else if (obj2[prop] !== undefined) {
+        return obj2[prop];
+      } else {
+        return obj1[prop];
+      }
     },
   });
 }
