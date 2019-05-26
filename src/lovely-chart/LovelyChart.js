@@ -20,8 +20,6 @@ import {
   PLOT_TOP_PADDING,
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
-  DEFAULT_PALETTE,
-  MILISECONDS_IN_DAY,
 } from './constants';
 import { isDataRange } from './formulas';
 
@@ -44,10 +42,11 @@ export function createLovelyChart(params) {
 
   let _state;
 
-  const _colors = createColors(params.palette);
+  let _colors;
 
   fetchData(params).then((data) => {
-    _data = analyzeData(data, params.datasetColors);
+    _colors = createColors(data.colors);
+    _data = analyzeData(data);
     _setupComponents();
   });
 
@@ -69,7 +68,7 @@ export function createLovelyChart(params) {
 
   function _setupContainer() {
     _container = createElement();
-    _container.className = `lovely-chart--container lovely-chart--palette-${params.palette || DEFAULT_PALETTE}`;
+    _container.className = `lovely-chart--container`;
 
     hideOnScroll(_container);
 

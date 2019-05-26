@@ -31,11 +31,11 @@ export function createTools(container, data, filterCallback) {
       _element.className += ' lovely-chart--state-hidden';
     }
 
-    data.datasets.forEach(({ key, name, colorName }) => {
+    data.datasets.forEach(({ key, name }) => {
       const control = createElement('a');
       control.href = '#';
       control.dataset.key = key;
-      control.className = `lovely-chart--button lovely-chart--color-${colorName} lovely-chart--state-checked`;
+      control.className = `lovely-chart--button lovely-chart--color-dataset-${key} lovely-chart--state-checked`;
       control.innerHTML = `<span class="lovely-chart--button-check"></span><span class="lovely-chart--button-label">${name}</span>`;
 
       control.addEventListener('click', (e) => {

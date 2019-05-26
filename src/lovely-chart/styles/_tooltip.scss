@@ -81,38 +81,6 @@
   .lovely-chart--tooltip-dataset-value {
     float: right;
     font-weight: 700;
-
-    &.lovely-chart--color-red {
-      color: var(--red-text);
-    }
-
-    &.lovely-chart--color-green {
-      color: var(--green-text);
-    }
-
-    &.lovely-chart--color-light-green {
-      color: var(--light-green-text);
-    }
-
-    &.lovely-chart--color-blue {
-      color: var(--blue-text);
-    }
-
-    &.lovely-chart--color-dark-blue {
-      color: var(--dark-blue-text);
-    }
-
-    &.lovely-chart--color-light-blue {
-      color: var(--light-blue-text);
-    }
-
-    &.lovely-chart--color-yellow {
-      color: var(--yellow-text);
-    }
-
-    &.lovely-chart--color-orange {
-      color: var(--orange-text);
-    }
   }
 }
 

@@ -8,13 +8,13 @@ export function drawDatasets(
   range, points, projection, secondaryPoints, secondaryProjection,
   lineWidth, visibilities, colors, pieToBar,
 ) {
-  data.datasets.forEach(({ colorName, type, hasOwnYAxis }, i) => {
+  data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
       return;
     }
 
     const options = {
-      color: getCssColor(colors, `${colorName}-line`),
+      color: getCssColor(colors, `dataset#${key}`),
       lineWidth,
       opacity: data.isStacked ? 1 : visibilities[i],
     };

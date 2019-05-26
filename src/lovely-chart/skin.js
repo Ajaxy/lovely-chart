@@ -1,30 +1,52 @@
 import { DEFAULT_SKIN } from './constants';
 
-let allColors;
 let skin = DEFAULT_SKIN;
 
-export function setupColors(_colors) {
-  allColors = _colors;
-}
+const COLORS = {
+  'skin-day': {
+    'background': '#FFFFFF',
+    'text-color': '#222222',
+    'minimap-mask': '#E2EEF9/0.6',
+    'minimap-slider': '#C0D1E1',
+    'grid-lines': '#182D3B/0.1',
+    'zoom-out-text': '#108BE3',
+    'tooltip-background': '#FFFFFF',
+    'tooltip-arrow': '#D2D5D7',
+    'mask': '#FFFFFF/0.5',
+    'x-axis-text': '#252529/0.6',
+    'y-axis-text': '#252529/0.6',
+  },
+  'skin-night': {
+    'background': '#242F3E',
+    'text-color': '#FFFFFF',
+    'minimap-mask': '#304259/0.6',
+    'minimap-slider': '#56626D',
+    'grid-lines': '#FFFFFF/0.1',
+    'zoom-out-text': '#48AAF0',
+    'tooltip-background': '#1c2533',
+    'tooltip-arrow': '#D2D5D7',
+    'mask': '#242F3E/0.5',
+    'x-axis-text': '#A3B1C2/0.6',
+    'y-axis-text': '#A3B1C2/0.6',
+  },
+};
 
 export function changeSkin(_skin) {
   skin = _skin;
 }
 
-export function createColors(palette) {
+export function createColors(datasetColors) {
   const colors = {};
 
   ['skin-day', 'skin-night'].forEach((skin) => {
     colors[skin] = {};
 
-    Object.keys(allColors[skin]).forEach((prop) => {
-      const channels = hexToChannels(allColors[skin][prop]);
+    Object.keys(COLORS[skin]).forEach((prop) => {
+      colors[skin][prop] = hexToChannels(COLORS[skin][prop]);
+    });
 
-      if (prop.startsWith(`palette-${palette}`)) {
-        colors[skin][prop.replace(`palette-${palette}-`, '')] = channels;
-      } else if (!prop.startsWith(`palette-`)) {
-        colors[skin][prop] = channels;
-      }
+    Object.keys(datasetColors).forEach((key) => {
+      colors[skin][`dataset#${key}`] = hexToChannels(datasetColors[key]);
     });
   });
 

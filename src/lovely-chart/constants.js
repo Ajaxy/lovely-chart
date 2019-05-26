@@ -5,7 +5,6 @@ export const LABELS_KEY = 'x';
 export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
 export const TRANSITION_DEFAULT_DURATION = 300;
 export const DEFAULT_SKIN = 'skin-day';
-export const DEFAULT_PALETTE = 'type-1';
 export const LONG_PRESS_TIMEOUT = 500;
 
 export const GUTTER = 10;

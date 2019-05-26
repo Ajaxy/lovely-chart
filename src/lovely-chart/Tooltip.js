@@ -172,10 +172,9 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
     const [xPx] = _projection.toPixels(labelIndex, 0);
     const statistics = data.datasets
-      .map(({ key, name, colorName, values, hasOwnYAxis }, i) => ({
+      .map(({ key, name, values, hasOwnYAxis }, i) => ({
         key,
         name,
-        colorName,
         value: getValue(values, labelIndex),
         hasOwnYAxis,
         originalIndex: i,
@@ -199,7 +198,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _drawCircles(statistics, labelIndex) {
-    statistics.forEach(({ value, colorName, hasOwnYAxis, originalIndex }) => {
+    statistics.forEach(({ value, key, hasOwnYAxis, originalIndex }) => {
       const pointIndex = labelIndex - _state.labelFromIndex;
       const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[originalIndex][pointIndex];
 
@@ -214,7 +213,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       // TODO animate
       _drawCircle(
         [x, y],
-        getCssColor(colors, `${colorName}-line`),
+        getCssColor(colors, `dataset#${key}`),
         getCssColor(colors, 'background'),
       );
     });
@@ -311,8 +310,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
   }
 
-  function _insertNewDataSet(dataSetContainer, { name, colorName, value }, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
+  function _insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-dataset-${key}`;
     const newDataSet = createElement();
     newDataSet.className = 'lovely-chart--tooltip-dataset';
     newDataSet.setAttribute('data-present', 'true');
@@ -328,11 +327,11 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
   }
 
-  function _updateDataSet(currentDataSet, { colorName, value } = {}, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${colorName}`;
+  function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-dataset-${key}`;
     currentDataSet.setAttribute('data-present', 'true');
 
-    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${colorName}:not(.lovely-chart--state-hidden)`);
+    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-dataset-${key}:not(.lovely-chart--state-hidden)`);
     const formattedValue = formatInteger(value);
     if (valueElement.innerHTML !== formattedValue) {
       toggleText(valueElement, formattedValue, className);

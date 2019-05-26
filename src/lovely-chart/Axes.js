@@ -41,7 +41,7 @@ export function createAxes(context, data, plotSize, colors) {
       yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
       yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
     } = state;
-    const color = secondaryProjection && data.datasets[0].colorName;
+    const colorKey = secondaryProjection && `dataset#${data.datasets[0].key}`;
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
     _drawYAxisScaled(
@@ -51,7 +51,7 @@ export function createAxes(context, data, plotSize, colors) {
       yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
       yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
       yAxisScaleFrom ? yAxisScaleProgress : 1,
-      color,
+      colorKey,
     );
 
     if (yAxisScaleProgress > 0 && isYChanging) {
@@ -62,13 +62,13 @@ export function createAxes(context, data, plotSize, colors) {
         yMinViewportFrom !== undefined ? yMinViewportFrom : yMinViewport,
         yMaxViewportFrom !== undefined ? yMaxViewportFrom : yMaxViewport,
         1 - yAxisScaleProgress,
-        color,
+        colorKey,
       );
     }
 
     if (secondaryProjection) {
       const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
-      const secondaryColor = data.datasets[data.datasets.length - 1].colorName;
+      const secondaryColorKey = `dataset#${data.datasets[data.datasets.length - 1].key}`;
       const isYChanging = yMinViewportSecondFrom !== undefined || yMaxViewportSecondFrom !== undefined;
 
       _drawYAxisScaled(
@@ -78,7 +78,7 @@ export function createAxes(context, data, plotSize, colors) {
         yMinViewportSecondTo !== undefined ? yMinViewportSecondTo : yMinViewportSecond,
         yMaxViewportSecondTo !== undefined ? yMaxViewportSecondTo : yMaxViewportSecond,
         yAxisScaleSecondFrom ? yAxisScaleSecondProgress : 1,
-        secondaryColor,
+        secondaryColorKey,
         true,
       );
 
@@ -90,14 +90,14 @@ export function createAxes(context, data, plotSize, colors) {
           yMinViewportSecondFrom !== undefined ? yMinViewportSecondFrom : yMinViewportSecond,
           yMaxViewportSecondFrom !== undefined ? yMaxViewportSecondFrom : yMaxViewportSecond,
           1 - yAxisScaleSecondProgress,
-          secondaryColor,
+          secondaryColorKey,
           true,
         );
       }
     }
   }
 
-  function _drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorName = null, isSecondary = false) {
+  function _drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorKey = null, isSecondary = false) {
     const step = yScaleLevelToStep(scaleLevel);
     const firstVisibleValue = Math.ceil(yMin / step) * step;
     const lastVisibleValue = Math.floor(yMax / step) * step;
@@ -114,8 +114,8 @@ export function createAxes(context, data, plotSize, colors) {
       const [, yPx] = projection.toPixels(0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
-      context.fillStyle = colorName
-        ? getCssColor(colors, `${colorName}-text`, textOpacity)
+      context.fillStyle = colorKey
+        ? getCssColor(colors, colorKey, textOpacity)
         : getCssColor(colors, 'y-axis-text', textOpacity);
 
       if (!isSecondary) {
@@ -125,7 +125,7 @@ export function createAxes(context, data, plotSize, colors) {
       }
 
       if (isSecondary) {
-        context.strokeStyle = getCssColor(colors, `${colorName}-text`, opacity);
+        context.strokeStyle = getCssColor(colors, colorKey, opacity);
 
         context.moveTo(plotSize.width - GUTTER, yPx);
         context.lineTo(plotSize.width - GUTTER * 2, yPx);

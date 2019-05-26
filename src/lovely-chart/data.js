@@ -13,8 +13,8 @@ export function fetchData(params) {
   }
 }
 
-export function analyzeData(data, datasetColors, type) {
-  const { datasets, labels } = prepareDatasets(data, datasetColors);
+export function analyzeData(data, type) {
+  const { datasets, labels, colors } = prepareDatasets(data);
 
   let totalYMin = Infinity;
   let totalYMax = -Infinity;
@@ -36,6 +36,7 @@ export function analyzeData(data, datasetColors, type) {
 
   return {
     datasets,
+    colors,
     yMin: totalYMin,
     yMax: totalYMax,
     xLabels: type === 'hours' ? buildTimeLabels(labels) : buildDayLabels(labels),
@@ -49,7 +50,7 @@ export function analyzeData(data, datasetColors, type) {
   };
 }
 
-function prepareDatasets(chartData, datasetColors = {}) {
+function prepareDatasets(chartData) {
   const { columns, names, types, y_scaled: hasSecondYAxis } = chartData;
 
   let labels = [];
@@ -65,7 +66,6 @@ function prepareDatasets(chartData, datasetColors = {}) {
 
     datasets.push({
       key,
-      colorName: datasetColors[key],
       name: names[key],
       type: types[key],
       values,
