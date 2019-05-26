@@ -41,7 +41,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function toggleLoading(isLoading) {
-    _element.classList.toggle('lovely-chart--state-loading', isLoading);
+    _balloon.classList.toggle('lovely-chart--state-loading', isLoading);
   }
 
   function toggleIsZoomed(isZoomed) {

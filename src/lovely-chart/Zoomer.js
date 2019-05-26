@@ -3,7 +3,7 @@ import { getFullLabelDate } from './format';
 import { ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants';
 import { createColors } from './skin';
 
-export function createZoomer(data, overviewData, colors, stateManager, header, minimap, tooltip, tools) {
+export function createZoomer(data, overviewData, colors, stateManager, container, header, minimap, tooltip, tools) {
   let _isZoomed = false;
   let _stateBeforeZoomIn;
   let _stateBeforeZoomOut;
@@ -19,6 +19,10 @@ export function createZoomer(data, overviewData, colors, stateManager, header, m
     header.zoom(getFullLabelDate(label));
     tooltip.toggleLoading(true);
     tooltip.toggleIsZoomed(true);
+    if (data.shouldZoomToPie) {
+      container.classList.add('lovely-chart--state-zoomed-in');
+      container.classList.add('lovely-chart--state-animating');
+    }
 
     const { value: date } = label;
     const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(state)) : data.onZoom(date);
@@ -29,6 +33,10 @@ export function createZoomer(data, overviewData, colors, stateManager, header, m
     _stateBeforeZoomOut = state;
     tooltip.toggleLoading(true);
     tooltip.toggleIsZoomed(false);
+    if (data.shouldZoomToPie) {
+      container.classList.remove('lovely-chart--state-zoomed-in');
+      container.classList.add('lovely-chart--state-animating');
+    }
 
     const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
     _replaceData(overviewData, labelIndex);
@@ -111,6 +119,12 @@ export function createZoomer(data, overviewData, colors, stateManager, header, m
       _isZoomed = !_isZoomed;
       tooltip.toggleLoading(false);
     }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
+
+    setTimeout(() => {
+      if (data.shouldZoomToPie) {
+        container.classList.remove('lovely-chart--state-animating');
+      }
+    }, stateManager.hasAnimations() ? 1000 : 0)
   }
 
   function _generatePieData(state) {

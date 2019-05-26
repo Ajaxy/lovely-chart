@@ -59,12 +59,12 @@ export function createLovelyChart(container, data) {
     _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
     _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
     _tools = createTools(_element, _data, _onFilterChange);
-    _zoomer = _data.isZoomable && createZoomer(_data, data, _colors, _stateManager, _header, _minimap, _tooltip, _tools);
+    _zoomer = _data.isZoomable && createZoomer(_data, data, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
   }
 
   function _setupContainer() {
     _element = createElement();
-    _element.className = `lovely-chart--container`;
+    _element.className = `lovely-chart--container${_data.shouldZoomToPie ? ' lovely-chart--container-type-pie' : ''}`;
 
     hideOnScroll(_element);
 

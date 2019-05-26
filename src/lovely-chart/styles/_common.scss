@@ -18,6 +18,28 @@
   }
 }
 
+.lovely-chart--container-type-pie {
+  &.lovely-chart--state-animating {
+    &.lovely-chart--state-zoomed-in > canvas {
+      animation: lovely-chart--animation-pie-transition .8s;
+    }
+
+    &:not(.lovely-chart--state-zoomed-in) > canvas {
+      animation: lovely-chart--animation-pie-transition .8s;
+    }
+  }
+}
+
+@keyframes lovely-chart--animation-pie-transition {
+  0%, 100% {
+    opacity: 1;
+  }
+
+  25%, 50% {
+    opacity: 0;
+  }
+}
+
 body.cursor-ew-resize, body.cursor-ew-resize * {
   cursor: ew-resize !important;
 }
