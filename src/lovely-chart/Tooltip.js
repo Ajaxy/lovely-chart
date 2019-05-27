@@ -58,7 +58,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
   function _setupLayout() {
     _element = createElement();
-    _element.className = `lovely-chart--tooltip${!data.onZoom ? ' lovely-chart--state-inactive' : ''}`;
+    _element.className = `lovely-chart--tooltip`;
 
     _setupCanvas();
     _setupBalloon();
@@ -85,7 +85,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
   function _setupBalloon() {
     _balloon = createElement();
-    _balloon.className = 'lovely-chart--tooltip-balloon';
+    _balloon.className = `lovely-chart--tooltip-balloon${!data.isZoomable ? ' lovely-chart--state-inactive' : ''}`;
     _balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
 
     if (data.isZoomable) {
@@ -332,7 +332,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     newDataSet.className = 'lovely-chart--tooltip-dataset';
     newDataSet.setAttribute('data-present', 'true');
     newDataSet.setAttribute('data-name', name);
-    newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${value}</span>`;
+    newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${formatInteger(value)}</span>`;
     _renderPercentageValue(newDataSet, value, totalValue);
 
     const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
