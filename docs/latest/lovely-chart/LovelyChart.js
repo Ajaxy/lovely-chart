@@ -88,10 +88,10 @@ function createLovelyChart(container, data) {
   let _zoomer;
 
   let _state;
+  let _windowWidth = window.innerWidth;
 
   const _colors = createColors(data.colors);
   const _data = analyzeData(data);
-
   const _redrawDebounced = debounce(_redraw, 500, false, true);
 
   _setupComponents();
@@ -215,7 +215,10 @@ function createLovelyChart(container, data) {
     });
 
     window.addEventListener('resize', () => {
-      _redrawDebounced();
+      if (window.innerWidth !== _windowWidth) {
+        _windowWidth = window.innerWidth;
+        _redrawDebounced();
+      }
     });
 
     window.addEventListener('orientationchange', () => {

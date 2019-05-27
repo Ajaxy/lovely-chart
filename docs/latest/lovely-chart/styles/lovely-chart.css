@@ -426,6 +426,9 @@ html.cursor-grabbing, html.cursor-grabbing * {
   top: 5px;
   left: 0;
   min-width: 130px;
+  max-height: 320px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 8px;
   padding: 8px 10px;
   white-space: nowrap;
@@ -448,15 +451,13 @@ html.cursor-grabbing, html.cursor-grabbing * {
   display: none;
 }
 .lovely-chart--tooltip-balloon.lovely-chart--state-loading .lovely-chart--spinner {
-  opacity: 1;
+  display: block;
 }
 .lovely-chart--tooltip-balloon .lovely-chart--spinner {
   position: absolute;
   top: 7px;
   right: 8px;
-  background: var(--tooltip-background);
-  opacity: 0;
-  transition: opacity 500ms ease-out;
+  display: none;
 }
 
 .lovely-chart--tooltip-title {
