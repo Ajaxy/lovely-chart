@@ -9,16 +9,17 @@
   top: 5px;
   left: 0;
   min-width: 130px;
+  max-height: 320px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 8px;
   padding: 8px 10px;
   white-space: nowrap;
-
   background: var(--tooltip-background);
   color: var(--text-color);
   box-shadow: 0 1px 2px 1px rgba(211, 211, 211, 0.8);
   opacity: 0;
   transition: opacity 200ms ease-out;
-  // transition: opacity 200ms ease-out, background-color 300ms ease-out;
   cursor: pointer;
   pointer-events: none;
 
