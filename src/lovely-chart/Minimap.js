@@ -197,6 +197,7 @@ export function createMinimap(container, data, colors, rangeCallback) {
   }
 
   function _onDragCapture(e) {
+    e.preventDefault();
     _capturedOffset = e.target.offsetLeft;
   }
 
