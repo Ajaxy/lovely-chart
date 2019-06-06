@@ -54,7 +54,7 @@ export function createZoomer(data, overviewData, colors, stateManager, container
     const labelMiddle = labelIndex / (data.xLabels.length - 1);
     const filter = {};
     data.datasets.forEach(({ key }) => filter[key] = false);
-    const newData = analyzeData(newRawData, _isZoomed || data.shouldZoomToPie ? 'days' : 'hours');
+    const newData = analyzeData(newRawData, _isZoomed || data.shouldZoomToPie ? 'day' : 'hour');
     const shouldZoomToLines = Object.keys(data.datasets).length !== Object.keys(newData.datasets).length;
 
     stateManager.update({
@@ -133,28 +133,24 @@ export function createZoomer(data, overviewData, colors, stateManager, container
       if (data.shouldZoomToPie) {
         container.classList.remove('lovely-chart--state-animating');
       }
-    }, stateManager.hasAnimations() ? 1000 : 0)
+    }, stateManager.hasAnimations() ? 1000 : 0);
   }
 
   function _generatePieData(labelIndex) {
-    const pieData = Object.assign({}, overviewData);
-
-    pieData.columns = overviewData.columns.map((c) => {
-      const column = c.slice(labelIndex - 3 + 1, labelIndex + 4 + 1);
-      column.unshift(c[0]);
-      return column;
-    });
-
-    pieData.types = {};
-    Object.keys(overviewData.types).forEach((key) => {
-      if (key !== 'x') {
-        pieData.types[key] = 'pie';
-      }
-    });
-
-    pieData.pie = true;
-
-    return pieData;
+    return Object.assign(
+      {},
+      overviewData,
+      {
+        type: 'pie',
+        labels: overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
+        datasets: overviewData.datasets.map((dataset) => {
+          return {
+            ...dataset,
+            values: dataset.values.slice(labelIndex - 3, labelIndex + 4),
+          };
+        }),
+      },
+    );
   }
 
   return { zoomIn, zoomOut, isZoomed };

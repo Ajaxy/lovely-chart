@@ -2,6 +2,8 @@
 
 🏆 A [Telegram Chart Contest 2019](https://contest.dev/chart-js) award winning library.
 
+`mobile friendly`, `high performance`, `zero dependency`, `production ready`, `open source`
+
 ## Demo
 
 https://ajaxy.github.io/LovelyCharts/latest

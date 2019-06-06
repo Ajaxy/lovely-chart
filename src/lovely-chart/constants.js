@@ -1,7 +1,5 @@
 export const DPR = window.devicePixelRatio || 1;
 
-export const LABELS_KEY = 'x';
-
 export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
 export const TRANSITION_DEFAULT_DURATION = 300;
 export const DEFAULT_SKIN = 'skin-day';
@@ -19,7 +17,7 @@ export const BALLOON_OFFSET = 20;
 
 export const AXES_FONT = '300 10px Helvetica, Arial, sans-serif';
 export const AXES_MAX_COLUMN_WIDTH = 45;
-export const AXES_MAX_ROW_HEIGHT = 40;
+export const AXES_MAX_ROW_HEIGHT = 50;
 export const X_AXIS_HEIGHT = 30;
 export const X_AXIS_SHIFT_START = 1;
 export const Y_AXIS_ZERO_BASED_THRESHOLD = 0.1;

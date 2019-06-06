@@ -25,7 +25,7 @@ import {
 import { getSimplificationDelta, isDataRange } from './formulas';
 import { debounce } from './utils';
 
-export function createLovelyChart(container, data) {
+export function createLovelyChart(container, originalData) {
   let _stateManager;
 
   let _element;
@@ -43,8 +43,8 @@ export function createLovelyChart(container, data) {
   let _state;
   let _windowWidth = window.innerWidth;
 
-  const _colors = createColors(data.colors);
-  const _data = analyzeData(data);
+  const _data = analyzeData(originalData);
+  const _colors = createColors(_data.colors);
   const _redrawDebounced = debounce(_redraw, 500, false, true);
 
   _setupComponents();
@@ -52,14 +52,14 @@ export function createLovelyChart(container, data) {
 
   function _setupComponents() {
     _setupContainer();
-    _header = createHeader(_element, data.title, _onZoomOut);
+    _header = createHeader(_element, _data.title, _onZoomOut);
     _setupPlotCanvas();
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _axes = createAxes(_context, _data, _plotSize, _colors);
     _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
     _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
     _tools = createTools(_element, _data, _onFilterChange);
-    _zoomer = _data.isZoomable && createZoomer(_data, data, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
+    _zoomer = _data.isZoomable && createZoomer(_data, originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
     hideOnScroll(_element);
   }
 
@@ -182,7 +182,7 @@ export function createLovelyChart(container, data) {
   }
 
   function _redraw() {
-    Object.assign(_data, analyzeData(data));
+    Object.assign(_data, analyzeData(originalData));
     _element.remove();
     _setupComponents();
   }

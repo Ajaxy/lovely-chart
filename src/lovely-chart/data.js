@@ -1,15 +1,15 @@
 import { getMaxMin } from './utils';
 import { buildDayLabels, buildTimeLabels } from './format';
-import { LABELS_KEY } from './constants';
 
-export function analyzeData(data, type) {
+export function analyzeData(data) {
+  const { title, labelType, isStacked, isPercentage, hasSecondYAxis, onZoom } = data;
   const { datasets, labels } = prepareDatasets(data);
 
+  const colors = {};
   let totalYMin = Infinity;
   let totalYMax = -Infinity;
-
-  datasets.forEach((dataset) => {
-    const { min: yMin, max: yMax } = getMaxMin(dataset.values);
+  datasets.forEach(({ key, color, yMin, yMax }) => {
+    colors[key] = color;
 
     if (yMin < totalYMin) {
       totalYMin = yMin;
@@ -18,25 +18,23 @@ export function analyzeData(data, type) {
     if (yMax > totalYMax) {
       totalYMax = yMax;
     }
-
-    dataset.yMin = yMin;
-    dataset.yMax = yMax;
   });
 
   const analyzed = {
+    title,
+    xLabels: labelType === 'hour' ? buildTimeLabels(labels) : buildDayLabels(labels),
     datasets,
-    colors: data.colors,
+    isStacked,
+    isPercentage,
+    hasSecondYAxis,
+    onZoom,
+    isLines: data.type === 'line',
+    isBars: data.type === 'bar',
+    isAreas: data.type === 'area',
+    isPie: data.type === 'pie',
     yMin: totalYMin,
     yMax: totalYMax,
-    xLabels: type === 'hours' ? buildTimeLabels(labels) : buildDayLabels(labels),
-    hasSecondYAxis: data.y_scaled,
-    isStacked: data.stacked,
-    isPercentage: data.percentage,
-    isPie: data.pie,
-    isLines: datasets.some(({ type }) => type === 'line'),
-    isBars: datasets.some(({ type }) => type === 'bar'),
-    isAreas: datasets.some(({ type }) => type === 'area'),
-    onZoom: data.x_on_zoom,
+    colors,
   };
 
   analyzed.shouldZoomToPie = !analyzed.onZoom && analyzed.isPercentage;
@@ -45,29 +43,28 @@ export function analyzeData(data, type) {
   return analyzed;
 }
 
-function prepareDatasets(chartData) {
-  const { columns, names, types, y_scaled: hasSecondYAxis } = chartData;
+function prepareDatasets(data) {
+  const { type, labels, datasets, hasSecondYAxis } = data;
 
-  let labels = [];
-  const datasets = [];
+  return {
+    labels: cloneArray(labels),
+    datasets: datasets.map(({ name, color, values }, i) => {
+      const { min: yMin, max: yMax } = getMaxMin(values);
 
-  columns.forEach((originalValues, i) => {
-    const values = originalValues.slice(0);
-    const key = values.shift();
+      return {
+        type,
+        key: `y${i}`,
+        name,
+        color,
+        values: cloneArray(values),
+        hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
+        yMin,
+        yMax,
+      };
+    }),
+  };
+}
 
-    if (key === LABELS_KEY) {
-      labels = values;
-      return;
-    }
-
-    datasets.push({
-      key,
-      name: names[key],
-      type: types[key],
-      values,
-      hasOwnYAxis: hasSecondYAxis && i === columns.length - 1,
-    });
-  });
-
-  return { datasets, labels };
+function cloneArray(array) {
+  return array.slice(0);
 }
