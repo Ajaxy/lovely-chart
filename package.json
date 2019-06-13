@@ -1,6 +1,6 @@
 {
   "name": "lovely-chart",
-  "version": "1.0.0-2",
+  "version": "1.0.0-3",
   "description": "",
   "main": "dist/LovelyChart.js",
   "scripts": {
