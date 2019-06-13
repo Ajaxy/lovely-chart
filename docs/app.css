@@ -31,12 +31,14 @@ html.dark {
 
 .tools {
   display: flex;
-  justify-content: space-around;
+  justify-content: center;
   align-items: center;
+  margin: 40px 0;
 }
 
 .tools > * {
   display: inline-flex;
+  margin: 0 10px;
 }
 
 .tools a {
@@ -44,8 +46,6 @@ html.dark {
   color: #108BE3;
   text-decoration: none;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
-  margin: 30px 0;
-  line-height: 50px;
 }
 
 .tools a:hover, .tools a:active, .tools a:visited {
