@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chart.onZoom = (date) => fetchDayData('data/zoom_bars', date);
       }
 
-      Graph.render(container, chart);
+      LovelyChart.create(container, chart);
     });
   })();
 

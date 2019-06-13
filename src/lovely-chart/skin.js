@@ -1,6 +1,8 @@
-import { DEFAULT_SKIN } from './constants';
+function detectSkin() {
+  return document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
+}
 
-let skin = DEFAULT_SKIN;
+let skin = detectSkin();
 
 const COLORS = {
   'skin-day': {
@@ -38,7 +40,7 @@ document.head.appendChild(styleElement);
 const styleSheet = styleElement.sheet;
 
 document.documentElement.addEventListener('darkmode', () => {
-  skin = document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
+  skin = detectSkin();
 });
 
 export function createColors(datasetColors) {

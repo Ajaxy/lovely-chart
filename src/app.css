@@ -20,6 +20,15 @@ html.dark {
   text-align: left;
 }
 
+#description {
+  text-align: left;
+  margin: 40px 0;
+}
+
+#description p {
+  margin: 5px 0;
+}
+
 a#skin-switcher {
   display: block;
   text-align: center;
@@ -27,7 +36,6 @@ a#skin-switcher {
   color: #108BE3;
   text-decoration: none;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
-  margin-bottom: 50px;
 }
 
 a#skin-switcher:hover, a#skin-switcher:active, a#skin-switcher:visited {

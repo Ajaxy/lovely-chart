@@ -47,5 +47,5 @@ gulp.task('prod', () => {
       .src(['data/**/*.json'], { base: '.' })
       .pipe(minifyJson()),
   )
-    .pipe(gulp.dest('docs/latest'));
+    .pipe(gulp.dest('docs/'));
 });
