@@ -17,28 +17,38 @@ html.dark {
   display: inline-block;
   width: 100%;
   max-width: 480px;
-  text-align: left;
+  text-align: center;
 }
 
 #description {
   text-align: left;
-  margin: 40px 0;
+  margin-top: 40px;
 }
 
 #description p {
   margin: 5px 0;
 }
 
-a#skin-switcher {
-  display: block;
-  text-align: center;
-  font-size: 18px;
+.tools {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.tools > * {
+  display: inline-flex;
+}
+
+.tools a {
+  font-size: 14px;
   color: #108BE3;
   text-decoration: none;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  margin: 30px 0;
+  line-height: 50px;
 }
 
-a#skin-switcher:hover, a#skin-switcher:active, a#skin-switcher:visited {
+.tools a:hover, .tools a:active, .tools a:visited {
   color: rgba(16, 139, 227, 0.71);
 }
 

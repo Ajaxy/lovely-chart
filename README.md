@@ -9,11 +9,12 @@
 https://ajaxy.github.io/lovely-chart/
 
 ## Usage
+<a href="https://www.npmjs.com/package/lovely-chart" target="_blank"><img src="https://img.shields.io/npm/v/lovely-chart.svg"/></a>
 
 ```js
 import LovelyChart from 'lovely-chart';
 
-LovelyChart.create(container, data)
+LovelyChart.create(container, data);
 ```
 
 #### Arguments for `LovelyChart.create`
