@@ -10,6 +10,8 @@
 
 https://ajaxy.github.io/lovely-chart/
 
+<img height="400" src="http://chatik.ajaxy.ru/uploads/lovely-chart.png" /> <img height="400" src="http://chatik.ajaxy.ru/uploads/lovely-chart-3.png" />
+
 ## Usage
 
 ```js
