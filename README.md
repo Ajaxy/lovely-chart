@@ -4,12 +4,13 @@
 
 `mobile friendly`, `high performance`, `extra lightweight`, `zero dependency`, `production ready`, `open source`
 
+<a href="https://www.npmjs.com/package/lovely-chart" target="_blank"><img src="https://img.shields.io/npm/v/lovely-chart.svg"/></a> <img alt="lightweight chart js library" src="https://badgen.net/bundlephobia/minzip/lovely-chart">
+
 ## Demo
 
 https://ajaxy.github.io/lovely-chart/
 
 ## Usage
-<a href="https://www.npmjs.com/package/lovely-chart" target="_blank"><img src="https://img.shields.io/npm/v/lovely-chart.svg"/></a>
 
 ```js
 import LovelyChart from 'lovely-chart';
