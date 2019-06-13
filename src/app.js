@@ -1,36 +1,34 @@
+function fetchJson(path) {
+  return fetch(path).then((response) => response.json());
+}
+
+function fetchDayData(dataSource, timestamp) {
+  const date = new Date(timestamp);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
+
+  return fetchJson(`${dataSource}/${path}.json`);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const container = document.getElementById('container');
 
-  (() => {
-    const chart = {
-      title: 'Lovely Line',
-      type: 'line',
-      labels: [
-        1554249600000,
-        1554336000000,
-        1554422400000,
-        1554508800000
-      ],
-      labelType: 'day',
-      datasets: [
-        {
-          name: 'My Line',
-          color: '#ff0000',
-          values: [123, 324, 435, 456]
-        },
-        {
-          name: 'My Line 2',
-          color: '#6699cc',
-          values: [765, 79, 89, 2423]
-        }
-      ],
-      isStacked: false,
-      isPercentage: false,
-      hasSecondYAxis: false,
-      onZoom: null
-    };
+  (async () => {
+    const data = await Promise.all([
+      fetchJson('./data/lines.json'),
+      fetchJson('./data/bars.json'),
+      fetchJson('./data/areas.json'),
+      fetchJson('./data/pie.json'),
+    ]);
 
-    Graph.render(container, chart);
+    data.forEach((chart, i) => {
+      if (i === 1) {
+        chart.onZoom = (date) => fetchDayData('data/zoom_bars', date);
+      }
+
+      Graph.render(container, chart);
+    });
   })();
 
   document.getElementById('skin-switcher').addEventListener('click', (e) => {
