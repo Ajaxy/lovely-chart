@@ -1,4 +1,4 @@
-# LovelyCharts
+# LovelyChart
 
 🏆 A [Telegram Chart Contest 2019](https://contest.dev/chart-js) award winning library.
 
@@ -6,17 +6,21 @@
 
 ## Demo
 
-https://ajaxy.github.io/LovelyCharts/
+https://ajaxy.github.io/lovely-chart/
 
 ## Usage
 
-`LovelyChart.create(container, data)` — Renders a chart inside the container element.
+```js
+import LovelyChart from 'lovely-chart';
 
+LovelyChart.create(container, data)
+```
+
+#### Arguments for `LovelyChart.create`
 - `container` — DOM Node in which the chart is rendered. The chart layout resizes automatically to occupy the entire available width.
-
 - `data` — Parameters for a chart.
 
-Param|Description|
+Parameter | Description |
 ---------|----|
 `title`| Chart headline
 `type`| Chart type. Supported types: `line`, `area`, `bar`, `pie`

@@ -1,28 +1,17 @@
 {
-  "name": "telegram-contest",
-  "version": "1.0.0",
+  "name": "lovely-chart",
+  "version": "0.0.1",
   "description": "",
-  "main": "main.js",
+  "main": "dist/LovelyChart.js",
   "scripts": {
-    "dev": "rm -rf dist/* && cp -r ./data dist/ && parcel src/index.html",
-    "dev-win": "n-clean dist && n-copy --source data --destination dist/data \"**\" && parcel src/index.html",
-    "prod": "rm -rf docs/ && sass src/lovely-chart/styles/index.scss src/lovely-chart/styles/lovely-chart.css --no-source-map && gulp prod"
+    "build": "rm -rf dist/* && parcel build src/LovelyChart.js --global LovelyChart -o dist/LovelyChart.js",
+    "examples": "npm run build && cp -R ./dist/* docs/"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "gulp": "^4.0.0",
-    "gulp-babel-minify": "^0.5.0",
-    "gulp-clone": "^2.0.1",
-    "gulp-concat": "^2.6.1",
-    "gulp-jsclosure": "0.0.1",
-    "gulp-jsonminify": "^1.1.0",
-    "gulp-order": "^1.2.0",
-    "gulp-rename": "^1.4.0",
-    "gulp-replace": "^1.0.0",
-    "gulp-uglifycss": "^1.1.0",
-    "merge-stream": "^1.0.1",
-    "sass": "^1.18.0"
+    "cssnano": "^4.1.10",
+    "sass": "^1.21.0"
   }
 }

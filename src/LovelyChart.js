@@ -24,8 +24,9 @@ import {
 } from './constants';
 import { getSimplificationDelta, isDataRange } from './formulas';
 import { debounce } from './utils';
+import './styles/index.scss';
 
-export function createLovelyChart(container, originalData) {
+function create(container, originalData) {
   let _stateManager;
 
   let _element;
@@ -209,3 +210,5 @@ export function createLovelyChart(container, originalData) {
       : getFullLabelDate(_data.xLabels[startIndex]);
   }
 }
+
+export { create };
