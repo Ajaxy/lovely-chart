@@ -16,6 +16,7 @@ https://ajaxy.github.io/lovely-chart/
 
 ```js
 import * as LovelyChart from 'lovely-chart';
+import '~/lovely-chart/dist/LovelyChart.css';
 
 LovelyChart.create(container, data);
 ```
