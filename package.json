@@ -1,9 +1,11 @@
 {
   "name": "lovely-chart",
-  "version": "1.0.0-4",
+  "version": "1.0.0-5",
   "description": "",
   "main": "dist/LovelyChart.js",
-  "files": ["dist/*"],
+  "files": [
+    "dist/*"
+  ],
   "scripts": {
     "build": "rm -rf dist/* && parcel build src/LovelyChart.js --global LovelyChart -o dist/LovelyChart.js",
     "examples": "npm run build && cp -R ./dist/* docs/"
