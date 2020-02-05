@@ -1,5 +1,5 @@
 import { getMaxMin } from './utils';
-import { buildDayLabels, buildTimeLabels } from './format';
+import { buildDayLabels, buildTimeLabels, buildTextLabels } from './format';
 
 export function analyzeData(data) {
   const { title, labelType, isStacked, isPercentage, hasSecondYAxis, onZoom } = data;
@@ -20,9 +20,23 @@ export function analyzeData(data) {
     }
   });
 
+  let xLabels;
+  switch (labelType) {
+    case 'hour':
+      xLabels = buildTimeLabels(labels);
+      break;
+    case 'text':
+      xLabels = buildTextLabels(labels);
+      break;
+    default:
+      xLabels = buildDayLabels(labels);
+      break;
+  }
+
   const analyzed = {
     title,
-    xLabels: labelType === 'hour' ? buildTimeLabels(labels) : buildDayLabels(labels),
+    labelType,
+    xLabels,
     datasets,
     isStacked,
     isPercentage,

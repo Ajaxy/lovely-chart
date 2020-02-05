@@ -283,6 +283,10 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _getTitle(data, labelIndex) {
+    if (data.labelType === 'text') {
+      return data.xLabels[labelIndex].text;
+    }
+
     if (_isZoomed) {
       if (isDataRange(data.xLabels[_state.labelFromIndex + 1], data.xLabels[_state.labelToIndex - 1])) {
         return getLabelDate(data.xLabels[labelIndex], { isShort: true, displayYear: false, displayHours: true });

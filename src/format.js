@@ -26,6 +26,15 @@ export function buildTimeLabels(labels) {
   });
 }
 
+export function buildTextLabels(labels) {
+  return labels.map((value, i) => {
+    return ({
+      value: i,
+      text: value,
+    });
+  });
+}
+
 export function humanize(value, decimals = 1) {
   if (value >= 1e6) {
     return keepThreeDigits(value / 1e6, decimals) + 'M';
