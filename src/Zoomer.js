@@ -16,6 +16,7 @@ export function createZoomer(data, overviewData, colors, stateManager, container
     const label = data.xLabels[labelIndex];
 
     _stateBeforeZoomIn = state;
+    header.toggleIsZooming(true);
     tooltip.toggleLoading(true);
     tooltip.toggleIsZoomed(true);
     if (data.shouldZoomToPie) {
@@ -34,6 +35,7 @@ export function createZoomer(data, overviewData, colors, stateManager, container
     }
 
     _stateBeforeZoomOut = state;
+    header.toggleIsZooming(true);
     tooltip.toggleLoading(true);
     tooltip.toggleIsZoomed(false);
     if (data.shouldZoomToPie) {
@@ -50,6 +52,8 @@ export function createZoomer(data, overviewData, colors, stateManager, container
   }
 
   function _replaceData(newRawData, labelIndex, zoomInLabel) {
+    tooltip.toggleLoading(false);
+
     const labelWidth = 1 / data.xLabels.length;
     const labelMiddle = labelIndex / (data.xLabels.length - 1);
     const filter = {};
@@ -126,7 +130,7 @@ export function createZoomer(data, overviewData, colors, stateManager, container
       }
 
       _isZoomed = !_isZoomed;
-      tooltip.toggleLoading(false);
+      header.toggleIsZooming(false);
     }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
 
     setTimeout(() => {

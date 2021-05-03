@@ -51,29 +51,36 @@ export function proxyMerge(obj1, obj2) {
   });
 }
 
-export function throttle(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
-  let waiting = false;
-  let args;
+export function throttle(
+  fn,
+  ms,
+  shouldRunFirst = true,
+) {
+  let interval = null;
   let isPending;
+  let args;
 
-  return function (..._args) {
-    args = _args;
+  return (..._args) => {
     isPending = true;
+    args = _args;
 
-    if (!waiting) {
+    if (!interval) {
       if (shouldRunFirst) {
         isPending = false;
+        // @ts-ignore
         fn(...args);
       }
 
-      waiting = true;
-
-      setTimeout(() => {
-        waiting = false;
-
-        if (shouldRunLast && isPending) {
-          fn(...args);
+      interval = window.setInterval(() => {
+        if (!isPending) {
+          window.clearInterval(interval);
+          interval = null;
+          return;
         }
+
+        isPending = false;
+        // @ts-ignore
+        fn(...args);
       }, ms);
     }
   };

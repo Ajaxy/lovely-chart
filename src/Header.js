@@ -7,24 +7,31 @@ export function createHeader(container, title, zoomOutCallback) {
   let _titleElement;
   let _zoomOutElement;
   let _captionElement;
+  let _isZooming;
 
-  const setCaptionThrottled = throttle(setCaption, 400, false, true);
+  const setCaptionThrottled = throttle(setCaption, 100, false);
 
   _setupLayout();
 
   function setCaption(caption) {
-    if (!_captionElement.innerHTML) {
-      _captionElement.innerHTML = caption;
-    } else if (_captionElement.innerHTML !== caption) {
-      _captionElement = toggleText(_captionElement, caption, 'lovely-chart--header-caption lovely-chart--position-right');
+    if (_isZooming) {
+      return;
     }
+
+    _captionElement.innerHTML = caption;
   }
 
   function zoom(caption) {
     _zoomOutElement = toggleText(_titleElement, 'Zoom Out', 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
-    addEventListener(_zoomOutElement, 'click', _onZoomOut);
+    setTimeout(() => {
+      addEventListener(_zoomOutElement, 'click', _onZoomOut);
+    }, 500);
 
     setCaption(caption);
+  }
+
+  function toggleIsZooming(isZooming) {
+    _isZooming = isZooming;
   }
 
   function _setupLayout() {
@@ -52,5 +59,6 @@ export function createHeader(container, title, zoomOutCallback) {
   return {
     setCaption: setCaptionThrottled,
     zoom,
+    toggleIsZooming,
   };
 }

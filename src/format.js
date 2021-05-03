@@ -1,10 +1,10 @@
-import { MONTHS, MONTHS_SHORT, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
+import { MONTHS, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
 
 export function buildDayLabels(labels) {
   return labels.map((value) => {
     const date = new Date(value);
     const day = date.getDate();
-    const month = MONTHS_SHORT[date.getMonth()];
+    const month = MONTHS[date.getMonth()];
 
     return ({
       value,
@@ -64,15 +64,14 @@ export function getFullLabelDate(label, { isShort = false } = {}) {
 export function getLabelDate(label, { isShort = false, displayWeekDay = false, displayYear = true, displayHours = false } = {}) {
   const { value } = label;
   const date = new Date(value);
-  const monthsArray = isShort ? MONTHS_SHORT : MONTHS;
   const weekDaysArray = isShort ? WEEK_DAYS_SHORT : WEEK_DAYS;
 
-  let string = `${date.getUTCDate()} ${monthsArray[date.getUTCMonth()]}`;
+  let string = `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
   if (displayWeekDay) {
     string = `${weekDaysArray[date.getUTCDay()]}, ` + string;
   }
   if (displayYear) {
-    string += ` ${date.getUTCFullYear()}`;
+    string += ` ${date.getUTCFullYear() + 1}`;
   }
   if (displayHours) {
     string += `, ${('0' + date.getUTCHours()).slice(-2)}:${('0' + date.getUTCMinutes()).slice(-2)}`

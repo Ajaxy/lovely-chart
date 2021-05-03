@@ -40,7 +40,7 @@ export function getPieRadius(projection) {
 }
 
 export function getPieTextSize(percent, radius) {
-  return (radius + percent * 150) / 8;
+  return (radius + percent * 200) / 10;
 }
 
 export function getPieTextShift(percent, radius, shift) {
