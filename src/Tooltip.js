@@ -1,7 +1,7 @@
 import { setupCanvas, clearCanvas } from './canvas';
 import { BALLOON_OFFSET, X_AXIS_HEIGHT } from './constants';
-import { getPieRadius, isDataRange } from './formulas';
-import { formatInteger, getLabelDate, getFullLabelDate } from './format';
+import { getPieRadius } from './formulas';
+import {formatCryptoValue, formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull} from './format';
 import { getCssColor } from './skin';
 import { throttle, throttleWithRaf } from './utils';
 import { addEventListener, createElement } from './minifiers';
@@ -88,7 +88,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     _balloon.className = `lovely-chart--tooltip-balloon${!data.isZoomable ? ' lovely-chart--state-inactive' : ''}`;
     _balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
 
-    if (data.isZoomable) {
+    if ('ontouchstart' in window && data.isZoomable) {
       addEventListener(_balloon, 'click', _onBalloonClick);
     }
 
@@ -120,14 +120,18 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       return;
     }
 
-    const oldLabelIndex = _clickedOnLabel;
+    if (data.isZoomable) {
+      const oldLabelIndex = _clickedOnLabel;
 
-    _clickedOnLabel = null;
-    _onMouseMove(e, true);
+      _clickedOnLabel = null;
+      _onMouseMove(e, true);
 
-    const newLabelIndex = _getLabelIndex();
-    if (newLabelIndex !== oldLabelIndex) {
-      _clickedOnLabel = newLabelIndex;
+      const newLabelIndex = _getLabelIndex();
+      if (newLabelIndex !== oldLabelIndex) {
+        _clickedOnLabel = newLabelIndex;
+      }
+
+      onZoom(newLabelIndex);
     }
   }
 
@@ -262,9 +266,9 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
     const shouldPlaceRight = data.isPie ? angle > Math.PI / 2 : labelIndex < meanLabel;
 
-    return shouldPlaceRight
-        ? _offsetX + BALLOON_OFFSET
-        : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
+    const leftOffset = shouldPlaceRight ? _offsetX + BALLOON_OFFSET : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
+
+    return Math.min(Math.max(0, leftOffset), container.offsetWidth - _balloon.offsetWidth);
   }
 
   function _getBalloonTopOffset() {
@@ -283,19 +287,17 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _getTitle(data, labelIndex) {
-    if (data.labelType === 'text') {
-      return data.xLabels[labelIndex].text;
+    switch (data.tooltipFormatter) {
+      case 'statsFormatDayHourFull':
+        return statsFormatDayHourFull(data.xLabels[labelIndex].value);
+      case 'statsTooltipFormat(\'day\')':
+        return getLabelDate(data.xLabels[labelIndex]);
+      case 'statsTooltipFormat(\'hour\')':
+      case 'statsTooltipFormat(\'5min\')':
+        return getLabelTime(data.xLabels[labelIndex]);
+      default:
+        return data.xLabels[labelIndex].text;
     }
-
-    if (_isZoomed) {
-      if (isDataRange(data.xLabels[_state.labelFromIndex + 1], data.xLabels[_state.labelToIndex - 1])) {
-        return getLabelDate(data.xLabels[labelIndex], { isShort: true, displayYear: false, displayHours: true });
-      }
-
-      return data.xLabels[labelIndex].text;
-    }
-
-    return getFullLabelDate(data.xLabels[labelIndex], { isShort: true });
   }
 
   function _isPieSectorSelected(statistics, value, totalValue, index, pointerVector) {
@@ -351,7 +353,12 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     currentDataSet.setAttribute('data-present', 'true');
 
     const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${data.colors[key].slice(1)}:not(.lovely-chart--state-hidden)`);
-    valueElement.innerHTML = formatInteger(value);
+
+    if (data.isCurrency) {
+      valueElement.innerHTML = formatCryptoValue(value);
+    } else {
+      valueElement.innerHTML = formatInteger(value);
+    }
 
     _renderPercentageValue(currentDataSet, value, totalValue);
   }
@@ -366,7 +373,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       return;
     }
 
-    const percentageValue = Math.round(value / totalValue * 100);
+    const percentageValue = totalValue ? Math.round(value / totalValue * 100) : 0;
     const percentageElement = dataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
 
     if (!percentageElement) {
@@ -407,8 +414,12 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       }
     });
 
-    if (data.isBars && data.isStacked) {
+    if ((data.isBars || data.isSteps) && data.isStacked) {
       _renderTotal(dataSetContainer, formatInteger(totalValue));
+    }
+
+    if (data.isCurrency) {
+      _renderCurrencyRate(dataSetContainer, formatCryptoValue(totalValue));
     }
 
     Array.from(dataSetContainer.querySelectorAll('[data-present="false"]'))
@@ -439,6 +450,28 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       valueElement.innerHTML = totalValue;
     }
   }
+
+  function _renderCurrencyRate(dataSetContainer, totalValue) {
+    const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
+
+    const totalUsd = (parseFloat(totalValue) * data.currencyRate).toFixed(2);
+
+    if (!totalText) {
+      const newTotalText = createElement();
+      newTotalText.className = 'lovely-chart--tooltip-dataset';
+      newTotalText.setAttribute('data-present', 'true');
+      newTotalText.setAttribute('data-total', 'true');
+      newTotalText.innerHTML = `<span>USD ≈</span><span class="${className}">$${totalUsd}</span>`;
+      dataSetContainer.appendChild(newTotalText);
+    } else {
+      totalText.setAttribute('data-present', 'true');
+
+      const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
+      valueElement.innerHTML = `$${totalUsd}`;
+    }
+  }
+
 
   function _hideBalloon() {
     _balloon.classList.remove('lovely-chart--state-shown');

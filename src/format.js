@@ -1,6 +1,17 @@
 import { MONTHS, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
 
-export function buildDayLabels(labels) {
+export function statsFormatDayHour(labels) {
+  return labels.map((value) => ({
+    value,
+    text: `${value}:00`,
+  }));
+}
+
+export function statsFormatDayHourFull(value) {
+  return `${value}:00`;
+}
+
+export function statsFormatDay(labels) {
   return labels.map((value) => {
     const date = new Date(value);
     const day = date.getDate();
@@ -13,20 +24,14 @@ export function buildDayLabels(labels) {
   });
 }
 
-export function buildTimeLabels(labels) {
-  return labels.map((value) => {
-    const date = new Date(value);
-    const hours = date.getUTCHours();
-    const minutes = date.getUTCMinutes();
-
-    return ({
-      value,
-      text: `${hours < 10 ? '0' : ''}${hours}:${minutes < 10 ? '0' : ''}${minutes}`,
-    });
-  });
+export function statsFormatMin(labels) {
+  return labels.map((value) => ({
+    value,
+    text: new Date(value).toString().match(/(\d+:\d+):/)[1],
+  }));
 }
 
-export function buildTextLabels(labels) {
+export function statsFormatText(labels) {
   return labels.map((value, i) => {
     return ({
       value: i,
@@ -57,6 +62,10 @@ export function formatInteger(n) {
   return String(n).replace(/\d(?=(\d{3})+$)/g, '$& ');
 }
 
+export function formatCryptoValue(n) {
+  return Number(n / 10 ** 9);
+}
+
 export function getFullLabelDate(label, { isShort = false } = {}) {
   return getLabelDate(label, { isShort, displayWeekDay: true });
 }
@@ -71,11 +80,15 @@ export function getLabelDate(label, { isShort = false, displayWeekDay = false, d
     string = `${weekDaysArray[date.getUTCDay()]}, ` + string;
   }
   if (displayYear) {
-    string += ` ${date.getUTCFullYear() + 1}`;
+    string += ` ${date.getUTCFullYear()}`;
   }
   if (displayHours) {
     string += `, ${('0' + date.getUTCHours()).slice(-2)}:${('0' + date.getUTCMinutes()).slice(-2)}`
   }
 
   return string;
+}
+
+export function getLabelTime(label) {
+  return new Date(label.value).toString().match(/(\d+:\d+):/)[1];
 }

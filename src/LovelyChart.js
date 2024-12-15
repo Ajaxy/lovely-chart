@@ -13,7 +13,6 @@ import { createProjection } from './Projection';
 import { drawDatasets } from './drawDatasets';
 import { createElement } from './minifiers';
 import { getFullLabelDate, getLabelDate } from './format';
-import { hideOnScroll } from './hideOnScroll';
 import {
   X_AXIS_HEIGHT,
   GUTTER,
@@ -53,7 +52,7 @@ function create(container, originalData) {
 
   function _setupComponents() {
     _setupContainer();
-    _header = createHeader(_element, _data.title, _onZoomOut);
+    _header = createHeader(_element, _data.title, _data.zoomOutLabel, _onZoomOut);
     _setupPlotCanvas();
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _axes = createAxes(_context, _data, _plotSize, _colors);
@@ -61,7 +60,7 @@ function create(container, originalData) {
     _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
     _tools = createTools(_element, _data, _onFilterChange);
     _zoomer = _data.isZoomable && createZoomer(_data, originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
-    hideOnScroll(_element);
+    // hideOnScroll(_element);
   }
 
   function _setupContainer() {
@@ -121,7 +120,9 @@ function create(container, originalData) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    _header.setCaption(_getCaption(state));
+    if (!_data.hideCaption) {
+      _header.setCaption(_getCaption(state));
+    }
 
     clearCanvas(_plot, _context);
 
@@ -151,7 +152,7 @@ function create(container, originalData) {
   }
 
   function _onFocus(focusOn) {
-    if (_data.isBars || _data.isPie) {
+    if (_data.isBars || _data.isPie || _data.isSteps) {
       // TODO animate
       _stateManager.update({ focusOn });
     }
@@ -204,7 +205,7 @@ function create(container, originalData) {
     return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex])
       ? (
         `${getLabelDate(_data.xLabels[startIndex])}` +
-        ' - ' +
+        ' — ' +
         `${getLabelDate(_data.xLabels[endIndex])}`
       )
       : getFullLabelDate(_data.xLabels[startIndex]);

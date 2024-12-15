@@ -20,7 +20,7 @@
   box-shadow: 0 1px 2px 1px rgba(211, 211, 211, 0.8);
   opacity: 0;
   transition: opacity 200ms ease-out;
-  cursor: pointer;
+  cursor: var(--custom-cursor, pointer);
   pointer-events: none;
 
   &.lovely-chart--state-shown {
@@ -29,7 +29,7 @@
   }
 
   &.lovely-chart--state-inactive {
-    cursor: default;
+    cursor: var(--custom-cursor, default);
 
     .lovely-chart--tooltip-title::after {
       display: none;
@@ -52,9 +52,8 @@
 
 .lovely-chart--tooltip-title {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: bold;
   position: relative;
-  height: 14px;
   padding-bottom: 5px;
 
   &::after {
@@ -79,14 +78,15 @@
 
   .lovely-chart--tooltip-dataset-value {
     float: right;
-    font-weight: 700;
+    font-weight: bold;
+    margin-left: 5px;
   }
 }
 
 .lovely-chart--percentage-title {
   display: inline-block;
-  font-weight: 700;
-  width: 25px;
+  font-weight: bold;
+  width: 35px;
   margin-right: 5px;
   text-align: right;
 
@@ -95,6 +95,6 @@
   }
 }
 
-html.dark .lovely-chart--tooltip-balloon {
+html.theme-dark .lovely-chart--tooltip-balloon {
   box-shadow: none;
 }

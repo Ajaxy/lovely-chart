@@ -1,5 +1,5 @@
 function detectSkin() {
-  return document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
+  return document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
 }
 
 let skin = detectSkin();

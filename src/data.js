@@ -1,8 +1,8 @@
 import { getMaxMin } from './utils';
-import { buildDayLabels, buildTimeLabels, buildTextLabels } from './format';
+import { statsFormatDay, statsFormatDayHour, statsFormatText, statsFormatMin } from './format';
 
 export function analyzeData(data) {
-  const { title, labelType, isStacked, isPercentage, hasSecondYAxis, onZoom } = data;
+  const { title, labelFormatter, tooltipFormatter, isStacked, isPercentage, isCurrency, currencyRate, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel } = data;
   const { datasets, labels } = prepareDatasets(data);
 
   const colors = {};
@@ -20,35 +20,51 @@ export function analyzeData(data) {
     }
   });
 
+  let effectiveLabelFormatter = labelFormatter;
+  if (isCurrency) {
+    effectiveLabelFormatter = 'statsFormat(\'day\')';
+  }
+
   let xLabels;
-  switch (labelType) {
-    case 'hour':
-      xLabels = buildTimeLabels(labels);
+  switch (effectiveLabelFormatter) {
+    case 'statsFormatDayHour':
+      xLabels = statsFormatDayHour(labels);
       break;
-    case 'text':
-      xLabels = buildTextLabels(labels);
+    case 'statsFormat(\'day\')':
+      xLabels = statsFormatDay(labels);
+      break;
+    case 'statsFormat(\'hour\')':
+    case 'statsFormat(\'5min\')':
+      xLabels = statsFormatMin(labels);
       break;
     default:
-      xLabels = buildDayLabels(labels);
+      xLabels = statsFormatText(labels);
       break;
   }
 
   const analyzed = {
     title,
-    labelType,
+    labelFormatter,
+    tooltipFormatter,
     xLabels,
     datasets,
     isStacked,
     isPercentage,
+    isCurrency,
+    currencyRate,
     hasSecondYAxis,
     onZoom,
     isLines: data.type === 'line',
     isBars: data.type === 'bar',
+    isSteps: data.type === 'step',
     isAreas: data.type === 'area',
     isPie: data.type === 'pie',
     yMin: totalYMin,
     yMax: totalYMax,
     colors,
+    minimapRange,
+    hideCaption,
+    zoomOutLabel,
   };
 
   analyzed.shouldZoomToPie = !analyzed.onZoom && analyzed.isPercentage;
