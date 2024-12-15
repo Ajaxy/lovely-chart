@@ -2,16 +2,15 @@
   font: 300 13px '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
   color: #222222;
   position: relative;
-  margin-bottom: 100px;
   text-align: left;
   overflow: hidden;
+  user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
-  -webkit-touch-callout: none;
 
-  &.lovely-chart--state-invisible > * {
-    display: none;
-  }
+  // &.lovely-chart--state-invisible > * {
+  //   display: none;
+  // }
 
   > canvas,
   .lovely-chart--tooltip canvas {
@@ -119,14 +118,6 @@
       transform: rotate(0);
     }
   }
-}
-
-html.cursor-ew-resize, html.cursor-ew-resize * {
-  cursor: ew-resize !important;
-}
-
-html.cursor-grabbing, html.cursor-grabbing * {
-  cursor: grabbing !important;
 }
 
 .lovely-chart--spinner {

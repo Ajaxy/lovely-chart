@@ -24,8 +24,8 @@ export function createZoomer(data, overviewData, colors, stateManager, container
       container.classList.add('lovely-chart--state-animating');
     }
 
-    const { value: date } = label;
-    const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(labelIndex)) : data.onZoom(date);
+    const { value } = label;
+    const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(labelIndex)) : data.onZoom(value);
     dataPromise.then((newData) => _replaceData(newData, labelIndex, label));
   }
 
@@ -52,6 +52,14 @@ export function createZoomer(data, overviewData, colors, stateManager, container
   }
 
   function _replaceData(newRawData, labelIndex, zoomInLabel) {
+    if (!newRawData) {
+      tooltip.toggleLoading(false);
+      tooltip.toggleIsZoomed(false);
+      header.toggleIsZooming(false);
+
+      return;
+    }
+
     tooltip.toggleLoading(false);
 
     const labelWidth = 1 / data.xLabels.length;
@@ -71,7 +79,8 @@ export function createZoomer(data, overviewData, colors, stateManager, container
 
     setTimeout(() => {
       Object.assign(data, newData);
-      if (shouldZoomToLines) {
+
+      if (shouldZoomToLines && newRawData.colors) {
         Object.assign(colors, createColors(newRawData.colors));
       }
 
@@ -111,10 +120,10 @@ export function createZoomer(data, overviewData, colors, stateManager, container
           filter = {};
           data.datasets.forEach(({ key }) => filter[key] = true);
         } else {
-          range = {
+          range = data.shouldZoomToPie ? {
             begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
             end: ZOOM_RANGE_MIDDLE + halfDayWidth,
-          };
+          } : newData.minimapRange;
           filter = _stateBeforeZoomIn.filter;
         }
       }

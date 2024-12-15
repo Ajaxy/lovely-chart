@@ -2,7 +2,7 @@ import { createElement, addEventListener } from './minifiers';
 import { toggleText } from './toggleText';
 import { throttle } from './utils';
 
-export function createHeader(container, title, zoomOutCallback) {
+export function createHeader(container, title, zoomOutLabel = 'Zoom out', zoomOutCallback) {
   let _element;
   let _titleElement;
   let _zoomOutElement;
@@ -22,7 +22,7 @@ export function createHeader(container, title, zoomOutCallback) {
   }
 
   function zoom(caption) {
-    _zoomOutElement = toggleText(_titleElement, 'Zoom Out', 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
+    _zoomOutElement = toggleText(_titleElement, zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
     setTimeout(() => {
       addEventListener(_zoomOutElement, 'click', _onZoomOut);
     }, 500);
@@ -52,6 +52,7 @@ export function createHeader(container, title, zoomOutCallback) {
 
   function _onZoomOut() {
     _titleElement = toggleText(_zoomOutElement, title, 'lovely-chart--header-title', true);
+    _titleElement.classList.remove('lovely-chart--transition');
 
     zoomOutCallback();
   }

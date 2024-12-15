@@ -31,7 +31,7 @@ export function createMinimap(container, data, colors, rangeCallback) {
   const _updateRulerOnRaf = throttleWithRaf(_updateRuler);
 
   _setupLayout();
-  _updateRange(DEFAULT_RANGE);
+  _updateRange(data.minimapRange || DEFAULT_RANGE);
 
   function update(newState) {
     const { begin, end } = newState;

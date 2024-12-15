@@ -1,6 +1,6 @@
 .lovely-chart--header {
   height: 30px;
-  font-weight: 600;
+  font-weight: bold;
   margin: 0 10px;
 
   &-title, &-caption {
@@ -17,6 +17,12 @@
   &-title {
     font-size: 16px;
     float: left;
+    margin-right: 2em;
+    text-transform: lowercase;
+
+    &:first-letter {
+      text-transform: uppercase;
+    }
   }
 
   &-caption {
@@ -29,7 +35,8 @@
     display: flex;
     align-items: center;
     color: var(--zoom-out-text);
-    cursor: pointer;
+    cursor: var(--custom-cursor, pointer);
+    text-transform: none;
 
     &::before {
       content: '';
