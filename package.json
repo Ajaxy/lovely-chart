@@ -11,8 +11,8 @@
     "examples": "npm run build && cp -R ./dist/* docs/"
   },
   "devDependencies": {
-    "cssnano": "^4.1.10",
-    "sass": "^1.21.0"
+    "cssnano": "^4.1.11",
+    "sass": "^1.83.0"
   },
   "repository": {
     "type": "git",
