@@ -1,7 +1,7 @@
 import { setupCanvas, clearCanvas } from './canvas.js';
 import { BALLOON_OFFSET, X_AXIS_HEIGHT } from './constants.js';
 import { getPieRadius } from './formulas.js';
-import {formatCryptoValue, formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull} from './format.js';
+import { formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull } from './format.js';
 import { getCssColor } from './skin.js';
 import { throttle, throttleWithRaf } from './utils.js';
 import { addEventListener, createElement } from './minifiers.js';
@@ -354,11 +354,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
     const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${data.colors[key].slice(1)}:not(.lovely-chart--state-hidden)`);
 
-    if (data.isCurrency) {
-      valueElement.innerHTML = formatCryptoValue(value);
-    } else {
-      valueElement.innerHTML = formatInteger(value);
-    }
+    valueElement.innerHTML = formatInteger(value);
 
     _renderPercentageValue(currentDataSet, value, totalValue);
   }
@@ -421,8 +417,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       _renderTotal(dataSetContainer, formatInteger(totalValue));
     }
 
-    if (data.isCurrency) {
-      _renderCurrencyRate(dataSetContainer, formatCryptoValue(totalValue));
+    if (data.secondaryYAxis) {
+      _renderSecondaryTotal(dataSetContainer, totalValue);
     }
 
     Array.from(dataSetContainer.querySelectorAll('[data-present="false"]'))
@@ -454,24 +450,25 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
   }
 
-  function _renderCurrencyRate(dataSetContainer, totalValue) {
+  function _renderSecondaryTotal(dataSetContainer, totalValue) {
+    const { label, multiplier, prefix = '', suffix = '' } = data.secondaryYAxis;
     const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
     const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
 
-    const totalUsd = (parseFloat(totalValue) * data.currencyRate).toFixed(2);
+    const secondaryValue = (totalValue * multiplier).toFixed(2);
 
     if (!totalText) {
       const newTotalText = createElement();
       newTotalText.className = 'lovely-chart--tooltip-dataset';
       newTotalText.setAttribute('data-present', 'true');
       newTotalText.setAttribute('data-total', 'true');
-      newTotalText.innerHTML = `<span>USD ≈</span><span class="${className}">$${totalUsd}</span>`;
+      newTotalText.innerHTML = `<span>${label}</span><span class="${className}">${prefix}${secondaryValue}${suffix}</span>`;
       dataSetContainer.appendChild(newTotalText);
     } else {
       totalText.setAttribute('data-present', 'true');
 
       const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
-      valueElement.innerHTML = `$${totalUsd}`;
+      valueElement.innerHTML = `${prefix}${secondaryValue}${suffix}`;
     }
   }
 
