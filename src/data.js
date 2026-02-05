@@ -1,8 +1,17 @@
-import { getMaxMin } from './utils';
-import { statsFormatDay, statsFormatDayHour, statsFormatText, statsFormatMin } from './format';
+import { getMaxMin } from './utils.js';
+import { statsFormatDay, statsFormatDayHour, statsFormatText, statsFormatMin } from './format.js';
+
+const LABEL_TYPE_TO_FORMATTER = {
+  'day': "statsFormat('day')",
+  'hour': "statsFormat('hour')",
+  '5min': "statsFormat('5min')",
+  'dayHour': 'statsFormatDayHour',
+  'text': undefined,
+};
 
 export function analyzeData(data) {
-  const { title, labelFormatter, tooltipFormatter, isStacked, isPercentage, isCurrency, currencyRate, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel } = data;
+  const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, isCurrency, currencyRate, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel } = data;
+  const labelFormatter = labelFormatterRaw || (labelType && LABEL_TYPE_TO_FORMATTER[labelType]);
   const { datasets, labels } = prepareDatasets(data);
 
   const colors = {};

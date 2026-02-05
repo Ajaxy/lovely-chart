@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const data = await Promise.all([
       fetchJson('./data/lines.json'),
       fetchJson('./data/bars.json'),
+      fetchJson('./data/areas-absolute.json'),
       fetchJson('./data/areas.json'),
       fetchJson('./data/pie.json'),
     ]);
@@ -34,10 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('skin-switcher').addEventListener('click', (e) => {
     e.preventDefault();
 
-    document.documentElement.classList.toggle('dark');
+    document.documentElement.classList.toggle('theme-dark');
     document.documentElement.dispatchEvent(new Event('darkmode'));
 
-    const skin = document.documentElement.classList.contains('dark') ? 'skin-night' : 'skin-day';
+    const skin = document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
     e.target.innerText = `Switch to ${(skin === 'skin-night') ? 'Day' : 'Night'} Mode`;
   });
 });

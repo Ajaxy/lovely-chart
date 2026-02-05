@@ -8,7 +8,7 @@ html {
   text-align: center;
 }
 
-html.dark {
+html.theme-dark {
   color: white;
   background: #242F3E;
 }

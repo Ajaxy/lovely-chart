@@ -1,11 +1,11 @@
-import { setupCanvas, clearCanvas } from './canvas';
-import { BALLOON_OFFSET, X_AXIS_HEIGHT } from './constants';
-import { getPieRadius } from './formulas';
-import {formatCryptoValue, formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull} from './format';
-import { getCssColor } from './skin';
-import { throttle, throttleWithRaf } from './utils';
-import { addEventListener, createElement } from './minifiers';
-import { toPixels } from './Projection';
+import { setupCanvas, clearCanvas } from './canvas.js';
+import { BALLOON_OFFSET, X_AXIS_HEIGHT } from './constants.js';
+import { getPieRadius } from './formulas.js';
+import {formatCryptoValue, formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull} from './format.js';
+import { getCssColor } from './skin.js';
+import { throttle, throttleWithRaf } from './utils.js';
+import { addEventListener, createElement } from './minifiers.js';
+import { toPixels } from './Projection.js';
 
 export function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
   let _state;
@@ -402,7 +402,9 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
     const totalValue = statistics.reduce((a, x) => a + x.value, 0);
     const pointerVector = getPointerVector();
-    const finalStatistics = data.isPie ? statistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : statistics;
+    const filteredStatistics = statistics.filter(({ value }) => value !== 0);
+    const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
+    const finalStatistics = data.isPie ? sortedStatistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : sortedStatistics;
 
     finalStatistics.forEach((statItem) => {
       const currentDataSet = dataSetContainer.querySelector(`[data-name="${statItem.name}"]`);
@@ -411,6 +413,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         _insertNewDataSet(dataSetContainer, statItem, totalValue);
       } else {
         _updateDataSet(currentDataSet, statItem, totalValue);
+        dataSetContainer.appendChild(currentDataSet);
       }
     });
 

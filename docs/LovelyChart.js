@@ -1,52 +1,2495 @@
-parcelRequire=function(e,r,t,n){var i,o="function"==typeof parcelRequire&&parcelRequire,u="function"==typeof require&&require;function f(t,n){if(!r[t]){if(!e[t]){var i="function"==typeof parcelRequire&&parcelRequire;if(!n&&i)return i(t,!0);if(o)return o(t,!0);if(u&&"string"==typeof t)return u(t);var c=new Error("Cannot find module '"+t+"'");throw c.code="MODULE_NOT_FOUND",c}p.resolve=function(r){return e[t][1][r]||r},p.cache={};var l=r[t]=new f.Module(t);e[t][0].call(l.exports,p,l,l.exports,this)}return r[t].exports;function p(e){return f(p.resolve(e))}}f.isParcelRequire=!0,f.Module=function(e){this.id=e,this.bundle=f,this.exports={}},f.modules=e,f.cache=r,f.parent=o,f.register=function(r,t){e[r]=[function(e,r){r.exports=t},{}]};for(var c=0;c<t.length;c++)try{f(t[c])}catch(e){i||(i=e)}if(t.length){var l=f(t[t.length-1]);"object"==typeof exports&&"undefined"!=typeof module?module.exports=l:"function"==typeof define&&define.amd?define(function(){return l}):n&&(this[n]=l)}if(parcelRequire=f,i)throw i;return f}({"iJA9":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.ANIMATE_PROPS=exports.SIMPLIFIER_MINIMAP_FACTOR=exports.SIMPLIFIER_PLOT_FACTOR=exports.SIMPLIFIER_MIN_POINTS=exports.SPEED_TEST_FAST_FPS=exports.SPEED_TEST_INTERVAL=exports.MILISECONDS_IN_DAY=exports.WEEK_DAYS_SHORT=exports.WEEK_DAYS=exports.MONTHS_SHORT=exports.MONTHS=exports.ZOOM_RANGE_MIDDLE=exports.ZOOM_RANGE_DELTA=exports.ZOOM_TIMEOUT=exports.MINIMAP_MAX_ANIMATED_DATASETS=exports.MINIMAP_EAR_WIDTH=exports.MINIMAP_LINE_WIDTH=exports.MINIMAP_MARGIN=exports.MINIMAP_HEIGHT=exports.Y_AXIS_ZERO_BASED_THRESHOLD=exports.X_AXIS_SHIFT_START=exports.X_AXIS_HEIGHT=exports.AXES_MAX_ROW_HEIGHT=exports.AXES_MAX_COLUMN_WIDTH=exports.AXES_FONT=exports.BALLOON_OFFSET=exports.PLOT_BARS_WIDTH_SHIFT=exports.PLOT_PIE_SHIFT=exports.PLOT_PIE_RADIUS_FACTOR=exports.PLOT_LINE_WIDTH=exports.PLOT_TOP_PADDING=exports.PLOT_HEIGHT=exports.GUTTER=exports.LONG_PRESS_TIMEOUT=exports.TRANSITION_DEFAULT_DURATION=exports.DEFAULT_RANGE=exports.DPR=void 0;var r=window.devicePixelRatio||1;exports.DPR=r;var _={begin:.8,end:1};exports.DEFAULT_RANGE=_;var e=300;exports.TRANSITION_DEFAULT_DURATION=e;var I=500;exports.LONG_PRESS_TIMEOUT=I;var T=10;exports.GUTTER=T;var o=320;exports.PLOT_HEIGHT=o;var A=15;exports.PLOT_TOP_PADDING=A;var t=2;exports.PLOT_LINE_WIDTH=t;var s=.45;exports.PLOT_PIE_RADIUS_FACTOR=s;var S=10;exports.PLOT_PIE_SHIFT=S;var E=.5;exports.PLOT_BARS_WIDTH_SHIFT=E;var p=20;exports.BALLOON_OFFSET=p;var x="300 10px Helvetica, Arial, sans-serif";exports.AXES_FONT=x;var M=45;exports.AXES_MAX_COLUMN_WIDTH=M;var O=50;exports.AXES_MAX_ROW_HEIGHT=O;var a=30;exports.X_AXIS_HEIGHT=a;var N=1;exports.X_AXIS_SHIFT_START=N;var P=.1;exports.Y_AXIS_ZERO_BASED_THRESHOLD=P;var R=40;exports.MINIMAP_HEIGHT=R;var D=10;exports.MINIMAP_MARGIN=D;var L=1;exports.MINIMAP_LINE_WIDTH=L;var H=8;exports.MINIMAP_EAR_WIDTH=H;var v=4;exports.MINIMAP_MAX_ANIMATED_DATASETS=v;var F=e;exports.ZOOM_TIMEOUT=F;var i=.1;exports.ZOOM_RANGE_DELTA=i;var n=.5;exports.ZOOM_RANGE_MIDDLE=n;var d=["January","February","March","April","May","June","July","August","September","October","November","December"];exports.MONTHS=d;var y=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];exports.MONTHS_SHORT=y;var G=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];exports.WEEK_DAYS=G;var X=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];exports.WEEK_DAYS_SHORT=X;var u=864e5;exports.MILISECONDS_IN_DAY=u;var c=200;exports.SPEED_TEST_INTERVAL=c;var W=4;exports.SPEED_TEST_FAST_FPS=W;var l=1e3;exports.SIMPLIFIER_MIN_POINTS=l;var U=1;exports.SIMPLIFIER_PLOT_FACTOR=U;var b=.5;exports.SIMPLIFIER_MINIMAP_FACTOR=b;var C=["begin 200 fast","end 200 fast","labelFromIndex 200 fast floor","labelToIndex 200 fast ceil","xAxisScale 400","yMinViewport","yMaxViewport","yMinViewportSecond","yMaxViewportSecond","yMinMinimap","yMaxMinimap","yMinMinimapSecond","yMaxMinimapSecond","yAxisScale","yAxisScaleSecond"];exports.ANIMATE_PROPS=C;
-},{}],"qGqp":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.createTransitionManager=e;var n=require("./constants");function t(n){return 1-Math.pow(1-n,1.675)}function e(e){var r={},o=null,a=null,u=null,c=null,i=null,l=null;function s(n){delete r[n],f()||(cancelAnimationFrame(o),o=null)}function f(){return Boolean(Object.keys(r).length)}function d(t){return!(!t&&(l||i))&&(null===u||u>=n.SPEED_TEST_FAST_FPS)}function m(){var l=!d();!a||Date.now()-a>=n.SPEED_TEST_INTERVAL?(c&&(u=c,i||d(!0)||(i=Date.now())),a=Date.now(),c=0):c++;var T={};Object.keys(r).forEach(function(e){var o=r[e],a=o.startedAt,u=o.from,c=o.to,i=o.duration,l=void 0===i?n.TRANSITION_DEFAULT_DURATION:i,f=o.options,d=Math.min(1,(Date.now()-a)/l),m=u+(c-u)*t(d);f.includes("ceil")?m=Math.ceil(m):f.includes("floor")&&(m=Math.floor(m)),r[e].current=m,r[e].progress=d,T[e]=m,1===d&&s(e)}),l||e(T),f()&&(o=requestAnimationFrame(m))}return{add:function(n,t,e,u,s){r[n]={from:t,to:e,duration:u,options:s,current:t,startedAt:Date.now(),progress:0},o||(a=null,c=null,i&&Date.now()-i>5e3&&(i=null),l=Boolean(i)||!d(!0),o=requestAnimationFrame(m))},remove:s,get:function(n){return r[n]},getState:function(){var n={};return Object.keys(r).forEach(function(t){var e=r[t],o=e.current,a=e.from,u=e.to,c=e.progress;n[t]=o,n["".concat(t,"From")]=a,n["".concat(t,"To")]=u,n["".concat(t,"Progress")]=c}),n},isRunning:f,isFast:d}}
-},{"./constants":"iJA9"}],"FOZT":[function(require,module,exports) {
-"use strict";function r(r){return e(r)||n(r)||t()}function t(){throw new TypeError("Invalid attempt to spread non-iterable instance")}function n(r){if(Symbol.iterator in Object(r)||"[object Arguments]"===Object.prototype.toString.call(r))return Array.from(r)}function e(r){if(Array.isArray(r)){for(var t=0,n=new Array(r.length);t<r.length;t++)n[t]=r[t];return n}}function o(r){for(var t=r.length,n=r[0],e=r[0],o=0;o<t;o++){var i=r[o];i>n?n=i:i<e&&(e=i)}return{max:n,min:e}}function i(r){return[].concat.apply([],r)}function u(r){for(var t=[],n=r.length,e=0,o=r[0].length;e<o;e++){t[e]=0;for(var i=0;i<n;i++)t[e]+=r[i][e]}return t}function a(r,t){return new Proxy({},{get:function(n,e){return void 0!==n[e]?n[e]:void 0!==t[e]?t[e]:r[e]}})}function l(t,n){var e,o,i=!(arguments.length>2&&void 0!==arguments[2])||arguments[2],u=!(arguments.length>3&&void 0!==arguments[3])||arguments[3],a=!1;return function(){for(var l=arguments.length,c=new Array(l),f=0;f<l;f++)c[f]=arguments[f];e=c,o=!0,a||(i&&(o=!1,t.apply(void 0,r(e))),a=!0,setTimeout(function(){a=!1,u&&o&&t.apply(void 0,r(e))},n))}}function c(t){var n,e=!1;return function(){for(var o=arguments.length,i=new Array(o),u=0;u<o;u++)i[u]=arguments[u];n=i,e||(e=!0,requestAnimationFrame(function(){e=!1,t.apply(void 0,r(n))}))}}function f(r,t){var n=!(arguments.length>2&&void 0!==arguments[2])||arguments[2],e=!(arguments.length>3&&void 0!==arguments[3])||arguments[3],o=null;return function(){o?(clearTimeout(o),o=null):n&&r(),o=setTimeout(function(){e&&r(),o=null},t)}}Object.defineProperty(exports,"__esModule",{value:!0}),exports.getMaxMin=o,exports.mergeArrays=i,exports.sumArrays=u,exports.proxyMerge=a,exports.throttle=l,exports.throttleWithRaf=c,exports.debounce=f;
-},{}],"UAP7":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.xScaleLevelToStep=i,exports.xStepToScaleLevel=a,exports.yScaleLevelToStep=c,exports.yStepToScaleLevel=p,exports.applyYEdgeOpacity=l,exports.applyXEdgeOpacity=f,exports.getPieRadius=s,exports.getPieTextSize=T,exports.getPieTextShift=S,exports.isDataRange=h,exports.getSimplificationDelta=x;var e=require("./constants");function t(e){return o(e)||r(e)||n()}function n(){throw new TypeError("Invalid attempt to spread non-iterable instance")}function r(e){if(Symbol.iterator in Object(e)||"[object Arguments]"===Object.prototype.toString.call(e))return Array.from(e)}function o(e){if(Array.isArray(e)){for(var t=0,n=new Array(e.length);t<e.length;t++)n[t]=e[t];return n}}function i(e){return Math.pow(2,e)}function a(e){return Math.ceil(Math.log2(e||1))}var u=[1,2,8,18,50,100,250,500,1e3,2500,5e3,1e4,25e3,5e4,1e5,25e4,5e5,1e6,25e5,5e6,1e7,25e6,5e7,1e8];function c(e){return u[e]||u[u.length-1]}function p(e){return u.findIndex(function(t){return t>=e})||u.length-1}function l(t,n,r){var o=Math.min(n+e.GUTTER,r-n);return o<=4*e.GUTTER&&(t=Math.min(1,t,o/(4*e.GUTTER))),t}function f(t,n){return n-e.GUTTER<=2*e.GUTTER?Math.min(1,t,(n-e.GUTTER)/(2*e.GUTTER)):t}function s(n){return Math.min.apply(Math,t(n.getSize()))*e.PLOT_PIE_RADIUS_FACTOR}function T(e,t){return(t+150*e)/8}function S(e,t,n){return e>=.99?0:Math.min(1-Math.log(30*e)/5,.8)*t}function h(t,n){return Math.abs(n.value-t.value)>e.MILISECONDS_IN_DAY}function x(t){return t>=e.SIMPLIFIER_MIN_POINTS?Math.min(t/1e3,1):0}
-},{"./constants":"iJA9"}],"jzbJ":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.createStateManager=s;var e=require("./TransitionManager"),i=require("./utils"),t=require("./constants"),n=require("./formulas");function a(e){return c(e)||o(e)||r()}function r(){throw new TypeError("Invalid attempt to destructure non-iterable instance")}function o(e){if(Symbol.iterator in Object(e)||"[object Arguments]"===Object.prototype.toString.call(e))return Array.from(e)}function c(e){if(Array.isArray(e))return e}function s(n,r,o){var c,s,M,p={begin:0,end:1},y=(c={},n.datasets.forEach(function(e){var i=e.key;c[i]=!0}),c),l=(s=[],M=n.datasets.map(function(e){var i=e.key;return"opacity#".concat(i," 300")}),(0,i.mergeArrays)([t.ANIMATE_PROPS,M]).forEach(function(e){var i=a(e.split(" ")),t=i[0],n=i[1],r=i.slice(2);s.push({prop:t,duration:n,options:r})}),s),f=(0,e.createTransitionManager)(v),d=(0,i.throttleWithRaf)(v),m={};function v(){var e=f.isFast()?(0,i.proxyMerge)(m,f.getState()):m;e.static=m,o(e)}return{update:function(){var e=arguments.length>0&&void 0!==arguments[0]?arguments[0]:{},i=e.range,t=void 0===i?{}:i,a=e.filter,o=void 0===a?{}:a,c=e.focusOn,s=e.minimapDelta,M=arguments.length>1?arguments[1]:void 0;Object.assign(p,t),Object.assign(y,o);var v=m;m=u(n,r,p,y,c,s,v),M||l.forEach(function(e){var i=e.prop,t=e.duration,n=e.options,a=f.get(i),r=a?a.to:v[i];if(void 0!==r&&r!==m[i]){var o=a?n.includes("fast")?v[i]:a.current:v[i];a&&f.remove(i),f.add(i,o,m[i],t,n)}}),f.isRunning()&&f.isFast()||d()},hasAnimations:function(){return f.isFast()}}}function u(e,i,t,a,r,o,c){var s=t.begin,u=t.end,p=e.xLabels.length-1,d=Math.max(0,Math.ceil(p*s)),m=Math.min(Math.floor(p*u),p),v=l(i.width,d,m),x=e.isStacked?y(e,a,d,m,c):M(e,a,d,m,c),S=f(i.height,x.yMinViewport,x.yMaxViewport),g=e.hasSecondYAxis&&f(i.height,x.yMinViewportSecond,x.yMaxViewportSecond),h=(0,n.yScaleLevelToStep)(S);if(x.yMinViewport-=x.yMinViewport%h,g){var A=(0,n.yScaleLevelToStep)(g);x.yMinViewportSecond-=x.yMinViewportSecond%A}var w={};return e.datasets.forEach(function(e){var i=e.key;w["opacity#".concat(i)]=a[i]?1:0}),Object.assign({totalXWidth:p,xAxisScale:v,yAxisScale:S,yAxisScaleSecond:g,labelFromIndex:Math.max(0,d-1),labelToIndex:Math.min(m+1,p),filter:Object.assign({},a),focusOn:void 0!==r?r:c.focusOn,minimapDelta:void 0!==o?o:c.minimapDelta},x,w,t)}function M(e,i,t,n,a){var r=e.hasSecondYAxis&&e.datasets.slice(-1)[0],o=e.datasets.filter(function(e){return i[e.key]&&e!==r}),c=p(e,t,n,a,o);if(r){i[r.key];var s=p(e,t,n,a,[r]),u=s.yMinViewport,M=s.yMaxViewport,y=s.yMinMinimap,l=s.yMaxMinimap;Object.assign(c,{yMinViewportSecond:u,yMaxViewportSecond:M,yMinMinimapSecond:y,yMaxMinimapSecond:l})}return c}function p(e,n,a,r,o){var c,s,u=(0,i.getMaxMin)((0,i.mergeArrays)(o.map(function(e){return[e.yMax,e.yMin]}))),M=u.min,p=void 0===M?r.yMinMinimap:M,y=u.max,l=void 0===y?r.yMaxMinimap:y,f=p/l>t.Y_AXIS_ZERO_BASED_THRESHOLD?p:0;if(0===n&&a===e.xLabels.length-1)c=f,s=l;else{var d=o.map(function(e){return e.values}).map(function(e){return e.slice(n,a+1)}),m=(0,i.getMaxMin)((0,i.mergeArrays)(d)),v=void 0!==m.min?m.min:r.yMinViewport;c=v/(s=void 0!==m.max?m.max:r.yMaxViewport)>t.Y_AXIS_ZERO_BASED_THRESHOLD?v:0}return{yMinViewport:c,yMaxViewport:s,yMinMinimap:f,yMaxMinimap:l}}function y(e,t,n,a,r){var o=e.datasets.filter(function(e){return t[e.key]}).map(function(e){return e.values}),c=o.length?(0,i.sumArrays)(o):[],s=(0,i.getMaxMin)(c).max,u=void 0===s?r.yMaxMinimap:s,M=(0,i.getMaxMin)(c.slice(n,a+1)).max;return{yMinViewport:0,yMaxViewport:void 0===M?r.yMaxViewport:M,yMinMinimap:0,yMaxMinimap:u}}function l(e,i,a){var r=a-i,o=Math.floor(e/t.AXES_MAX_COLUMN_WIDTH);return(0,n.xStepToScaleLevel)(r/o)}function f(e,i,a){var r=e-t.X_AXIS_HEIGHT,o=a-i,c=Math.floor(r/t.AXES_MAX_ROW_HEIGHT);return(0,n.yStepToScaleLevel)(o/c)}
-},{"./TransitionManager":"qGqp","./utils":"FOZT","./constants":"iJA9","./formulas":"UAP7"}],"tnAp":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.addEventListener=t,exports.removeEventListener=n,exports.createElement=void 0;var e=function(){var e=arguments.length>0&&void 0!==arguments[0]?arguments[0]:"div";return document.createElement(e)};function t(e,t,n){e.addEventListener(t,n)}function n(e,t,n){e.removeEventListener(t,n)}exports.createElement=e;
-},{}],"J6mi":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.toggleText=e;var t=require("./minifiers");function e(e,s){var l=arguments.length>2&&void 0!==arguments[2]?arguments[2]:"",i=arguments.length>3&&void 0!==arguments[3]&&arguments[3],r=e.parentNode;r.classList.add("lovely-chart--transition-container");var n=(0,t.createElement)(e.tagName);n.className="".concat(l," lovely-chart--transition lovely-chart--position-").concat(i?"top":"bottom"," lovely-chart--state-hidden"),n.innerHTML=s;var c=l.length?".".concat(l.split(" ").join(".")):"";return r.querySelectorAll("".concat(c,".lovely-chart--state-hidden")).forEach(function(t){return t.remove()}),e.classList.add("lovely-chart--transition"),e.classList.remove("lovely-chart--position-bottom","lovely-chart--position-top"),e.classList.add(i?"lovely-chart--position-bottom":"lovely-chart--position-top"),r.insertBefore(n,e.nextSibling),a(n),o(e),n}function a(t){t.classList.remove("lovely-chart--state-animated"),t.classList.add("lovely-chart--state-animated"),t.classList.remove("lovely-chart--state-hidden")}function o(t){t.classList.remove("lovely-chart--state-animated"),t.classList.add("lovely-chart--state-animated"),t.classList.add("lovely-chart--state-hidden")}
-},{"./minifiers":"tnAp"}],"iNXs":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.createHeader=l;var e=require("./minifiers"),t=require("./toggleText"),r=require("./utils");function l(l,o,a){var i,n,c,h,d=(0,r.throttle)(s,400,!1,!0);function s(e){h.innerHTML?h.innerHTML!==e&&(h=(0,t.toggleText)(h,e,"lovely-chart--header-caption lovely-chart--position-right")):h.innerHTML=e}function p(){n=(0,t.toggleText)(c,o,"lovely-chart--header-title",!0),a()}return(i=(0,e.createElement)()).className="lovely-chart--header",(n=(0,e.createElement)()).className="lovely-chart--header-title",n.innerHTML=o,i.appendChild(n),(h=(0,e.createElement)()).className="lovely-chart--header-caption lovely-chart--position-right",i.appendChild(h),l.appendChild(i),{setCaption:d,zoom:function(r){c=(0,t.toggleText)(n,"Zoom Out","lovely-chart--header-title lovely-chart--header-zoom-out-control"),(0,e.addEventListener)(c,"click",p),s(r)}}}
-},{"./minifiers":"tnAp","./toggleText":"J6mi","./utils":"FOZT"}],"YgZ9":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.buildDayLabels=t,exports.buildTimeLabels=n,exports.buildTextLabels=r,exports.humanize=a,exports.formatInteger=c,exports.getFullLabelDate=u,exports.getLabelDate=i;var e=require("./constants");function t(t){return t.map(function(t){var n=new Date(t),r=n.getDate(),a=e.MONTHS_SHORT[n.getMonth()];return{value:t,text:"".concat(r," ").concat(a)}})}function n(e){return e.map(function(e){var t=new Date(e),n=t.getUTCHours(),r=t.getUTCMinutes();return{value:e,text:"".concat(n<10?"0":"").concat(n,":").concat(r<10?"0":"").concat(r)}})}function r(e){return e.map(function(e,t){return{value:t,text:e}})}function a(e){var t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:1;return e>=1e6?o(e/1e6,t)+"M":e>=1e3?o(e/1e3,t)+"K":e}function o(e,t){return e.toFixed(t).replace(/(\d{3,})\.\d+/,"$1").replace(/\.0+$/,"")}function c(e){return String(e).replace(/\d(?=(\d{3})+$)/g,"$& ")}function u(e){var t=(arguments.length>1&&void 0!==arguments[1]?arguments[1]:{}).isShort;return i(e,{isShort:void 0!==t&&t,displayWeekDay:!0})}function i(t){var n=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{},r=n.isShort,a=void 0!==r&&r,o=n.displayWeekDay,c=void 0!==o&&o,u=n.displayYear,i=void 0===u||u,l=n.displayHours,s=void 0!==l&&l,d=t.value,p=new Date(d),v=a?e.MONTHS_SHORT:e.MONTHS,g=a?e.WEEK_DAYS_SHORT:e.WEEK_DAYS,T="".concat(p.getUTCDate()," ").concat(v[p.getUTCMonth()]);return c&&(T="".concat(g[p.getUTCDay()],", ")+T),i&&(T+=" ".concat(p.getUTCFullYear())),s&&(T+=", ".concat(("0"+p.getUTCHours()).slice(-2),":").concat(("0"+p.getUTCMinutes()).slice(-2))),T}
-},{"./constants":"iJA9"}],"Zr5j":[function(require,module,exports) {
-"use strict";function t(t,c){return n(t)||o(t,c)||e()}function e(){throw new TypeError("Invalid attempt to destructure non-iterable instance")}function o(t,e){if(Symbol.iterator in Object(t)||"[object Arguments]"===Object.prototype.toString.call(t)){var o=[],n=!0,c=!1,r=void 0;try{for(var a,i=t[Symbol.iterator]();!(n=(a=i.next()).done)&&(o.push(a.value),!e||o.length!==e);n=!0);}catch(l){c=!0,r=l}finally{try{n||null==i.return||i.return()}finally{if(c)throw r}}return o}}function n(t){if(Array.isArray(t))return t}function c(){return document.documentElement.classList.contains("dark")?"skin-night":"skin-day"}Object.defineProperty(exports,"__esModule",{value:!0}),exports.createColors=s,exports.getCssColor=u;var r=c(),a={"skin-day":{background:"#FFFFFF","text-color":"#222222","minimap-mask":"#E2EEF9/0.6","minimap-slider":"#C0D1E1","grid-lines":"#182D3B/0.1","zoom-out-text":"#108BE3","tooltip-background":"#FFFFFF","tooltip-arrow":"#D2D5D7",mask:"#FFFFFF/0.5","x-axis-text":"#252529/0.6","y-axis-text":"#252529/0.6"},"skin-night":{background:"#242F3E","text-color":"#FFFFFF","minimap-mask":"#304259/0.6","minimap-slider":"#56626D","grid-lines":"#FFFFFF/0.1","zoom-out-text":"#48AAF0","tooltip-background":"#1c2533","tooltip-arrow":"#D2D5D7",mask:"#242F3E/0.5","x-axis-text":"#A3B1C2/0.6","y-axis-text":"#A3B1C2/0.6"}},i=document.createElement("style");i.type="text/css",i.appendChild(document.createTextNode("")),document.head.appendChild(i);var l=i.sheet;function s(t){var e={},o=".lovely-chart--color";return["skin-day","skin-night"].forEach(function(n){e[n]={},Object.keys(a[n]).forEach(function(t){e[n][t]=d(a[n][t])}),Object.keys(t).forEach(function(c){e[n]["dataset#".concat(c)]=d(t[c]),m(l,".lovely-chart--tooltip-dataset-value".concat(o,"-").concat(t[c].slice(1)),"color: ".concat(t[c])),m(l,".lovely-chart--button".concat(o,"-").concat(t[c].slice(1)),"border-color: ".concat(t[c],"; color: ").concat(t[c])),m(l,".lovely-chart--button.lovely-chart--state-checked".concat(o,"-").concat(t[c].slice(1)),"background-color: ".concat(t[c]))})}),e}function u(t,e,o){return F(t[r][e],o)}function d(e){var o=t(e.replace("#","").split("/"),2),n=o[0],c=o[1];return[parseInt(n.slice(0,2),16),parseInt(n.slice(2,4),16),parseInt(n.slice(4,6),16),c?parseFloat(c):1]}function F(e){var o=t(e,4),n=o[0],c=o[1],r=o[2],a=o[3],i=void 0===a?1:a,l=arguments.length>1&&void 0!==arguments[1]?arguments[1]:1;return"rgba(".concat(n,", ").concat(c,", ").concat(r,", ").concat(i*l,")")}function m(t,e,o){t.insertRule("".concat(e," { ").concat(o," }"),t.cssRules.length)}document.documentElement.addEventListener("darkmode",function(){r=c()});
-},{}],"vPHW":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.createProjection=e,exports.toPixels=r;var t=require("./utils");function e(r){var n=r.begin,a=r.end,i=r.totalXWidth,o=r.yMin,u=r.yMax,f=r.availableWidth,c=r.availableHeight,x=r.xPadding,l=void 0===x?0:x,s=r.yPadding,d=f;0===n&&(d-=l),1===a&&(d-=l);var g=d/((a-n)*i),v=n*i*g;0===n&&(v-=l);var y=c-(void 0===s?0:s),P=y/(u-o),b=o*P;return{findClosestLabelIndex:function(t){return Math.round((t+v)/g)},copy:function(n,a){return e((0,t.proxyMerge)(r,n),a)},getCenter:function(){return[f/2,c-y/2]},getSize:function(){return[f,y]},getParams:function(){return r},getState:function(){return{xFactor:g,xOffsetPx:v,availableHeight:c,yFactor:P,yOffsetPx:b}}}}function r(t,e,r){var n=t.getState();return[e*n.xFactor-n.xOffsetPx,n.availableHeight-(r*n.yFactor-n.yOffsetPx)]}
-},{"./utils":"FOZT"}],"ysRd":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.createAxes=d;var e=require("./constants"),t=require("./format"),o=require("./skin"),i=require("./formulas"),r=require("./Projection");function n(e,t){return s(e)||a(e,t)||l()}function l(){throw new TypeError("Invalid attempt to destructure non-iterable instance")}function a(e,t){if(Symbol.iterator in Object(e)||"[object Arguments]"===Object.prototype.toString.call(e)){var o=[],i=!0,r=!1,n=void 0;try{for(var l,a=e[Symbol.iterator]();!(i=(l=a.next()).done)&&(o.push(l.value),!t||o.length!==t);i=!0);}catch(s){r=!0,n=s}finally{try{i||null==a.return||a.return()}finally{if(r)throw n}}return o}}function s(e){if(Array.isArray(e))return e}function d(l,a,s,d){function c(a,c,T,x,y){var S=arguments.length>5&&void 0!==arguments[5]?arguments[5]:1,v=arguments.length>6&&void 0!==arguments[6]?arguments[6]:null,f=arguments.length>7&&void 0!==arguments[7]&&arguments[7],u=(0,i.yScaleLevelToStep)(T),h=Math.ceil(x/u)*u,g=Math.floor(y/u)*u;l.font=e.AXES_FONT,l.textAlign=f?"right":"left",l.textBaseline="bottom",l.lineWidth=1,l.beginPath();for(var p=h;p<=g;p+=u){var A=n((0,r.toPixels)(c,0,p),2)[1],w=(0,i.applyXEdgeOpacity)(S,A);l.fillStyle=v?(0,o.getCssColor)(d,v,w):(0,o.getCssColor)(d,"y-axis-text",w),f?l.fillText((0,t.humanize)(p),s.width-e.GUTTER,A-e.GUTTER/2):l.fillText((0,t.humanize)(p),e.GUTTER,A-e.GUTTER/2),f?(l.strokeStyle=(0,o.getCssColor)(d,v,S),l.moveTo(s.width-e.GUTTER,A),l.lineTo(s.width-2*e.GUTTER,A)):(l.moveTo(e.GUTTER,A),l.strokeStyle=(0,o.getCssColor)(d,"grid-lines",S),l.lineTo(s.width-e.GUTTER,A))}l.stroke()}return{drawXAxis:function(t,c){l.clearRect(0,s.height-e.X_AXIS_HEIGHT+1,s.width,e.X_AXIS_HEIGHT+1);var T=s.height-e.X_AXIS_HEIGHT/2,x=Math.floor(t.xAxisScale),y=(0,i.xScaleLevelToStep)(x),S=1-(t.xAxisScale-x);l.font=e.AXES_FONT,l.textAlign="center",l.textBaseline="middle";for(var v=t.labelFromIndex;v<=t.labelToIndex;v++){var f=v-e.X_AXIS_SHIFT_START;if(f%y==0){var u=a.xLabels[v],h=n((0,r.toPixels)(c,v,0),1)[0],g=f%(2*y)==0?1:S;g=(0,i.applyYEdgeOpacity)(g,h,s.width),l.fillStyle=(0,o.getCssColor)(d,"x-axis-text",g),l.fillText(u.text,h,T)}}},drawYAxis:function(t,i,r){var T=t.yAxisScale,x=t.yAxisScaleFrom,y=t.yAxisScaleTo,S=t.yAxisScaleProgress,v=void 0===S?0:S,f=t.yMinViewport,u=t.yMinViewportFrom,h=t.yMinViewportTo,g=t.yMaxViewport,p=t.yMaxViewportFrom,A=t.yMaxViewportTo,w=t.yMinViewportSecond,E=t.yMinViewportSecondFrom,m=t.yMinViewportSecondTo,M=t.yMaxViewportSecond,G=t.yMaxViewportSecondFrom,_=t.yMaxViewportSecondTo,b=r&&"dataset#".concat(a.datasets[0].key),C=void 0!==u||void 0!==p;if(a.isPercentage?function(t){var i=n(t.getSize(),2)[1];l.font=e.AXES_FONT,l.textAlign="left",l.textBaseline="bottom",l.lineWidth=1,l.beginPath(),[0,.25,.5,.75,1].forEach(function(t){var r=i-i*t+e.PLOT_TOP_PADDING;l.fillStyle=(0,o.getCssColor)(d,"y-axis-text",1),l.fillText("".concat(100*t,"%"),e.GUTTER,r-e.GUTTER/4),l.moveTo(e.GUTTER,r),l.strokeStyle=(0,o.getCssColor)(d,"grid-lines",1),l.lineTo(s.width-e.GUTTER,r)}),l.stroke()}(i):c(t,i,Math.round(y||T),void 0!==h?h:f,void 0!==A?A:g,x?v:1,b),v>0&&C&&c(t,i,Math.round(x),void 0!==u?u:f,void 0!==p?p:g,1-v,b),r){var R=t.yAxisScaleSecond,X=t.yAxisScaleSecondFrom,I=t.yAxisScaleSecondTo,P=t.yAxisScaleSecondProgress,U=void 0===P?0:P,V="dataset#".concat(a.datasets[a.datasets.length-1].key),F=void 0!==E||void 0!==G;c(t,r,Math.round(I||R),void 0!==m?m:w,void 0!==_?_:M,X?U:1,V,!0),U>0&&F&&c(t,r,Math.round(X),void 0!==E?E:w,void 0!==G?G:M,1-U,V,!0)}}}}
-},{"./constants":"iJA9","./format":"YgZ9","./skin":"Zr5j","./formulas":"UAP7","./Projection":"vPHW"}],"Dryx":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.setupCanvas=a,exports.clearCanvas=r;var e=require("./constants"),t=require("./minifiers");function a(a,r){var i=r.width,n=r.height,s=(0,t.createElement)("canvas");s.width=i*e.DPR,s.height=n*e.DPR,s.style.width="100%",s.style.height="".concat(n,"px");var c=s.getContext("2d");return c.scale(e.DPR,e.DPR),a.appendChild(s),{canvas:s,context:c}}function r(e,t){t.clearRect(0,0,e.width,e.height)}
-},{"./constants":"iJA9","./minifiers":"tnAp"}],"uXfe":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.preparePoints=n;var e=require("./utils");function n(e,n,r,a,c,o){var f=n.map(function(e){return e.values.slice(r.from,r.to+1)});e.isPie&&!o&&(f=i(f));var s=f.map(function(n,t){return n.map(function(n,u){var i=n;return e.isStacked&&(i*=a[t]),{labelIndex:r.from+u,value:n,visibleValue:i,stackOffset:0,stackValue:i}})});return e.isPercentage&&t(s,c),e.isStacked&&u(s),s}function r(n){return(0,e.sumArrays)(n.map(function(e){return e.map(function(e){return e.visibleValue})}))}function t(e,n){var t=r(e);e.forEach(function(e){e.forEach(function(e,r){e.percent=e.visibleValue/t[r],e.visibleValue=e.percent*n.yMax})})}function u(e){var n=[];e.forEach(function(e){e.forEach(function(e,r){void 0===n[r]&&(n[r]=0),e.stackOffset=n[r],n[r]+=e.visibleValue,e.stackValue=n[r]})})}function i(e){return e.map(function(e){return[e.reduce(function(e,n){return e+n},0)]})}
-},{"./utils":"FOZT"}],"Tk0S":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.simplify=void 0;var r=function(){var r=1/Math.pow(2,22),e=1e5;function t(r,e,t,n,i){var a,o=+e[0],u=+e[1];(a=+((r[0]-o)*n[0]+(r[1]-u)*n[1])*i)>1?(o=+t[0],u=+t[1]):a>0&&(o+=+n[0]*a,u+=+n[1]*a);var s=+r[0]-o,p=+r[1]-u;return+s*s+p*p}return function(n,i,a){if(n.length<6)return function(){return{points:n,indexes:i,removed:[]}};var o=function(n,i){for(var a,o=n.length,u=[],s=[],p=0,d=n.length;p<d;++p)u[p]=0;i||(i=[]);for(var f=0,c=0,h=i.length;c<h;++c)u[i[c]]=e;function v(){var o=s.pop(),p=function(o){var p=o.start,d=o.end,f=o.record,c=o.currentLimit,h=0;if(!f){for(var v=-1,l=[n[d][0]-n[p][0],n[d][1]-n[p][1]],x=0,g=i.length;x<g;++x){var m=i[x];if(m>p){if(m<d){v=m,h=e;break}break}}if(v<0){if(Math.abs(l[0])>r||Math.abs(l[1])>r)for(var y=l[0]*l[0]+l[1]*l[1],b=1/y,M=p+1;M<d;++M){var P=t(n[M],n[p],n[d],l,b);P>h&&(v=M,h=P)}else v=Math.round(.5*(p+d)),h=c;u[v]=h}f={start:p,end:d,index:v,distance:h}}return f.index&&f.distance>a&&(f.index-p>=2&&s.push({start:p,end:f.index,record:f.left,currentLimit:f.distance,parent:f,parentProperty:"left"}),d-f.index>=2&&s.push({start:f.index,end:d,record:f.right,currentLimit:f.distance,parent:f,parentProperty:"right"})),f}(o);return o.parent&&o.parentProperty&&(o.parent[o.parentProperty]=p),p}return function(r){for(a=r,s.push({start:0,end:o-1,record:f,currentLimit:e}),f=v();s.length;)v();return u}}(n,a);return function(r){for(var e=[],t=[],a=[],u=r*r,s=o(u),p=0,d=n.length;p<d;p++)s[p]>=u||0==p||p==d-1?(e.push(n[p]),t.push(i?i[p]:p)):a.push(p);return{points:e,indexes:t,removed:a}}}}();exports.simplify=r;
-},{}],"sPQK":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.drawDatasets=f;var e=require("./skin"),t=require("./utils"),i=require("./formulas"),a=require("./constants"),l=require("./simplify"),r=require("./Projection");function n(e,t){return c(e)||s(e,t)||o()}function o(){throw new TypeError("Invalid attempt to destructure non-iterable instance")}function s(e,t){if(Symbol.iterator in Object(e)||"[object Arguments]"===Object.prototype.toString.call(e)){var i=[],a=!0,l=!1,r=void 0;try{for(var n,o=e[Symbol.iterator]();!(a=(n=o.next()).done)&&(i.push(n.value),!t||i.length!==t);a=!0);}catch(s){l=!0,r=s}finally{try{a||null==o.return||o.return()}finally{if(l)throw r}}return i}}function c(e){if(Array.isArray(e))return e}function f(a,l,o,s,c,f,p,h,v,y,x,P,b){if(o.datasets.forEach(function(d,g){var m=d.key,I=d.type,S=d.hasOwnYAxis;if(y[g]){var T={color:(0,e.getCssColor)(x,"dataset#".concat(m)),lineWidth:v,opacity:o.isStacked?1:y[g],simplification:b},O="pie"===I&&P?"bar":I,k=S?p:c[g],W=S?h:f;if("area"===O){var A=f.getParams(),M=A.yMin,_=A.yMax-M,V=[{labelIndex:s.from,stackValue:0},{labelIndex:s.to,stackValue:0}],w=[{labelIndex:s.to,stackValue:_},{labelIndex:s.from,stackValue:_}];k=(0,t.mergeArrays)([c[g-1]||V,w])}if("pie"===O&&(T.center=f.getCenter(),T.radius=(0,i.getPieRadius)(f),T.pointerVector=l.focusOn),"bar"===O){var C=n((0,r.toPixels)(f,0,0),1)[0],H=n((0,r.toPixels)(f,1,0),1)[0];T.lineWidth=H-C,T.focusOn=l.focusOn}u(O,a,k,W,T)}}),l.focusOn&&o.isBars){var g=n((0,r.toPixels)(f,0,0),1)[0],m=n((0,r.toPixels)(f,1,0),1)[0];d(a,f,{focusOn:l.focusOn,color:(0,e.getCssColor)(x,"mask"),lineWidth:m-g})}}function u(e){for(var t=arguments.length,i=new Array(t>1?t-1:0),a=1;a<t;a++)i[a-1]=arguments[a];switch(e){case"line":return p.apply(void 0,i);case"bar":return h.apply(void 0,i);case"area":return v.apply(void 0,i);case"pie":return y.apply(void 0,i)}}function p(e,t,i,a){e.beginPath();for(var o=[],s=0,c=t.length;s<c;s++){var f=t[s],u=f.labelIndex,p=f.stackValue;o.push((0,r.toPixels)(i,u,p))}a.simplification&&(o=(0,l.simplify)(o)(a.simplification).points);o.forEach(function(t){var i=n(t,2),a=i[0],l=i[1];e.lineTo(a,l)}),e.save(),e.strokeStyle=a.color,e.lineWidth=a.lineWidth,e.globalAlpha=a.opacity,e.lineJoin="bevel",e.lineCap="butt",e.stroke(),e.restore()}function h(e,t,i,l){var o=i.getParams().yMin;e.save(),e.globalAlpha=l.opacity,e.fillStyle=l.color;for(var s=0,c=t.length;s<c;s++){var f=t[s],u=f.labelIndex,p=f.stackValue,h=f.stackOffset,d=void 0===h?0:h,v=n((0,r.toPixels)(i,u,Math.max(d,o)),2)[1],y=n((0,r.toPixels)(i,u,p),2),x=y[0],P=y[1],b=x-l.lineWidth/2,g=P,m=1===l.opacity?l.lineWidth+a.PLOT_BARS_WIDTH_SHIFT:l.lineWidth+a.PLOT_BARS_WIDTH_SHIFT*l.opacity,I=v-P;e.fillRect(b,g,m,I)}e.restore()}function d(e,t,i){var l=n(t.getCenter(),2),o=l[0],s=l[1],c=n(t.getSize(),2),f=c[0],u=c[1],p=n((0,r.toPixels)(t,i.focusOn,0),1)[0];e.fillStyle=i.color,e.fillRect(o-f/2,s-u/2,p-i.lineWidth/2+a.PLOT_BARS_WIDTH_SHIFT,u),e.fillRect(p+i.lineWidth/2,s-u/2,f-(p+i.lineWidth/2),u)}function v(e,t,i,a){e.beginPath();for(var o=[],s=0,c=t.length;s<c;s++){var f=t[s],u=f.labelIndex,p=f.stackValue;o.push((0,r.toPixels)(i,u,p))}a.simplification&&(o=(0,l.simplify)(o)(a.simplification).points);o.forEach(function(t){var i=n(t,2),a=i[0],l=i[1];e.lineTo(a,l)}),e.save(),e.fillStyle=a.color,e.lineWidth=a.lineWidth,e.globalAlpha=a.opacity,e.lineJoin="bevel",e.lineCap="butt",e.fill(),e.restore()}function y(e,t,l,r){var o=t[0],s=o.visibleValue,c=o.stackValue,f=o.stackOffset,u=void 0===f?0:f;if(s){var p=l.getParams(),h=p.yMin,d=1/(p.yMax-h),v=s*d,y=u*d*Math.PI*2-Math.PI/2,x=c*d*Math.PI*2-Math.PI/2,P=r.radius,b=void 0===P?120:P,g=n(r.center,2),m=g[0],I=g[1],S=r.pointerVector,T=S&&y<=S.angle&&S.angle<x&&S.distance<=b?a.PLOT_PIE_SHIFT:0,O=(y+x)/2,k=Math.cos(O),W=Math.sin(O),A=k*T,M=W*T;e.save(),e.beginPath(),e.fillStyle=r.color,e.moveTo(m+A,I+M),e.arc(m+A,I+M,b,y,x),e.lineTo(m+A,I+M),e.fill(),e.font="700 ".concat((0,i.getPieTextSize)(v,b),"px Helvetica, Arial, sans-serif"),e.textAlign="center",e.textBaseline="middle",e.fillStyle="white";var _=(0,i.getPieTextShift)(v,b);e.fillText("".concat(Math.round(100*v),"%"),m+k*_+A,I+W*_+M),e.restore()}}
-},{"./skin":"Zr5j","./utils":"FOZT","./formulas":"UAP7","./constants":"iJA9","./simplify":"Tk0S","./Projection":"vPHW"}],"qY6S":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.captureEvents=n;var e=require("./minifiers"),t=require("./constants");function n(n,o){var u=null,r=null;function s(n){u=n,"mousedown"===n.type?((0,e.addEventListener)(document,"mousemove",d),(0,e.addEventListener)(document,"mouseup",c)):"touchstart"===n.type&&((0,e.addEventListener)(document,"touchmove",d),(0,e.addEventListener)(document,"touchend",c),(0,e.addEventListener)(document,"touchcancel",c),void 0===n.pageX&&(n.pageX=n.touches[0].pageX)),o.draggingCursor&&document.documentElement.classList.add("cursor-".concat(o.draggingCursor)),o.onCapture&&o.onCapture(n),o.onLongPress&&(r=setTimeout(function(){return o.onLongPress()},t.LONG_PRESS_TIMEOUT))}function c(t){u&&(r&&(clearTimeout(r),r=null),o.draggingCursor&&document.documentElement.classList.remove("cursor-".concat(o.draggingCursor)),(0,e.removeEventListener)(document,"mouseup",c),(0,e.removeEventListener)(document,"mousemove",d),(0,e.removeEventListener)(document,"touchcancel",c),(0,e.removeEventListener)(document,"touchend",c),(0,e.removeEventListener)(document,"touchmove",d),u=null,o.onRelease&&o.onRelease(t))}function d(e){u&&(r&&(clearTimeout(r),r=null),"touchmove"===e.type&&void 0===e.pageX&&(e.pageX=e.touches[0].pageX),o.onDrag&&o.onDrag(e,u,{dragOffsetX:e.pageX-u.pageX}))}(0,e.addEventListener)(n,"mousedown",s),(0,e.addEventListener)(n,"touchstart",s)}
-},{"./minifiers":"tnAp","./constants":"iJA9"}],"QCqL":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.createMinimap=c;var e=require("./canvas"),t=require("./preparePoints"),i=require("./Projection"),a=require("./drawDatasets"),n=require("./captureEvents"),r=require("./constants"),s=require("./utils"),l=require("./minifiers"),o=require("./formulas");function c(c,d,h,u){var p,m,f,M,v,g,y,I,A,_,D,E={},P=(0,s.throttleWithRaf)(function(){var e=E,t=e.begin,i=e.end;v.children[0].style.width="".concat(100*t,"%"),v.children[1].style.width="".concat(100*(i-t),"%"),v.children[2].style.width="".concat(100*(1-i),"%")});function w(e){e.preventDefault(),y=e.target.offsetLeft}function b(){y=null}function x(e,t,i){var a=i.dragOffsetX,n=M.width-g.offsetWidth,s=Math.max(0,Math.min(y+a-r.MINIMAP_EAR_WIDTH,n)),l=s+g.offsetWidth;T({begin:s/M.width,end:l/M.width})}function N(e,t,i){var a=i.dragOffsetX,n=g.offsetLeft+g.offsetWidth-2*r.MINIMAP_EAR_WIDTH;T({begin:Math.min(n,Math.max(0,y+a))/M.width})}function W(e,t,i){var a=i.dragOffsetX,n=g.offsetLeft+2*r.MINIMAP_EAR_WIDTH,s=M.width;T({end:Math.max(n,Math.min(y+r.MINIMAP_EAR_WIDTH+a,s))/M.width})}function T(e,t){var i=Object.assign({},E,e);I&&I.minimapDelta&&!t&&(i=function(e){var t=Math.round(e.begin/I.minimapDelta)*I.minimapDelta,i=Math.round(e.end/I.minimapDelta)*I.minimapDelta;return{begin:t,end:i}}(i)),i.begin===E.begin&&i.end===E.end||(E=i,P(),t||u(E))}return(p=(0,l.createElement)()).className="lovely-chart--minimap",p.style.height="".concat(r.MINIMAP_HEIGHT,"px"),A=(0,e.setupCanvas)(p,{width:c.offsetWidth-2*r.MINIMAP_MARGIN,height:r.MINIMAP_HEIGHT}),_=A.canvas,D=A.context,m=_,f=D,(v=(0,l.createElement)()).className="lovely-chart--minimap-ruler",v.innerHTML='<div class="lovely-chart--minimap-mask"></div><div class="lovely-chart--minimap-slider"><div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div><div class="lovely-chart--minimap-slider-inner"></div><div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div></div><div class="lovely-chart--minimap-mask"></div>',g=v.children[1],(0,n.captureEvents)(g.children[1],{onCapture:w,onDrag:x,onRelease:b,draggingCursor:"grabbing"}),(0,n.captureEvents)(g.children[0],{onCapture:w,onDrag:N,onRelease:b,draggingCursor:"ew-resize"}),(0,n.captureEvents)(g.children[2],{onCapture:w,onDrag:W,onRelease:b,draggingCursor:"ew-resize"}),p.appendChild(v),c.appendChild(p),M={width:m.offsetWidth,height:m.offsetHeight},T(r.DEFAULT_RANGE),{update:function(n){var l=n,c=l.begin,u=l.end;y||T({begin:c,end:u},!0),d.datasets.length>=r.MINIMAP_MAX_ANIMATED_DATASETS&&(n=n.static),function(e){return!I||(!!d.datasets.some(function(t){var i=t.key;return I["opacity#".concat(i)]!==e["opacity#".concat(i)]})||I.yMaxMinimap!==e.yMaxMinimap)}(n)&&(I=(0,s.proxyMerge)(n,{focusOn:null}),(0,e.clearCanvas)(m,f),function(){var e=arguments.length>0&&void 0!==arguments[0]?arguments[0]:{},n=d.datasets,s={from:0,to:e.totalXWidth},l={begin:0,end:1,totalXWidth:e.totalXWidth,yMin:e.yMinMinimap,yMax:e.yMaxMinimap,availableWidth:M.width,availableHeight:M.height,yPadding:1},c=n.map(function(e){var t=e.key;return I["opacity#".concat(t)]}),u=(0,t.preparePoints)(d,n,s,c,l,!0),p=(0,i.createProjection)(l),m=null,v=null;if(d.hasSecondYAxis){var g=n.find(function(e){return e.hasOwnYAxis}),y={yMin:e.yMinMinimapSecond,yMax:e.yMaxMinimapSecond};m=(0,t.preparePoints)(d,[g],s,c,y)[0],v=p.copy(y)}var A=u.reduce(function(e,t){return e+t.length},0),_=(0,o.getSimplificationDelta)(A)*r.SIMPLIFIER_MINIMAP_FACTOR;(0,a.drawDatasets)(f,e,d,s,u,p,m,v,r.MINIMAP_LINE_WIDTH,c,h,!0,_)}(I))},toggle:function(e){p.classList.toggle("lovely-chart--state-hidden",!e),requestAnimationFrame(function(){p.classList.toggle("lovely-chart--state-transparent",!e)})}}}
-},{"./canvas":"Dryx","./preparePoints":"uXfe","./Projection":"vPHW","./drawDatasets":"sPQK","./captureEvents":"qY6S","./constants":"iJA9","./utils":"FOZT","./minifiers":"tnAp","./formulas":"UAP7"}],"l6Ve":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.createTooltip=v;var e=require("./canvas"),t=require("./constants"),a=require("./formulas"),n=require("./format"),r=require("./skin"),l=require("./utils"),o=require("./minifiers"),i=require("./Projection");function s(e,t){return d(e)||u(e,t)||c()}function c(){throw new TypeError("Invalid attempt to destructure non-iterable instance")}function u(e,t){if(Symbol.iterator in Object(e)||"[object Arguments]"===Object.prototype.toString.call(e)){var a=[],n=!0,r=!1,l=void 0;try{for(var o,i=e[Symbol.iterator]();!(n=(o=i.next()).done)&&(a.push(o.value),!t||a.length!==t);n=!0);}catch(s){r=!0,l=s}finally{try{n||null==i.return||i.return()}finally{if(r)throw l}}return a}}function d(e){if(Array.isArray(e))return e}function v(c,u,d,v,h,f){var y,p,g,m,L,b,x,P,I,M,A,T=null,E=!1,S=!1,q=(0,l.throttleWithRaf)(B),k=(0,l.throttle)(_,100,!0,!0);function C(e){if(e.target!==I&&!I.contains(e.target)&&!T){S=!1;var t=b.getBoundingClientRect();M=(e.touches?e.touches[0].clientX:e.clientX)-t.left,A=(e.touches?e.touches[0].clientY:e.clientY)-t.top,q()}}function w(e){null===M||e.target===b||b.contains(e.target)||F()}function H(e){if(!S){var t=T;T=null,C(e);var a=N();a!==t&&(T=a)}}function O(){if(!I.classList.contains("lovely-chart--state-inactive")){var e=g.findClosestLabelIndex(M);h(e)}}function F(t){M=null,T=null,(0,e.clearCanvas)(x,P),j(),!t&&f&&f(null)}function N(){var e=g.findClosestLabelIndex(M);return e<y.labelFromIndex||e>y.labelToIndex?null:e}function B(l){if(M&&y&&!S){var o=N();if(null!==o){var c=D(),h=!u.isPie||c.distance<=(0,a.getPieRadius)(g);!l&&f&&(u.isPie?f(c):f(o));var b=s((0,i.toPixels)(g,o,0),1)[0],T=u.datasets.map(function(e,t){var a=e.key,n=e.name,r=e.values,l=e.hasOwnYAxis;return{key:a,name:n,value:q(r,o),hasOwnYAxis:l,originalIndex:t}}).filter(function(e){var t=e.key;return y.filter[t]});T.length&&h?function(e,r){I.style.transform="translate3D(".concat(function(e){var a=(y.labelFromIndex+y.labelToIndex)/2,n=D().angle;return(u.isPie?n>Math.PI/2:e<a)?M+t.BALLOON_OFFSET:M-(I.offsetWidth+t.BALLOON_OFFSET)}(r),"px, ").concat(u.isPie?"".concat(A,"px"):0,", 0)"),I.classList.add("lovely-chart--state-shown"),u.isPie?_(null,e):k(function(e,t){if("text"===e.labelType)return e.xLabels[t].text;if(E)return(0,a.isDataRange)(e.xLabels[y.labelFromIndex+1],e.xLabels[y.labelToIndex-1])?(0,n.getLabelDate)(e.xLabels[t],{isShort:!0,displayYear:!1,displayHours:!0}):e.xLabels[t].text;return(0,n.getFullLabelDate)(e.xLabels[t],{isShort:!0})}(u,r),e)}(T,o):j(),(0,e.clearCanvas)(x,P),(u.isLines||u.isAreas)&&(u.isLines&&function(e,t){e.forEach(function(e){e.value;var a=e.key,n=e.hasOwnYAxis,l=e.originalIndex,o=t-y.labelFromIndex,c=n?m[o]:p[l][o];if(c){var u,d,h,f,b,x,I=n?(0,i.toPixels)(L,t,c.stackValue):(0,i.toPixels)(g,t,c.stackValue),M=s(I,2),A=M[0],T=M[1];u=[A,T],d=(0,r.getCssColor)(v,"dataset#".concat(a)),h=(0,r.getCssColor)(v,"background"),f=s(u,2),b=f[0],x=f[1],P.strokeStyle=d,P.fillStyle=h,P.lineWidth=2,P.beginPath(),P.arc(b,x,4,0,2*Math.PI),P.fill(),P.stroke()}})}(T,o),function(e,t,a){P.strokeStyle=a,P.lineWidth=1,P.beginPath(),P.moveTo(e,0),P.lineTo(e,t),P.stroke()}(b,d.height-t.X_AXIS_HEIGHT,(0,r.getCssColor)(v,"grid-lines")))}else F(l)}function q(e,t){return u.isPie?e.slice(y.labelFromIndex,y.labelToIndex+1).reduce(function(e,t){return e+t},0):e[t]}}function R(e,t,a){if(u.isPercentage)if(u.isPie)Array.from(e.querySelectorAll(".lovely-chart--percentage-title")).forEach(function(e){return e.remove()});else{var n=Math.round(t/a*100),r=e.querySelector(".lovely-chart--percentage-title:not(.lovely-chart--state-hidden)");if(r)r.innerHTML="".concat(n,"%");else{var l=(0,o.createElement)("span");l.className="lovely-chart--percentage-title lovely-chart--position-left",l.innerHTML="".concat(n,"%"),e.prepend(l)}}}function Y(e){var t=I.children[1];u.isPie&&t.classList.add("lovely-chart--tooltip-legend-pie"),Array.from(t.children).forEach(function(e){!u.isPie&&t.classList.contains("lovely-chart--tooltip-legend-pie")?e.remove():e.setAttribute("data-present","false")});var r=e.reduce(function(e,t){return e+t.value},0),l=D();(u.isPie?e.filter(function(t,n){var o=t.value;return function(e,t,n,r,l){var o=r>0?e.slice(0,r).reduce(function(e,t){return e+t.value},0):0,i=o/n*Math.PI*2-Math.PI/2,s=(o+t)/n*Math.PI*2-Math.PI/2;return l&&i<=l.angle&&l.angle<s&&l.distance<=(0,a.getPieRadius)(g)}(e,o,r,n,l)}):e).forEach(function(e){var a=t.querySelector('[data-name="'.concat(e.name,'"]'));a?function(e){var t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{},a=t.key,r=t.value,l=arguments.length>2?arguments[2]:void 0;e.setAttribute("data-present","true"),e.querySelector(".lovely-chart--tooltip-dataset-value.lovely-chart--color-".concat(u.colors[a].slice(1),":not(.lovely-chart--state-hidden)")).innerHTML=(0,n.formatInteger)(r),R(e,r,l)}(a,e,r):function(e,t,a){var r=t.name,l=t.key,i=t.value,s="lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-".concat(u.colors[l].slice(1)),c=(0,o.createElement)();c.className="lovely-chart--tooltip-dataset",c.setAttribute("data-present","true"),c.setAttribute("data-name",r),c.innerHTML='<span class="lovely-chart--dataset-title">'.concat(r,'</span><span class="').concat(s,'">').concat((0,n.formatInteger)(i),"</span>"),R(c,i,a);var d=e.querySelector('[data-total="true"]');d?e.insertBefore(c,d):e.appendChild(c)}(t,e,r)}),u.isBars&&u.isStacked&&function(e,t){var a=e.querySelector('[data-total="true"]');if(a){a.setAttribute("data-present","true");var n=a.querySelector(".lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)");n.innerHTML=t}else{var r=(0,o.createElement)();r.className="lovely-chart--tooltip-dataset",r.setAttribute("data-present","true"),r.setAttribute("data-total","true"),r.innerHTML='<span>All</span><span class="'.concat("lovely-chart--tooltip-dataset-value lovely-chart--position-right",'">').concat(t,"</span>"),e.appendChild(r)}}(t,(0,n.formatInteger)(r)),Array.from(t.querySelectorAll('[data-present="false"]')).forEach(function(e){e.remove()})}function _(e,t){!function(e){var t=I.children[0];if(u.isPie)t&&(t.style.display="none");else{"none"===t.style.display&&(t.style.display="");var a=t.querySelector(":not(.lovely-chart--state-hidden)");t.innerHTML&&a?a.innerHTML=e:t.innerHTML="<span>".concat(e,"</span>")}}(e),Y(t)}function j(){I.classList.remove("lovely-chart--state-shown")}function D(){var e=b.getBoundingClientRect(),t=[e.width/2,e.height/2],a=Math.atan2(A-t[1],M-t[0]),n=Math.sqrt(Math.pow(M-t[0],2)+Math.pow(A-t[1],2));return{angle:a>=-Math.PI/2?a:2*Math.PI+a,distance:n}}return function(){(b=(0,o.createElement)()).className="lovely-chart--tooltip",t=(0,e.setupCanvas)(b,d),a=t.canvas,n=t.context,x=a,P=n,(I=(0,o.createElement)()).className="lovely-chart--tooltip-balloon".concat(u.isZoomable?"":" lovely-chart--state-inactive"),I.innerHTML='<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>',u.isZoomable&&(0,o.addEventListener)(I,"click",O),b.appendChild(I),"ontouchstart"in window?((0,o.addEventListener)(b,"touchmove",C),(0,o.addEventListener)(b,"touchstart",C),(0,o.addEventListener)(document,"touchstart",w)):((0,o.addEventListener)(b,"mousemove",C),(0,o.addEventListener)(b,"click",H),(0,o.addEventListener)(document,"mousemove",w));var t,a,n;c.appendChild(b)}(),{update:function(e,t,a,n,r){y=e,p=t,g=a,m=n,L=r,B(!0)},toggleLoading:function(e){I.classList.toggle("lovely-chart--state-loading",e),e||F()},toggleIsZoomed:function(e){e!==E&&(S=!0),E=e,I.classList.toggle("lovely-chart--state-inactive",e)}}}
-},{"./canvas":"Dryx","./constants":"iJA9","./formulas":"UAP7","./format":"YgZ9","./skin":"Zr5j","./utils":"FOZT","./minifiers":"tnAp","./Projection":"vPHW"}],"Ulix":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.createTools=a;var e=require("./minifiers"),t=require("./captureEvents");function a(a,c,s){var l;function r(){(l=(0,e.createElement)()).className="lovely-chart--tools",c.datasets.length<2&&(l.className+=" lovely-chart--state-hidden"),c.datasets.forEach(function(a){var s=a.key,r=a.name,o=(0,e.createElement)("a");o.href="#",o.dataset.key=s,o.className="lovely-chart--button lovely-chart--color-".concat(c.colors[s].slice(1)," lovely-chart--state-checked"),o.innerHTML='<span class="lovely-chart--button-check"></span><span class="lovely-chart--button-label">'.concat(r,"</span>"),o.addEventListener("click",function(e){e.preventDefault(),o.dataset.clickPrevented||n(o),delete o.dataset.clickPrevented}),(0,t.captureEvents)(o,{onLongPress:function(){o.dataset.clickPrevented="true",n(o,!0)}}),l.appendChild(o)}),a.appendChild(l)}function n(e){var t=arguments.length>1&&void 0!==arguments[1]&&arguments[1],a=Array.from(l.getElementsByTagName("a")),c=1===l.querySelectorAll(".lovely-chart--state-checked").length;e&&(e.classList.contains("lovely-chart--state-checked")&&c?t?(a.forEach(function(e){return e.classList.add("lovely-chart--state-checked")}),e.classList.remove("lovely-chart--state-checked")):(e.classList.remove("lovely-chart--state-shake"),requestAnimationFrame(function(){e.classList.add("lovely-chart--state-shake")})):t?(a.forEach(function(e){return e.classList.remove("lovely-chart--state-checked")}),e.classList.add("lovely-chart--state-checked")):e.classList.toggle("lovely-chart--state-checked"));var r={};a.forEach(function(e){r[e.dataset.key]=e.classList.contains("lovely-chart--state-checked")}),s(r)}return r(),n(),{redraw:function(){if(l){var e=l;e.classList.add("lovely-chart--state-hidden"),setTimeout(function(){e.parentNode.removeChild(e)},500)}r(),l.classList.add("lovely-chart--state-transparent"),requestAnimationFrame(function(){l.classList.remove("lovely-chart--state-transparent")})}}}
-},{"./minifiers":"tnAp","./captureEvents":"qY6S"}],"paDP":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.analyzeData=s;var e=require("./utils"),a=require("./format");function s(e){var s,o=e.title,i=e.labelType,r=e.isStacked,n=e.isPercentage,l=e.hasSecondYAxis,c=e.onZoom,u=t(e),y=u.datasets,b=u.labels,d={},m=1/0,x=-1/0;switch(y.forEach(function(e){var a=e.key,s=e.color,t=e.yMin,o=e.yMax;d[a]=s,t<m&&(m=t),o>x&&(x=o)}),i){case"hour":s=(0,a.buildTimeLabels)(b);break;case"text":s=(0,a.buildTextLabels)(b);break;default:s=(0,a.buildDayLabels)(b)}var p={title:o,labelType:i,xLabels:s,datasets:y,isStacked:r,isPercentage:n,hasSecondYAxis:l,onZoom:c,isLines:"line"===e.type,isBars:"bar"===e.type,isAreas:"area"===e.type,isPie:"pie"===e.type,yMin:m,yMax:x,colors:d};return p.shouldZoomToPie=!p.onZoom&&p.isPercentage,p.isZoomable=p.onZoom||p.shouldZoomToPie,p}function t(a){var s=a.type,t=a.labels,i=a.datasets,r=a.hasSecondYAxis;return{labels:o(t),datasets:i.map(function(a,t){var n=a.name,l=a.color,c=a.values,u=(0,e.getMaxMin)(c),y=u.min,b=u.max;return{type:s,key:"y".concat(t),name:n,color:l,values:o(c),hasOwnYAxis:r&&t===i.length-1,yMin:y,yMax:b}})}}function o(e){return e.slice(0)}
-},{"./utils":"FOZT","./format":"YgZ9"}],"ZtA5":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.createZoomer=s;var e=require("./data"),t=require("./format"),o=require("./constants"),n=require("./skin");function r(e,t){var o=Object.keys(e);if(Object.getOwnPropertySymbols){var n=Object.getOwnPropertySymbols(e);t&&(n=n.filter(function(t){return Object.getOwnPropertyDescriptor(e,t).enumerable})),o.push.apply(o,n)}return o}function a(e){for(var t=1;t<arguments.length;t++){var o=null!=arguments[t]?arguments[t]:{};t%2?r(o,!0).forEach(function(t){i(e,t,o[t])}):Object.getOwnPropertyDescriptors?Object.defineProperties(e,Object.getOwnPropertyDescriptors(o)):r(o).forEach(function(t){Object.defineProperty(e,t,Object.getOwnPropertyDescriptor(o,t))})}return e}function i(e,t,o){return t in e?Object.defineProperty(e,t,{value:o,enumerable:!0,configurable:!0,writable:!0}):e[t]=o,e}function s(r,i,s,l,c,u,d,g,b){var f,O,m=!1;function h(a,i,h){var p=1/r.xLabels.length,v=i/(r.xLabels.length-1),y={};r.datasets.forEach(function(e){var t=e.key;return y[t]=!1});var L=(0,e.analyzeData)(a,m||r.shouldZoomToPie?"day":"hour"),Z=Object.keys(r.datasets).length!==Object.keys(L.datasets).length;l.update({range:{begin:v-p/2,end:v+p/2},filter:y}),setTimeout(function(){Object.assign(r,L),Z&&Object.assign(s,(0,n.createColors)(a.colors)),Z&&(d.toggle(m),b.redraw(),c.style.width="".concat(c.scrollWidth,"px"),c.style.height="".concat(c.scrollHeight,"px")),l.update({range:{begin:o.ZOOM_RANGE_MIDDLE-o.ZOOM_RANGE_DELTA,end:o.ZOOM_RANGE_MIDDLE+o.ZOOM_RANGE_DELTA},focusOn:null},!0);var e,i,p=1/(m||r.shouldZoomToPie?r.xLabels.length:r.xLabels.length/24)/2;m?(e={begin:f.begin,end:f.end},i=Z?f.filter:O.filter):Z?(e={begin:0,end:1},i={},r.datasets.forEach(function(e){var t=e.key;return i[t]=!0})):(e={begin:o.ZOOM_RANGE_MIDDLE-p,end:o.ZOOM_RANGE_MIDDLE+p},i=f.filter),l.update({range:e,filter:i,minimapDelta:m?null:e.end-e.begin}),h&&u.zoom((0,t.getFullLabelDate)(h)),m=!m,g.toggleLoading(!1)},l.hasAnimations()?o.ZOOM_TIMEOUT:0),setTimeout(function(){r.shouldZoomToPie&&c.classList.remove("lovely-chart--state-animating")},l.hasAnimations()?1e3:0)}return{zoomIn:function(e,t){if(!m){var o=r.xLabels[t];f=e,g.toggleLoading(!0),g.toggleIsZoomed(!0),r.shouldZoomToPie&&(c.classList.add("lovely-chart--state-zoomed-in"),c.classList.add("lovely-chart--state-animating"));var n=o.value;(r.shouldZoomToPie?Promise.resolve(function(e){return Object.assign({},i,{type:"pie",labels:i.labels.slice(e-3,e+4),datasets:i.datasets.map(function(t){return a({},t,{values:t.values.slice(e-3,e+4)})})})}(t)):r.onZoom(n)).then(function(e){return h(e,t,o)})}},zoomOut:function(e){if(m){O=e,g.toggleLoading(!0),g.toggleIsZoomed(!1),r.shouldZoomToPie&&(c.classList.remove("lovely-chart--state-zoomed-in"),c.classList.add("lovely-chart--state-animating"));var t=Math.round((e.labelFromIndex+e.labelToIndex)/2);h(i,t)}},isZoomed:function(){return m}}}
-},{"./data":"paDP","./format":"YgZ9","./constants":"iJA9","./skin":"Zr5j"}],"gbR7":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.hideOnScroll=void 0;var t=require("./utils"),e=function(){var e=[],i=(0,t.debounce)(function(){e.forEach(function(t){t.classList.remove("lovely-chart--state-invisible")})},500,!0,!1),o=(0,t.debounce)(function(){e.forEach(function(t){var e=t.getBoundingClientRect(),i=e.top,o=e.bottom,n=o<0||i>window.innerHeight;t.classList.contains("lovely-chart--state-invisible")||(t.style.width="".concat(t.scrollWidth,"px"),t.style.height="".concat(t.scrollHeight,"px")),t.classList.toggle("lovely-chart--state-invisible",n)})},500,!1,!0);return function(t){e.push(t),1===e.length?window.onscroll=function(){i(),o()}:o()}}();exports.hideOnScroll=e;
-},{"./utils":"FOZT"}],"L4MM":[function(require,module,exports) {
-
-},{}],"baQE":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.create=v;var e=require("./StateManager"),t=require("./Header"),a=require("./Axes"),i=require("./Minimap"),n=require("./Tooltip"),r=require("./Tools"),o=require("./Zoomer"),l=require("./skin"),d=require("./data"),c=require("./canvas"),s=require("./preparePoints"),u=require("./Projection"),p=require("./drawDatasets"),f=require("./minifiers"),h=require("./format"),x=require("./hideOnScroll"),m=require("./constants"),b=require("./formulas"),w=require("./utils");function v(v,T){var g,q,y,I,P,L,M,O,D,_,E,S,W=window.innerWidth,A=(0,d.analyzeData)(T),H=(0,l.createColors)(A.colors),F=(0,w.debounce)(function(){Object.assign(A,(0,d.analyzeData)(T)),q.remove(),C()},500,!1,!0);function C(){var l,d,s;(q=(0,f.createElement)()).className="lovely-chart--container".concat(A.shouldZoomToPie?" lovely-chart--container-type-pie":""),v.appendChild(q),L=(0,t.createHeader)(q,A.title,R),l=(0,c.setupCanvas)(q,{width:q.clientWidth,height:m.PLOT_HEIGHT}),d=l.canvas,s=l.context,I=s,P={width:(y=d).offsetWidth,height:y.offsetHeight},g=(0,e.createStateManager)(A,P,X),M=(0,a.createAxes)(I,A,P,H),O=(0,i.createMinimap)(q,A,H,z),D=(0,n.createTooltip)(q,A,P,H,G,j),_=(0,r.createTools)(q,A,Z),E=A.isZoomable&&(0,o.createZoomer)(A,T,H,g,q,L,O,D,_),(0,x.hideOnScroll)(q)}function X(e){S=e;var t=A.datasets,a={from:e.labelFromIndex,to:e.labelToIndex},i={begin:e.begin,end:e.end,totalXWidth:e.totalXWidth,yMin:e.yMinViewport,yMax:e.yMaxViewport,availableWidth:P.width,availableHeight:P.height-m.X_AXIS_HEIGHT,xPadding:m.GUTTER,yPadding:m.PLOT_TOP_PADDING},n=t.map(function(t){var a=t.key;return e["opacity#".concat(a)]}),r=(0,s.preparePoints)(A,t,a,n,i),o=(0,u.createProjection)(i),l=null,d=null;if(A.hasSecondYAxis){var f=t.find(function(e){return e.hasOwnYAxis}),x={yMin:e.yMinViewportSecond,yMax:e.yMaxViewportSecond};l=(0,s.preparePoints)(A,[f],a,n,x)[0],d=o.copy(x)}L.setCaption(function(e){var t,a;E&&E.isZoomed()?(t=0===e.labelFromIndex?0:e.labelFromIndex+1,a=e.labelToIndex===e.totalXWidth-1?e.labelToIndex:e.labelToIndex-1):(t=e.labelFromIndex,a=e.labelToIndex);return(0,b.isDataRange)(A.xLabels[t],A.xLabels[a])?"".concat((0,h.getLabelDate)(A.xLabels[t]))+" - "+"".concat((0,h.getLabelDate)(A.xLabels[a])):(0,h.getFullLabelDate)(A.xLabels[t])}(e)),(0,c.clearCanvas)(y,I);var w=r.reduce(function(e,t){return e+t.length},0),v=(0,b.getSimplificationDelta)(w)*m.SIMPLIFIER_PLOT_FACTOR;(0,p.drawDatasets)(I,e,A,a,r,o,l,d,m.PLOT_LINE_WIDTH,n,H,!1,v),A.isPie||(M.drawYAxis(e,o,d),M.drawXAxis(e,o)),O.update(e),D.update(e,r,o,l,d)}function z(e){g.update({range:e})}function Z(e){g.update({filter:e})}function j(e){(A.isBars||A.isPie)&&g.update({focusOn:e})}function G(e){E.zoomIn(S,e)}function R(){E.zoomOut(S)}C(),document.documentElement.addEventListener("darkmode",function(){g.update()}),window.addEventListener("resize",function(){window.innerWidth!==W&&(W=window.innerWidth,F())}),window.addEventListener("orientationchange",function(){F()})}require("./styles/index.scss");
-},{"./StateManager":"jzbJ","./Header":"iNXs","./Axes":"ysRd","./Minimap":"QCqL","./Tooltip":"l6Ve","./Tools":"Ulix","./Zoomer":"ZtA5","./skin":"Zr5j","./data":"paDP","./canvas":"Dryx","./preparePoints":"uXfe","./Projection":"vPHW","./drawDatasets":"sPQK","./minifiers":"tnAp","./format":"YgZ9","./hideOnScroll":"gbR7","./constants":"iJA9","./formulas":"UAP7","./utils":"FOZT","./styles/index.scss":"L4MM"}]},{},["baQE"], "LovelyChart")
-//# sourceMappingURL=/LovelyChart.js.map
+var LovelyChart = function(exports) {
+  "use strict";
+  const DPR = window.devicePixelRatio || 1;
+  const DEFAULT_RANGE = { begin: 0.8, end: 1 };
+  const TRANSITION_DEFAULT_DURATION = 300;
+  const LONG_PRESS_TIMEOUT = 500;
+  const GUTTER = 10;
+  const PLOT_HEIGHT = 320;
+  const PLOT_TOP_PADDING = 15;
+  const PLOT_LINE_WIDTH = 2;
+  const PLOT_PIE_RADIUS_FACTOR = 0.9 / 2;
+  const PLOT_PIE_SHIFT = 10;
+  const PLOT_BARS_WIDTH_SHIFT = 0.5;
+  const PIE_MINIMUM_VISIBLE_PERCENT = 0.02;
+  const BALLOON_OFFSET = 20;
+  const AXES_FONT = "300 10px Helvetica, Arial, sans-serif";
+  const AXES_MAX_COLUMN_WIDTH = 45;
+  const AXES_MAX_ROW_HEIGHT = 50;
+  const X_AXIS_HEIGHT = 30;
+  const X_AXIS_SHIFT_START = 1;
+  const Y_AXIS_ZERO_BASED_THRESHOLD = 0.1;
+  const MINIMAP_HEIGHT = 40;
+  const MINIMAP_MARGIN = 10;
+  const MINIMAP_LINE_WIDTH = 1;
+  const MINIMAP_EAR_WIDTH = 8;
+  const MINIMAP_MAX_ANIMATED_DATASETS = 4;
+  const ZOOM_TIMEOUT = TRANSITION_DEFAULT_DURATION;
+  const ZOOM_RANGE_DELTA = 0.1;
+  const ZOOM_RANGE_MIDDLE = 0.5;
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const WEEK_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const WEEK_DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1e3;
+  const SPEED_TEST_INTERVAL = 200;
+  const SPEED_TEST_FAST_FPS = 4;
+  const SIMPLIFIER_MIN_POINTS = 1e3;
+  const SIMPLIFIER_PLOT_FACTOR = 1;
+  const SIMPLIFIER_MINIMAP_FACTOR = 0.5;
+  const ANIMATE_PROPS = [
+    // Viewport X-axis
+    "begin 200 fast",
+    "end 200 fast",
+    "labelFromIndex 200 fast floor",
+    "labelToIndex 200 fast ceil",
+    // X-axis labels
+    "xAxisScale 400",
+    // Viewport Y-axis
+    "yMinViewport",
+    "yMaxViewport",
+    "yMinViewportSecond",
+    "yMaxViewportSecond",
+    // Minimap Y-axis
+    "yMinMinimap",
+    "yMaxMinimap",
+    "yMinMinimapSecond",
+    "yMaxMinimapSecond",
+    // Y-axis labels
+    "yAxisScale",
+    "yAxisScaleSecond"
+  ];
+  function transition(t) {
+    return 1 - Math.pow(1 - t, 1.675);
+  }
+  function createTransitionManager(onTick) {
+    const _transitions = {};
+    let _nextFrame = null;
+    let _testStartedAt = null;
+    let _fps = null;
+    let _testingFps = null;
+    let _slowDetectedAt = null;
+    let _startedAsSlow = null;
+    function add(prop, from, to, duration, options) {
+      _transitions[prop] = {
+        from,
+        to,
+        duration,
+        options,
+        current: from,
+        startedAt: Date.now(),
+        progress: 0
+      };
+      if (!_nextFrame) {
+        _resetSpeedTest();
+        _nextFrame = requestAnimationFrame(_tick);
+      }
+    }
+    function remove(prop) {
+      delete _transitions[prop];
+      if (!isRunning()) {
+        cancelAnimationFrame(_nextFrame);
+        _nextFrame = null;
+      }
+    }
+    function get(prop) {
+      return _transitions[prop];
+    }
+    function getState() {
+      const state = {};
+      Object.keys(_transitions).forEach((prop) => {
+        const { current, from, to, progress } = _transitions[prop];
+        state[prop] = current;
+        state[`${prop}From`] = from;
+        state[`${prop}To`] = to;
+        state[`${prop}Progress`] = progress;
+      });
+      return state;
+    }
+    function isRunning() {
+      return Boolean(Object.keys(_transitions).length);
+    }
+    function isFast(forceCheck) {
+      if (!forceCheck && (_startedAsSlow || _slowDetectedAt)) {
+        return false;
+      }
+      return _fps === null || _fps >= SPEED_TEST_FAST_FPS;
+    }
+    function _tick() {
+      const isSlow = !isFast();
+      _speedTest();
+      const state = {};
+      Object.keys(_transitions).forEach((prop) => {
+        const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = _transitions[prop];
+        const progress = Math.min(1, (Date.now() - startedAt) / duration);
+        let current = from + (to - from) * transition(progress);
+        if (options.includes("ceil")) {
+          current = Math.ceil(current);
+        } else if (options.includes("floor")) {
+          current = Math.floor(current);
+        }
+        _transitions[prop].current = current;
+        _transitions[prop].progress = progress;
+        state[prop] = current;
+        if (progress === 1) {
+          remove(prop);
+        }
+      });
+      if (!isSlow) {
+        onTick(state);
+      }
+      if (isRunning()) {
+        _nextFrame = requestAnimationFrame(_tick);
+      }
+    }
+    function _resetSpeedTest() {
+      _testStartedAt = null;
+      _testingFps = null;
+      if (_slowDetectedAt && Date.now() - _slowDetectedAt > 5e3) {
+        _slowDetectedAt = null;
+      }
+      _startedAsSlow = Boolean(_slowDetectedAt) || !isFast(true);
+    }
+    function _speedTest() {
+      if (!_testStartedAt || Date.now() - _testStartedAt >= SPEED_TEST_INTERVAL) {
+        if (_testingFps) {
+          _fps = _testingFps;
+          if (!_slowDetectedAt && !isFast(true)) {
+            _slowDetectedAt = Date.now();
+          }
+        }
+        _testStartedAt = Date.now();
+        _testingFps = 0;
+      } else {
+        _testingFps++;
+      }
+    }
+    return { add, remove, get, getState, isRunning, isFast };
+  }
+  function getMaxMin(array) {
+    const length = array.length;
+    let max = array[0];
+    let min = array[0];
+    for (let i = 0; i < length; i++) {
+      const value = array[i];
+      if (value > max) {
+        max = value;
+      } else if (value < min) {
+        min = value;
+      }
+    }
+    return { max, min };
+  }
+  function mergeArrays(arrays) {
+    return [].concat.apply([], arrays);
+  }
+  function sumArrays(arrays) {
+    const sums = [];
+    const n = arrays.length;
+    for (let i = 0, l = arrays[0].length; i < l; i++) {
+      sums[i] = 0;
+      for (let j = 0; j < n; j++) {
+        sums[i] += arrays[j][i];
+      }
+    }
+    return sums;
+  }
+  function proxyMerge(obj1, obj2) {
+    return new Proxy({}, {
+      get: (obj, prop) => {
+        if (obj[prop] !== void 0) {
+          return obj[prop];
+        } else if (obj2[prop] !== void 0) {
+          return obj2[prop];
+        } else {
+          return obj1[prop];
+        }
+      }
+    });
+  }
+  function throttle(fn, ms, shouldRunFirst = true) {
+    let interval = null;
+    let isPending;
+    let args;
+    return (..._args) => {
+      isPending = true;
+      args = _args;
+      if (!interval) {
+        if (shouldRunFirst) {
+          isPending = false;
+          fn(...args);
+        }
+        interval = window.setInterval(() => {
+          if (!isPending) {
+            window.clearInterval(interval);
+            interval = null;
+            return;
+          }
+          isPending = false;
+          fn(...args);
+        }, ms);
+      }
+    };
+  }
+  function throttleWithRaf(fn) {
+    let waiting = false;
+    let args;
+    return function(..._args) {
+      args = _args;
+      if (!waiting) {
+        waiting = true;
+        requestAnimationFrame(() => {
+          waiting = false;
+          fn(...args);
+        });
+      }
+    };
+  }
+  function debounce(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
+    let waitingTimeout = null;
+    return function() {
+      if (waitingTimeout) {
+        clearTimeout(waitingTimeout);
+        waitingTimeout = null;
+      } else if (shouldRunFirst) {
+        fn();
+      }
+      waitingTimeout = setTimeout(() => {
+        if (shouldRunLast) {
+          fn();
+        }
+        waitingTimeout = null;
+      }, ms);
+    };
+  }
+  function xScaleLevelToStep(scaleLevel) {
+    return Math.pow(2, scaleLevel);
+  }
+  function xStepToScaleLevel(step) {
+    return Math.ceil(Math.log2(step || 1));
+  }
+  const SCALE_LEVELS = [
+    1,
+    2,
+    8,
+    18,
+    50,
+    100,
+    250,
+    500,
+    1e3,
+    2500,
+    5e3,
+    1e4,
+    25e3,
+    5e4,
+    1e5,
+    25e4,
+    5e5,
+    1e6,
+    25e5,
+    5e6,
+    1e7,
+    25e6,
+    5e7,
+    1e8
+  ];
+  function yScaleLevelToStep(scaleLevel) {
+    return SCALE_LEVELS[scaleLevel] || SCALE_LEVELS[SCALE_LEVELS.length - 1];
+  }
+  function yStepToScaleLevel(neededStep) {
+    return SCALE_LEVELS.findIndex((step) => step >= neededStep) || SCALE_LEVELS.length - 1;
+  }
+  function applyYEdgeOpacity(opacity, xPx, plotWidth) {
+    const edgeOffset = Math.min(xPx + GUTTER, plotWidth - xPx);
+    if (edgeOffset <= GUTTER * 4) {
+      opacity = Math.min(1, opacity, edgeOffset / (GUTTER * 4));
+    }
+    return opacity;
+  }
+  function applyXEdgeOpacity(opacity, yPx) {
+    return yPx - GUTTER <= GUTTER * 2 ? Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2)) : opacity;
+  }
+  function getPieRadius(projection) {
+    return Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
+  }
+  function getPieTextSize(percent, radius) {
+    return (radius + percent * 200) / 10;
+  }
+  function getPieTextShift(percent, radius, shift) {
+    return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
+  }
+  function isDataRange(labelFrom, labelTo) {
+    return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
+  }
+  function getSimplificationDelta(pointsLength) {
+    return pointsLength >= SIMPLIFIER_MIN_POINTS ? Math.min(pointsLength / 1e3, 1) : 0;
+  }
+  function createStateManager(data, viewportSize, callback) {
+    const _range = { begin: 0, end: 1 };
+    const _filter = _buildDefaultFilter();
+    const _transitionConfig = _buildTransitionConfig();
+    const _transitions = createTransitionManager(_runCallback);
+    const _runCallbackOnRaf = throttleWithRaf(_runCallback);
+    let _state = {};
+    function update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
+      Object.assign(_range, range);
+      Object.assign(_filter, filter);
+      const prevState = _state;
+      _state = calculateState(data, viewportSize, _range, _filter, focusOn, minimapDelta, prevState);
+      if (!noTransition) {
+        _transitionConfig.forEach(({ prop, duration, options }) => {
+          const transition2 = _transitions.get(prop);
+          const currentTarget = transition2 ? transition2.to : prevState[prop];
+          if (currentTarget !== void 0 && currentTarget !== _state[prop]) {
+            const current = transition2 ? options.includes("fast") ? prevState[prop] : transition2.current : prevState[prop];
+            if (transition2) {
+              _transitions.remove(prop);
+            }
+            _transitions.add(prop, current, _state[prop], duration, options);
+          }
+        });
+      }
+      if (!_transitions.isRunning() || !_transitions.isFast()) {
+        _runCallbackOnRaf();
+      }
+    }
+    function hasAnimations() {
+      return _transitions.isFast();
+    }
+    function _buildTransitionConfig() {
+      const transitionConfig = [];
+      const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 300`);
+      mergeArrays([
+        ANIMATE_PROPS,
+        datasetVisibilities
+      ]).forEach((transition2) => {
+        const [prop, duration, ...options] = transition2.split(" ");
+        transitionConfig.push({ prop, duration, options });
+      });
+      return transitionConfig;
+    }
+    function _buildDefaultFilter() {
+      const filter = {};
+      data.datasets.forEach(({ key }) => {
+        filter[key] = true;
+      });
+      return filter;
+    }
+    function _runCallback() {
+      const state = _transitions.isFast() ? proxyMerge(_state, _transitions.getState()) : _state;
+      state.static = _state;
+      callback(state);
+    }
+    return { update, hasAnimations };
+  }
+  function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
+    const { begin, end } = range;
+    const totalXWidth = data.xLabels.length - 1;
+    const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
+    const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
+    const xAxisScale = calculateXAxisScale(viewportSize.width, labelFromIndex, labelToIndex);
+    const yRanges = data.isStacked ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+    const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
+    const yAxisScaleSecond = data.hasSecondYAxis && calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
+    const yStep = yScaleLevelToStep(yAxisScale);
+    yRanges.yMinViewport -= yRanges.yMinViewport % yStep;
+    if (yAxisScaleSecond) {
+      const yStepSecond = yScaleLevelToStep(yAxisScaleSecond);
+      yRanges.yMinViewportSecond -= yRanges.yMinViewportSecond % yStepSecond;
+    }
+    const datasetsOpacity = {};
+    data.datasets.forEach(({ key }) => {
+      datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
+    });
+    return Object.assign(
+      {
+        totalXWidth,
+        xAxisScale,
+        yAxisScale,
+        yAxisScaleSecond,
+        labelFromIndex: Math.max(0, labelFromIndex - 1),
+        labelToIndex: Math.min(labelToIndex + 1, totalXWidth),
+        filter: Object.assign({}, filter),
+        focusOn: focusOn !== void 0 ? focusOn : prevState.focusOn,
+        minimapDelta: minimapDelta !== void 0 ? minimapDelta : prevState.minimapDelta
+      },
+      yRanges,
+      datasetsOpacity,
+      range
+    );
+  }
+  function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {
+    const secondaryYAxisDataset = data.hasSecondYAxis && data.datasets.slice(-1)[0];
+    const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
+    const yRanges = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets);
+    if (secondaryYAxisDataset) {
+      const {
+        yMinViewport: yMinViewportSecond,
+        yMaxViewport: yMaxViewportSecond,
+        yMinMinimap: yMinMinimapSecond,
+        yMaxMinimap: yMaxMinimapSecond
+      } = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, [secondaryYAxisDataset]);
+      Object.assign(yRanges, {
+        yMinViewportSecond,
+        yMaxViewportSecond,
+        yMinMinimapSecond,
+        yMaxMinimapSecond
+      });
+    }
+    return yRanges;
+  }
+  function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, datasets) {
+    const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(mergeArrays(datasets.map(({ yMax, yMin }) => [yMax, yMin])));
+    const yMinMinimap = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
+    let yMinViewport;
+    let yMaxViewport;
+    if (labelFromIndex === 0 && labelToIndex === data.xLabels.length - 1) {
+      yMinViewport = yMinMinimap;
+      yMaxViewport = yMaxMinimap;
+    } else {
+      const filteredValues = datasets.map(({ values }) => values);
+      const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
+      const viewportMaxMin = getMaxMin(mergeArrays(viewportValues));
+      const yMinViewportReal = viewportMaxMin.min !== void 0 ? viewportMaxMin.min : prevState.yMinViewport;
+      yMaxViewport = viewportMaxMin.max !== void 0 ? viewportMaxMin.max : prevState.yMaxViewport;
+      yMinViewport = yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
+    }
+    return {
+      yMinViewport,
+      yMaxViewport,
+      yMinMinimap,
+      yMaxMinimap
+    };
+  }
+  function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) {
+    const filteredDatasets = data.datasets.filter((d) => filter[d.key]);
+    const filteredValues = filteredDatasets.map(({ values }) => values);
+    const sums = filteredValues.length ? sumArrays(filteredValues) : [];
+    const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(sums);
+    const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(sums.slice(labelFromIndex, labelToIndex + 1));
+    return {
+      yMinViewport: 0,
+      yMaxViewport,
+      yMinMinimap: 0,
+      yMaxMinimap
+    };
+  }
+  function calculateXAxisScale(plotWidth, labelFromIndex, labelToIndex) {
+    const viewportLabelsCount = labelToIndex - labelFromIndex;
+    const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
+    return xStepToScaleLevel(viewportLabelsCount / maxColumns);
+  }
+  function calculateYAxisScale(plotHeight, yMin, yMax) {
+    const availableHeight = plotHeight - X_AXIS_HEIGHT;
+    const viewportLabelsCount = yMax - yMin;
+    const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);
+    return yStepToScaleLevel(viewportLabelsCount / maxRows);
+  }
+  const createElement = (tagName = "div") => {
+    return document.createElement(tagName);
+  };
+  function addEventListener(element, event, cb) {
+    element.addEventListener(event, cb);
+  }
+  function removeEventListener(element, event, cb) {
+    element.removeEventListener(event, cb);
+  }
+  function toggleText(element, newText, className = "", inverse = false) {
+    const container = element.parentNode;
+    container.classList.add("lovely-chart--transition-container");
+    const newElement = createElement(element.tagName);
+    newElement.className = `${className} lovely-chart--transition lovely-chart--position-${inverse ? "top" : "bottom"} lovely-chart--state-hidden`;
+    newElement.innerHTML = newText;
+    const selector = className.length ? `.${className.split(" ").join(".")}` : "";
+    const oldElements = container.querySelectorAll(`${selector}.lovely-chart--state-hidden`);
+    oldElements.forEach((e) => e.remove());
+    element.classList.add("lovely-chart--transition");
+    element.classList.remove("lovely-chart--position-bottom", "lovely-chart--position-top");
+    element.classList.add(inverse ? "lovely-chart--position-bottom" : "lovely-chart--position-top");
+    container.insertBefore(newElement, element.nextSibling);
+    toggleElementIn(newElement);
+    toggleElementOut(element);
+    return newElement;
+  }
+  function toggleElementIn(element) {
+    element.classList.remove("lovely-chart--state-animated");
+    element.classList.add("lovely-chart--state-animated");
+    element.classList.remove("lovely-chart--state-hidden");
+  }
+  function toggleElementOut(element) {
+    element.classList.remove("lovely-chart--state-animated");
+    element.classList.add("lovely-chart--state-animated");
+    element.classList.add("lovely-chart--state-hidden");
+  }
+  function createHeader(container, title, zoomOutLabel = "Zoom out", zoomOutCallback) {
+    let _element;
+    let _titleElement;
+    let _zoomOutElement;
+    let _captionElement;
+    let _isZooming;
+    const setCaptionThrottled = throttle(setCaption, 100, false);
+    _setupLayout();
+    function setCaption(caption) {
+      if (_isZooming) {
+        return;
+      }
+      _captionElement.innerHTML = caption;
+    }
+    function zoom(caption) {
+      _zoomOutElement = toggleText(_titleElement, zoomOutLabel, "lovely-chart--header-title lovely-chart--header-zoom-out-control");
+      setTimeout(() => {
+        addEventListener(_zoomOutElement, "click", _onZoomOut);
+      }, 500);
+      setCaption(caption);
+    }
+    function toggleIsZooming(isZooming) {
+      _isZooming = isZooming;
+    }
+    function _setupLayout() {
+      _element = createElement();
+      _element.className = "lovely-chart--header";
+      _titleElement = createElement();
+      _titleElement.className = "lovely-chart--header-title";
+      _titleElement.innerHTML = title;
+      _element.appendChild(_titleElement);
+      _captionElement = createElement();
+      _captionElement.className = "lovely-chart--header-caption lovely-chart--position-right";
+      _element.appendChild(_captionElement);
+      container.appendChild(_element);
+    }
+    function _onZoomOut() {
+      _titleElement = toggleText(_zoomOutElement, title, "lovely-chart--header-title", true);
+      _titleElement.classList.remove("lovely-chart--transition");
+      zoomOutCallback();
+    }
+    return {
+      setCaption: setCaptionThrottled,
+      zoom,
+      toggleIsZooming
+    };
+  }
+  function statsFormatDayHour(labels) {
+    return labels.map((value) => ({
+      value,
+      text: `${value}:00`
+    }));
+  }
+  function statsFormatDayHourFull(value) {
+    return `${value}:00`;
+  }
+  function statsFormatDay(labels) {
+    return labels.map((value) => {
+      const date = new Date(value);
+      const day = date.getDate();
+      const month = MONTHS[date.getMonth()];
+      return {
+        value,
+        text: `${day} ${month}`
+      };
+    });
+  }
+  function statsFormatMin(labels) {
+    return labels.map((value) => ({
+      value,
+      text: new Date(value).toString().match(/(\d+:\d+):/)[1]
+    }));
+  }
+  function statsFormatText(labels) {
+    return labels.map((value, i) => {
+      return {
+        value: i,
+        text: value
+      };
+    });
+  }
+  function humanize(value, decimals = 1) {
+    if (value >= 1e6) {
+      return keepThreeDigits(value / 1e6, decimals) + "M";
+    } else if (value >= 1e3) {
+      return keepThreeDigits(value / 1e3, decimals) + "K";
+    }
+    return value;
+  }
+  function keepThreeDigits(value, decimals) {
+    return value.toFixed(decimals).replace(/(\d{3,})\.\d+/, "$1").replace(/\.0+$/, "");
+  }
+  function formatInteger(n) {
+    if (!Number.isInteger(n)) {
+      const abs = Math.abs(n);
+      let decimals = 2;
+      if (abs > 0 && abs < 1) {
+        decimals = Math.max(2, -Math.floor(Math.log10(abs)) + 1);
+      }
+      const [intPart, decPart] = n.toFixed(decimals).split(".");
+      return intPart.replace(/\d(?=(\d{3})+$)/g, "$& ") + "." + decPart;
+    }
+    return String(n).replace(/\d(?=(\d{3})+$)/g, "$& ");
+  }
+  function formatCryptoValue(n) {
+    return Number(n / 10 ** 9);
+  }
+  function getFullLabelDate(label, { isShort = false } = {}) {
+    return getLabelDate(label, { isShort, displayWeekDay: true });
+  }
+  function getLabelDate(label, { isShort = false, displayWeekDay = false, displayYear = true, displayHours = false } = {}) {
+    const { value } = label;
+    const date = new Date(value);
+    const weekDaysArray = isShort ? WEEK_DAYS_SHORT : WEEK_DAYS;
+    let string = `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
+    if (displayWeekDay) {
+      string = `${weekDaysArray[date.getUTCDay()]}, ` + string;
+    }
+    if (displayYear) {
+      string += ` ${date.getUTCFullYear()}`;
+    }
+    if (displayHours) {
+      string += `, ${("0" + date.getUTCHours()).slice(-2)}:${("0" + date.getUTCMinutes()).slice(-2)}`;
+    }
+    return string;
+  }
+  function getLabelTime(label) {
+    return new Date(label.value).toString().match(/(\d+:\d+):/)[1];
+  }
+  function detectSkin() {
+    return document.documentElement.classList.contains("theme-dark") ? "skin-night" : "skin-day";
+  }
+  let skin = detectSkin();
+  const COLORS = {
+    "skin-day": {
+      "background": "#FFFFFF",
+      "text-color": "#222222",
+      "minimap-mask": "#E2EEF9/0.6",
+      "minimap-slider": "#C0D1E1",
+      "grid-lines": "#182D3B/0.1",
+      "zoom-out-text": "#108BE3",
+      "tooltip-background": "#FFFFFF",
+      "tooltip-arrow": "#D2D5D7",
+      "mask": "#FFFFFF/0.5",
+      "x-axis-text": "#252529/0.6",
+      "y-axis-text": "#252529/0.6"
+    },
+    "skin-night": {
+      "background": "#242F3E",
+      "text-color": "#FFFFFF",
+      "minimap-mask": "#304259/0.6",
+      "minimap-slider": "#56626D",
+      "grid-lines": "#FFFFFF/0.1",
+      "zoom-out-text": "#48AAF0",
+      "tooltip-background": "#1c2533",
+      "tooltip-arrow": "#D2D5D7",
+      "mask": "#242F3E/0.5",
+      "x-axis-text": "#A3B1C2/0.6",
+      "y-axis-text": "#A3B1C2/0.6"
+    }
+  };
+  const styleElement = document.createElement("style");
+  styleElement.type = "text/css";
+  styleElement.appendChild(document.createTextNode(""));
+  document.head.appendChild(styleElement);
+  const styleSheet = styleElement.sheet;
+  document.documentElement.addEventListener("darkmode", () => {
+    skin = detectSkin();
+  });
+  function createColors(datasetColors) {
+    const colors = {};
+    const baseClass = `.lovely-chart--color`;
+    ["skin-day", "skin-night"].forEach((skin2) => {
+      colors[skin2] = {};
+      Object.keys(COLORS[skin2]).forEach((prop) => {
+        colors[skin2][prop] = hexToChannels(COLORS[skin2][prop]);
+      });
+      Object.keys(datasetColors).forEach((key) => {
+        colors[skin2][`dataset#${key}`] = hexToChannels(datasetColors[key]);
+        addCssRule(styleSheet, `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`, `color: ${datasetColors[key]}`);
+        addCssRule(styleSheet, `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`, `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`);
+        addCssRule(styleSheet, `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`, `background-color: ${datasetColors[key]}`);
+      });
+    });
+    return colors;
+  }
+  function getCssColor(colors, key, opacity) {
+    return buildCssColor(colors[skin][key], opacity);
+  }
+  function hexToChannels(hexWithAlpha) {
+    const [hex, alpha] = hexWithAlpha.replace("#", "").split("/");
+    return [
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+      alpha ? parseFloat(alpha) : 1
+    ];
+  }
+  function buildCssColor([r, g, b, a = 1], opacity = 1) {
+    return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
+  }
+  function addCssRule(sheet, selector, rule) {
+    sheet.insertRule(`${selector} { ${rule} }`, sheet.cssRules.length);
+  }
+  function createProjection(params) {
+    const {
+      begin,
+      end,
+      totalXWidth,
+      yMin,
+      yMax,
+      availableWidth,
+      availableHeight,
+      xPadding = 0,
+      yPadding = 0
+    } = params;
+    let effectiveWidth = availableWidth;
+    if (begin === 0) {
+      effectiveWidth -= xPadding;
+    }
+    if (end === 1) {
+      effectiveWidth -= xPadding;
+    }
+    const xFactor = effectiveWidth / ((end !== begin ? end - begin : 1) * totalXWidth);
+    let xOffsetPx = begin * totalXWidth * xFactor;
+    if (begin === 0) {
+      xOffsetPx -= xPadding;
+    }
+    const effectiveHeight = availableHeight - yPadding;
+    const yFactor = effectiveHeight / (yMax - yMin);
+    const yOffsetPx = yMin * yFactor;
+    function getState() {
+      return { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx };
+    }
+    function findClosestLabelIndex(xPx) {
+      return Math.round((xPx + xOffsetPx) / xFactor);
+    }
+    function copy(overrides, cons) {
+      return createProjection(proxyMerge(params, overrides));
+    }
+    function getCenter() {
+      return [
+        availableWidth / 2,
+        availableHeight - effectiveHeight / 2
+      ];
+    }
+    function getSize() {
+      return [availableWidth, effectiveHeight];
+    }
+    function getParams() {
+      return params;
+    }
+    return {
+      findClosestLabelIndex,
+      copy,
+      getCenter,
+      getSize,
+      getParams,
+      getState
+    };
+  }
+  function toPixels(projection, labelIndex, value) {
+    const { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx } = projection.getState();
+    return [
+      labelIndex * xFactor - xOffsetPx,
+      availableHeight - (value * yFactor - yOffsetPx)
+    ];
+  }
+  function createAxes(context, data, plotSize, colors) {
+    function drawXAxis(state, projection) {
+      context.clearRect(0, plotSize.height - X_AXIS_HEIGHT + 1, plotSize.width, X_AXIS_HEIGHT + 1);
+      const topOffset = plotSize.height - X_AXIS_HEIGHT / 2;
+      const scaleLevel = Math.floor(state.xAxisScale);
+      const step = xScaleLevelToStep(scaleLevel);
+      const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
+      context.font = AXES_FONT;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      for (let i = state.labelFromIndex; i <= state.labelToIndex; i++) {
+        const shiftedI = i - X_AXIS_SHIFT_START;
+        if (shiftedI % step !== 0) {
+          continue;
+        }
+        const label = data.xLabels[i];
+        const [xPx] = toPixels(projection, i, 0);
+        let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
+        opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width);
+        context.fillStyle = getCssColor(colors, "x-axis-text", opacity);
+        context.fillText(label.text, xPx, topOffset);
+      }
+    }
+    function drawYAxis(state, projection, secondaryProjection) {
+      const {
+        yAxisScale,
+        yAxisScaleFrom,
+        yAxisScaleTo,
+        yAxisScaleProgress = 0,
+        yMinViewport,
+        yMinViewportFrom,
+        yMinViewportTo,
+        yMaxViewport,
+        yMaxViewportFrom,
+        yMaxViewportTo,
+        yMinViewportSecond,
+        yMinViewportSecondFrom,
+        yMinViewportSecondTo,
+        yMaxViewportSecond,
+        yMaxViewportSecondFrom,
+        yMaxViewportSecondTo
+      } = state;
+      const colorKey = secondaryProjection && `dataset#${data.datasets[0].key}`;
+      const isYChanging = yMinViewportFrom !== void 0 || yMaxViewportFrom !== void 0;
+      if (data.isPercentage) {
+        _drawYAxisPercents(projection);
+      } else if (data.isCurrency) {
+        _drawYAxisCurrency(projection, data);
+      } else {
+        _drawYAxisScaled(
+          state,
+          projection,
+          Math.round(yAxisScaleTo || yAxisScale),
+          yMinViewportTo !== void 0 ? yMinViewportTo : yMinViewport,
+          yMaxViewportTo !== void 0 ? yMaxViewportTo : yMaxViewport,
+          yAxisScaleFrom ? yAxisScaleProgress : 1,
+          colorKey
+        );
+      }
+      if (yAxisScaleProgress > 0 && isYChanging) {
+        _drawYAxisScaled(
+          state,
+          projection,
+          Math.round(yAxisScaleFrom),
+          yMinViewportFrom !== void 0 ? yMinViewportFrom : yMinViewport,
+          yMaxViewportFrom !== void 0 ? yMaxViewportFrom : yMaxViewport,
+          1 - yAxisScaleProgress,
+          colorKey
+        );
+      }
+      if (secondaryProjection) {
+        const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
+        const secondaryColorKey = `dataset#${data.datasets[data.datasets.length - 1].key}`;
+        const isYChanging2 = yMinViewportSecondFrom !== void 0 || yMaxViewportSecondFrom !== void 0;
+        _drawYAxisScaled(
+          state,
+          secondaryProjection,
+          Math.round(yAxisScaleSecondTo || yAxisScaleSecond),
+          yMinViewportSecondTo !== void 0 ? yMinViewportSecondTo : yMinViewportSecond,
+          yMaxViewportSecondTo !== void 0 ? yMaxViewportSecondTo : yMaxViewportSecond,
+          yAxisScaleSecondFrom ? yAxisScaleSecondProgress : 1,
+          secondaryColorKey,
+          true
+        );
+        if (yAxisScaleSecondProgress > 0 && isYChanging2) {
+          _drawYAxisScaled(
+            state,
+            secondaryProjection,
+            Math.round(yAxisScaleSecondFrom),
+            yMinViewportSecondFrom !== void 0 ? yMinViewportSecondFrom : yMinViewportSecond,
+            yMaxViewportSecondFrom !== void 0 ? yMaxViewportSecondFrom : yMaxViewportSecond,
+            1 - yAxisScaleSecondProgress,
+            secondaryColorKey,
+            true
+          );
+        }
+      }
+    }
+    function _drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorKey = null, isSecondary = false) {
+      const step = yScaleLevelToStep(scaleLevel);
+      const firstVisibleValue = Math.ceil(yMin / step) * step;
+      const lastVisibleValue = Math.floor(yMax / step) * step;
+      context.font = AXES_FONT;
+      context.textAlign = isSecondary ? "right" : "left";
+      context.textBaseline = "bottom";
+      context.lineWidth = 1;
+      context.beginPath();
+      for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
+        const [, yPx] = toPixels(projection, 0, value);
+        const textOpacity = applyXEdgeOpacity(opacity, yPx);
+        context.fillStyle = colorKey ? getCssColor(colors, colorKey, textOpacity) : getCssColor(colors, "y-axis-text", textOpacity);
+        if (!isSecondary) {
+          context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
+        } else {
+          context.fillText(humanize(value), plotSize.width - GUTTER, yPx - GUTTER / 2);
+        }
+        if (isSecondary) {
+          context.strokeStyle = getCssColor(colors, colorKey, opacity);
+          context.moveTo(plotSize.width - GUTTER, yPx);
+          context.lineTo(plotSize.width - GUTTER * 2, yPx);
+        } else {
+          context.moveTo(GUTTER, yPx);
+          context.strokeStyle = getCssColor(colors, "grid-lines", opacity);
+          context.lineTo(plotSize.width - GUTTER, yPx);
+        }
+      }
+      context.stroke();
+    }
+    function _drawYAxisPercents(projection) {
+      const percentValues = [0, 0.25, 0.5, 0.75, 1];
+      const [, height] = projection.getSize();
+      context.font = AXES_FONT;
+      context.textAlign = "left";
+      context.textBaseline = "bottom";
+      context.lineWidth = 1;
+      context.beginPath();
+      percentValues.forEach((value) => {
+        const yPx = height - height * value + PLOT_TOP_PADDING;
+        context.fillStyle = getCssColor(colors, "y-axis-text", 1);
+        context.fillText(`${value * 100}%`, GUTTER, yPx - GUTTER / 4);
+        context.moveTo(GUTTER, yPx);
+        context.strokeStyle = getCssColor(colors, "grid-lines", 1);
+        context.lineTo(plotSize.width - GUTTER, yPx);
+      });
+      context.stroke();
+    }
+    function _drawYAxisCurrency(projection, data2) {
+      const formatValue = data2.datasets[0].values.map((value) => formatCryptoValue(value));
+      const total = formatValue.reduce((sum, value) => sum + value, 0);
+      const avg1 = total / formatValue.length;
+      const avg2 = total / (formatValue.length / 2);
+      const avg3 = total / (formatValue.length / 3);
+      const averageRate1 = avg1 * data2.currencyRate;
+      const averageRate2 = avg2 * data2.currencyRate;
+      const averageRate3 = avg3 * data2.currencyRate;
+      const totalAvg = [0, avg1, avg2, avg3];
+      const totalRate = [0, averageRate1, averageRate2, averageRate3];
+      const [, height] = projection.getSize();
+      context.font = AXES_FONT;
+      context.textAlign = "left";
+      context.textBaseline = "bottom";
+      context.lineWidth = 1;
+      context.beginPath();
+      totalAvg.forEach((value, index) => {
+        const yPx = height - height * (value / Math.max(...formatValue)) + PLOT_TOP_PADDING;
+        context.fillStyle = getCssColor(colors, "y-axis-text", 1);
+        context.fillText(`${value.toFixed(2)} TON`, GUTTER, yPx - GUTTER / 4);
+        context.textAlign = "right";
+        context.fillText(`$${totalRate[index].toFixed(2)}`, plotSize.width - GUTTER, yPx - GUTTER / 4);
+        context.textAlign = "left";
+        context.moveTo(GUTTER, yPx);
+        context.strokeStyle = getCssColor(colors, "grid-lines", 1);
+        context.lineTo(plotSize.width - GUTTER, yPx);
+      });
+      context.stroke();
+    }
+    return { drawXAxis, drawYAxis };
+  }
+  function setupCanvas(container, { width, height }) {
+    const canvas = createElement("canvas");
+    canvas.width = width * DPR;
+    canvas.height = height * DPR;
+    canvas.style.width = "100%";
+    canvas.style.height = `${height}px`;
+    const context = canvas.getContext("2d");
+    context.scale(DPR, DPR);
+    container.appendChild(canvas);
+    return { canvas, context };
+  }
+  function clearCanvas(canvas, context) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
+    let values = datasets.map(({ values: values2 }) => values2.slice(range.from, range.to + 1));
+    if (data.isPie && !pieToArea) {
+      values = prepareSumsByX(values);
+    }
+    const points = values.map((datasetValues, i) => datasetValues.map((value, j) => {
+      let visibleValue = value;
+      if (data.isStacked) {
+        visibleValue *= visibilities[i];
+      }
+      return {
+        labelIndex: range.from + j,
+        value,
+        visibleValue,
+        stackOffset: 0,
+        stackValue: visibleValue
+      };
+    }));
+    if (data.isPercentage) {
+      preparePercentage(points, bounds);
+    }
+    if (data.isStacked) {
+      prepareStacked(points);
+    }
+    return points;
+  }
+  function getSumsByY(points) {
+    return sumArrays(points.map((datasetPoints) => datasetPoints.map(({ visibleValue }) => visibleValue)));
+  }
+  function preparePercentage(points, bounds) {
+    const sumsByY = getSumsByY(points);
+    points.forEach((datasetPoints) => {
+      datasetPoints.forEach((point, j) => {
+        point.percent = point.visibleValue / sumsByY[j];
+        point.visibleValue = point.percent * bounds.yMax;
+      });
+    });
+  }
+  function prepareStacked(points) {
+    const accum = [];
+    points.forEach((datasetPoints) => {
+      datasetPoints.forEach((point, j) => {
+        if (accum[j] === void 0) {
+          accum[j] = 0;
+        }
+        point.stackOffset = accum[j];
+        accum[j] += point.visibleValue;
+        point.stackValue = accum[j];
+      });
+    });
+  }
+  function prepareSumsByX(values) {
+    return values.map((datasetValues) => [datasetValues.reduce((sum, value) => sum + value, 0)]);
+  }
+  const simplify = (() => {
+    function simplify2(points, indexes, fixedPoints) {
+      if (points.length < 6) {
+        return function() {
+          return {
+            points,
+            indexes,
+            removed: []
+          };
+        };
+      }
+      let worker = precalculate(points, fixedPoints);
+      return function(delta) {
+        let result = [], resultIndexes = [], removed = [];
+        let delta2 = delta * delta, markers = worker(delta2);
+        for (let i = 0, l = points.length; i < l; i++) {
+          if (markers[i] >= delta2 || i == 0 || i == l - 1) {
+            result.push(points[i]);
+            resultIndexes.push(indexes ? indexes[i] : i);
+          } else {
+            removed.push(i);
+          }
+        }
+        return {
+          points: result,
+          indexes: resultIndexes,
+          removed
+        };
+      };
+    }
+    let E1 = 1 / Math.pow(2, 22), MAXLIMIT = 1e5;
+    function precalculate(points, fixedPoints) {
+      let len = points.length, distances = [], queue = [], maximumDelta;
+      for (let i = 0, l = points.length; i < l; ++i) {
+        distances[i] = 0;
+      }
+      if (!fixedPoints) {
+        fixedPoints = [];
+      }
+      let subdivisionTree = 0;
+      for (let i = 0, l = fixedPoints.length; i < l; ++i) {
+        distances[fixedPoints[i]] = MAXLIMIT;
+      }
+      function worker(params) {
+        let start = params.start, end = params.end, record = params.record, currentLimit = params.currentLimit, usedDistance = 0;
+        if (!record) {
+          let usedIndex = -1, vector = [
+            points[end][0] - points[start][0],
+            points[end][1] - points[start][1]
+          ];
+          for (let i = 0, l = fixedPoints.length; i < l; ++i) {
+            let fixId = fixedPoints[i];
+            if (fixId > start) {
+              if (fixId < end) {
+                usedIndex = fixId;
+                usedDistance = MAXLIMIT;
+                break;
+              } else {
+                break;
+              }
+            }
+          }
+          if (usedIndex < 0) {
+            if (Math.abs(vector[0]) > E1 || Math.abs(vector[1]) > E1) {
+              let vectorLength = vector[0] * vector[0] + vector[1] * vector[1], vectorLength_1 = 1 / vectorLength;
+              for (let i = start + 1; i < end; ++i) {
+                let segmentDistance = pointToSegmentDistanceSquare(points[i], points[start], points[end], vector, vectorLength_1);
+                if (segmentDistance > usedDistance) {
+                  usedIndex = i;
+                  usedDistance = segmentDistance;
+                }
+              }
+            } else {
+              usedIndex = Math.round((start + end) * 0.5);
+              usedDistance = currentLimit;
+            }
+            distances[usedIndex] = usedDistance;
+          }
+          record = {
+            start,
+            end,
+            index: usedIndex,
+            distance: usedDistance
+          };
+        }
+        if (record.index && record.distance > maximumDelta) {
+          if (record.index - start >= 2) {
+            queue.push({
+              start,
+              end: record.index,
+              record: record.left,
+              currentLimit: record.distance,
+              parent: record,
+              parentProperty: "left"
+            });
+          }
+          if (end - record.index >= 2) {
+            queue.push({
+              start: record.index,
+              end,
+              record: record.right,
+              currentLimit: record.distance,
+              parent: record,
+              parentProperty: "right"
+            });
+          }
+        }
+        return record;
+      }
+      function tick() {
+        let request = queue.pop(), result = worker(request);
+        if (request.parent && request.parentProperty) {
+          request.parent[request.parentProperty] = result;
+        }
+        return result;
+      }
+      return function(delta) {
+        maximumDelta = delta;
+        queue.push({
+          start: 0,
+          end: len - 1,
+          record: subdivisionTree,
+          currentLimit: MAXLIMIT
+        });
+        subdivisionTree = tick();
+        while (queue.length) {
+          tick();
+        }
+        return distances;
+      };
+    }
+    function pointToSegmentDistanceSquare(p, v1, v2, dv, dvlen_1) {
+      let t;
+      let vx = +v1[0], vy = +v1[1];
+      t = +((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * dvlen_1;
+      if (t > 1) {
+        vx = +v2[0];
+        vy = +v2[1];
+      } else if (t > 0) {
+        vx += +dv[0] * t;
+        vy += +dv[1] * t;
+      }
+      let a = +p[0] - vx, b = +p[1] - vy;
+      return +a * a + b * b;
+    }
+    return simplify2;
+  })();
+  function drawDatasets(context, state, data, range, points, projection, secondaryPoints, secondaryProjection, lineWidth, visibilities, colors, pieToBar, simplification) {
+    data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
+      if (!visibilities[i]) {
+        return;
+      }
+      const options = {
+        color: getCssColor(colors, `dataset#${key}`),
+        lineWidth,
+        opacity: data.isStacked ? 1 : visibilities[i],
+        simplification
+      };
+      const datasetType = type === "pie" && pieToBar ? "bar" : type;
+      let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
+      let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
+      if (datasetType === "area") {
+        const bottomLine = [
+          { labelIndex: range.from, stackValue: 0 },
+          { labelIndex: range.to, stackValue: 0 }
+        ];
+        const lowerBoundary = points[i - 1] || bottomLine;
+        const upperBoundary = points[i].slice().reverse();
+        datasetPoints = mergeArrays([lowerBoundary, upperBoundary]);
+      }
+      if (datasetType === "pie") {
+        options.center = projection.getCenter();
+        options.radius = getPieRadius(projection);
+        options.pointerVector = state.focusOn;
+      }
+      if (datasetType === "bar") {
+        const [x0] = toPixels(projection, 0, 0);
+        const [x1] = toPixels(projection, 1, 0);
+        options.lineWidth = x1 - x0;
+        options.focusOn = state.focusOn;
+      }
+      drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
+    });
+    if (state.focusOn && (data.isBars || data.isSteps)) {
+      const [x0] = toPixels(projection, 0, 0);
+      const [x1] = toPixels(projection, 1, 0);
+      drawBarsMask(context, projection, {
+        focusOn: state.focusOn,
+        color: getCssColor(colors, "mask"),
+        lineWidth: data.isSteps ? x1 - x0 + lineWidth : x1 - x0
+      });
+    }
+  }
+  function drawDataset(type, ...args) {
+    switch (type) {
+      case "line":
+        return drawDatasetLine(...args);
+      case "bar":
+        return drawDatasetBars(...args);
+      case "step":
+        return drawDatasetSteps(...args);
+      case "area":
+        return drawDatasetArea(...args);
+      case "pie":
+        return drawDatasetPie(...args);
+    }
+  }
+  function drawDatasetLine(context, points, projection, options) {
+    context.beginPath();
+    let pixels = [];
+    for (let j = 0, l = points.length; j < l; j++) {
+      const { labelIndex, stackValue } = points[j];
+      pixels.push(toPixels(projection, labelIndex, stackValue));
+    }
+    if (options.simplification) {
+      const simplifierFn = simplify(pixels);
+      pixels = simplifierFn(options.simplification).points;
+    }
+    pixels.forEach(([x, y]) => {
+      context.lineTo(x, y);
+    });
+    context.save();
+    context.strokeStyle = options.color;
+    context.lineWidth = options.lineWidth;
+    context.globalAlpha = options.opacity;
+    context.lineJoin = "bevel";
+    context.lineCap = "butt";
+    context.stroke();
+    context.restore();
+  }
+  function drawDatasetBars(context, points, projection, options) {
+    const { yMin } = projection.getParams();
+    context.save();
+    context.globalAlpha = options.opacity;
+    context.fillStyle = options.color;
+    for (let j = 0, l = points.length; j < l; j++) {
+      const { labelIndex, stackValue, stackOffset = 0 } = points[j];
+      const [, yFrom] = toPixels(projection, labelIndex, Math.max(stackOffset, yMin));
+      const [x, yTo] = toPixels(projection, labelIndex, stackValue);
+      const rectX = x - options.lineWidth / 2;
+      const rectY = yTo;
+      const rectW = options.opacity === 1 ? options.lineWidth + PLOT_BARS_WIDTH_SHIFT : options.lineWidth + PLOT_BARS_WIDTH_SHIFT * options.opacity;
+      const rectH = yFrom - yTo;
+      context.fillRect(rectX, rectY, rectW, rectH);
+    }
+    context.restore();
+  }
+  function drawDatasetSteps(context, points, projection, options) {
+    context.beginPath();
+    let pixels = [];
+    for (let j = 0, l = points.length; j < l; j++) {
+      const { labelIndex, stackValue } = points[j];
+      pixels.push(
+        toPixels(projection, labelIndex - PLOT_BARS_WIDTH_SHIFT, stackValue),
+        toPixels(projection, labelIndex + PLOT_BARS_WIDTH_SHIFT, stackValue)
+      );
+    }
+    pixels.forEach(([x, y]) => {
+      context.lineTo(x, y);
+    });
+    context.save();
+    context.strokeStyle = options.color;
+    context.lineWidth = options.lineWidth;
+    context.globalAlpha = options.opacity;
+    context.stroke();
+    context.restore();
+  }
+  function drawBarsMask(context, projection, options) {
+    const [xCenter, yCenter] = projection.getCenter();
+    const [width, height] = projection.getSize();
+    const [x] = toPixels(projection, options.focusOn, 0);
+    context.fillStyle = options.color;
+    context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT, height);
+    context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
+  }
+  function drawDatasetArea(context, points, projection, options) {
+    context.beginPath();
+    let pixels = [];
+    for (let j = 0, l = points.length; j < l; j++) {
+      const { labelIndex, stackValue } = points[j];
+      pixels.push(toPixels(projection, labelIndex, stackValue));
+    }
+    if (options.simplification) {
+      const simplifierFn = simplify(pixels);
+      pixels = simplifierFn(options.simplification).points;
+    }
+    pixels.forEach(([x, y]) => {
+      context.lineTo(x, y);
+    });
+    context.save();
+    context.fillStyle = options.color;
+    context.lineWidth = options.lineWidth;
+    context.globalAlpha = options.opacity;
+    context.lineJoin = "bevel";
+    context.lineCap = "butt";
+    context.fill();
+    context.restore();
+  }
+  function drawDatasetPie(context, points, projection, options) {
+    const { visibleValue, stackValue, stackOffset = 0 } = points[0];
+    if (!visibleValue) {
+      return;
+    }
+    const { yMin, yMax } = projection.getParams();
+    const percentFactor = 1 / (yMax - yMin);
+    const percent = visibleValue * percentFactor;
+    const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
+    const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
+    const { radius = 120, center: [x, y], pointerVector } = options;
+    const shift = pointerVector && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= radius ? PLOT_PIE_SHIFT : 0;
+    const shiftAngle = (beginAngle + endAngle) / 2;
+    const directionX = Math.cos(shiftAngle);
+    const directionY = Math.sin(shiftAngle);
+    const shiftX = directionX * shift;
+    const shiftY = directionY * shift;
+    context.save();
+    context.beginPath();
+    context.fillStyle = options.color;
+    context.moveTo(x + shiftX, y + shiftY);
+    context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
+    context.lineTo(x + shiftX, y + shiftY);
+    context.fill();
+    if (percent >= PIE_MINIMUM_VISIBLE_PERCENT) {
+      context.font = `700 ${getPieTextSize(percent, radius)}px Helvetica, Arial, sans-serif`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillStyle = "white";
+      const textShift = getPieTextShift(percent, radius);
+      context.fillText(
+        `${Math.round(percent * 100)}%`,
+        x + directionX * textShift + shiftX,
+        y + directionY * textShift + shiftY
+      );
+    }
+    context.restore();
+  }
+  function captureEvents(element, options) {
+    let captureEvent = null;
+    let longPressTimeout = null;
+    function onCapture(e) {
+      captureEvent = e;
+      if (e.type === "mousedown") {
+        addEventListener(document, "mousemove", onMove);
+        addEventListener(document, "mouseup", onRelease);
+      } else if (e.type === "touchstart") {
+        addEventListener(document, "touchmove", onMove);
+        addEventListener(document, "touchend", onRelease);
+        addEventListener(document, "touchcancel", onRelease);
+        if (e.pageX === void 0) {
+          e.pageX = e.touches[0].pageX;
+        }
+      }
+      if (options.draggingCursor) {
+        document.body.classList.add(`cursor-${options.draggingCursor}`);
+      }
+      options.onCapture && options.onCapture(e);
+      if (options.onLongPress) {
+        longPressTimeout = setTimeout(() => options.onLongPress(), LONG_PRESS_TIMEOUT);
+      }
+    }
+    function onRelease(e) {
+      if (captureEvent) {
+        if (longPressTimeout) {
+          clearTimeout(longPressTimeout);
+          longPressTimeout = null;
+        }
+        if (options.draggingCursor) {
+          document.body.classList.remove(`cursor-${options.draggingCursor}`);
+        }
+        removeEventListener(document, "mouseup", onRelease);
+        removeEventListener(document, "mousemove", onMove);
+        removeEventListener(document, "touchcancel", onRelease);
+        removeEventListener(document, "touchend", onRelease);
+        removeEventListener(document, "touchmove", onMove);
+        captureEvent = null;
+        options.onRelease && options.onRelease(e);
+      }
+    }
+    function onMove(e) {
+      if (captureEvent) {
+        if (longPressTimeout) {
+          clearTimeout(longPressTimeout);
+          longPressTimeout = null;
+        }
+        if (e.type === "touchmove" && e.pageX === void 0) {
+          e.pageX = e.touches[0].pageX;
+        }
+        options.onDrag && options.onDrag(e, captureEvent, {
+          dragOffsetX: e.pageX - captureEvent.pageX
+        });
+      }
+    }
+    addEventListener(element, "mousedown", onCapture);
+    addEventListener(element, "touchstart", onCapture);
+  }
+  function createMinimap(container, data, colors, rangeCallback) {
+    let _element;
+    let _canvas;
+    let _context;
+    let _canvasSize;
+    let _ruler;
+    let _slider;
+    let _capturedOffset;
+    let _range = {};
+    let _state;
+    const _updateRulerOnRaf = throttleWithRaf(_updateRuler);
+    _setupLayout();
+    _updateRange(data.minimapRange || DEFAULT_RANGE);
+    function update(newState) {
+      const { begin, end } = newState;
+      if (!_capturedOffset) {
+        _updateRange({ begin, end }, true);
+      }
+      if (data.datasets.length >= MINIMAP_MAX_ANIMATED_DATASETS) {
+        newState = newState.static;
+      }
+      if (!_isStateChanged(newState)) {
+        return;
+      }
+      _state = proxyMerge(newState, { focusOn: null });
+      clearCanvas(_canvas, _context);
+      _drawDatasets(_state);
+    }
+    function toggle(shouldShow) {
+      _element.classList.toggle("lovely-chart--state-hidden", !shouldShow);
+      requestAnimationFrame(() => {
+        _element.classList.toggle("lovely-chart--state-transparent", !shouldShow);
+      });
+    }
+    function _setupLayout() {
+      _element = createElement();
+      _element.className = "lovely-chart--minimap";
+      _element.style.height = `${MINIMAP_HEIGHT}px`;
+      _setupCanvas();
+      _setupRuler();
+      container.appendChild(_element);
+      _canvasSize = {
+        width: _canvas.offsetWidth,
+        height: _canvas.offsetHeight
+      };
+    }
+    function _getSize() {
+      return {
+        width: container.offsetWidth - MINIMAP_MARGIN * 2,
+        height: MINIMAP_HEIGHT
+      };
+    }
+    function _setupCanvas() {
+      const { canvas, context } = setupCanvas(_element, _getSize());
+      _canvas = canvas;
+      _context = context;
+    }
+    function _setupRuler() {
+      _ruler = createElement();
+      _ruler.className = "lovely-chart--minimap-ruler";
+      _ruler.innerHTML = '<div class="lovely-chart--minimap-mask"></div><div class="lovely-chart--minimap-slider"><div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div><div class="lovely-chart--minimap-slider-inner"></div><div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div></div><div class="lovely-chart--minimap-mask"></div>';
+      _slider = _ruler.children[1];
+      captureEvents(
+        _slider.children[1],
+        {
+          onCapture: _onDragCapture,
+          onDrag: _onSliderDrag,
+          onRelease: _onDragRelease,
+          draggingCursor: "grabbing"
+        }
+      );
+      captureEvents(
+        _slider.children[0],
+        {
+          onCapture: _onDragCapture,
+          onDrag: _onLeftEarDrag,
+          onRelease: _onDragRelease,
+          draggingCursor: "ew-resize"
+        }
+      );
+      captureEvents(
+        _slider.children[2],
+        {
+          onCapture: _onDragCapture,
+          onDrag: _onRightEarDrag,
+          onRelease: _onDragRelease,
+          draggingCursor: "ew-resize"
+        }
+      );
+      _element.appendChild(_ruler);
+    }
+    function _isStateChanged(newState) {
+      if (!_state) {
+        return true;
+      }
+      const { datasets } = data;
+      if (datasets.some(({ key }) => _state[`opacity#${key}`] !== newState[`opacity#${key}`])) {
+        return true;
+      }
+      if (_state.yMaxMinimap !== newState.yMaxMinimap) {
+        return true;
+      }
+      return false;
+    }
+    function _drawDatasets(state = {}) {
+      const { datasets } = data;
+      const range = {
+        from: 0,
+        to: state.totalXWidth
+      };
+      const boundsAndParams = {
+        begin: 0,
+        end: 1,
+        totalXWidth: state.totalXWidth,
+        yMin: state.yMinMinimap,
+        yMax: state.yMaxMinimap,
+        availableWidth: _canvasSize.width,
+        availableHeight: _canvasSize.height,
+        yPadding: 1
+      };
+      const visibilities = datasets.map(({ key }) => _state[`opacity#${key}`]);
+      const points = preparePoints(data, datasets, range, visibilities, boundsAndParams, true);
+      const projection = createProjection(boundsAndParams);
+      let secondaryPoints = null;
+      let secondaryProjection = null;
+      if (data.hasSecondYAxis) {
+        const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
+        const bounds = { yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond };
+        secondaryPoints = preparePoints(data, [secondaryDataset], range, visibilities, bounds)[0];
+        secondaryProjection = projection.copy(bounds);
+      }
+      const totalPoints = points.reduce((a, p) => a + p.length, 0);
+      const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_MINIMAP_FACTOR;
+      drawDatasets(
+        _context,
+        state,
+        data,
+        range,
+        points,
+        projection,
+        secondaryPoints,
+        secondaryProjection,
+        MINIMAP_LINE_WIDTH,
+        visibilities,
+        colors,
+        true,
+        simplification
+      );
+    }
+    function _onDragCapture(e) {
+      e.preventDefault();
+      _capturedOffset = e.target.offsetLeft;
+    }
+    function _onDragRelease() {
+      _capturedOffset = null;
+    }
+    function _onSliderDrag(moveEvent, captureEvent, { dragOffsetX }) {
+      const minX1 = 0;
+      const maxX1 = _canvasSize.width - _slider.offsetWidth;
+      const newX1 = Math.max(minX1, Math.min(_capturedOffset + dragOffsetX - MINIMAP_EAR_WIDTH, maxX1));
+      const newX2 = newX1 + _slider.offsetWidth;
+      const begin = newX1 / _canvasSize.width;
+      const end = newX2 / _canvasSize.width;
+      _updateRange({ begin, end });
+    }
+    function _onLeftEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
+      const minX1 = 0;
+      const maxX1 = _slider.offsetLeft + _slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
+      const newX1 = Math.min(maxX1, Math.max(minX1, _capturedOffset + dragOffsetX));
+      const begin = newX1 / _canvasSize.width;
+      _updateRange({ begin });
+    }
+    function _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
+      const minX2 = _slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
+      const maxX2 = _canvasSize.width;
+      const newX2 = Math.max(minX2, Math.min(_capturedOffset + MINIMAP_EAR_WIDTH + dragOffsetX, maxX2));
+      const end = newX2 / _canvasSize.width;
+      _updateRange({ end });
+    }
+    function _updateRange(range, isExternal) {
+      let nextRange = Object.assign({}, _range, range);
+      if (_state && _state.minimapDelta && !isExternal) {
+        nextRange = _adjustDiscreteRange(nextRange);
+      }
+      if (nextRange.begin === _range.begin && nextRange.end === _range.end) {
+        return;
+      }
+      _range = nextRange;
+      _updateRulerOnRaf();
+      if (!isExternal) {
+        rangeCallback(_range);
+      }
+    }
+    function _adjustDiscreteRange(nextRange) {
+      const begin = Math.round(nextRange.begin / _state.minimapDelta) * _state.minimapDelta;
+      const end = Math.round(nextRange.end / _state.minimapDelta) * _state.minimapDelta;
+      return { begin, end };
+    }
+    function _updateRuler() {
+      const { begin, end } = _range;
+      _ruler.children[0].style.width = `${begin * 100}%`;
+      _ruler.children[1].style.width = `${(end - begin) * 100}%`;
+      _ruler.children[2].style.width = `${(1 - end) * 100}%`;
+    }
+    return { update, toggle };
+  }
+  function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
+    let _state;
+    let _points;
+    let _projection;
+    let _secondaryPoints;
+    let _secondaryProjection;
+    let _element;
+    let _canvas;
+    let _context;
+    let _balloon;
+    let _offsetX;
+    let _offsetY;
+    let _clickedOnLabel = null;
+    let _isZoomed = false;
+    let _isZooming = false;
+    const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
+    const _throttledUpdateContent = throttle(_updateContent, 100, true);
+    _setupLayout();
+    function update(state, points, projection, secondaryPoints, secondaryProjection) {
+      _state = state;
+      _points = points;
+      _projection = projection;
+      _secondaryPoints = secondaryPoints;
+      _secondaryProjection = secondaryProjection;
+      _selectLabel(true);
+    }
+    function toggleLoading(isLoading) {
+      _balloon.classList.toggle("lovely-chart--state-loading", isLoading);
+      if (!isLoading) {
+        _clear();
+      }
+    }
+    function toggleIsZoomed(isZoomed) {
+      if (isZoomed !== _isZoomed) {
+        _isZooming = true;
+      }
+      _isZoomed = isZoomed;
+      _balloon.classList.toggle("lovely-chart--state-inactive", isZoomed);
+    }
+    function _setupLayout() {
+      _element = createElement();
+      _element.className = `lovely-chart--tooltip`;
+      _setupCanvas();
+      _setupBalloon();
+      if ("ontouchstart" in window) {
+        addEventListener(_element, "touchmove", _onMouseMove);
+        addEventListener(_element, "touchstart", _onMouseMove);
+        addEventListener(document, "touchstart", _onDocumentMove);
+      } else {
+        addEventListener(_element, "mousemove", _onMouseMove);
+        addEventListener(_element, "click", _onClick);
+        addEventListener(document, "mousemove", _onDocumentMove);
+      }
+      container.appendChild(_element);
+    }
+    function _setupCanvas() {
+      const { canvas, context } = setupCanvas(_element, plotSize);
+      _canvas = canvas;
+      _context = context;
+    }
+    function _setupBalloon() {
+      _balloon = createElement();
+      _balloon.className = `lovely-chart--tooltip-balloon${!data.isZoomable ? " lovely-chart--state-inactive" : ""}`;
+      _balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
+      if ("ontouchstart" in window && data.isZoomable) {
+        addEventListener(_balloon, "click", _onBalloonClick);
+      }
+      _element.appendChild(_balloon);
+    }
+    function _onMouseMove(e) {
+      if (e.target === _balloon || _balloon.contains(e.target) || _clickedOnLabel) {
+        return;
+      }
+      _isZooming = false;
+      const pageOffset = _getPageOffset(_element);
+      _offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
+      _offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
+      _selectLabelOnRaf();
+    }
+    function _onDocumentMove(e) {
+      if (_offsetX !== null && e.target !== _element && !_element.contains(e.target)) {
+        _clear();
+      }
+    }
+    function _onClick(e) {
+      if (_isZooming) {
+        return;
+      }
+      if (data.isZoomable) {
+        const oldLabelIndex = _clickedOnLabel;
+        _clickedOnLabel = null;
+        _onMouseMove(e);
+        const newLabelIndex = _getLabelIndex();
+        if (newLabelIndex !== oldLabelIndex) {
+          _clickedOnLabel = newLabelIndex;
+        }
+        onZoom(newLabelIndex);
+      }
+    }
+    function _onBalloonClick() {
+      if (_balloon.classList.contains("lovely-chart--state-inactive")) {
+        return;
+      }
+      const labelIndex = _projection.findClosestLabelIndex(_offsetX);
+      onZoom(labelIndex);
+    }
+    function _clear(isExternal) {
+      _offsetX = null;
+      _clickedOnLabel = null;
+      clearCanvas(_canvas, _context);
+      _hideBalloon();
+      if (!isExternal && onFocus) {
+        onFocus(null);
+      }
+    }
+    function _getLabelIndex() {
+      const labelIndex = _projection.findClosestLabelIndex(_offsetX);
+      return labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex ? null : labelIndex;
+    }
+    function _selectLabel(isExternal) {
+      if (!_offsetX || !_state || _isZooming) {
+        return;
+      }
+      const labelIndex = _getLabelIndex();
+      if (labelIndex === null) {
+        _clear(isExternal);
+        return;
+      }
+      const pointerVector = getPointerVector();
+      const shouldShowBalloon = data.isPie ? pointerVector.distance <= getPieRadius(_projection) : true;
+      if (!isExternal && onFocus) {
+        if (data.isPie) {
+          onFocus(pointerVector);
+        } else {
+          onFocus(labelIndex);
+        }
+      }
+      function getValue(values, labelIndex2) {
+        if (data.isPie) {
+          return values.slice(_state.labelFromIndex, _state.labelToIndex + 1).reduce((a, x) => a + x, 0);
+        }
+        return values[labelIndex2];
+      }
+      const [xPx] = toPixels(_projection, labelIndex, 0);
+      const statistics = data.datasets.map(({ key, name, values, hasOwnYAxis }, i) => ({
+        key,
+        name,
+        value: getValue(values, labelIndex),
+        hasOwnYAxis,
+        originalIndex: i
+      })).filter(({ key }) => _state.filter[key]);
+      if (statistics.length && shouldShowBalloon) {
+        _updateBalloon(statistics, labelIndex);
+      } else {
+        _hideBalloon();
+      }
+      clearCanvas(_canvas, _context);
+      if (data.isLines || data.isAreas) {
+        if (data.isLines) {
+          _drawCircles(statistics, labelIndex);
+        }
+        _drawTail(xPx, plotSize.height - X_AXIS_HEIGHT, getCssColor(colors, "grid-lines"));
+      }
+    }
+    function _drawCircles(statistics, labelIndex) {
+      statistics.forEach(({ value, key, hasOwnYAxis, originalIndex }) => {
+        const pointIndex = labelIndex - _state.labelFromIndex;
+        const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[originalIndex][pointIndex];
+        if (!point) {
+          return;
+        }
+        const [x, y] = hasOwnYAxis ? toPixels(_secondaryProjection, labelIndex, point.stackValue) : toPixels(_projection, labelIndex, point.stackValue);
+        _drawCircle(
+          [x, y],
+          getCssColor(colors, `dataset#${key}`),
+          getCssColor(colors, "background")
+        );
+      });
+    }
+    function _drawCircle([xPx, yPx], strokeColor, fillColor) {
+      _context.strokeStyle = strokeColor;
+      _context.fillStyle = fillColor;
+      _context.lineWidth = 2;
+      _context.beginPath();
+      _context.arc(xPx, yPx, 4, 0, 2 * Math.PI);
+      _context.fill();
+      _context.stroke();
+    }
+    function _drawTail(xPx, height, color) {
+      _context.strokeStyle = color;
+      _context.lineWidth = 1;
+      _context.beginPath();
+      _context.moveTo(xPx, 0);
+      _context.lineTo(xPx, height);
+      _context.stroke();
+    }
+    function _getBalloonLeftOffset(labelIndex) {
+      const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
+      const { angle } = getPointerVector();
+      const shouldPlaceRight = data.isPie ? angle > Math.PI / 2 : labelIndex < meanLabel;
+      const leftOffset = shouldPlaceRight ? _offsetX + BALLOON_OFFSET : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
+      return Math.min(Math.max(0, leftOffset), container.offsetWidth - _balloon.offsetWidth);
+    }
+    function _getBalloonTopOffset() {
+      return data.isPie ? `${_offsetY}px` : 0;
+    }
+    function _updateBalloon(statistics, labelIndex) {
+      _balloon.style.transform = `translate3D(${_getBalloonLeftOffset(labelIndex)}px, ${_getBalloonTopOffset()}, 0)`;
+      _balloon.classList.add("lovely-chart--state-shown");
+      if (data.isPie) {
+        _updateContent(null, statistics);
+      } else {
+        _throttledUpdateContent(_getTitle(data, labelIndex), statistics);
+      }
+    }
+    function _getTitle(data2, labelIndex) {
+      switch (data2.tooltipFormatter) {
+        case "statsFormatDayHourFull":
+          return statsFormatDayHourFull(data2.xLabels[labelIndex].value);
+        case "statsTooltipFormat('day')":
+          return getLabelDate(data2.xLabels[labelIndex]);
+        case "statsTooltipFormat('hour')":
+        case "statsTooltipFormat('5min')":
+          return getLabelTime(data2.xLabels[labelIndex]);
+        default:
+          return data2.xLabels[labelIndex].text;
+      }
+    }
+    function _isPieSectorSelected(statistics, value, totalValue, index, pointerVector) {
+      const offset = index > 0 ? statistics.slice(0, index).reduce((a, x) => a + x.value, 0) : 0;
+      const beginAngle = offset / totalValue * Math.PI * 2 - Math.PI / 2;
+      const endAngle = (offset + value) / totalValue * Math.PI * 2 - Math.PI / 2;
+      return pointerVector && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= getPieRadius(_projection);
+    }
+    function _updateTitle(title) {
+      const titleContainer = _balloon.children[0];
+      if (data.isPie) {
+        if (titleContainer) {
+          titleContainer.style.display = "none";
+        }
+      } else {
+        if (titleContainer.style.display === "none") {
+          titleContainer.style.display = "";
+        }
+        const currentTitle = titleContainer.querySelector(":not(.lovely-chart--state-hidden)");
+        if (!titleContainer.innerHTML || !currentTitle) {
+          titleContainer.innerHTML = `<span>${title}</span>`;
+        } else {
+          currentTitle.innerHTML = title;
+        }
+      }
+    }
+    function _insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
+      const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${data.colors[key].slice(1)}`;
+      const newDataSet = createElement();
+      newDataSet.className = "lovely-chart--tooltip-dataset";
+      newDataSet.setAttribute("data-present", "true");
+      newDataSet.setAttribute("data-name", name);
+      newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${formatInteger(value)}</span>`;
+      _renderPercentageValue(newDataSet, value, totalValue);
+      const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
+      if (totalText) {
+        dataSetContainer.insertBefore(newDataSet, totalText);
+      } else {
+        dataSetContainer.appendChild(newDataSet);
+      }
+    }
+    function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
+      currentDataSet.setAttribute("data-present", "true");
+      const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${data.colors[key].slice(1)}:not(.lovely-chart--state-hidden)`);
+      if (data.isCurrency) {
+        valueElement.innerHTML = formatCryptoValue(value);
+      } else {
+        valueElement.innerHTML = formatInteger(value);
+      }
+      _renderPercentageValue(currentDataSet, value, totalValue);
+    }
+    function _renderPercentageValue(dataSet, value, totalValue) {
+      if (!data.isPercentage) {
+        return;
+      }
+      if (data.isPie) {
+        Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach((e) => e.remove());
+        return;
+      }
+      const percentageValue = totalValue ? Math.round(value / totalValue * 100) : 0;
+      const percentageElement = dataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
+      if (!percentageElement) {
+        const newPercentageTitle = createElement("span");
+        newPercentageTitle.className = "lovely-chart--percentage-title lovely-chart--position-left";
+        newPercentageTitle.innerHTML = `${percentageValue}%`;
+        dataSet.prepend(newPercentageTitle);
+      } else {
+        percentageElement.innerHTML = `${percentageValue}%`;
+      }
+    }
+    function _updateDataSets(statistics) {
+      const dataSetContainer = _balloon.children[1];
+      if (data.isPie) {
+        dataSetContainer.classList.add("lovely-chart--tooltip-legend-pie");
+      }
+      Array.from(dataSetContainer.children).forEach((dataSet) => {
+        if (!data.isPie && dataSetContainer.classList.contains("lovely-chart--tooltip-legend-pie")) {
+          dataSet.remove();
+        } else {
+          dataSet.setAttribute("data-present", "false");
+        }
+      });
+      const totalValue = statistics.reduce((a, x) => a + x.value, 0);
+      const pointerVector = getPointerVector();
+      const filteredStatistics = statistics.filter(({ value }) => value !== 0);
+      const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
+      const finalStatistics = data.isPie ? sortedStatistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : sortedStatistics;
+      finalStatistics.forEach((statItem) => {
+        const currentDataSet = dataSetContainer.querySelector(`[data-name="${statItem.name}"]`);
+        if (!currentDataSet) {
+          _insertNewDataSet(dataSetContainer, statItem, totalValue);
+        } else {
+          _updateDataSet(currentDataSet, statItem, totalValue);
+          dataSetContainer.appendChild(currentDataSet);
+        }
+      });
+      if ((data.isBars || data.isSteps) && data.isStacked) {
+        _renderTotal(dataSetContainer, formatInteger(totalValue));
+      }
+      if (data.isCurrency) {
+        _renderCurrencyRate(dataSetContainer, formatCryptoValue(totalValue));
+      }
+      Array.from(dataSetContainer.querySelectorAll('[data-present="false"]')).forEach((dataSet) => {
+        dataSet.remove();
+      });
+    }
+    function _updateContent(title, statistics) {
+      _updateTitle(title);
+      _updateDataSets(statistics);
+    }
+    function _renderTotal(dataSetContainer, totalValue) {
+      const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
+      const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
+      if (!totalText) {
+        const newTotalText = createElement();
+        newTotalText.className = "lovely-chart--tooltip-dataset";
+        newTotalText.setAttribute("data-present", "true");
+        newTotalText.setAttribute("data-total", "true");
+        newTotalText.innerHTML = `<span>All</span><span class="${className}">${totalValue}</span>`;
+        dataSetContainer.appendChild(newTotalText);
+      } else {
+        totalText.setAttribute("data-present", "true");
+        const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
+        valueElement.innerHTML = totalValue;
+      }
+    }
+    function _renderCurrencyRate(dataSetContainer, totalValue) {
+      const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
+      const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
+      const totalUsd = (parseFloat(totalValue) * data.currencyRate).toFixed(2);
+      if (!totalText) {
+        const newTotalText = createElement();
+        newTotalText.className = "lovely-chart--tooltip-dataset";
+        newTotalText.setAttribute("data-present", "true");
+        newTotalText.setAttribute("data-total", "true");
+        newTotalText.innerHTML = `<span>USD ≈</span><span class="${className}">$${totalUsd}</span>`;
+        dataSetContainer.appendChild(newTotalText);
+      } else {
+        totalText.setAttribute("data-present", "true");
+        const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
+        valueElement.innerHTML = `$${totalUsd}`;
+      }
+    }
+    function _hideBalloon() {
+      _balloon.classList.remove("lovely-chart--state-shown");
+    }
+    function getPointerVector() {
+      const { width, height } = _element.getBoundingClientRect();
+      const center = [width / 2, height / 2];
+      const angle = Math.atan2(_offsetY - center[1], _offsetX - center[0]);
+      const distance = Math.sqrt((_offsetX - center[0]) ** 2 + (_offsetY - center[1]) ** 2);
+      return {
+        angle: angle >= -Math.PI / 2 ? angle : 2 * Math.PI + angle,
+        distance
+      };
+    }
+    function _getPageOffset(el) {
+      return el.getBoundingClientRect();
+    }
+    return { update, toggleLoading, toggleIsZoomed };
+  }
+  function createTools(container, data, filterCallback) {
+    let _element;
+    _setupLayout();
+    _updateFilter();
+    function redraw() {
+      if (_element) {
+        const oldElement = _element;
+        oldElement.classList.add("lovely-chart--state-hidden");
+        setTimeout(() => {
+          oldElement.parentNode.removeChild(oldElement);
+        }, 500);
+      }
+      _setupLayout();
+      _element.classList.add("lovely-chart--state-transparent");
+      requestAnimationFrame(() => {
+        _element.classList.remove("lovely-chart--state-transparent");
+      });
+    }
+    function _setupLayout() {
+      _element = createElement();
+      _element.className = "lovely-chart--tools";
+      if (data.datasets.length < 2) {
+        _element.className += " lovely-chart--state-hidden";
+      }
+      data.datasets.forEach(({ key, name }) => {
+        const control = createElement("a");
+        control.href = "#";
+        control.dataset.key = key;
+        control.className = `lovely-chart--button lovely-chart--color-${data.colors[key].slice(1)} lovely-chart--state-checked`;
+        control.innerHTML = `<span class="lovely-chart--button-check"></span><span class="lovely-chart--button-label">${name}</span>`;
+        control.addEventListener("click", (e) => {
+          e.preventDefault();
+          if (!control.dataset.clickPrevented) {
+            _updateFilter(control);
+          }
+          delete control.dataset.clickPrevented;
+        });
+        captureEvents(control, {
+          onLongPress: () => {
+            control.dataset.clickPrevented = "true";
+            _updateFilter(control, true);
+          }
+        });
+        _element.appendChild(control);
+      });
+      container.appendChild(_element);
+    }
+    function _updateFilter(button, isLongPress = false) {
+      const buttons = Array.from(_element.getElementsByTagName("a"));
+      const isSingleChecked = _element.querySelectorAll(".lovely-chart--state-checked").length === 1;
+      if (button) {
+        if (button.classList.contains("lovely-chart--state-checked") && isSingleChecked) {
+          if (isLongPress) {
+            buttons.forEach((b) => b.classList.add("lovely-chart--state-checked"));
+            button.classList.remove("lovely-chart--state-checked");
+          } else {
+            button.classList.remove("lovely-chart--state-shake");
+            requestAnimationFrame(() => {
+              button.classList.add("lovely-chart--state-shake");
+            });
+          }
+        } else if (isLongPress) {
+          buttons.forEach((b) => b.classList.remove("lovely-chart--state-checked"));
+          button.classList.add("lovely-chart--state-checked");
+        } else {
+          button.classList.toggle("lovely-chart--state-checked");
+        }
+      }
+      const filter = {};
+      buttons.forEach((input) => {
+        filter[input.dataset.key] = input.classList.contains("lovely-chart--state-checked");
+      });
+      filterCallback(filter);
+    }
+    return {
+      redraw
+    };
+  }
+  const LABEL_TYPE_TO_FORMATTER = {
+    "day": "statsFormat('day')",
+    "hour": "statsFormat('hour')",
+    "5min": "statsFormat('5min')",
+    "dayHour": "statsFormatDayHour",
+    "text": void 0
+  };
+  function analyzeData(data) {
+    const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, isCurrency, currencyRate, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel } = data;
+    const labelFormatter = labelFormatterRaw || labelType && LABEL_TYPE_TO_FORMATTER[labelType];
+    const { datasets, labels } = prepareDatasets(data);
+    const colors = {};
+    let totalYMin = Infinity;
+    let totalYMax = -Infinity;
+    datasets.forEach(({ key, color, yMin, yMax }) => {
+      colors[key] = color;
+      if (yMin < totalYMin) {
+        totalYMin = yMin;
+      }
+      if (yMax > totalYMax) {
+        totalYMax = yMax;
+      }
+    });
+    let effectiveLabelFormatter = labelFormatter;
+    if (isCurrency) {
+      effectiveLabelFormatter = "statsFormat('day')";
+    }
+    let xLabels;
+    switch (effectiveLabelFormatter) {
+      case "statsFormatDayHour":
+        xLabels = statsFormatDayHour(labels);
+        break;
+      case "statsFormat('day')":
+        xLabels = statsFormatDay(labels);
+        break;
+      case "statsFormat('hour')":
+      case "statsFormat('5min')":
+        xLabels = statsFormatMin(labels);
+        break;
+      default:
+        xLabels = statsFormatText(labels);
+        break;
+    }
+    const analyzed = {
+      title,
+      labelFormatter,
+      tooltipFormatter,
+      xLabels,
+      datasets,
+      isStacked,
+      isPercentage,
+      isCurrency,
+      currencyRate,
+      hasSecondYAxis,
+      onZoom,
+      isLines: data.type === "line",
+      isBars: data.type === "bar",
+      isSteps: data.type === "step",
+      isAreas: data.type === "area",
+      isPie: data.type === "pie",
+      yMin: totalYMin,
+      yMax: totalYMax,
+      colors,
+      minimapRange,
+      hideCaption,
+      zoomOutLabel
+    };
+    analyzed.shouldZoomToPie = !analyzed.onZoom && analyzed.isPercentage;
+    analyzed.isZoomable = analyzed.onZoom || analyzed.shouldZoomToPie;
+    return analyzed;
+  }
+  function prepareDatasets(data) {
+    const { type, labels, datasets, hasSecondYAxis } = data;
+    return {
+      labels: cloneArray(labels),
+      datasets: datasets.map(({ name, color, values }, i) => {
+        const { min: yMin, max: yMax } = getMaxMin(values);
+        return {
+          type,
+          key: `y${i}`,
+          name,
+          color,
+          values: cloneArray(values),
+          hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
+          yMin,
+          yMax
+        };
+      })
+    };
+  }
+  function cloneArray(array) {
+    return array.slice(0);
+  }
+  function createZoomer(data, overviewData, colors, stateManager, container, header, minimap, tooltip, tools) {
+    let _isZoomed = false;
+    let _stateBeforeZoomIn;
+    let _stateBeforeZoomOut;
+    function zoomIn(state, labelIndex) {
+      if (_isZoomed) {
+        return;
+      }
+      const label = data.xLabels[labelIndex];
+      _stateBeforeZoomIn = state;
+      header.toggleIsZooming(true);
+      tooltip.toggleLoading(true);
+      tooltip.toggleIsZoomed(true);
+      if (data.shouldZoomToPie) {
+        container.classList.add("lovely-chart--state-zoomed-in");
+        container.classList.add("lovely-chart--state-animating");
+      }
+      const { value } = label;
+      const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(labelIndex)) : data.onZoom(value);
+      dataPromise.then((newData) => _replaceData(newData, labelIndex, label));
+    }
+    function zoomOut(state) {
+      if (!_isZoomed) {
+        return;
+      }
+      _stateBeforeZoomOut = state;
+      header.toggleIsZooming(true);
+      tooltip.toggleLoading(true);
+      tooltip.toggleIsZoomed(false);
+      if (data.shouldZoomToPie) {
+        container.classList.remove("lovely-chart--state-zoomed-in");
+        container.classList.add("lovely-chart--state-animating");
+      }
+      const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
+      _replaceData(overviewData, labelIndex);
+    }
+    function isZoomed() {
+      return _isZoomed;
+    }
+    function _replaceData(newRawData, labelIndex, zoomInLabel) {
+      if (!newRawData) {
+        tooltip.toggleLoading(false);
+        tooltip.toggleIsZoomed(false);
+        header.toggleIsZooming(false);
+        return;
+      }
+      tooltip.toggleLoading(false);
+      const labelWidth = 1 / data.xLabels.length;
+      const labelMiddle = labelIndex / (data.xLabels.length - 1);
+      const filter = {};
+      data.datasets.forEach(({ key }) => filter[key] = false);
+      const newData = analyzeData(newRawData, _isZoomed || data.shouldZoomToPie ? "day" : "hour");
+      const shouldZoomToLines = Object.keys(data.datasets).length !== Object.keys(newData.datasets).length;
+      stateManager.update({
+        range: {
+          begin: labelMiddle - labelWidth / 2,
+          end: labelMiddle + labelWidth / 2
+        },
+        filter
+      });
+      setTimeout(() => {
+        Object.assign(data, newData);
+        if (shouldZoomToLines && newRawData.colors) {
+          Object.assign(colors, createColors(newRawData.colors));
+        }
+        if (shouldZoomToLines) {
+          minimap.toggle(_isZoomed);
+          tools.redraw();
+          container.style.width = `${container.scrollWidth}px`;
+          container.style.height = `${container.scrollHeight}px`;
+        }
+        stateManager.update({
+          range: {
+            begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
+            end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA
+          },
+          focusOn: null
+        }, true);
+        const daysCount = _isZoomed || data.shouldZoomToPie ? data.xLabels.length : data.xLabels.length / 24;
+        const halfDayWidth = 1 / daysCount / 2;
+        let range;
+        let filter2;
+        if (_isZoomed) {
+          range = {
+            begin: _stateBeforeZoomIn.begin,
+            end: _stateBeforeZoomIn.end
+          };
+          filter2 = shouldZoomToLines ? _stateBeforeZoomIn.filter : _stateBeforeZoomOut.filter;
+        } else {
+          if (shouldZoomToLines) {
+            range = {
+              begin: 0,
+              end: 1
+            };
+            filter2 = {};
+            data.datasets.forEach(({ key }) => filter2[key] = true);
+          } else {
+            range = data.shouldZoomToPie ? {
+              begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
+              end: ZOOM_RANGE_MIDDLE + halfDayWidth
+            } : newData.minimapRange;
+            filter2 = _stateBeforeZoomIn.filter;
+          }
+        }
+        stateManager.update({
+          range,
+          filter: filter2,
+          minimapDelta: _isZoomed ? null : range.end - range.begin
+        });
+        if (zoomInLabel) {
+          header.zoom(getFullLabelDate(zoomInLabel));
+        }
+        _isZoomed = !_isZoomed;
+        header.toggleIsZooming(false);
+      }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
+      setTimeout(() => {
+        if (data.shouldZoomToPie) {
+          container.classList.remove("lovely-chart--state-animating");
+        }
+      }, stateManager.hasAnimations() ? 1e3 : 0);
+    }
+    function _generatePieData(labelIndex) {
+      return Object.assign(
+        {},
+        overviewData,
+        {
+          type: "pie",
+          labels: overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
+          datasets: overviewData.datasets.map((dataset) => {
+            return {
+              ...dataset,
+              values: dataset.values.slice(labelIndex - 3, labelIndex + 4)
+            };
+          })
+        }
+      );
+    }
+    return { zoomIn, zoomOut, isZoomed };
+  }
+  function create(container, originalData) {
+    let _stateManager;
+    let _element;
+    let _plot;
+    let _context;
+    let _plotSize;
+    let _header;
+    let _axes;
+    let _minimap;
+    let _tooltip;
+    let _tools;
+    let _zoomer;
+    let _state;
+    let _windowWidth = window.innerWidth;
+    const _data = analyzeData(originalData);
+    const _colors = createColors(_data.colors);
+    const _redrawDebounced = debounce(_redraw, 500, false, true);
+    _setupComponents();
+    _setupGlobalListeners();
+    function _setupComponents() {
+      _setupContainer();
+      _header = createHeader(_element, _data.title, _data.zoomOutLabel, _onZoomOut);
+      _setupPlotCanvas();
+      _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
+      _axes = createAxes(_context, _data, _plotSize, _colors);
+      _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
+      _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
+      _tools = createTools(_element, _data, _onFilterChange);
+      _zoomer = _data.isZoomable && createZoomer(_data, originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
+    }
+    function _setupContainer() {
+      _element = createElement();
+      _element.className = `lovely-chart--container${_data.shouldZoomToPie ? " lovely-chart--container-type-pie" : ""}`;
+      container.appendChild(_element);
+    }
+    function _setupPlotCanvas() {
+      const { canvas, context } = setupCanvas(_element, {
+        width: _element.clientWidth,
+        height: PLOT_HEIGHT
+      });
+      _plot = canvas;
+      _context = context;
+      _plotSize = {
+        width: _plot.offsetWidth,
+        height: _plot.offsetHeight
+      };
+    }
+    function _onStateUpdate(state) {
+      _state = state;
+      const { datasets } = _data;
+      const range = {
+        from: state.labelFromIndex,
+        to: state.labelToIndex
+      };
+      const boundsAndParams = {
+        begin: state.begin,
+        end: state.end,
+        totalXWidth: state.totalXWidth,
+        yMin: state.yMinViewport,
+        yMax: state.yMaxViewport,
+        availableWidth: _plotSize.width,
+        availableHeight: _plotSize.height - X_AXIS_HEIGHT,
+        xPadding: GUTTER,
+        yPadding: PLOT_TOP_PADDING
+      };
+      const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
+      const points = preparePoints(_data, datasets, range, visibilities, boundsAndParams);
+      const projection = createProjection(boundsAndParams);
+      let secondaryPoints = null;
+      let secondaryProjection = null;
+      if (_data.hasSecondYAxis) {
+        const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
+        const bounds = {
+          yMin: state.yMinViewportSecond,
+          yMax: state.yMaxViewportSecond
+        };
+        secondaryPoints = preparePoints(_data, [secondaryDataset], range, visibilities, bounds)[0];
+        secondaryProjection = projection.copy(bounds);
+      }
+      if (!_data.hideCaption) {
+        _header.setCaption(_getCaption(state));
+      }
+      clearCanvas(_plot, _context);
+      const totalPoints = points.reduce((a, p) => a + p.length, 0);
+      const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_PLOT_FACTOR;
+      drawDatasets(
+        _context,
+        state,
+        _data,
+        range,
+        points,
+        projection,
+        secondaryPoints,
+        secondaryProjection,
+        PLOT_LINE_WIDTH,
+        visibilities,
+        _colors,
+        false,
+        simplification
+      );
+      if (!_data.isPie) {
+        _axes.drawYAxis(state, projection, secondaryProjection);
+        _axes.drawXAxis(state, projection);
+      }
+      _minimap.update(state);
+      _tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
+    }
+    function _onRangeChange(range) {
+      _stateManager.update({ range });
+    }
+    function _onFilterChange(filter) {
+      _stateManager.update({ filter });
+    }
+    function _onFocus(focusOn) {
+      if (_data.isBars || _data.isPie || _data.isSteps) {
+        _stateManager.update({ focusOn });
+      }
+    }
+    function _onZoomIn(labelIndex) {
+      _zoomer.zoomIn(_state, labelIndex);
+    }
+    function _onZoomOut() {
+      _zoomer.zoomOut(_state);
+    }
+    function _setupGlobalListeners() {
+      document.documentElement.addEventListener("darkmode", () => {
+        _stateManager.update();
+      });
+      window.addEventListener("resize", () => {
+        if (window.innerWidth !== _windowWidth) {
+          _windowWidth = window.innerWidth;
+          _redrawDebounced();
+        }
+      });
+      window.addEventListener("orientationchange", () => {
+        _redrawDebounced();
+      });
+    }
+    function _redraw() {
+      Object.assign(_data, analyzeData(originalData));
+      _element.remove();
+      _setupComponents();
+    }
+    function _getCaption(state) {
+      let startIndex;
+      let endIndex;
+      if (_zoomer && _zoomer.isZoomed()) {
+        startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
+        endIndex = state.labelToIndex === state.totalXWidth - 1 ? state.labelToIndex : state.labelToIndex - 1;
+      } else {
+        startIndex = state.labelFromIndex;
+        endIndex = state.labelToIndex;
+      }
+      return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex]) ? `${getLabelDate(_data.xLabels[startIndex])} — ${getLabelDate(_data.xLabels[endIndex])}` : getFullLabelDate(_data.xLabels[startIndex]);
+    }
+  }
+  exports.create = create;
+  Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+  return exports;
+}({});
