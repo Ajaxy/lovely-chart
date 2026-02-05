@@ -1,8 +1,8 @@
 import { setupCanvas, clearCanvas } from './canvas.js';
-import { BALLOON_OFFSET, X_AXIS_HEIGHT } from './constants.js';
+import { BALLOON_OFFSET, X_AXIS_HEIGHT, MAX_TOOLTIP_ITEMS } from './constants.js';
 import { getPieRadius } from './formulas.js';
 import { formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull } from './format.js';
-import { getCssColor } from './skin.js';
+import { getCssColor, isColorCloseToBackground } from './skin.js';
 import { throttle, throttleWithRaf } from './utils.js';
 import { addEventListener, createElement } from './minifiers.js';
 import { toPixels } from './Projection.js';
@@ -333,7 +333,9 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${data.colors[key].slice(1)}`;
+    const colorHex = data.colors[key];
+    const colorClass = isColorCloseToBackground(colors, colorHex) ? '' : ` lovely-chart--color-${colorHex.slice(1)}`;
+    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right${colorClass}`;
     const newDataSet = createElement();
     newDataSet.className = 'lovely-chart--tooltip-dataset';
     newDataSet.setAttribute('data-present', 'true');
@@ -352,9 +354,11 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
     currentDataSet.setAttribute('data-present', 'true');
 
-    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${data.colors[key].slice(1)}:not(.lovely-chart--state-hidden)`);
+    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value`);
 
-    valueElement.innerHTML = _formatValue(value);
+    if (valueElement) {
+      valueElement.innerHTML = _formatValue(value);
+    }
 
     _renderPercentageValue(currentDataSet, value, totalValue);
   }
@@ -404,7 +408,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     const pointerVector = getPointerVector();
     const filteredStatistics = statistics.filter(({ value }) => value !== 0);
     const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
-    const finalStatistics = data.isPie ? sortedStatistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : sortedStatistics;
+    const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
+    const finalStatistics = data.isPie ? limitedStatistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : limitedStatistics;
 
     finalStatistics.forEach((statItem) => {
       const currentDataSet = dataSetContainer.querySelector(`[data-name="${statItem.name}"]`);

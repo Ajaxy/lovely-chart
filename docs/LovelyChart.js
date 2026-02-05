@@ -13,6 +13,7 @@ var LovelyChart = function(exports) {
   const PLOT_BARS_WIDTH_SHIFT = 0.5;
   const PIE_MINIMUM_VISIBLE_PERCENT = 0.02;
   const BALLOON_OFFSET = 20;
+  const MAX_TOOLTIP_ITEMS = 12;
   const AXES_FONT = "300 10px Helvetica, Arial, sans-serif";
   const AXES_MAX_COLUMN_WIDTH = 45;
   const AXES_MAX_ROW_HEIGHT = 50;
@@ -700,7 +701,8 @@ var LovelyChart = function(exports) {
         colors[skin2][`dataset#${key}`] = hexToChannels(datasetColors[key]);
         addCssRule(styleSheet, `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`, `color: ${datasetColors[key]}`);
         addCssRule(styleSheet, `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`, `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`);
-        addCssRule(styleSheet, `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`, `background-color: ${datasetColors[key]}`);
+        const checkedBtnSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`;
+        addCssRule(styleSheet, checkedBtnSelector, `background-color: ${datasetColors[key]}`);
       });
     });
     return colors;
@@ -719,6 +721,17 @@ var LovelyChart = function(exports) {
   }
   function buildCssColor([r, g, b, a = 1], opacity = 1) {
     return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
+  }
+  function isColorCloseToBackground(colors, hex) {
+    const bg = colors[skin]["tooltip-background"];
+    const fg = hexToChannels(hex);
+    return colorDistance(bg, fg) < 70;
+  }
+  function isColorCloseToWhite(hex) {
+    return colorDistance(hexToChannels(hex), [255, 255, 255]) < 70;
+  }
+  function colorDistance([r1, g1, b1], [r2, g2, b2]) {
+    return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
   }
   function addCssRule(sheet, selector, rule) {
     sheet.insertRule(`${selector} { ${rule} }`, sheet.cssRules.length);
@@ -1890,7 +1903,9 @@ var LovelyChart = function(exports) {
       }
     }
     function _insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
-      const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right lovely-chart--color-${data.colors[key].slice(1)}`;
+      const colorHex = data.colors[key];
+      const colorClass = isColorCloseToBackground(colors, colorHex) ? "" : ` lovely-chart--color-${colorHex.slice(1)}`;
+      const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right${colorClass}`;
       const newDataSet = createElement();
       newDataSet.className = "lovely-chart--tooltip-dataset";
       newDataSet.setAttribute("data-present", "true");
@@ -1906,8 +1921,10 @@ var LovelyChart = function(exports) {
     }
     function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
       currentDataSet.setAttribute("data-present", "true");
-      const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${data.colors[key].slice(1)}:not(.lovely-chart--state-hidden)`);
-      valueElement.innerHTML = _formatValue(value);
+      const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value`);
+      if (valueElement) {
+        valueElement.innerHTML = _formatValue(value);
+      }
       _renderPercentageValue(currentDataSet, value, totalValue);
     }
     function _formatValue(value) {
@@ -1948,7 +1965,8 @@ var LovelyChart = function(exports) {
       const pointerVector = getPointerVector();
       const filteredStatistics = statistics.filter(({ value }) => value !== 0);
       const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
-      const finalStatistics = data.isPie ? sortedStatistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : sortedStatistics;
+      const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
+      const finalStatistics = data.isPie ? limitedStatistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : limitedStatistics;
       finalStatistics.forEach((statItem) => {
         const currentDataSet = dataSetContainer.querySelector(`[data-name="${statItem.name}"]`);
         if (!currentDataSet) {
@@ -2053,7 +2071,8 @@ var LovelyChart = function(exports) {
         const control = createElement("a");
         control.href = "#";
         control.dataset.key = key;
-        control.className = `lovely-chart--button lovely-chart--color-${data.colors[key].slice(1)} lovely-chart--state-checked`;
+        const darkContent = isColorCloseToWhite(data.colors[key]) ? " lovely-chart--dark-content" : "";
+        control.className = `lovely-chart--button lovely-chart--color-${data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
         control.innerHTML = `<span class="lovely-chart--button-check"></span><span class="lovely-chart--button-label">${name}</span>`;
         control.addEventListener("click", (e) => {
           e.preventDefault();
