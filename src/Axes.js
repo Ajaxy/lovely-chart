@@ -142,10 +142,14 @@ export function createAxes(context, data, plotSize, colors) {
         ? getCssColor(colors, colorKey, textOpacity)
         : getCssColor(colors, 'y-axis-text', textOpacity);
 
+      const label = isSecondary
+        ? humanize(value)
+        : `${data.valuePrefix || ''}${humanize(value)}${data.valueSuffix || ''}`;
+
       if (!isSecondary) {
-        context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
+        context.fillText(label, GUTTER, yPx - GUTTER / 2);
       } else {
-        context.fillText(humanize(value), plotSize.width - GUTTER, yPx - GUTTER / 2);
+        context.fillText(label, plotSize.width - GUTTER, yPx - GUTTER / 2);
       }
 
       if (isSecondary) {

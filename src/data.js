@@ -10,7 +10,7 @@ const LABEL_TYPE_TO_FORMATTER = {
 };
 
 export function analyzeData(data) {
-  const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel } = data;
+  const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix } = data;
   const labelFormatter = labelFormatterRaw || (labelType && LABEL_TYPE_TO_FORMATTER[labelType]);
   const { datasets, labels } = prepareDatasets(data);
 
@@ -56,6 +56,8 @@ export function analyzeData(data) {
     isPercentage,
     secondaryYAxis,
     hasSecondYAxis,
+    valuePrefix,
+    valueSuffix,
     onZoom,
     isLines: data.type === 'line',
     isBars: data.type === 'bar',

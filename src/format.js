@@ -65,7 +65,8 @@ export function formatInteger(n) {
       ? Math.max(2, -Math.floor(Math.log10(abs)) + 1)
       : 2;
     const [intPart, decPart] = n.toFixed(decimals).split('.');
-    return addThousandSeparators(intPart) + '.' + decPart;
+    const trimmed = decPart.replace(/0+$/, '');
+    return trimmed ? addThousandSeparators(intPart) + '.' + trimmed : addThousandSeparators(intPart);
   }
   return addThousandSeparators(String(n));
 }

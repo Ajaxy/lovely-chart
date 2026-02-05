@@ -616,17 +616,15 @@ var LovelyChart = function(exports) {
   function formatInteger(n) {
     if (!Number.isInteger(n)) {
       const abs = Math.abs(n);
-      let decimals = 2;
-      if (abs > 0 && abs < 1) {
-        decimals = Math.max(2, -Math.floor(Math.log10(abs)) + 1);
-      }
+      const decimals = abs > 0 && abs < 1 ? Math.max(2, -Math.floor(Math.log10(abs)) + 1) : 2;
       const [intPart, decPart] = n.toFixed(decimals).split(".");
-      return intPart.replace(/\d(?=(\d{3})+$)/g, "$& ") + "." + decPart;
+      const trimmed = decPart.replace(/0+$/, "");
+      return trimmed ? addThousandSeparators(intPart) + "." + trimmed : addThousandSeparators(intPart);
     }
-    return String(n).replace(/\d(?=(\d{3})+$)/g, "$& ");
+    return addThousandSeparators(String(n));
   }
-  function formatCryptoValue(n) {
-    return Number(n / 10 ** 9);
+  function addThousandSeparators(s) {
+    return s.replace(/\d(?=(\d{3})+$)/g, "$& ");
   }
   function getFullLabelDate(label, { isShort = false } = {}) {
     return getLabelDate(label, { isShort, displayWeekDay: true });
@@ -835,8 +833,24 @@ var LovelyChart = function(exports) {
       const isYChanging = yMinViewportFrom !== void 0 || yMaxViewportFrom !== void 0;
       if (data.isPercentage) {
         _drawYAxisPercents(projection);
-      } else if (data.isCurrency) {
-        _drawYAxisCurrency(projection, data);
+      } else if (data.secondaryYAxis) {
+        _drawYAxisScaled(
+          state,
+          projection,
+          Math.round(yAxisScaleTo || yAxisScale),
+          yMinViewportTo !== void 0 ? yMinViewportTo : yMinViewport,
+          yMaxViewportTo !== void 0 ? yMaxViewportTo : yMaxViewport,
+          yAxisScaleFrom ? yAxisScaleProgress : 1
+        );
+        _drawSecondaryYAxis(
+          state,
+          projection,
+          Math.round(yAxisScaleTo || yAxisScale),
+          yMinViewportTo !== void 0 ? yMinViewportTo : yMinViewport,
+          yMaxViewportTo !== void 0 ? yMaxViewportTo : yMaxViewport,
+          yAxisScaleFrom ? yAxisScaleProgress : 1,
+          data.secondaryYAxis
+        );
       } else {
         _drawYAxisScaled(
           state,
@@ -900,10 +914,11 @@ var LovelyChart = function(exports) {
         const [, yPx] = toPixels(projection, 0, value);
         const textOpacity = applyXEdgeOpacity(opacity, yPx);
         context.fillStyle = colorKey ? getCssColor(colors, colorKey, textOpacity) : getCssColor(colors, "y-axis-text", textOpacity);
+        const label = isSecondary ? humanize(value) : `${data.valuePrefix || ""}${humanize(value)}${data.valueSuffix || ""}`;
         if (!isSecondary) {
-          context.fillText(humanize(value), GUTTER, yPx - GUTTER / 2);
+          context.fillText(label, GUTTER, yPx - GUTTER / 2);
         } else {
-          context.fillText(humanize(value), plotSize.width - GUTTER, yPx - GUTTER / 2);
+          context.fillText(label, plotSize.width - GUTTER, yPx - GUTTER / 2);
         }
         if (isSecondary) {
           context.strokeStyle = getCssColor(colors, colorKey, opacity);
@@ -935,35 +950,21 @@ var LovelyChart = function(exports) {
       });
       context.stroke();
     }
-    function _drawYAxisCurrency(projection, data2) {
-      const formatValue = data2.datasets[0].values.map((value) => formatCryptoValue(value));
-      const total = formatValue.reduce((sum, value) => sum + value, 0);
-      const avg1 = total / formatValue.length;
-      const avg2 = total / (formatValue.length / 2);
-      const avg3 = total / (formatValue.length / 3);
-      const averageRate1 = avg1 * data2.currencyRate;
-      const averageRate2 = avg2 * data2.currencyRate;
-      const averageRate3 = avg3 * data2.currencyRate;
-      const totalAvg = [0, avg1, avg2, avg3];
-      const totalRate = [0, averageRate1, averageRate2, averageRate3];
-      const [, height] = projection.getSize();
+    function _drawSecondaryYAxis(state, projection, scaleLevel, yMin, yMax, opacity = 1, secondaryYAxis) {
+      const { multiplier, prefix = "", suffix = "" } = secondaryYAxis;
+      const step = yScaleLevelToStep(scaleLevel);
+      const firstVisibleValue = Math.ceil(yMin / step) * step;
+      const lastVisibleValue = Math.floor(yMax / step) * step;
       context.font = AXES_FONT;
-      context.textAlign = "left";
+      context.textAlign = "right";
       context.textBaseline = "bottom";
-      context.lineWidth = 1;
-      context.beginPath();
-      totalAvg.forEach((value, index) => {
-        const yPx = height - height * (value / Math.max(...formatValue)) + PLOT_TOP_PADDING;
-        context.fillStyle = getCssColor(colors, "y-axis-text", 1);
-        context.fillText(`${value.toFixed(2)} TON`, GUTTER, yPx - GUTTER / 4);
-        context.textAlign = "right";
-        context.fillText(`$${totalRate[index].toFixed(2)}`, plotSize.width - GUTTER, yPx - GUTTER / 4);
-        context.textAlign = "left";
-        context.moveTo(GUTTER, yPx);
-        context.strokeStyle = getCssColor(colors, "grid-lines", 1);
-        context.lineTo(plotSize.width - GUTTER, yPx);
-      });
-      context.stroke();
+      for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
+        const [, yPx] = toPixels(projection, 0, value);
+        const textOpacity = applyXEdgeOpacity(opacity, yPx);
+        const secondaryValue = value * multiplier;
+        context.fillStyle = getCssColor(colors, "y-axis-text", textOpacity);
+        context.fillText(`${prefix}${humanize(secondaryValue)}${suffix}`, plotSize.width - GUTTER, yPx - GUTTER / 2);
+      }
     }
     return { drawXAxis, drawYAxis };
   }
@@ -1894,7 +1895,7 @@ var LovelyChart = function(exports) {
       newDataSet.className = "lovely-chart--tooltip-dataset";
       newDataSet.setAttribute("data-present", "true");
       newDataSet.setAttribute("data-name", name);
-      newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${formatInteger(value)}</span>`;
+      newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${_formatValue(value)}</span>`;
       _renderPercentageValue(newDataSet, value, totalValue);
       const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
       if (totalText) {
@@ -1906,12 +1907,11 @@ var LovelyChart = function(exports) {
     function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
       currentDataSet.setAttribute("data-present", "true");
       const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value.lovely-chart--color-${data.colors[key].slice(1)}:not(.lovely-chart--state-hidden)`);
-      if (data.isCurrency) {
-        valueElement.innerHTML = formatCryptoValue(value);
-      } else {
-        valueElement.innerHTML = formatInteger(value);
-      }
+      valueElement.innerHTML = _formatValue(value);
       _renderPercentageValue(currentDataSet, value, totalValue);
+    }
+    function _formatValue(value) {
+      return `${data.valuePrefix || ""}${formatInteger(value)}${data.valueSuffix || ""}`;
     }
     function _renderPercentageValue(dataSet, value, totalValue) {
       if (!data.isPercentage) {
@@ -1958,12 +1958,13 @@ var LovelyChart = function(exports) {
           dataSetContainer.appendChild(currentDataSet);
         }
       });
-      if ((data.isBars || data.isSteps) && data.isStacked) {
-        _renderTotal(dataSetContainer, formatInteger(totalValue));
+      if ((data.isBars || data.isSteps || data.isAreas) && data.isStacked) {
+        _renderTotal(dataSetContainer, _formatValue(totalValue));
       }
-      if (data.isCurrency) {
-        _renderCurrencyRate(dataSetContainer, formatCryptoValue(totalValue));
+      if (data.secondaryYAxis) {
+        _renderSecondaryTotal(dataSetContainer, totalValue);
       }
+      Array.from(dataSetContainer.querySelectorAll('[data-total="true"]')).forEach((el) => dataSetContainer.appendChild(el));
       Array.from(dataSetContainer.querySelectorAll('[data-present="false"]')).forEach((dataSet) => {
         dataSet.remove();
       });
@@ -1977,10 +1978,10 @@ var LovelyChart = function(exports) {
       const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
       if (!totalText) {
         const newTotalText = createElement();
-        newTotalText.className = "lovely-chart--tooltip-dataset";
+        newTotalText.className = "lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total";
         newTotalText.setAttribute("data-present", "true");
         newTotalText.setAttribute("data-total", "true");
-        newTotalText.innerHTML = `<span>All</span><span class="${className}">${totalValue}</span>`;
+        newTotalText.innerHTML = `<span>Total</span><span class="${className}">${totalValue}</span>`;
         dataSetContainer.appendChild(newTotalText);
       } else {
         totalText.setAttribute("data-present", "true");
@@ -1988,21 +1989,22 @@ var LovelyChart = function(exports) {
         valueElement.innerHTML = totalValue;
       }
     }
-    function _renderCurrencyRate(dataSetContainer, totalValue) {
+    function _renderSecondaryTotal(dataSetContainer, totalValue) {
+      const { label, multiplier, prefix = "", suffix = "" } = data.secondaryYAxis;
       const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
       const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
-      const totalUsd = (parseFloat(totalValue) * data.currencyRate).toFixed(2);
+      const secondaryValue = (totalValue * multiplier).toFixed(2);
       if (!totalText) {
         const newTotalText = createElement();
-        newTotalText.className = "lovely-chart--tooltip-dataset";
+        newTotalText.className = "lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total";
         newTotalText.setAttribute("data-present", "true");
         newTotalText.setAttribute("data-total", "true");
-        newTotalText.innerHTML = `<span>USD ≈</span><span class="${className}">$${totalUsd}</span>`;
+        newTotalText.innerHTML = `<span>${label}</span><span class="${className}">${prefix}${secondaryValue}${suffix}</span>`;
         dataSetContainer.appendChild(newTotalText);
       } else {
         totalText.setAttribute("data-present", "true");
         const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
-        valueElement.innerHTML = `$${totalUsd}`;
+        valueElement.innerHTML = `${prefix}${secondaryValue}${suffix}`;
       }
     }
     function _hideBalloon() {
@@ -2109,7 +2111,7 @@ var LovelyChart = function(exports) {
     "text": void 0
   };
   function analyzeData(data) {
-    const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, isCurrency, currencyRate, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel } = data;
+    const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix } = data;
     const labelFormatter = labelFormatterRaw || labelType && LABEL_TYPE_TO_FORMATTER[labelType];
     const { datasets, labels } = prepareDatasets(data);
     const colors = {};
@@ -2124,12 +2126,8 @@ var LovelyChart = function(exports) {
         totalYMax = yMax;
       }
     });
-    let effectiveLabelFormatter = labelFormatter;
-    if (isCurrency) {
-      effectiveLabelFormatter = "statsFormat('day')";
-    }
     let xLabels;
-    switch (effectiveLabelFormatter) {
+    switch (labelFormatter) {
       case "statsFormatDayHour":
         xLabels = statsFormatDayHour(labels);
         break;
@@ -2152,9 +2150,10 @@ var LovelyChart = function(exports) {
       datasets,
       isStacked,
       isPercentage,
-      isCurrency,
-      currencyRate,
+      secondaryYAxis,
       hasSecondYAxis,
+      valuePrefix,
+      valueSuffix,
       onZoom,
       isLines: data.type === "line",
       isBars: data.type === "bar",
