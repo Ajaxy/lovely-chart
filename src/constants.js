@@ -17,7 +17,7 @@ export const PIE_MINIMUM_VISIBLE_PERCENT = 0.02;
 export const BALLOON_OFFSET = 20;
 export const MAX_TOOLTIP_ITEMS = 12;
 
-export const AXES_FONT = '300 10px Helvetica, Arial, sans-serif';
+export const AXES_FONT_STYLE = '300 10px';
 export const AXES_MAX_COLUMN_WIDTH = 45;
 export const AXES_MAX_ROW_HEIGHT = 50;
 export const X_AXIS_HEIGHT = 30;

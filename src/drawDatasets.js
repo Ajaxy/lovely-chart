@@ -240,7 +240,8 @@ function drawDatasetPie(context, points, projection, options) {
   context.fill();
 
   if (percent >= PIE_MINIMUM_VISIBLE_PERCENT) {
-    context.font = `700 ${getPieTextSize(percent, radius)}px Helvetica, Arial, sans-serif`;
+    const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
+    context.font = `700 ${getPieTextSize(percent, radius)}px ${fontFamily}`;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillStyle = 'white';

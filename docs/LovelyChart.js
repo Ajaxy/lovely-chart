@@ -14,7 +14,7 @@ var LovelyChart = function(exports) {
   const PIE_MINIMUM_VISIBLE_PERCENT = 0.02;
   const BALLOON_OFFSET = 20;
   const MAX_TOOLTIP_ITEMS = 12;
-  const AXES_FONT = "300 10px Helvetica, Arial, sans-serif";
+  const AXES_FONT_STYLE = "300 10px";
   const AXES_MAX_COLUMN_WIDTH = 45;
   const AXES_MAX_ROW_HEIGHT = 50;
   const X_AXIS_HEIGHT = 30;
@@ -800,6 +800,10 @@ var LovelyChart = function(exports) {
       availableHeight - (value * yFactor - yOffsetPx)
     ];
   }
+  function getAxesFont(context) {
+    const fontFamily = getComputedStyle(context.canvas).fontFamily || "sans-serif";
+    return `${AXES_FONT_STYLE} ${fontFamily}`;
+  }
   function createAxes(context, data, plotSize, colors) {
     function drawXAxis(state, projection) {
       context.clearRect(0, plotSize.height - X_AXIS_HEIGHT + 1, plotSize.width, X_AXIS_HEIGHT + 1);
@@ -807,7 +811,7 @@ var LovelyChart = function(exports) {
       const scaleLevel = Math.floor(state.xAxisScale);
       const step = xScaleLevelToStep(scaleLevel);
       const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
-      context.font = AXES_FONT;
+      context.font = getAxesFont(context);
       context.textAlign = "center";
       context.textBaseline = "middle";
       for (let i = state.labelFromIndex; i <= state.labelToIndex; i++) {
@@ -918,7 +922,7 @@ var LovelyChart = function(exports) {
       const step = yScaleLevelToStep(scaleLevel);
       const firstVisibleValue = Math.ceil(yMin / step) * step;
       const lastVisibleValue = Math.floor(yMax / step) * step;
-      context.font = AXES_FONT;
+      context.font = getAxesFont(context);
       context.textAlign = isSecondary ? "right" : "left";
       context.textBaseline = "bottom";
       context.lineWidth = 1;
@@ -948,7 +952,7 @@ var LovelyChart = function(exports) {
     function _drawYAxisPercents(projection) {
       const percentValues = [0, 0.25, 0.5, 0.75, 1];
       const [, height] = projection.getSize();
-      context.font = AXES_FONT;
+      context.font = getAxesFont(context);
       context.textAlign = "left";
       context.textBaseline = "bottom";
       context.lineWidth = 1;
@@ -968,7 +972,7 @@ var LovelyChart = function(exports) {
       const step = yScaleLevelToStep(scaleLevel);
       const firstVisibleValue = Math.ceil(yMin / step) * step;
       const lastVisibleValue = Math.floor(yMax / step) * step;
-      context.font = AXES_FONT;
+      context.font = getAxesFont(context);
       context.textAlign = "right";
       context.textBaseline = "bottom";
       for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
@@ -1372,7 +1376,8 @@ var LovelyChart = function(exports) {
     context.lineTo(x + shiftX, y + shiftY);
     context.fill();
     if (percent >= PIE_MINIMUM_VISIBLE_PERCENT) {
-      context.font = `700 ${getPieTextSize(percent, radius)}px Helvetica, Arial, sans-serif`;
+      const fontFamily = getComputedStyle(context.canvas).fontFamily || "sans-serif";
+      context.font = `700 ${getPieTextSize(percent, radius)}px ${fontFamily}`;
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillStyle = "white";
