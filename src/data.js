@@ -1,6 +1,11 @@
 import { getMaxMin } from './utils.js';
 import { statsFormatDay, statsFormatDayHour, statsFormatText, statsFormatMin } from './format.js';
 
+const DEFAULT_COLORS = [
+  '#3497ED', '#2373DB', '#9ED448', '#5FB641',
+  '#F5BD25', '#F79E39', '#E65850', '#5D5CDC',
+];
+
 const LABEL_TYPE_TO_FORMATTER = {
   'day': "statsFormat('day')",
   'hour': "statsFormat('hour')",
@@ -81,6 +86,8 @@ export function analyzeData(data) {
 function prepareDatasets(data) {
   const { type, labels, datasets, hasSecondYAxis } = data;
 
+  let nextDefaultColor = 0;
+
   return {
     labels: cloneArray(labels),
     datasets: datasets.map(({ name, color, values }, i) => {
@@ -90,7 +97,7 @@ function prepareDatasets(data) {
         type,
         key: `y${i}`,
         name,
-        color,
+        color: color || DEFAULT_COLORS[nextDefaultColor++ % DEFAULT_COLORS.length],
         values: cloneArray(values),
         hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
         yMin,

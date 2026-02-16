@@ -16,7 +16,6 @@
   "datasets": [
     {
       "name": "Apples",
-      "color": "#3497ED",
       "values": [
         37030,
         42310,
@@ -29,7 +28,6 @@
     },
     {
       "name": "Oranges",
-      "color": "#2373DB",
       "values": [
         27380,
         31170,
@@ -42,7 +40,6 @@
     },
     {
       "name": "Lemons",
-      "color": "#9ED448",
       "values": [
         9170,
         9290,
@@ -55,7 +52,6 @@
     },
     {
       "name": "Apricots",
-      "color": "#5FB641",
       "values": [
         2370,
         3860,
@@ -68,7 +64,6 @@
     },
     {
       "name": "Kiwi",
-      "color": "#F5BD25",
       "values": [
         5630,
         9530,
@@ -81,7 +76,6 @@
     },
     {
       "name": "Mango",
-      "color": "#F79E39",
       "values": [
         2190,
         2340,
