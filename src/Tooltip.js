@@ -343,12 +343,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${_formatValue(value)}</span>`;
     _renderPercentageValue(newDataSet, value, totalValue);
 
-    const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
-    if (totalText) {
-      dataSetContainer.insertBefore(newDataSet, totalText);
-    } else {
-      dataSetContainer.appendChild(newDataSet);
-    }
+    dataSetContainer.appendChild(newDataSet);
   }
 
   function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
