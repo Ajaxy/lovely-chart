@@ -2,7 +2,7 @@ var LovelyChart = function(exports) {
   "use strict";
   const DPR = window.devicePixelRatio || 1;
   const DEFAULT_RANGE = { begin: 0.8, end: 1 };
-  const TRANSITION_DEFAULT_DURATION = 300;
+  const TRANSITION_DEFAULT_DURATION = 400;
   const LONG_PRESS_TIMEOUT = 500;
   const GUTTER = 10;
   const PLOT_HEIGHT = 320;
@@ -60,7 +60,7 @@ var LovelyChart = function(exports) {
     "yAxisScaleSecond"
   ];
   function transition(t) {
-    return 1 - Math.pow(1 - t, 1.675);
+    return 1 - Math.pow(1 - t, 3);
   }
   function createTransitionManager(onTick) {
     const _transitions = {};
@@ -359,7 +359,7 @@ var LovelyChart = function(exports) {
     }
     function _buildTransitionConfig() {
       const transitionConfig = [];
-      const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 300`);
+      const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 400`);
       mergeArrays([
         ANIMATE_PROPS,
         datasetVisibilities

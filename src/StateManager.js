@@ -5,6 +5,7 @@ import {
   AXES_MAX_ROW_HEIGHT,
   X_AXIS_HEIGHT,
   ANIMATE_PROPS,
+  TRANSITION_DEFAULT_DURATION,
   Y_AXIS_ZERO_BASED_THRESHOLD,
 } from './constants.js';
 import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas.js';
@@ -55,7 +56,7 @@ export function createStateManager(data, viewportSize, callback) {
 
   function _buildTransitionConfig() {
     const transitionConfig = [];
-    const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 300`);
+    const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
 
     mergeArrays([
       ANIMATE_PROPS,

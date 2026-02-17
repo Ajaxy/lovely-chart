@@ -1,7 +1,7 @@
 export const DPR = window.devicePixelRatio || 1;
 
 export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
-export const TRANSITION_DEFAULT_DURATION = 300;
+export const TRANSITION_DEFAULT_DURATION = 400;
 export const LONG_PRESS_TIMEOUT = 500;
 
 export const GUTTER = 10;
