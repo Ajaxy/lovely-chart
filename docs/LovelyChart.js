@@ -359,7 +359,7 @@ var LovelyChart = function(exports) {
     }
     function _buildTransitionConfig() {
       const transitionConfig = [];
-      const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} 400`);
+      const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
       mergeArrays([
         ANIMATE_PROPS,
         datasetVisibilities
@@ -686,9 +686,9 @@ var LovelyChart = function(exports) {
   styleElement.appendChild(document.createTextNode(""));
   document.head.appendChild(styleElement);
   const styleSheet = styleElement.sheet;
-  document.documentElement.addEventListener("darkmode", () => {
+  new MutationObserver(() => {
     skin = detectSkin();
-  });
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
   function createColors(datasetColors) {
     const colors = {};
     const baseClass = `.lovely-chart--color`;
@@ -2487,9 +2487,9 @@ var LovelyChart = function(exports) {
       _zoomer.zoomOut(_state);
     }
     function _setupGlobalListeners() {
-      document.documentElement.addEventListener("darkmode", () => {
+      new MutationObserver(() => {
         _stateManager.update();
-      });
+      }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
       window.addEventListener("resize", () => {
         if (window.innerWidth !== _windowWidth) {
           _windowWidth = window.innerWidth;

@@ -36,7 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
 
     document.documentElement.classList.toggle('theme-dark');
-    document.documentElement.dispatchEvent(new Event('darkmode'));
 
     const skin = document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
     e.target.innerText = `Switch to ${(skin === 'skin-night') ? 'Day' : 'Night'} Mode`;
