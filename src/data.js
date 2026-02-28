@@ -15,7 +15,7 @@ const LABEL_TYPE_TO_FORMATTER = {
 };
 
 export function analyzeData(data) {
-  const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix } = data;
+  const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, limitDate, onLimitedRangeClick } = data;
   const labelFormatter = labelFormatterRaw || (labelType && LABEL_TYPE_TO_FORMATTER[labelType]);
   const { datasets, labels } = prepareDatasets(data);
 
@@ -51,6 +51,15 @@ export function analyzeData(data) {
       break;
   }
 
+  let limitBegin = null;
+  if (limitDate != null) {
+    const totalXWidth = labels.length - 1;
+    const idx = labels.findIndex((l) => l >= limitDate);
+    if (idx > 0) {
+      limitBegin = idx / totalXWidth;
+    }
+  }
+
   const analyzed = {
     title,
     labelFormatter,
@@ -75,6 +84,8 @@ export function analyzeData(data) {
     minimapRange,
     hideCaption,
     zoomOutLabel,
+    limitBegin,
+    onLimitedRangeClick,
   };
 
   analyzed.shouldZoomToPie = !analyzed.onZoom && analyzed.isPercentage;
