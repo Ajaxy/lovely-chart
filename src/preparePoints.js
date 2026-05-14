@@ -57,17 +57,25 @@ function preparePercentage(points, bounds) {
 }
 
 function prepareStacked(points) {
-  const accum = [];
+  const posAccum = [];
+  const negAccum = [];
 
   points.forEach((datasetPoints) => {
     datasetPoints.forEach((point, j) => {
-      if (accum[j] === undefined) {
-        accum[j] = 0;
+      if (posAccum[j] === undefined) {
+        posAccum[j] = 0;
+        negAccum[j] = 0;
       }
 
-      point.stackOffset = accum[j];
-      accum[j] += point.visibleValue;
-      point.stackValue = accum[j];
+      if (point.visibleValue >= 0) {
+        point.stackOffset = posAccum[j];
+        posAccum[j] += point.visibleValue;
+        point.stackValue = posAccum[j];
+      } else {
+        point.stackOffset = negAccum[j];
+        negAccum[j] += point.visibleValue;
+        point.stackValue = negAccum[j];
+      }
     });
   });
 }

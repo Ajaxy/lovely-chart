@@ -17,19 +17,21 @@ document.addEventListener('DOMContentLoaded', () => {
   (async () => {
     const data = await Promise.all([
       fetchJson('./data/lines.json'),
+      fetchJson('./data/lines-negative.json'),
       fetchJson('./data/bars.json'),
+      fetchJson('./data/bars-negative.json'),
       fetchJson('./data/areas-absolute.json'),
       fetchJson('./data/areas.json'),
       fetchJson('./data/pie.json'),
     ]);
 
     data.forEach((chart, i) => {
-      if (i === 1) {
+      if (i === 2) {
         chart.onZoom = (date) => fetchDayData('data/zoom_bars', date);
       }
 
       // "Lovely Areas with Zoom" — limit selection to September 1, 2018 onwards
-      if (i === 3) {
+      if (i === 5) {
         chart.limitDate = 1535760000000;
         chart.onLimitedRangeClick = () => alert('Data before September 2018 is not available');
       }

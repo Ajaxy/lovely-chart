@@ -393,10 +393,10 @@ var LovelyChart = function(exports) {
     const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
     const yAxisScaleSecond = data.hasSecondYAxis && calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
     const yStep = yScaleLevelToStep(yAxisScale);
-    yRanges.yMinViewport -= yRanges.yMinViewport % yStep;
+    yRanges.yMinViewport = Math.floor(yRanges.yMinViewport / yStep) * yStep;
     if (yAxisScaleSecond) {
       const yStepSecond = yScaleLevelToStep(yAxisScaleSecond);
-      yRanges.yMinViewportSecond -= yRanges.yMinViewportSecond % yStepSecond;
+      yRanges.yMinViewportSecond = Math.floor(yRanges.yMinViewportSecond / yStepSecond) * yStepSecond;
     }
     const datasetsOpacity = {};
     data.datasets.forEach(({ key }) => {
@@ -441,7 +441,7 @@ var LovelyChart = function(exports) {
   }
   function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, datasets) {
     const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(mergeArrays(datasets.map(({ yMax, yMin }) => [yMax, yMin])));
-    const yMinMinimap = yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
+    const yMinMinimap = yMinMinimapReal < 0 ? yMinMinimapReal : yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
     let yMinViewport;
     let yMaxViewport;
     if (labelFromIndex === 0 && labelToIndex === data.xLabels.length - 1) {
@@ -453,7 +453,7 @@ var LovelyChart = function(exports) {
       const viewportMaxMin = getMaxMin(mergeArrays(viewportValues));
       const yMinViewportReal = viewportMaxMin.min !== void 0 ? viewportMaxMin.min : prevState.yMinViewport;
       yMaxViewport = viewportMaxMin.max !== void 0 ? viewportMaxMin.max : prevState.yMaxViewport;
-      yMinViewport = yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
+      yMinViewport = yMinViewportReal < 0 ? yMinViewportReal : yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
     }
     return {
       yMinViewport,
@@ -465,13 +465,24 @@ var LovelyChart = function(exports) {
   function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) {
     const filteredDatasets = data.datasets.filter((d) => filter[d.key]);
     const filteredValues = filteredDatasets.map(({ values }) => values);
-    const sums = filteredValues.length ? sumArrays(filteredValues) : [];
-    const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(sums);
-    const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(sums.slice(labelFromIndex, labelToIndex + 1));
+    const length = filteredValues[0] ? filteredValues[0].length : 0;
+    const posSums = new Array(length).fill(0);
+    const negSums = new Array(length).fill(0);
+    for (let i = 0; i < filteredValues.length; i++) {
+      for (let j = 0; j < length; j++) {
+        const v = filteredValues[i][j];
+        if (v >= 0) posSums[j] += v;
+        else negSums[j] += v;
+      }
+    }
+    const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(posSums);
+    const { min: yMinMinimap = prevState.yMinMinimap } = getMaxMin(negSums);
+    const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(posSums.slice(labelFromIndex, labelToIndex + 1));
+    const { min: yMinViewport = prevState.yMinViewport } = getMaxMin(negSums.slice(labelFromIndex, labelToIndex + 1));
     return {
-      yMinViewport: 0,
+      yMinViewport,
       yMaxViewport,
-      yMinMinimap: 0,
+      yMinMinimap,
       yMaxMinimap
     };
   }
@@ -604,10 +615,12 @@ var LovelyChart = function(exports) {
     });
   }
   function humanize(value, decimals = 1) {
-    if (value >= 1e6) {
-      return keepThreeDigits(value / 1e6, decimals) + "M";
-    } else if (value >= 1e3) {
-      return keepThreeDigits(value / 1e3, decimals) + "K";
+    const abs = Math.abs(value);
+    const sign = value < 0 ? "-" : "";
+    if (abs >= 1e6) {
+      return sign + keepThreeDigits(abs / 1e6, decimals) + "M";
+    } else if (abs >= 1e3) {
+      return sign + keepThreeDigits(abs / 1e3, decimals) + "K";
     }
     return value;
   }
@@ -1038,15 +1051,23 @@ var LovelyChart = function(exports) {
     });
   }
   function prepareStacked(points) {
-    const accum = [];
+    const posAccum = [];
+    const negAccum = [];
     points.forEach((datasetPoints) => {
       datasetPoints.forEach((point, j) => {
-        if (accum[j] === void 0) {
-          accum[j] = 0;
+        if (posAccum[j] === void 0) {
+          posAccum[j] = 0;
+          negAccum[j] = 0;
         }
-        point.stackOffset = accum[j];
-        accum[j] += point.visibleValue;
-        point.stackValue = accum[j];
+        if (point.visibleValue >= 0) {
+          point.stackOffset = posAccum[j];
+          posAccum[j] += point.visibleValue;
+          point.stackValue = posAccum[j];
+        } else {
+          point.stackOffset = negAccum[j];
+          negAccum[j] += point.visibleValue;
+          point.stackValue = negAccum[j];
+        }
       });
     });
   }
