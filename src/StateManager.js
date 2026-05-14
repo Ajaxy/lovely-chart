@@ -204,6 +204,7 @@ function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, pre
   for (let i = 0; i < filteredValues.length; i++) {
     for (let j = 0; j < length; j++) {
       const v = filteredValues[i][j];
+      if (v == null) continue;
       if (v >= 0) posSums[j] += v; else negSums[j] += v;
     }
   }

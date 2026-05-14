@@ -168,15 +168,13 @@ var LovelyChart = function(exports) {
   }
   function getMaxMin(array) {
     const length = array.length;
-    let max = array[0];
-    let min = array[0];
+    let max;
+    let min;
     for (let i = 0; i < length; i++) {
       const value = array[i];
-      if (value > max) {
-        max = value;
-      } else if (value < min) {
-        min = value;
-      }
+      if (value == null) continue;
+      if (max === void 0 || value > max) max = value;
+      if (min === void 0 || value < min) min = value;
     }
     return { max, min };
   }
@@ -471,6 +469,7 @@ var LovelyChart = function(exports) {
     for (let i = 0; i < filteredValues.length; i++) {
       for (let j = 0; j < length; j++) {
         const v = filteredValues[i][j];
+        if (v == null) continue;
         if (v >= 0) posSums[j] += v;
         else negSums[j] += v;
       }
@@ -1018,8 +1017,9 @@ var LovelyChart = function(exports) {
       values = prepareSumsByX(values);
     }
     const points = values.map((datasetValues, i) => datasetValues.map((value, j) => {
-      let visibleValue = value;
-      if (data.isStacked) {
+      const isGap = value == null;
+      let visibleValue = isGap ? 0 : value;
+      if (data.isStacked && !isGap) {
         visibleValue *= visibilities[i];
       }
       return {
@@ -1027,7 +1027,8 @@ var LovelyChart = function(exports) {
         value,
         visibleValue,
         stackOffset: 0,
-        stackValue: visibleValue
+        stackValue: visibleValue,
+        gap: isGap
       };
     }));
     if (data.isPercentage) {
@@ -1058,6 +1059,11 @@ var LovelyChart = function(exports) {
         if (posAccum[j] === void 0) {
           posAccum[j] = 0;
           negAccum[j] = 0;
+        }
+        if (point.gap) {
+          point.stackOffset = posAccum[j];
+          point.stackValue = posAccum[j];
+          return;
         }
         if (point.visibleValue >= 0) {
           point.stackOffset = posAccum[j];
@@ -1283,17 +1289,29 @@ var LovelyChart = function(exports) {
   }
   function drawDatasetLine(context, points, projection, options) {
     context.beginPath();
-    let pixels = [];
+    const segments = [];
+    let current = [];
     for (let j = 0, l = points.length; j < l; j++) {
-      const { labelIndex, stackValue } = points[j];
-      pixels.push(toPixels(projection, labelIndex, stackValue));
+      const point = points[j];
+      if (point.gap) {
+        if (current.length) {
+          segments.push(current);
+          current = [];
+        }
+        continue;
+      }
+      current.push(toPixels(projection, point.labelIndex, point.stackValue));
     }
-    if (options.simplification) {
-      const simplifierFn = simplify(pixels);
-      pixels = simplifierFn(options.simplification).points;
-    }
-    pixels.forEach(([x, y]) => {
-      context.lineTo(x, y);
+    if (current.length) segments.push(current);
+    segments.forEach((segment) => {
+      let pixels = segment;
+      if (options.simplification) {
+        pixels = simplify(pixels)(options.simplification).points;
+      }
+      pixels.forEach(([x, y], k) => {
+        if (k === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      });
     });
     context.save();
     context.strokeStyle = options.color;
@@ -1310,6 +1328,7 @@ var LovelyChart = function(exports) {
     context.globalAlpha = options.opacity;
     context.fillStyle = options.color;
     for (let j = 0, l = points.length; j < l; j++) {
+      if (points[j].gap) continue;
       const { labelIndex, stackValue, stackOffset = 0 } = points[j];
       const [, yFrom] = toPixels(projection, labelIndex, Math.max(stackOffset, yMin));
       const [x, yTo] = toPixels(projection, labelIndex, stackValue);
@@ -1323,16 +1342,28 @@ var LovelyChart = function(exports) {
   }
   function drawDatasetSteps(context, points, projection, options) {
     context.beginPath();
-    let pixels = [];
+    const segments = [];
+    let current = [];
     for (let j = 0, l = points.length; j < l; j++) {
-      const { labelIndex, stackValue } = points[j];
-      pixels.push(
-        toPixels(projection, labelIndex - PLOT_BARS_WIDTH_SHIFT, stackValue),
-        toPixels(projection, labelIndex + PLOT_BARS_WIDTH_SHIFT, stackValue)
+      const point = points[j];
+      if (point.gap) {
+        if (current.length) {
+          segments.push(current);
+          current = [];
+        }
+        continue;
+      }
+      current.push(
+        toPixels(projection, point.labelIndex - PLOT_BARS_WIDTH_SHIFT, point.stackValue),
+        toPixels(projection, point.labelIndex + PLOT_BARS_WIDTH_SHIFT, point.stackValue)
       );
     }
-    pixels.forEach(([x, y]) => {
-      context.lineTo(x, y);
+    if (current.length) segments.push(current);
+    segments.forEach((segment) => {
+      segment.forEach(([x, y], k) => {
+        if (k === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      });
     });
     context.save();
     context.strokeStyle = options.color;
@@ -1862,6 +1893,7 @@ var LovelyChart = function(exports) {
     }
     function _drawCircles(statistics, labelIndex) {
       statistics.forEach(({ value, key, hasOwnYAxis, originalIndex }) => {
+        if (value == null) return;
         const pointIndex = labelIndex - _state.labelFromIndex;
         const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[originalIndex][pointIndex];
         if (!point) {
@@ -2004,7 +2036,7 @@ var LovelyChart = function(exports) {
       });
       const totalValue = statistics.reduce((a, x) => a + x.value, 0);
       const pointerVector = getPointerVector();
-      const filteredStatistics = statistics.filter(({ value }) => value !== 0);
+      const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value != null);
       const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
       const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
       const finalStatistics = data.isPie ? limitedStatistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : limitedStatistics;

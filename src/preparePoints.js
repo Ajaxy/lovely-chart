@@ -11,9 +11,10 @@ export function preparePoints(data, datasets, range, visibilities, bounds, pieTo
 
   const points = values.map((datasetValues, i) => (
     datasetValues.map((value, j) => {
-      let visibleValue = value;
+      const isGap = value == null;
+      let visibleValue = isGap ? 0 : value;
 
-      if (data.isStacked) {
+      if (data.isStacked && !isGap) {
         visibleValue *= visibilities[i];
       }
 
@@ -23,6 +24,7 @@ export function preparePoints(data, datasets, range, visibilities, bounds, pieTo
         visibleValue,
         stackOffset: 0,
         stackValue: visibleValue,
+        gap: isGap,
       };
     })
   ));
@@ -65,6 +67,12 @@ function prepareStacked(points) {
       if (posAccum[j] === undefined) {
         posAccum[j] = 0;
         negAccum[j] = 0;
+      }
+
+      if (point.gap) {
+        point.stackOffset = posAccum[j];
+        point.stackValue = posAccum[j];
+        return;
       }
 
       if (point.visibleValue >= 0) {
