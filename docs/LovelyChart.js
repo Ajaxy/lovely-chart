@@ -510,7 +510,7 @@ var LovelyChart = function(exports) {
     container.classList.add("lovely-chart--transition-container");
     const newElement = createElement(element.tagName);
     newElement.className = `${className} lovely-chart--transition lovely-chart--position-${inverse ? "top" : "bottom"} lovely-chart--state-hidden`;
-    newElement.innerHTML = newText;
+    newElement.textContent = newText;
     const selector = className.length ? `.${className.split(" ").join(".")}` : "";
     const oldElements = container.querySelectorAll(`${selector}.lovely-chart--state-hidden`);
     oldElements.forEach((e) => e.remove());
@@ -544,7 +544,7 @@ var LovelyChart = function(exports) {
       if (_isZooming) {
         return;
       }
-      _captionElement.innerHTML = caption;
+      _captionElement.textContent = caption;
     }
     function zoom(caption) {
       _zoomOutElement = toggleText(_titleElement, zoomOutLabel, "lovely-chart--header-title lovely-chart--header-zoom-out-control");
@@ -561,7 +561,7 @@ var LovelyChart = function(exports) {
       _element.className = "lovely-chart--header";
       _titleElement = createElement();
       _titleElement.className = "lovely-chart--header-title";
-      _titleElement.innerHTML = title;
+      _titleElement.textContent = title;
       _element.appendChild(_titleElement);
       _captionElement = createElement();
       _captionElement.className = "lovely-chart--header-caption lovely-chart--position-right";
@@ -1973,10 +1973,13 @@ var LovelyChart = function(exports) {
           titleContainer.style.display = "";
         }
         const currentTitle = titleContainer.querySelector(":not(.lovely-chart--state-hidden)");
-        if (!titleContainer.innerHTML || !currentTitle) {
-          titleContainer.innerHTML = `<span>${title}</span>`;
+        if (!titleContainer.textContent || !currentTitle) {
+          titleContainer.textContent = "";
+          const newTitle = createElement("span");
+          newTitle.textContent = title;
+          titleContainer.appendChild(newTitle);
         } else {
-          currentTitle.innerHTML = title;
+          currentTitle.textContent = title;
         }
       }
     }
@@ -1988,7 +1991,14 @@ var LovelyChart = function(exports) {
       newDataSet.className = "lovely-chart--tooltip-dataset";
       newDataSet.setAttribute("data-present", "true");
       newDataSet.setAttribute("data-name", name);
-      newDataSet.innerHTML = `<span class="lovely-chart--dataset-title">${name}</span><span class="${className}">${_formatValue(value)}</span>`;
+      const titleElement = createElement("span");
+      titleElement.className = "lovely-chart--dataset-title";
+      titleElement.textContent = name;
+      newDataSet.appendChild(titleElement);
+      const valueElement = createElement("span");
+      valueElement.className = className;
+      valueElement.textContent = _formatValue(value);
+      newDataSet.appendChild(valueElement);
       _renderPercentageValue(newDataSet, value, totalValue);
       dataSetContainer.appendChild(newDataSet);
     }
@@ -1996,7 +2006,7 @@ var LovelyChart = function(exports) {
       currentDataSet.setAttribute("data-present", "true");
       const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value`);
       if (valueElement) {
-        valueElement.innerHTML = _formatValue(value);
+        valueElement.textContent = _formatValue(value);
       }
       _renderPercentageValue(currentDataSet, value, totalValue);
     }
@@ -2016,10 +2026,10 @@ var LovelyChart = function(exports) {
       if (!percentageElement) {
         const newPercentageTitle = createElement("span");
         newPercentageTitle.className = "lovely-chart--percentage-title lovely-chart--position-left";
-        newPercentageTitle.innerHTML = `${percentageValue}%`;
+        newPercentageTitle.textContent = `${percentageValue}%`;
         dataSet.prepend(newPercentageTitle);
       } else {
-        percentageElement.innerHTML = `${percentageValue}%`;
+        percentageElement.textContent = `${percentageValue}%`;
       }
     }
     function _updateDataSets(statistics) {
@@ -2041,7 +2051,7 @@ var LovelyChart = function(exports) {
       const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
       const finalStatistics = data.isPie ? limitedStatistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : limitedStatistics;
       finalStatistics.forEach((statItem) => {
-        const currentDataSet = dataSetContainer.querySelector(`[data-name="${statItem.name}"]`);
+        const currentDataSet = Array.from(dataSetContainer.children).find((element) => element.dataset.name === statItem.name);
         if (!currentDataSet) {
           _insertNewDataSet(dataSetContainer, statItem, totalValue);
         } else {
@@ -2072,12 +2082,18 @@ var LovelyChart = function(exports) {
         newTotalText.className = "lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total";
         newTotalText.setAttribute("data-present", "true");
         newTotalText.setAttribute("data-total", "true");
-        newTotalText.innerHTML = `<span>Total</span><span class="${className}">${totalValue}</span>`;
+        const titleElement = createElement("span");
+        titleElement.textContent = "Total";
+        newTotalText.appendChild(titleElement);
+        const valueElement = createElement("span");
+        valueElement.className = className;
+        valueElement.textContent = totalValue;
+        newTotalText.appendChild(valueElement);
         dataSetContainer.appendChild(newTotalText);
       } else {
         totalText.setAttribute("data-present", "true");
         const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
-        valueElement.innerHTML = totalValue;
+        valueElement.textContent = totalValue;
       }
     }
     function _renderSecondaryTotal(dataSetContainer, totalValue) {
@@ -2090,12 +2106,18 @@ var LovelyChart = function(exports) {
         newTotalText.className = "lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total";
         newTotalText.setAttribute("data-present", "true");
         newTotalText.setAttribute("data-total", "true");
-        newTotalText.innerHTML = `<span>${label}</span><span class="${className}">${prefix}${secondaryValue}${suffix}</span>`;
+        const titleElement = createElement("span");
+        titleElement.textContent = label;
+        newTotalText.appendChild(titleElement);
+        const valueElement = createElement("span");
+        valueElement.className = className;
+        valueElement.textContent = `${prefix}${secondaryValue}${suffix}`;
+        newTotalText.appendChild(valueElement);
         dataSetContainer.appendChild(newTotalText);
       } else {
         totalText.setAttribute("data-present", "true");
         const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
-        valueElement.innerHTML = `${prefix}${secondaryValue}${suffix}`;
+        valueElement.textContent = `${prefix}${secondaryValue}${suffix}`;
       }
     }
     function _hideBalloon() {
@@ -2146,7 +2168,13 @@ var LovelyChart = function(exports) {
         control.dataset.key = key;
         const darkContent = isColorCloseToWhite(data.colors[key]) ? " lovely-chart--dark-content" : "";
         control.className = `lovely-chart--button lovely-chart--color-${data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
-        control.innerHTML = `<span class="lovely-chart--button-check"></span><span class="lovely-chart--button-label">${name}</span>`;
+        const check = createElement("span");
+        check.className = "lovely-chart--button-check";
+        control.appendChild(check);
+        const label = createElement("span");
+        label.className = "lovely-chart--button-label";
+        label.textContent = name;
+        control.appendChild(label);
         control.addEventListener("click", (e) => {
           e.preventDefault();
           if (!control.dataset.clickPrevented) {
