@@ -50,7 +50,9 @@ export function humanize(value, decimals = 1) {
     return sign + keepThreeDigits(abs / 1e3, decimals) + 'K';
   }
 
-  return value;
+  // Strip IEEE-754 noise (e.g. -0.05 + 0.05 step accumulation -> -0.05000000000000002).
+  // 12 significant digits preserve real precision but truncate trailing binary dust.
+  return Number(value.toPrecision(12));
 }
 
 // TODO perf
