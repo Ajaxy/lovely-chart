@@ -627,7 +627,7 @@ function humanize(value, decimals = 1) {
 	const sign = value < 0 ? "-" : "";
 	if (abs >= 1e6) return sign + keepThreeDigits(abs / 1e6, decimals) + "M";
 	else if (abs >= 1e3) return sign + keepThreeDigits(abs / 1e3, decimals) + "K";
-	return value;
+	return Number(value.toPrecision(12));
 }
 function keepThreeDigits(value, decimals) {
 	return value.toFixed(decimals).replace(/(\d{3,})\.\d+/, "$1").replace(/\.0+$/, "");
