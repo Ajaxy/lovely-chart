@@ -8,6 +8,7 @@ export function createHeader(container, title, zoomOutLabel = 'Zoom out', zoomOu
   let _zoomOutElement;
   let _captionElement;
   let _isZooming;
+  let _zoomBindTimeout = null;
 
   const setCaptionThrottled = throttle(setCaption, 100, false);
 
@@ -23,11 +24,19 @@ export function createHeader(container, title, zoomOutLabel = 'Zoom out', zoomOu
 
   function zoom(caption) {
     _zoomOutElement = toggleText(_titleElement, zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
-    setTimeout(() => {
+    _zoomBindTimeout = setTimeout(() => {
+      _zoomBindTimeout = null;
       addEventListener(_zoomOutElement, 'click', _onZoomOut);
     }, 500);
 
     setCaption(caption);
+  }
+
+  function destroy() {
+    if (_zoomBindTimeout !== null) {
+      clearTimeout(_zoomBindTimeout);
+      _zoomBindTimeout = null;
+    }
   }
 
   function toggleIsZooming(isZooming) {
@@ -61,5 +70,6 @@ export function createHeader(container, title, zoomOutLabel = 'Zoom out', zoomOu
     setCaption: setCaptionThrottled,
     zoom,
     toggleIsZooming,
+    destroy,
   };
 }

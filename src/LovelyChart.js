@@ -42,8 +42,14 @@ function create(container, originalData) {
 
   let _state;
   let _windowWidth = window.innerWidth;
+  let _originalData = originalData;
+  let _isDestroyed = false;
 
-  const _data = analyzeData(originalData);
+  let _themeObserver;
+  let _onWindowResize;
+  let _onWindowOrientationChange;
+
+  const _data = analyzeData(_originalData);
   const _colors = createColors(_data.colors);
   const _redrawDebounced = debounce(_redraw, 500, false, true);
 
@@ -59,7 +65,7 @@ function create(container, originalData) {
     _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
     _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
     _tools = createTools(_element, _data, _onFilterChange);
-    _zoomer = _data.isZoomable && createZoomer(_data, originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
+    _zoomer = _data.isZoomable && createZoomer(_data, _originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
     // hideOnScroll(_element);
   }
 
@@ -86,6 +92,7 @@ function create(container, originalData) {
   }
 
   function _onStateUpdate(state) {
+    if (_isDestroyed) return;
     _state = state;
 
     const { datasets } = _data;
@@ -167,26 +174,84 @@ function create(container, originalData) {
   }
 
   function _setupGlobalListeners() {
-    new MutationObserver(() => {
+    _themeObserver = new MutationObserver(() => {
+      if (_isDestroyed || !_stateManager) return;
       _stateManager.update();
-    }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    });
+    _themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
-    window.addEventListener('resize', () => {
+    _onWindowResize = () => {
       if (window.innerWidth !== _windowWidth) {
         _windowWidth = window.innerWidth;
         _redrawDebounced();
       }
-    });
+    };
+    window.addEventListener('resize', _onWindowResize);
 
-    window.addEventListener('orientationchange', () => {
+    _onWindowOrientationChange = () => {
       _redrawDebounced();
-    });
+    };
+    window.addEventListener('orientationchange', _onWindowOrientationChange);
+  }
+
+  function _teardownComponents() {
+    if (_zoomer) _zoomer.destroy();
+    if (_tooltip) _tooltip.destroy();
+    if (_header) _header.destroy();
+    if (_stateManager) _stateManager.destroy();
+
+    if (_element && _element.parentNode) {
+      _element.remove();
+    }
+
+    _element = null;
+    _plot = null;
+    _context = null;
+    _header = null;
+    _axes = null;
+    _minimap = null;
+    _tooltip = null;
+    _tools = null;
+    _zoomer = null;
+    _stateManager = null;
   }
 
   function _redraw() {
-    Object.assign(_data, analyzeData(originalData));
-    _element.remove();
+    if (_isDestroyed) return;
+    _teardownComponents();
+    Object.assign(_data, analyzeData(_originalData));
     _setupComponents();
+  }
+
+  function update(newData) {
+    if (_isDestroyed) return;
+    _originalData = newData;
+    _teardownComponents();
+    const fresh = analyzeData(_originalData);
+    Object.keys(_data).forEach((k) => { delete _data[k]; });
+    Object.assign(_data, fresh);
+    Object.assign(_colors, createColors(_data.colors));
+    _setupComponents();
+  }
+
+  function destroy() {
+    if (_isDestroyed) return;
+    _isDestroyed = true;
+
+    if (_themeObserver) {
+      _themeObserver.disconnect();
+      _themeObserver = null;
+    }
+    if (_onWindowResize) {
+      window.removeEventListener('resize', _onWindowResize);
+      _onWindowResize = null;
+    }
+    if (_onWindowOrientationChange) {
+      window.removeEventListener('orientationchange', _onWindowOrientationChange);
+      _onWindowOrientationChange = null;
+    }
+
+    _teardownComponents();
   }
 
   function _getCaption(state) {
@@ -210,6 +275,8 @@ function create(container, originalData) {
       )
       : getFullLabelDate(_data.xLabels[startIndex]);
   }
+
+  return { update, destroy };
 }
 
 export { create };

@@ -4,7 +4,7 @@ import { getPieRadius } from './formulas.js';
 import { formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull } from './format.js';
 import { getCssColor, isColorCloseToBackground } from './skin.js';
 import { throttle, throttleWithRaf } from './utils.js';
-import { addEventListener, createElement } from './minifiers.js';
+import { addEventListener, createElement, removeEventListener } from './minifiers.js';
 import { toPixels } from './Projection.js';
 
 export function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
@@ -25,6 +25,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
   let _isZoomed = false;
   let _isZooming = false;
+  let _documentMoveEvent = null;
 
   const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
   const _throttledUpdateContent = throttle(_updateContent, 100, true, true);
@@ -66,11 +67,13 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     if ('ontouchstart' in window) {
       addEventListener(_element, 'touchmove', _onMouseMove);
       addEventListener(_element, 'touchstart', _onMouseMove);
-      addEventListener(document, 'touchstart', _onDocumentMove);
+      _documentMoveEvent = 'touchstart';
+      addEventListener(document, _documentMoveEvent, _onDocumentMove);
     } else {
       addEventListener(_element, 'mousemove', _onMouseMove);
       addEventListener(_element, 'click', _onClick);
-      addEventListener(document, 'mousemove', _onDocumentMove);
+      _documentMoveEvent = 'mousemove';
+      addEventListener(document, _documentMoveEvent, _onDocumentMove);
     }
 
     container.appendChild(_element);
@@ -534,6 +537,13 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     return el.getBoundingClientRect();
   }
 
-  return { update, toggleLoading, toggleIsZoomed };
+  function destroy() {
+    if (_documentMoveEvent) {
+      removeEventListener(document, _documentMoveEvent, _onDocumentMove);
+      _documentMoveEvent = null;
+    }
+  }
+
+  return { update, toggleLoading, toggleIsZoomed, destroy };
 }
 
