@@ -9,6 +9,8 @@ export function xStepToScaleLevel(step) {
 }
 
 const SCALE_LEVELS = [
+  // Sub-unit steps for fine-grained data (e.g. portfolio P&L denominated in cents)
+  0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
   1, 2, 8, 18, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000,
   250000, 500000, 1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000,
 ];
@@ -18,7 +20,10 @@ export function yScaleLevelToStep(scaleLevel) {
 }
 
 export function yStepToScaleLevel(neededStep) {
-  return SCALE_LEVELS.findIndex((step) => step >= neededStep) || SCALE_LEVELS.length - 1;
+  // `findIndex` returns 0 when the first level already fits; `0 || fallback`
+  // would incorrectly switch to the largest step, so test for -1 explicitly.
+  const idx = SCALE_LEVELS.findIndex((step) => step >= neededStep);
+  return idx === -1 ? SCALE_LEVELS.length - 1 : idx;
 }
 
 export function applyYEdgeOpacity(opacity, xPx, plotWidth) {

@@ -265,6 +265,18 @@ var LovelyChart = (function(exports) {
 		return Math.ceil(Math.log2(step || 1));
 	}
 	var SCALE_LEVELS = [
+		1e-4,
+		2e-4,
+		5e-4,
+		.001,
+		.002,
+		.005,
+		.01,
+		.02,
+		.05,
+		.1,
+		.2,
+		.5,
 		1,
 		2,
 		8,
@@ -294,7 +306,8 @@ var LovelyChart = (function(exports) {
 		return SCALE_LEVELS[scaleLevel] || SCALE_LEVELS[SCALE_LEVELS.length - 1];
 	}
 	function yStepToScaleLevel(neededStep) {
-		return SCALE_LEVELS.findIndex((step) => step >= neededStep) || SCALE_LEVELS.length - 1;
+		const idx = SCALE_LEVELS.findIndex((step) => step >= neededStep);
+		return idx === -1 ? SCALE_LEVELS.length - 1 : idx;
 	}
 	function applyYEdgeOpacity(opacity, xPx, plotWidth) {
 		const edgeOffset = Math.min(xPx + 10, plotWidth - xPx);
