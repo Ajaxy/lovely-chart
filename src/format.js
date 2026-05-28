@@ -1,14 +1,20 @@
 import { MONTHS, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants.js';
 
 export function statsFormatDayHour(labels) {
-  return labels.map((value) => ({
-    value,
-    text: `${value}:00`,
-  }));
+  return labels.map((value) => {
+    const date = new Date(value);
+    const hours = String(date.getHours()).padStart(2, '0');
+    return {
+      value,
+      text: `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`,
+    };
+  });
 }
 
 export function statsFormatDayHourFull(value) {
-  return `${value}:00`;
+  const date = new Date(value);
+  const hours = String(date.getHours()).padStart(2, '0');
+  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`;
 }
 
 export function statsFormatDay(labels) {
@@ -50,9 +56,9 @@ export function humanize(value, decimals = 1) {
     return sign + keepThreeDigits(abs / 1e3, decimals) + 'K';
   }
 
-  // Strip IEEE-754 noise (e.g. -0.05 + 0.05 step accumulation -> -0.05000000000000002).
-  // 12 significant digits preserve real precision but truncate trailing binary dust.
-  return Number(value.toPrecision(12));
+  // Delegate to formatInteger: gives thousand separators, decimal trimming
+  // and incidentally strips IEEE-754 noise via toFixed rounding.
+  return formatInteger(value);
 }
 
 // TODO perf

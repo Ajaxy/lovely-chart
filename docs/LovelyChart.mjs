@@ -591,13 +591,19 @@ function createHeader(container, title, zoomOutLabel = "Zoom out", zoomOutCallba
 //#endregion
 //#region src/format.js
 function statsFormatDayHour(labels) {
-	return labels.map((value) => ({
-		value,
-		text: `${value}:00`
-	}));
+	return labels.map((value) => {
+		const date = new Date(value);
+		const hours = String(date.getHours()).padStart(2, "0");
+		return {
+			value,
+			text: `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`
+		};
+	});
 }
 function statsFormatDayHourFull(value) {
-	return `${value}:00`;
+	const date = new Date(value);
+	const hours = String(date.getHours()).padStart(2, "0");
+	return `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`;
 }
 function statsFormatDay(labels) {
 	return labels.map((value) => {
@@ -627,7 +633,7 @@ function humanize(value, decimals = 1) {
 	const sign = value < 0 ? "-" : "";
 	if (abs >= 1e6) return sign + keepThreeDigits(abs / 1e6, decimals) + "M";
 	else if (abs >= 1e3) return sign + keepThreeDigits(abs / 1e3, decimals) + "K";
-	return Number(value.toPrecision(12));
+	return formatInteger(value);
 }
 function keepThreeDigits(value, decimals) {
 	return value.toFixed(decimals).replace(/(\d{3,})\.\d+/, "$1").replace(/\.0+$/, "");
