@@ -36,7 +36,7 @@ export function applyXEdgeOpacity(opacity, yPx) {
 }
 
 export function getPieRadius(projection) {
-  return Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
+  return Math.max(0, Math.min(...projection.getSize())) * PLOT_PIE_RADIUS_FACTOR;
 }
 
 export function getPieTextSize(percent, radius) {

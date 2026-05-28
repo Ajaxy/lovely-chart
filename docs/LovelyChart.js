@@ -305,7 +305,7 @@ var LovelyChart = (function(exports) {
 		return yPx - 10 <= 20 ? Math.min(1, opacity, (yPx - 10) / 20) : opacity;
 	}
 	function getPieRadius(projection) {
-		return Math.min(...projection.getSize()) * PLOT_PIE_RADIUS_FACTOR;
+		return Math.max(0, Math.min(...projection.getSize())) * PLOT_PIE_RADIUS_FACTOR;
 	}
 	function getPieTextSize(percent, radius) {
 		return (radius + percent * 200) / 10;
@@ -1341,7 +1341,7 @@ var LovelyChart = (function(exports) {
 				addEventListener(document, "touchcancel", onRelease);
 				if (e.pageX === void 0) e.pageX = e.touches[0].pageX;
 			}
-			if (options.draggingCursor) document.body.classList.add(`cursor-${options.draggingCursor}`);
+			if (options.draggingCursor) document.documentElement.classList.add(`cursor-${options.draggingCursor}`);
 			options.onCapture && options.onCapture(e);
 			if (options.onLongPress) longPressTimeout = setTimeout(() => options.onLongPress(), 500);
 		}
@@ -1351,7 +1351,7 @@ var LovelyChart = (function(exports) {
 					clearTimeout(longPressTimeout);
 					longPressTimeout = null;
 				}
-				if (options.draggingCursor) document.body.classList.remove(`cursor-${options.draggingCursor}`);
+				if (options.draggingCursor) document.documentElement.classList.remove(`cursor-${options.draggingCursor}`);
 				removeEventListener(document, "mouseup", onRelease);
 				removeEventListener(document, "mousemove", onMove);
 				removeEventListener(document, "touchcancel", onRelease);
