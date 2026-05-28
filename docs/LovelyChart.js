@@ -864,7 +864,7 @@ var LovelyChart = (function(exports) {
 				const [, yPx] = toPixels(projection, 0, value);
 				const textOpacity = applyXEdgeOpacity(opacity, yPx);
 				context.fillStyle = colorKey ? getCssColor(colors, colorKey, textOpacity) : getCssColor(colors, "y-axis-text", textOpacity);
-				const label = isSecondary ? humanize(value) : `${data.valuePrefix || ""}${humanize(value)}${data.valueSuffix || ""}`;
+				const label = isSecondary ? humanize(value) : _formatPrimaryAxisLabel(value);
 				if (!isSecondary) context.fillText(label, 10, yPx - 10 / 2);
 				else context.fillText(label, plotSize.width - 10, yPx - 10 / 2);
 				if (isSecondary) {
@@ -918,6 +918,13 @@ var LovelyChart = (function(exports) {
 				context.fillStyle = getCssColor(colors, "y-axis-text", textOpacity);
 				context.fillText(`${prefix}${humanize(secondaryValue)}${suffix}`, plotSize.width - 10, yPx - 10 / 2);
 			}
+		}
+		function _formatPrimaryAxisLabel(value) {
+			const formatted = String(humanize(value));
+			const prefix = data.valuePrefix || "";
+			const suffix = data.valueSuffix || "";
+			if (data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) return `-${prefix}${formatted.slice(1)}${suffix}`;
+			return `${prefix}${formatted}${suffix}`;
 		}
 		return {
 			drawXAxis,
@@ -1796,7 +1803,11 @@ var LovelyChart = (function(exports) {
 			_renderPercentageValue(currentDataSet, value, totalValue);
 		}
 		function _formatValue(value) {
-			return `${data.valuePrefix || ""}${formatInteger(value)}${data.valueSuffix || ""}`;
+			const formatted = formatInteger(value);
+			const prefix = data.valuePrefix || "";
+			const suffix = data.valueSuffix || "";
+			if (data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) return `-${prefix}${formatted.slice(1)}${suffix}`;
+			return `${prefix}${formatted}${suffix}`;
 		}
 		function _renderPercentageValue(dataSet, value, totalValue) {
 			if (!data.isPercentage) return;
@@ -2011,7 +2022,7 @@ var LovelyChart = (function(exports) {
 		"text": void 0
 	};
 	function analyzeData(data) {
-		const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, limitDate, onLimitedRangeClick } = data;
+		const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
 		const labelFormatter = labelFormatterRaw || labelType && LABEL_TYPE_TO_FORMATTER[labelType];
 		const { datasets, labels } = prepareDatasets(data);
 		const colors = {};
@@ -2056,6 +2067,7 @@ var LovelyChart = (function(exports) {
 			hasSecondYAxis,
 			valuePrefix,
 			valueSuffix,
+			prefixIsCurrency,
 			onZoom,
 			isLines: data.type === "line",
 			isBars: data.type === "bar",
