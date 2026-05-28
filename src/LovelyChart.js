@@ -280,3 +280,4 @@ function create(container, originalData) {
 }
 
 export { create };
+export default { create };

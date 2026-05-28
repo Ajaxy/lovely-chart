@@ -1,5 +1,8 @@
 var LovelyChart = (function(exports) {
-	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+	Object.defineProperties(exports, {
+		__esModule: { value: true },
+		[Symbol.toStringTag]: { value: "Module" }
+	});
 	//#region src/constants.js
 	var DPR = window.devicePixelRatio || 1;
 	var DEFAULT_RANGE = {
@@ -2470,7 +2473,9 @@ var LovelyChart = (function(exports) {
 			destroy
 		};
 	}
+	var LovelyChart_default = { create };
 	//#endregion
 	exports.create = create;
+	exports.default = LovelyChart_default;
 	return exports;
 })({});

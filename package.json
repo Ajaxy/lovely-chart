@@ -3,6 +3,15 @@
   "version": "1.2.1",
   "description": "",
   "main": "dist/LovelyChart.js",
+  "module": "dist/LovelyChart.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/LovelyChart.mjs",
+      "default": "./dist/LovelyChart.js"
+    },
+    "./LovelyChart.css": "./dist/LovelyChart.css",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist/*"
   ],
