@@ -33,11 +33,25 @@ const COLORS = {
   },
 };
 
-const styleElement = document.createElement('style');
-styleElement.type = 'text/css';
-styleElement.appendChild(document.createTextNode(''));
-document.head.appendChild(styleElement);
-const styleSheet = styleElement.sheet;
+// Prefer Constructable Stylesheets so a strict `style-src` CSP without
+// `'unsafe-inline'` does not block us; fall back to an injected <style> on
+// browsers that do not support them or where construction throws.
+let styleSheet;
+if (typeof CSSStyleSheet === 'function') {
+  try {
+    styleSheet = new CSSStyleSheet();
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, styleSheet];
+  } catch (e) {
+    styleSheet = undefined;
+  }
+}
+if (!styleSheet) {
+  const styleElement = document.createElement('style');
+  styleElement.type = 'text/css';
+  styleElement.appendChild(document.createTextNode(''));
+  document.head.appendChild(styleElement);
+  styleSheet = styleElement.sheet;
+}
 
 new MutationObserver(() => {
   skin = detectSkin();
