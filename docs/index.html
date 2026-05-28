@@ -33,6 +33,21 @@
     <a href="https://github.com/Ajaxy/lovely-chart#readme" target="_blank">Read Docs</a> |
     <a href="#" id="skin-switcher">Switch to Day Mode</a>
   </div>
+
+  <hr class="lifecycle-divider"/>
+  <h2>Lifecycle demo</h2>
+  <p class="lifecycle-hint">
+    Open DevTools, run <code>getEventListeners(window)</code> before and after
+    <code>Destroy</code> &mdash; all <code>resize</code> /
+    <code>orientationchange</code> listeners attached by the chart should be
+    gone, and the theme <code>MutationObserver</code> disconnected.
+  </p>
+  <div class="tools lifecycle-controls">
+    <button type="button" id="lifecycle-update">Update with different data</button>
+    <button type="button" id="lifecycle-destroy">Destroy</button>
+    <button type="button" id="lifecycle-recreate" disabled>Re-create</button>
+  </div>
+  <div id="lifecycle-container"></div>
 </div>
 </body>
 </html>

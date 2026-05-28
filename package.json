@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "build": "vite build",
+    "prepublishOnly": "npm run build",
     "examples": "npm run build && cp -R ./dist/* docs/"
   },
   "devDependencies": {

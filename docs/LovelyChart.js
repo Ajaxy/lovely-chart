@@ -164,7 +164,14 @@ var LovelyChart = function(exports) {
         _testingFps++;
       }
     }
-    return { add, remove, get, getState, isRunning, isFast };
+    function destroy() {
+      if (_nextFrame) {
+        cancelAnimationFrame(_nextFrame);
+        _nextFrame = null;
+      }
+      Object.keys(_transitions).forEach((prop) => delete _transitions[prop]);
+    }
+    return { add, remove, get, getState, isRunning, isFast, destroy };
   }
   function getMaxMin(array) {
     const length = array.length;
@@ -330,7 +337,9 @@ var LovelyChart = function(exports) {
     const _transitions = createTransitionManager(_runCallback);
     const _runCallbackOnRaf = throttleWithRaf(_runCallback);
     let _state = {};
+    let _isDestroyed = false;
     function update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
+      if (_isDestroyed) return;
       Object.assign(_range, range);
       Object.assign(_filter, filter);
       const prevState = _state;
@@ -375,11 +384,16 @@ var LovelyChart = function(exports) {
       return filter;
     }
     function _runCallback() {
+      if (_isDestroyed) return;
       const state = _transitions.isFast() ? proxyMerge(_state, _transitions.getState()) : _state;
       state.static = _state;
       callback(state);
     }
-    return { update, hasAnimations };
+    function destroy() {
+      _isDestroyed = true;
+      _transitions.destroy();
+    }
+    return { update, hasAnimations, destroy };
   }
   function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
     const { begin, end } = range;
@@ -538,6 +552,7 @@ var LovelyChart = function(exports) {
     let _zoomOutElement;
     let _captionElement;
     let _isZooming;
+    let _zoomBindTimeout = null;
     const setCaptionThrottled = throttle(setCaption, 100, false);
     _setupLayout();
     function setCaption(caption) {
@@ -548,10 +563,17 @@ var LovelyChart = function(exports) {
     }
     function zoom(caption) {
       _zoomOutElement = toggleText(_titleElement, zoomOutLabel, "lovely-chart--header-title lovely-chart--header-zoom-out-control");
-      setTimeout(() => {
+      _zoomBindTimeout = setTimeout(() => {
+        _zoomBindTimeout = null;
         addEventListener(_zoomOutElement, "click", _onZoomOut);
       }, 500);
       setCaption(caption);
+    }
+    function destroy() {
+      if (_zoomBindTimeout !== null) {
+        clearTimeout(_zoomBindTimeout);
+        _zoomBindTimeout = null;
+      }
     }
     function toggleIsZooming(isZooming) {
       _isZooming = isZooming;
@@ -576,7 +598,8 @@ var LovelyChart = function(exports) {
     return {
       setCaption: setCaptionThrottled,
       zoom,
-      toggleIsZooming
+      toggleIsZooming,
+      destroy
     };
   }
   function statsFormatDayHour(labels) {
@@ -1742,6 +1765,7 @@ var LovelyChart = function(exports) {
     let _clickedOnLabel = null;
     let _isZoomed = false;
     let _isZooming = false;
+    let _documentMoveEvent = null;
     const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
     const _throttledUpdateContent = throttle(_updateContent, 100, true);
     _setupLayout();
@@ -1774,11 +1798,13 @@ var LovelyChart = function(exports) {
       if ("ontouchstart" in window) {
         addEventListener(_element, "touchmove", _onMouseMove);
         addEventListener(_element, "touchstart", _onMouseMove);
-        addEventListener(document, "touchstart", _onDocumentMove);
+        _documentMoveEvent = "touchstart";
+        addEventListener(document, _documentMoveEvent, _onDocumentMove);
       } else {
         addEventListener(_element, "mousemove", _onMouseMove);
         addEventListener(_element, "click", _onClick);
-        addEventListener(document, "mousemove", _onDocumentMove);
+        _documentMoveEvent = "mousemove";
+        addEventListener(document, _documentMoveEvent, _onDocumentMove);
       }
       container.appendChild(_element);
     }
@@ -2136,7 +2162,13 @@ var LovelyChart = function(exports) {
     function _getPageOffset(el) {
       return el.getBoundingClientRect();
     }
-    return { update, toggleLoading, toggleIsZoomed };
+    function destroy() {
+      if (_documentMoveEvent) {
+        removeEventListener(document, _documentMoveEvent, _onDocumentMove);
+        _documentMoveEvent = null;
+      }
+    }
+    return { update, toggleLoading, toggleIsZoomed, destroy };
   }
   function createTools(container, data, filterCallback) {
     let _element;
@@ -2336,8 +2368,11 @@ var LovelyChart = function(exports) {
   }
   function createZoomer(data, overviewData, colors, stateManager, container, header, minimap, tooltip, tools) {
     let _isZoomed = false;
+    let _isDestroyed = false;
     let _stateBeforeZoomIn;
     let _stateBeforeZoomOut;
+    let _swapDataTimeout = null;
+    let _stateAnimatingTimeout = null;
     function zoomIn(state, labelIndex) {
       if (_isZoomed) {
         return;
@@ -2374,6 +2409,7 @@ var LovelyChart = function(exports) {
       return _isZoomed;
     }
     function _replaceData(newRawData, labelIndex, zoomInLabel) {
+      if (_isDestroyed) return;
       if (!newRawData) {
         tooltip.toggleLoading(false);
         tooltip.toggleIsZoomed(false);
@@ -2394,7 +2430,8 @@ var LovelyChart = function(exports) {
         },
         filter
       });
-      setTimeout(() => {
+      _swapDataTimeout = setTimeout(() => {
+        _swapDataTimeout = null;
         Object.assign(data, newData);
         if (shouldZoomToLines && newRawData.colors) {
           Object.assign(colors, createColors(newRawData.colors));
@@ -2449,11 +2486,23 @@ var LovelyChart = function(exports) {
         _isZoomed = !_isZoomed;
         header.toggleIsZooming(false);
       }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
-      setTimeout(() => {
+      _stateAnimatingTimeout = setTimeout(() => {
+        _stateAnimatingTimeout = null;
         if (data.shouldZoomToPie) {
           container.classList.remove("lovely-chart--state-animating");
         }
       }, stateManager.hasAnimations() ? 1e3 : 0);
+    }
+    function destroy() {
+      _isDestroyed = true;
+      if (_swapDataTimeout !== null) {
+        clearTimeout(_swapDataTimeout);
+        _swapDataTimeout = null;
+      }
+      if (_stateAnimatingTimeout !== null) {
+        clearTimeout(_stateAnimatingTimeout);
+        _stateAnimatingTimeout = null;
+      }
     }
     function _generatePieData(labelIndex) {
       return Object.assign(
@@ -2471,7 +2520,7 @@ var LovelyChart = function(exports) {
         }
       );
     }
-    return { zoomIn, zoomOut, isZoomed };
+    return { zoomIn, zoomOut, isZoomed, destroy };
   }
   function create(container, originalData) {
     let _stateManager;
@@ -2487,7 +2536,12 @@ var LovelyChart = function(exports) {
     let _zoomer;
     let _state;
     let _windowWidth = window.innerWidth;
-    const _data = analyzeData(originalData);
+    let _originalData = originalData;
+    let _isDestroyed = false;
+    let _themeObserver;
+    let _onWindowResize;
+    let _onWindowOrientationChange;
+    const _data = analyzeData(_originalData);
     const _colors = createColors(_data.colors);
     const _redrawDebounced = debounce(_redraw, 500, false, true);
     _setupComponents();
@@ -2501,7 +2555,7 @@ var LovelyChart = function(exports) {
       _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
       _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
       _tools = createTools(_element, _data, _onFilterChange);
-      _zoomer = _data.isZoomable && createZoomer(_data, originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
+      _zoomer = _data.isZoomable && createZoomer(_data, _originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
     }
     function _setupContainer() {
       _element = createElement();
@@ -2521,6 +2575,7 @@ var LovelyChart = function(exports) {
       };
     }
     function _onStateUpdate(state) {
+      if (_isDestroyed) return;
       _state = state;
       const { datasets } = _data;
       const range = {
@@ -2598,23 +2653,76 @@ var LovelyChart = function(exports) {
       _zoomer.zoomOut(_state);
     }
     function _setupGlobalListeners() {
-      new MutationObserver(() => {
+      _themeObserver = new MutationObserver(() => {
+        if (_isDestroyed || !_stateManager) return;
         _stateManager.update();
-      }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-      window.addEventListener("resize", () => {
+      });
+      _themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+      _onWindowResize = () => {
         if (window.innerWidth !== _windowWidth) {
           _windowWidth = window.innerWidth;
           _redrawDebounced();
         }
-      });
-      window.addEventListener("orientationchange", () => {
+      };
+      window.addEventListener("resize", _onWindowResize);
+      _onWindowOrientationChange = () => {
         _redrawDebounced();
-      });
+      };
+      window.addEventListener("orientationchange", _onWindowOrientationChange);
+    }
+    function _teardownComponents() {
+      if (_zoomer) _zoomer.destroy();
+      if (_tooltip) _tooltip.destroy();
+      if (_header) _header.destroy();
+      if (_stateManager) _stateManager.destroy();
+      if (_element && _element.parentNode) {
+        _element.remove();
+      }
+      _element = null;
+      _plot = null;
+      _context = null;
+      _header = null;
+      _axes = null;
+      _minimap = null;
+      _tooltip = null;
+      _tools = null;
+      _zoomer = null;
+      _stateManager = null;
     }
     function _redraw() {
-      Object.assign(_data, analyzeData(originalData));
-      _element.remove();
+      if (_isDestroyed) return;
+      _teardownComponents();
+      Object.assign(_data, analyzeData(_originalData));
       _setupComponents();
+    }
+    function update(newData) {
+      if (_isDestroyed) return;
+      _originalData = newData;
+      _teardownComponents();
+      const fresh = analyzeData(_originalData);
+      Object.keys(_data).forEach((k) => {
+        delete _data[k];
+      });
+      Object.assign(_data, fresh);
+      Object.assign(_colors, createColors(_data.colors));
+      _setupComponents();
+    }
+    function destroy() {
+      if (_isDestroyed) return;
+      _isDestroyed = true;
+      if (_themeObserver) {
+        _themeObserver.disconnect();
+        _themeObserver = null;
+      }
+      if (_onWindowResize) {
+        window.removeEventListener("resize", _onWindowResize);
+        _onWindowResize = null;
+      }
+      if (_onWindowOrientationChange) {
+        window.removeEventListener("orientationchange", _onWindowOrientationChange);
+        _onWindowOrientationChange = null;
+      }
+      _teardownComponents();
     }
     function _getCaption(state) {
       let startIndex;
@@ -2628,6 +2736,7 @@ var LovelyChart = function(exports) {
       }
       return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex]) ? `${getLabelDate(_data.xLabels[startIndex])} — ${getLabelDate(_data.xLabels[endIndex])}` : getFullLabelDate(_data.xLabels[startIndex]);
     }
+    return { update, destroy };
   }
   exports.create = create;
   Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });

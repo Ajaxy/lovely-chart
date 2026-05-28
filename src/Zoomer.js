@@ -5,8 +5,11 @@ import { createColors } from './skin.js';
 
 export function createZoomer(data, overviewData, colors, stateManager, container, header, minimap, tooltip, tools) {
   let _isZoomed = false;
+  let _isDestroyed = false;
   let _stateBeforeZoomIn;
   let _stateBeforeZoomOut;
+  let _swapDataTimeout = null;
+  let _stateAnimatingTimeout = null;
 
   function zoomIn(state, labelIndex) {
     if (_isZoomed) {
@@ -52,6 +55,8 @@ export function createZoomer(data, overviewData, colors, stateManager, container
   }
 
   function _replaceData(newRawData, labelIndex, zoomInLabel) {
+    if (_isDestroyed) return;
+
     if (!newRawData) {
       tooltip.toggleLoading(false);
       tooltip.toggleIsZoomed(false);
@@ -77,7 +82,8 @@ export function createZoomer(data, overviewData, colors, stateManager, container
       filter,
     });
 
-    setTimeout(() => {
+    _swapDataTimeout = setTimeout(() => {
+      _swapDataTimeout = null;
       Object.assign(data, newData);
 
       if (shouldZoomToLines && newRawData.colors) {
@@ -142,11 +148,24 @@ export function createZoomer(data, overviewData, colors, stateManager, container
       header.toggleIsZooming(false);
     }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
 
-    setTimeout(() => {
+    _stateAnimatingTimeout = setTimeout(() => {
+      _stateAnimatingTimeout = null;
       if (data.shouldZoomToPie) {
         container.classList.remove('lovely-chart--state-animating');
       }
     }, stateManager.hasAnimations() ? 1000 : 0);
+  }
+
+  function destroy() {
+    _isDestroyed = true;
+    if (_swapDataTimeout !== null) {
+      clearTimeout(_swapDataTimeout);
+      _swapDataTimeout = null;
+    }
+    if (_stateAnimatingTimeout !== null) {
+      clearTimeout(_stateAnimatingTimeout);
+      _stateAnimatingTimeout = null;
+    }
   }
 
   function _generatePieData(labelIndex) {
@@ -166,5 +185,5 @@ export function createZoomer(data, overviewData, colors, stateManager, container
     );
   }
 
-  return { zoomIn, zoomOut, isZoomed };
+  return { zoomIn, zoomOut, isZoomed, destroy };
 }

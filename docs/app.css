@@ -52,3 +52,44 @@ html.theme-dark {
   color: rgba(16, 139, 227, 0.71);
 }
 
+.lifecycle-divider {
+  margin: 60px 0 20px;
+  border: 0;
+  border-top: 1px solid rgba(128, 128, 128, 0.3);
+}
+
+.lifecycle-hint {
+  text-align: left;
+  margin: 0 0 20px;
+  opacity: 0.8;
+}
+
+.lifecycle-hint code {
+  background: rgba(128, 128, 128, 0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.lifecycle-controls {
+  gap: 10px;
+}
+
+.lifecycle-controls button {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid #108BE3;
+  background: transparent;
+  color: #108BE3;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.lifecycle-controls button:hover:not(:disabled) {
+  background: rgba(16, 139, 227, 0.1);
+}
+
+.lifecycle-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+

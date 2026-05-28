@@ -18,12 +18,30 @@ https://ajaxy.github.io/lovely-chart/
 import * as LovelyChart from 'lovely-chart';
 import '~/lovely-chart/dist/LovelyChart.css';
 
-LovelyChart.create(container, data);
+const chart = LovelyChart.create(container, data);
+
+// Replace the chart data and re-render.
+chart.update(newData);
+
+// Tear down the chart: removes the DOM, detaches all global listeners
+// (window resize/orientation, document mousemove/touchstart, theme
+// MutationObserver), cancels pending animation frames and timeouts.
+chart.destroy();
 ```
 
 #### Arguments for `LovelyChart.create`
-- `container` — DOM Node in which the chart is rendered. The chart layout resizes automatically to occupy the entire available width.
-- `data` — Parameters for a chart.
+- `container` — DOM Node in which the chart is rendered. The chart layout resizes automatically to occupy the entire available width.
+- `data` — Parameters for a chart.
+
+#### Returned instance
+`create` returns an object with the following methods:
+
+Method | Description |
+---------|----|
+`update(newData)` | Replaces the current data with `newData` (same shape as the initial `data` argument) and re-renders. Resets transient view state (zoom, range, filter). No-op after `destroy()`.
+`destroy()` | Tears down the chart: removes the DOM subtree from `container`, detaches all global listeners (window `resize` / `orientationchange`, document `mousemove` / `touchstart`, theme `MutationObserver`), cancels pending animation frames and timeouts. Idempotent. Call this from your framework's cleanup hook (e.g. React `useEffect` cleanup) to avoid resource leaks.
+
+#### Data parameters
 
 Parameter | Description |
 ---------|----|

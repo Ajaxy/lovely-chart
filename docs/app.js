@@ -38,6 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       LovelyChart.create(container, chart);
     });
+
+    setupLifecycleDemo(data[0], data[1]);
   })();
 
   document.getElementById('skin-switcher').addEventListener('click', (e) => {
@@ -49,3 +51,36 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.innerText = `Switch to ${(skin === 'skin-night') ? 'Day' : 'Night'} Mode`;
   });
 });
+
+function setupLifecycleDemo(dataA, dataB) {
+  const target = document.getElementById('lifecycle-container');
+  const updateBtn = document.getElementById('lifecycle-update');
+  const destroyBtn = document.getElementById('lifecycle-destroy');
+  const recreateBtn = document.getElementById('lifecycle-recreate');
+
+  let chart = LovelyChart.create(target, dataA);
+  let showingA = true;
+
+  updateBtn.addEventListener('click', () => {
+    if (!chart) return;
+    chart.update(showingA ? dataB : dataA);
+    showingA = !showingA;
+  });
+
+  destroyBtn.addEventListener('click', () => {
+    if (!chart) return;
+    chart.destroy();
+    chart = null;
+    updateBtn.disabled = true;
+    destroyBtn.disabled = true;
+    recreateBtn.disabled = false;
+  });
+
+  recreateBtn.addEventListener('click', () => {
+    if (chart) return;
+    chart = LovelyChart.create(target, showingA ? dataA : dataB);
+    updateBtn.disabled = false;
+    destroyBtn.disabled = false;
+    recreateBtn.disabled = true;
+  });
+}

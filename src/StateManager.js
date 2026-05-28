@@ -18,8 +18,10 @@ export function createStateManager(data, viewportSize, callback) {
   const _runCallbackOnRaf = throttleWithRaf(_runCallback);
 
   let _state = {};
+  let _isDestroyed = false;
 
   function update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
+    if (_isDestroyed) return;
     Object.assign(_range, range);
     Object.assign(_filter, filter);
 
@@ -80,12 +82,18 @@ export function createStateManager(data, viewportSize, callback) {
   }
 
   function _runCallback() {
+    if (_isDestroyed) return;
     const state = _transitions.isFast() ? proxyMerge(_state, _transitions.getState()) : _state;
     state.static = _state;
     callback(state);
   }
 
-  return { update, hasAnimations };
+  function destroy() {
+    _isDestroyed = true;
+    _transitions.destroy();
+  }
+
+  return { update, hasAnimations, destroy };
 }
 
 function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
