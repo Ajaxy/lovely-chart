@@ -149,7 +149,7 @@ export function createAxes(context, data, plotSize, colors) {
 
       const label = isSecondary
         ? humanize(value)
-        : `${data.valuePrefix || ''}${humanize(value)}${data.valueSuffix || ''}`;
+        : _formatPrimaryAxisLabel(value);
 
       if (!isSecondary) {
         context.fillText(label, GUTTER, yPx - GUTTER / 2);
@@ -215,6 +215,16 @@ export function createAxes(context, data, plotSize, colors) {
       context.fillStyle = getCssColor(colors, 'y-axis-text', textOpacity);
       context.fillText(`${prefix}${humanize(secondaryValue)}${suffix}`, plotSize.width - GUTTER, yPx - GUTTER / 2);
     }
+  }
+
+  function _formatPrimaryAxisLabel(value) {
+    const formatted = String(humanize(value));
+    const prefix = data.valuePrefix || '';
+    const suffix = data.valueSuffix || '';
+    if (data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
+      return `-${prefix}${formatted.slice(1)}${suffix}`;
+    }
+    return `${prefix}${formatted}${suffix}`;
   }
 
   return { drawXAxis, drawYAxis };

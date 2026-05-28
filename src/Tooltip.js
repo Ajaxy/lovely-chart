@@ -377,7 +377,13 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _formatValue(value) {
-    return `${data.valuePrefix || ''}${formatInteger(value)}${data.valueSuffix || ''}`;
+    const formatted = formatInteger(value);
+    const prefix = data.valuePrefix || '';
+    const suffix = data.valueSuffix || '';
+    if (data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
+      return `-${prefix}${formatted.slice(1)}${suffix}`;
+    }
+    return `${prefix}${formatted}${suffix}`;
   }
 
   function _renderPercentageValue(dataSet, value, totalValue) {

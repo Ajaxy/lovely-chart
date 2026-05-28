@@ -55,4 +55,7 @@ Parameter | Description |
 `isPercentage` | `true` for percentage based values
 `isStacked`| `true` for values stacking on top of each other
 `hasSecondYAxis`| `true` for charts with 2 Y axes
+`valuePrefix`| Optional string prepended to every formatted value (e.g. `$`)
+`valueSuffix`| Optional string appended to every formatted value
+`prefixIsCurrency`| When `true`, a negative value is rendered with the minus sign in front of `valuePrefix` (`-$9.1` instead of `$-9.1`). Use with currency-like prefixes. Default `false`.
 `onZoom`| Optional function which returns `Promise` with data for the zoomed chart (new `data` object)
