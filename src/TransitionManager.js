@@ -132,5 +132,13 @@ export function createTransitionManager(onTick) {
     }
   }
 
-  return { add, remove, get, getState, isRunning, isFast };
+  function destroy() {
+    if (_nextFrame) {
+      cancelAnimationFrame(_nextFrame);
+      _nextFrame = null;
+    }
+    Object.keys(_transitions).forEach((prop) => delete _transitions[prop]);
+  }
+
+  return { add, remove, get, getState, isRunning, isFast, destroy };
 }
