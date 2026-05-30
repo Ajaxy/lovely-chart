@@ -1,6 +1,7 @@
 {
-  "title": "Lovely Pie",
+  "title": "Lovely Donut",
   "type": "pie",
+  "isDonut": true,
   "labelType": "day",
   "isStacked": true,
   "isPercentage": true,

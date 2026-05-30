@@ -79,6 +79,7 @@ export function analyzeData(data) {
     isSteps: data.type === 'step',
     isAreas: data.type === 'area',
     isPie: data.type === 'pie',
+    isDonut: Boolean(data.isDonut),
     yMin: totalYMin,
     yMax: totalYMax,
     colors,

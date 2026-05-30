@@ -1,7 +1,7 @@
 import { getCssColor } from './skin.js';
 import { mergeArrays } from './utils.js';
 import { getPieRadius, getPieTextShift, getPieTextSize } from './formulas.js';
-import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT, PIE_MINIMUM_VISIBLE_PERCENT } from './constants.js';
+import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT, PIE_MINIMUM_VISIBLE_PERCENT, PIE_DONUT_INNER_RADIUS_FACTOR } from './constants.js';
 import { simplify } from './simplify.js';
 import { toPixels } from './Projection.js';
 
@@ -41,6 +41,7 @@ export function drawDatasets(
       options.center = projection.getCenter();
       options.radius = getPieRadius(projection);
       options.pointerVector = state.focusOn;
+      options.isDonut = data.isDonut;
     }
 
     if (datasetType === 'bar') {
@@ -237,7 +238,8 @@ function drawDatasetPie(context, points, projection, options) {
   const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
   const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
 
-  const { radius = 120, center: [x, y], pointerVector } = options;
+  const { radius = 120, center: [x, y], pointerVector, isDonut } = options;
+  const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
 
   const shift = (
     pointerVector &&
@@ -256,9 +258,15 @@ function drawDatasetPie(context, points, projection, options) {
 
   context.beginPath();
   context.fillStyle = options.color;
-  context.moveTo(x + shiftX, y + shiftY);
-  context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
-  context.lineTo(x + shiftX, y + shiftY);
+  if (isDonut) {
+    context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
+    context.arc(x + shiftX, y + shiftY, innerRadius, endAngle, beginAngle, true);
+    context.closePath();
+  } else {
+    context.moveTo(x + shiftX, y + shiftY);
+    context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
+    context.lineTo(x + shiftX, y + shiftY);
+  }
   context.fill();
 
   if (percent >= PIE_MINIMUM_VISIBLE_PERCENT) {
@@ -267,7 +275,7 @@ function drawDatasetPie(context, points, projection, options) {
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillStyle = 'white';
-    const textShift = getPieTextShift(percent, radius);
+    const textShift = isDonut ? (radius + innerRadius) / 2 : getPieTextShift(percent, radius);
     context.fillText(
       `${Math.round(percent * 100)}%`, x + directionX * textShift + shiftX, y + directionY * textShift + shiftY,
     );

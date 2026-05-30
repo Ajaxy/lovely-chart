@@ -111,6 +111,12 @@
   --minimap-limit-color: #616770;
   -webkit-user-select: none;
   user-select: none;
+  position: relative;
+  overflow: hidden;
+  font: 300 13px "-apple-system", "HelveticaNeue", Helvetica, Arial, sans-serif;
+  color: #222222;
+  text-align: left;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
 html.theme-dark .lovely-chart--container {
   --background-color: #242F3E;
@@ -122,14 +128,6 @@ html.theme-dark .lovely-chart--container {
   --tooltip-background: #1c2533;
   --tooltip-arrow: #D2D5D7;
   --minimap-limit-color: #BFC0C2;
-}
-.lovely-chart--container {
-  position: relative;
-  overflow: hidden;
-  font: 300 13px "-apple-system", "HelveticaNeue", Helvetica, Arial, sans-serif;
-  color: #222222;
-  text-align: left;
-  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
 .lovely-chart--container > canvas,
 .lovely-chart--container .lovely-chart--tooltip canvas {
@@ -603,4 +601,4 @@ html.theme-dark .lovely-chart--tooltip-balloon {
   line-height: 20px;
   color: inherit;
   transition: transform 300ms ease-out, color 300ms ease-out;
-}/*$vite$:1*/
+}

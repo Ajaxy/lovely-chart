@@ -13,6 +13,7 @@ export const PLOT_PIE_SHIFT = 10;
 export const PLOT_BARS_WIDTH_SHIFT = 0.5;
 
 export const PIE_MINIMUM_VISIBLE_PERCENT = 0.02;
+export const PIE_DONUT_INNER_RADIUS_FACTOR = 0.5;
 
 export const BALLOON_OFFSET = 20;
 export const MAX_TOOLTIP_ITEMS = 12;
