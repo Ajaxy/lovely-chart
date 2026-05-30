@@ -42,6 +42,7 @@ export function drawDatasets(
       options.radius = getPieRadius(projection);
       options.pointerVector = state.focusOn;
       options.isDonut = data.isDonut;
+      options.withGradient = data.withGradient;
     }
 
     if (datasetType === 'bar') {
@@ -238,7 +239,7 @@ function drawDatasetPie(context, points, projection, options) {
   const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
   const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
 
-  const { radius = 120, center: [x, y], pointerVector, isDonut } = options;
+  const { radius = 120, center: [x, y], pointerVector, isDonut, withGradient } = options;
   const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
 
   const shift = (
@@ -257,7 +258,11 @@ function drawDatasetPie(context, points, projection, options) {
   context.save();
 
   context.beginPath();
-  context.fillStyle = options.color;
+  // `withGradient` adds slight concentric shading for depth: lighter at the
+  // inner edge (center for a plain pie), darker toward the outer edge.
+  context.fillStyle = withGradient
+    ? buildPieGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color)
+    : options.color;
   if (isDonut) {
     context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
     context.arc(x + shiftX, y + shiftY, innerRadius, endAngle, beginAngle, true);
@@ -282,4 +287,25 @@ function drawDatasetPie(context, points, projection, options) {
   }
 
   context.restore();
+}
+
+function buildPieGradient(context, cx, cy, innerRadius, radius, color) {
+  const channels = parseRgba(color);
+  const gradient = context.createRadialGradient(cx, cy, innerRadius, cx, cy, radius);
+  gradient.addColorStop(0, shadeColor(channels, 0.1));
+  gradient.addColorStop(1, shadeColor(channels, -0.1));
+  return gradient;
+}
+
+function parseRgba(color) {
+  const channels = color.match(/[\d.]+/g);
+  return channels ? channels.map(Number) : [0, 0, 0, 1];
+}
+
+// `amount` > 0 mixes toward white (highlight), < 0 toward black (shadow).
+function shadeColor([r, g, b, a = 1], amount) {
+  const target = amount >= 0 ? 255 : 0;
+  const t = Math.abs(amount);
+  const mix = (channel) => Math.round(channel + (target - channel) * t);
+  return `rgba(${mix(r)}, ${mix(g)}, ${mix(b)}, ${a})`;
 }

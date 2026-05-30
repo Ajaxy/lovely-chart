@@ -1317,6 +1317,7 @@ function drawDatasets(context, state, data, range, points, projection, secondary
       options.radius = getPieRadius(projection);
       options.pointerVector = state.focusOn;
       options.isDonut = data.isDonut;
+      options.withGradient = data.withGradient;
     }
     if (datasetType === "bar") {
       const [x0] = toPixels(projection, 0, 0);
@@ -1476,7 +1477,7 @@ function drawDatasetPie(context, points, projection, options) {
   const percent = visibleValue * percentFactor;
   const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
   const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
-  const { radius = 120, center: [x, y], pointerVector, isDonut } = options;
+  const { radius = 120, center: [x, y], pointerVector, isDonut, withGradient } = options;
   const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
   const shift = pointerVector && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= radius ? PLOT_PIE_SHIFT : 0;
   const shiftAngle = (beginAngle + endAngle) / 2;
@@ -1486,7 +1487,7 @@ function drawDatasetPie(context, points, projection, options) {
   const shiftY = directionY * shift;
   context.save();
   context.beginPath();
-  context.fillStyle = options.color;
+  context.fillStyle = withGradient ? buildPieGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color) : options.color;
   if (isDonut) {
     context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
     context.arc(x + shiftX, y + shiftY, innerRadius, endAngle, beginAngle, true);
@@ -1511,6 +1512,23 @@ function drawDatasetPie(context, points, projection, options) {
     );
   }
   context.restore();
+}
+function buildPieGradient(context, cx, cy, innerRadius, radius, color) {
+  const channels = parseRgba(color);
+  const gradient = context.createRadialGradient(cx, cy, innerRadius, cx, cy, radius);
+  gradient.addColorStop(0, shadeColor(channels, 0.1));
+  gradient.addColorStop(1, shadeColor(channels, -0.1));
+  return gradient;
+}
+function parseRgba(color) {
+  const channels = color.match(/[\d.]+/g);
+  return channels ? channels.map(Number) : [0, 0, 0, 1];
+}
+function shadeColor([r, g, b, a = 1], amount) {
+  const target = amount >= 0 ? 255 : 0;
+  const t = Math.abs(amount);
+  const mix = (channel) => Math.round(channel + (target - channel) * t);
+  return `rgba(${mix(r)}, ${mix(g)}, ${mix(b)}, ${a})`;
 }
 function captureEvents(element, options) {
   let captureEvent = null;
@@ -2385,6 +2403,7 @@ function analyzeData(data) {
     isAreas: data.type === "area",
     isPie: data.type === "pie",
     isDonut: Boolean(data.isDonut),
+    withGradient: Boolean(data.withGradient),
     yMin: totalYMin,
     yMax: totalYMax,
     colors,
