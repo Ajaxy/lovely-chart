@@ -194,7 +194,7 @@ function create(container, originalData) {
     window.addEventListener('orientationchange', _onWindowOrientationChange);
   }
 
-  function _teardownComponents() {
+  function _destroyComponents() {
     if (_zoomer) _zoomer.destroy();
     if (_tooltip) _tooltip.destroy();
     if (_header) _header.destroy();
@@ -218,7 +218,7 @@ function create(container, originalData) {
 
   function _redraw() {
     if (_isDestroyed) return;
-    _teardownComponents();
+    _destroyComponents();
     Object.assign(_data, analyzeData(_originalData));
     _setupComponents();
   }
@@ -226,7 +226,7 @@ function create(container, originalData) {
   function update(newData) {
     if (_isDestroyed) return;
     _originalData = newData;
-    _teardownComponents();
+    _destroyComponents();
     const fresh = analyzeData(_originalData);
     Object.keys(_data).forEach((k) => { delete _data[k]; });
     Object.assign(_data, fresh);
@@ -251,7 +251,7 @@ function create(container, originalData) {
       _onWindowOrientationChange = null;
     }
 
-    _teardownComponents();
+    _destroyComponents();
   }
 
   function _getCaption(state) {
