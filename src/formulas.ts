@@ -1,7 +1,7 @@
 import type { Projection } from './Projection';
 import type { XLabel } from './types';
 
-import { GUTTER, MILISECONDS_IN_DAY, PLOT_PIE_RADIUS_FACTOR, SIMPLIFIER_MIN_POINTS } from './constants';
+import { GUTTER, MILLISECONDS_IN_DAY, PLOT_PIE_RADIUS_FACTOR, SIMPLIFIER_MIN_POINTS } from './constants';
 
 export function xScaleLevelToStep(scaleLevel: number): number {
   return Math.pow(2, scaleLevel);
@@ -24,7 +24,7 @@ export function yScaleLevelToStep(scaleLevel: number): number {
 
 export function yStepToScaleLevel(neededStep: number): number {
   // `findIndex` returns 0 when the first level already fits; `0 || fallback`
-  // would incorrectly switch to the largest step, so test for -1 explicitly.
+  // would incorrectly switch to the largest step, so test for -1 explicitly
   const idx = SCALE_LEVELS.findIndex((step) => step >= neededStep);
   return idx === -1 ? SCALE_LEVELS.length - 1 : idx;
 }
@@ -56,7 +56,7 @@ export function getPieTextShift(percent: number, radius: number): number {
 }
 
 export function isDataRange(labelFrom: XLabel, labelTo: XLabel): boolean {
-  return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
+  return Math.abs(labelTo.value - labelFrom.value) > MILLISECONDS_IN_DAY;
 }
 
 export function getSimplificationDelta(pointsLength: number): number {

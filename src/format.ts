@@ -1,8 +1,8 @@
 import type { XLabel } from './types';
 
-import { MILISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
+import { MILLISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
 
-export function statsFormatDayHour(labels: number[]): XLabel[] {
+export function formatDayHour(labels: number[]): XLabel[] {
   return labels.map((value) => {
     const date = new Date(value);
     const hours = String(date.getHours()).padStart(2, '0');
@@ -13,13 +13,13 @@ export function statsFormatDayHour(labels: number[]): XLabel[] {
   });
 }
 
-export function statsFormatDayHourFull(value: number): string {
+export function formatDayHourFull(value: number): string {
   const date = new Date(value);
   const hours = String(date.getHours()).padStart(2, '0');
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`;
 }
 
-export function statsFormatDay(labels: number[]): XLabel[] {
+export function formatDay(labels: number[]): XLabel[] {
   return labels.map((value) => {
     const date = new Date(value);
     const day = date.getDate();
@@ -32,40 +32,40 @@ export function statsFormatDay(labels: number[]): XLabel[] {
   });
 }
 
-export function statsFormatMin(labels: number[]): XLabel[] {
+export function formatMin(labels: number[]): XLabel[] {
   return labels.map((value) => ({
     value,
     text: new Date(value).toString().match(/(\d+:\d+):/)![1],
   }));
 }
 
-export function statsFormatWeek(labels: number[]): XLabel[] {
+export function formatWeek(labels: number[]): XLabel[] {
   return labels.map((value) => {
     const date = new Date(value);
     const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
 
     return {
       value,
-      text: `Week ${Math.floor((value - yearStart) / MILISECONDS_IN_WEEK) + 1}`,
+      text: `Week ${Math.floor((value - yearStart) / MILLISECONDS_IN_WEEK) + 1}`,
     };
   });
 }
 
-export function statsFormatMonth(labels: number[]): XLabel[] {
+export function formatMonth(labels: number[]): XLabel[] {
   return labels.map((value) => ({
     value,
     text: MONTHS_FULL[new Date(value).getUTCMonth()],
   }));
 }
 
-export function statsFormatYear(labels: number[]): XLabel[] {
+export function formatYear(labels: number[]): XLabel[] {
   return labels.map((value) => ({
     value,
     text: String(new Date(value).getUTCFullYear()),
   }));
 }
 
-export function statsFormatText(labels: (number | string)[]): XLabel[] {
+export function formatText(labels: (number | string)[]): XLabel[] {
   return labels.map((value, i) => {
     return ({
       value: i,
@@ -85,7 +85,7 @@ export function humanize(value: number, decimals = 1): string {
   }
 
   // Delegate to formatInteger: gives thousand separators, decimal trimming
-  // and incidentally strips IEEE-754 noise via toFixed rounding.
+  // and incidentally strips IEEE-754 noise via toFixed rounding
   return formatInteger(value);
 }
 

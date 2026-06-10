@@ -72,7 +72,7 @@ export interface LovelyChartParams {
   zoomOutLabel?: string;
   valuePrefix?: string;
   valueSuffix?: string;
-  prefixIsCurrency?: boolean;
+  isCurrencyPrefix?: boolean;
   limitDate?: number;
   onLimitedRangeClick?: () => void;
 }
@@ -101,7 +101,7 @@ export interface AnalyzedData {
   hasSecondYAxis?: boolean;
   valuePrefix?: string;
   valueSuffix?: string;
-  prefixIsCurrency?: boolean;
+  isCurrencyPrefix?: boolean;
   onZoom?: LovelyChartParams['onZoom'];
   isLines: boolean;
   isBars: boolean;
@@ -146,7 +146,7 @@ export interface ChartState {
   static?: ChartState;
   // The transition manager interpolates over arbitrary numeric props and adds
   // `*From`/`*To`/`*Progress` companions, plus per-dataset `opacity#*` and
-  // `pieShift#*` values — all keyed dynamically.
+  // `pieShift#*` values — all keyed dynamically
   [prop: string]: any;
 }
 
@@ -156,7 +156,7 @@ export interface Point {
   visibleValue: number;
   stackOffset: number;
   stackValue: number;
-  gap: boolean;
+  isGap: boolean;
   percent?: number;
 }
 
@@ -166,7 +166,7 @@ export interface DrawPoint {
   stackValue: number;
   stackOffset?: number;
   visibleValue?: number;
-  gap?: boolean;
+  isGap?: boolean;
 }
 
 export interface ProjectionParams {
@@ -185,7 +185,7 @@ export interface ProjectionParams {
 export type Pixel = [number, number];
 
 export type ColorChannels = [number, number, number, number?];
-export type SkinColors = Record<string, ColorChannels>;
+type SkinColors = Record<string, ColorChannels>;
 export type ChartColors = Record<string, SkinColors>;
 
 export interface StatisticsItem {

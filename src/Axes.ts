@@ -6,11 +6,6 @@ import { humanize } from './format';
 import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
 import { getCssColor } from './skin';
 
-function getAxesFont(context: CanvasRenderingContext2D): string {
-  const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
-  return `${AXES_FONT_STYLE} ${fontFamily}`;
-}
-
 export class Axes {
   readonly #context: CanvasRenderingContext2D;
   readonly #data: AnalyzedData;
@@ -262,9 +257,14 @@ export class Axes {
     const formatted = String(humanize(value));
     const prefix = this.#data.valuePrefix || '';
     const suffix = this.#data.valueSuffix || '';
-    if (this.#data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
+    if (this.#data.isCurrencyPrefix && prefix && formatted.charCodeAt(0) === 45) {
       return `-${prefix}${formatted.slice(1)}${suffix}`;
     }
     return `${prefix}${formatted}${suffix}`;
   }
+}
+
+function getAxesFont(context: CanvasRenderingContext2D): string {
+  const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
+  return `${AXES_FONT_STYLE} ${fontFamily}`;
 }

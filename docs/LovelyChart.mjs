@@ -46,8 +46,8 @@ const MONTHS_FULL = [
 ];
 const WEEK_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const WEEK_DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1e3;
-const MILISECONDS_IN_WEEK = 7 * MILISECONDS_IN_DAY;
+const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1e3;
+const MILLISECONDS_IN_WEEK = 7 * MILLISECONDS_IN_DAY;
 const SPEED_TEST_INTERVAL = 200;
 const SPEED_TEST_FAST_FPS = 4;
 const SIMPLIFIER_MIN_POINTS = 1e3;
@@ -76,7 +76,7 @@ const ANIMATE_PROPS = [
   "yAxisScaleSecond"
 ];
 
-function statsFormatDayHour(labels) {
+function formatDayHour(labels) {
   return labels.map((value) => {
     const date = new Date(value);
     const hours = String(date.getHours()).padStart(2, "0");
@@ -86,12 +86,12 @@ function statsFormatDayHour(labels) {
     };
   });
 }
-function statsFormatDayHourFull(value) {
+function formatDayHourFull(value) {
   const date = new Date(value);
   const hours = String(date.getHours()).padStart(2, "0");
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`;
 }
-function statsFormatDay(labels) {
+function formatDay(labels) {
   return labels.map((value) => {
     const date = new Date(value);
     const day = date.getDate();
@@ -102,35 +102,35 @@ function statsFormatDay(labels) {
     };
   });
 }
-function statsFormatMin(labels) {
+function formatMin(labels) {
   return labels.map((value) => ({
     value,
     text: new Date(value).toString().match(/(\d+:\d+):/)[1]
   }));
 }
-function statsFormatWeek(labels) {
+function formatWeek(labels) {
   return labels.map((value) => {
     const date = new Date(value);
     const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
     return {
       value,
-      text: `Week ${Math.floor((value - yearStart) / MILISECONDS_IN_WEEK) + 1}`
+      text: `Week ${Math.floor((value - yearStart) / MILLISECONDS_IN_WEEK) + 1}`
     };
   });
 }
-function statsFormatMonth(labels) {
+function formatMonth(labels) {
   return labels.map((value) => ({
     value,
     text: MONTHS_FULL[new Date(value).getUTCMonth()]
   }));
 }
-function statsFormatYear(labels) {
+function formatYear(labels) {
   return labels.map((value) => ({
     value,
     text: String(new Date(value).getUTCFullYear())
   }));
 }
-function statsFormatText(labels) {
+function formatText(labels) {
   return labels.map((value, i) => {
     return {
       value: i,
@@ -261,12 +261,13 @@ function getPieTextShift(percent, radius) {
   return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
 }
 function isDataRange(labelFrom, labelTo) {
-  return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
+  return Math.abs(labelTo.value - labelFrom.value) > MILLISECONDS_IN_DAY;
 }
 function getSimplificationDelta(pointsLength) {
   return pointsLength >= SIMPLIFIER_MIN_POINTS ? Math.min(pointsLength / 1e3, 1) : 0;
 }
 
+const COLOR_CLOSENESS_THRESHOLD = 70;
 function detectSkin() {
   return document.documentElement.classList.contains("theme-dark") ? "skin-night" : "skin-day";
 }
@@ -326,20 +327,21 @@ function createColors(datasetColors) {
     Object.entries(COLORS[skin2]).forEach(([prop, value]) => {
       colors[skin2][prop] = hexToChannels(value);
     });
-    Object.keys(datasetColors).forEach((key) => {
-      colors[skin2][`dataset#${key}`] = hexToChannels(datasetColors[key]);
+    Object.entries(datasetColors).forEach(([key, color]) => {
+      const colorSuffix = color.slice(1);
+      colors[skin2][`dataset#${key}`] = hexToChannels(color);
       addCssRule(
         styleSheet,
-        `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`,
-        `color: ${datasetColors[key]}`
+        `.lovely-chart--tooltip-dataset-value${baseClass}-${colorSuffix}`,
+        `color: ${color}`
       );
       addCssRule(
         styleSheet,
-        `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`,
-        `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`
+        `.lovely-chart--button${baseClass}-${colorSuffix}`,
+        `border-color: ${color}; color: ${color}`
       );
-      const checkedBtnSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`;
-      addCssRule(styleSheet, checkedBtnSelector, `background-color: ${datasetColors[key]}`);
+      const checkedButtonSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${colorSuffix}`;
+      addCssRule(styleSheet, checkedButtonSelector, `background-color: ${color}`);
     });
   });
   return colors;
@@ -360,24 +362,20 @@ function buildCssColor([r, g, b, a = 1], opacity = 1) {
   return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
 }
 function isColorCloseToBackground(colors, hex) {
-  const bg = colors[skin]["tooltip-background"];
-  const fg = hexToChannels(hex);
-  return colorDistance(bg, fg) < 70;
+  const background = colors[skin]["tooltip-background"];
+  const foreground = hexToChannels(hex);
+  return getColorDistance(background, foreground) < COLOR_CLOSENESS_THRESHOLD;
 }
 function isColorCloseToWhite(hex) {
-  return colorDistance(hexToChannels(hex), [255, 255, 255]) < 70;
+  return getColorDistance(hexToChannels(hex), [255, 255, 255]) < COLOR_CLOSENESS_THRESHOLD;
 }
-function colorDistance([r1, g1, b1], [r2, g2, b2]) {
+function getColorDistance([r1, g1, b1], [r2, g2, b2]) {
   return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
 }
 function addCssRule(sheet, selector, rule) {
   sheet.insertRule(`${selector} { ${rule} }`, sheet.cssRules.length);
 }
 
-function getAxesFont(context) {
-  const fontFamily = getComputedStyle(context.canvas).fontFamily || "sans-serif";
-  return `${AXES_FONT_STYLE} ${fontFamily}`;
-}
 class Axes {
   #context;
   #data;
@@ -582,16 +580,20 @@ class Axes {
     const formatted = String(humanize(value));
     const prefix = this.#data.valuePrefix || "";
     const suffix = this.#data.valueSuffix || "";
-    if (this.#data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
+    if (this.#data.isCurrencyPrefix && prefix && formatted.charCodeAt(0) === 45) {
       return `-${prefix}${formatted.slice(1)}${suffix}`;
     }
     return `${prefix}${formatted}${suffix}`;
   }
 }
+function getAxesFont(context) {
+  const fontFamily = getComputedStyle(context.canvas).fontFamily || "sans-serif";
+  return `${AXES_FONT_STYLE} ${fontFamily}`;
+}
 
-const createElement = (tagName = "div") => {
+function createElement(tagName = "div") {
   return document.createElement(tagName);
-};
+}
 function addEventListener(element, event, cb) {
   element.addEventListener(event, cb);
 }
@@ -637,15 +639,15 @@ function sumArrays(arrays) {
   }
   return sums;
 }
-function proxyMerge(obj1, obj2) {
+function mergeProxied(base, override) {
   return new Proxy({}, {
-    get: (obj, prop) => {
-      if (obj[prop] !== void 0) {
-        return obj[prop];
-      } else if (obj2[prop] !== void 0) {
-        return obj2[prop];
+    get: (target, prop) => {
+      if (target[prop] !== void 0) {
+        return target[prop];
+      } else if (override[prop] !== void 0) {
+        return override[prop];
       } else {
-        return obj1[prop];
+        return base[prop];
       }
     }
   });
@@ -675,14 +677,14 @@ function throttle(fn, ms, shouldRunFirst = true) {
   };
 }
 function throttleWithRaf(fn) {
-  let waiting = false;
+  let isWaiting = false;
   let args;
   return function(..._args) {
     args = _args;
-    if (!waiting) {
-      waiting = true;
+    if (!isWaiting) {
+      isWaiting = true;
       requestAnimationFrame(() => {
-        waiting = false;
+        isWaiting = false;
         fn(...args);
       });
     }
@@ -752,7 +754,7 @@ function analyzeData(data, fallbackLabelType) {
     zoomOutLabel,
     valuePrefix,
     valueSuffix,
-    prefixIsCurrency,
+    isCurrencyPrefix,
     limitDate,
     onLimitedRangeClick
   } = data;
@@ -774,34 +776,34 @@ function analyzeData(data, fallbackLabelType) {
   let xLabels;
   switch (labelFormatter) {
     case "statsFormatYear":
-      xLabels = statsFormatYear(labels);
+      xLabels = formatYear(labels);
       break;
     case "statsFormatMonth":
-      xLabels = statsFormatMonth(labels);
+      xLabels = formatMonth(labels);
       break;
     case "statsFormatWeek":
-      xLabels = statsFormatWeek(labels);
+      xLabels = formatWeek(labels);
       break;
     case "statsFormatDayHour":
-      xLabels = statsFormatDayHour(labels);
+      xLabels = formatDayHour(labels);
       break;
     case "statsFormat('day')":
-      xLabels = statsFormatDay(labels);
+      xLabels = formatDay(labels);
       break;
     case "statsFormat('hour')":
     case "statsFormat('5min')":
-      xLabels = statsFormatMin(labels);
+      xLabels = formatMin(labels);
       break;
     default:
-      xLabels = statsFormatText(labels);
+      xLabels = formatText(labels);
       break;
   }
   let limitBegin;
   if (limitDate !== void 0) {
     const totalXWidth = labels.length - 1;
-    const idx = labels.findIndex((l) => l >= limitDate);
-    if (idx > 0) {
-      limitBegin = idx / totalXWidth;
+    const index = labels.findIndex((label) => label >= limitDate);
+    if (index > 0) {
+      limitBegin = index / totalXWidth;
     }
   }
   const shouldZoomToPie = !onZoom && Boolean(isPercentage);
@@ -818,7 +820,7 @@ function analyzeData(data, fallbackLabelType) {
     hasSecondYAxis,
     valuePrefix,
     valueSuffix,
-    prefixIsCurrency,
+    isCurrencyPrefix,
     onZoom,
     isLines: data.type === "line",
     isBars: data.type === "bar",
@@ -853,19 +855,19 @@ function inferLabelType(labels) {
     return "day";
   }
   const step = Math.abs(second - first);
-  if (step >= 365 * MILISECONDS_IN_DAY) {
+  if (step >= 365 * MILLISECONDS_IN_DAY) {
     return "year";
   }
-  if (step >= 28 * MILISECONDS_IN_DAY) {
+  if (step >= 28 * MILLISECONDS_IN_DAY) {
     return "month";
   }
-  if (step >= 7 * MILISECONDS_IN_DAY) {
+  if (step >= 7 * MILLISECONDS_IN_DAY) {
     return "week";
   }
-  if (step >= MILISECONDS_IN_DAY) {
+  if (step >= MILLISECONDS_IN_DAY) {
     return "day";
   }
-  if (step >= MILISECONDS_IN_DAY / 24) {
+  if (step >= MILLISECONDS_IN_DAY / 24) {
     return "hour";
   }
   return "5min";
@@ -916,13 +918,13 @@ function simplify(points, indexes, fixedPoints) {
       removed: []
     });
   }
-  const worker = precalculate(points, fixedPoints);
+  const calcDistances = precalculate(points, fixedPoints);
   return (delta) => {
     const result = [];
     const resultIndexes = [];
     const removed = [];
     const delta2 = delta * delta;
-    const markers = worker(delta2);
+    const markers = calcDistances(delta2);
     for (let i = 0, l = points.length; i < l; i++) {
       if (markers[i] >= delta2 || i === 0 || i === l - 1) {
         result.push(points[i]);
@@ -947,7 +949,7 @@ function precalculate(points, fixedPoints = []) {
   for (let i = 0, l = fixedPoints.length; i < l; ++i) {
     distances[fixedPoints[i]] = MAX_LIMIT;
   }
-  function worker(params) {
+  function processSubdivision(params) {
     const { start, end, currentLimit } = params;
     let { record } = params;
     let usedDistance = 0;
@@ -972,7 +974,7 @@ function precalculate(points, fixedPoints = []) {
           const vectorLength = vector[0] * vector[0] + vector[1] * vector[1];
           const invVectorLength = 1 / vectorLength;
           for (let i = start + 1; i < end; ++i) {
-            const segmentDistance = pointToSegmentDistanceSquare(
+            const segmentDistance = getSegmentDistanceSquare(
               points[i],
               points[start],
               points[end],
@@ -1023,7 +1025,7 @@ function precalculate(points, fixedPoints = []) {
   }
   function tick() {
     const request = queue.pop();
-    const result = worker(request);
+    const result = processSubdivision(request);
     if (request.parent && request.parentProperty) {
       request.parent[request.parentProperty] = result;
     }
@@ -1044,23 +1046,23 @@ function precalculate(points, fixedPoints = []) {
     return distances;
   };
 }
-function pointToSegmentDistanceSquare(p, v1, v2, dv, invLength) {
-  let vx = v1[0];
-  let vy = v1[1];
-  const t = ((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * invLength;
-  if (t > 1) {
-    vx = v2[0];
-    vy = v2[1];
-  } else if (t > 0) {
-    vx += dv[0] * t;
-    vy += dv[1] * t;
+function getSegmentDistanceSquare(point, segmentStart, segmentEnd, vector, invLength) {
+  let vx = segmentStart[0];
+  let vy = segmentStart[1];
+  const projection = ((point[0] - vx) * vector[0] + (point[1] - vy) * vector[1]) * invLength;
+  if (projection > 1) {
+    vx = segmentEnd[0];
+    vy = segmentEnd[1];
+  } else if (projection > 0) {
+    vx += vector[0] * projection;
+    vy += vector[1] * projection;
   }
-  const a = p[0] - vx;
-  const b = p[1] - vy;
-  return a * a + b * b;
+  const dx = point[0] - vx;
+  const dy = point[1] - vy;
+  return dx * dx + dy * dy;
 }
 
-function drawDatasets(context, state, data, range, points, projection, secondaryPoints, secondaryProjection, lineWidth, visibilities, colors, pieToBar, simplification) {
+function drawDatasets(context, state, data, range, points, projection, secondaryPoints, secondaryProjection, lineWidth, visibilities, colors, shouldConvertToBars, simplification) {
   data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
       return;
@@ -1071,7 +1073,7 @@ function drawDatasets(context, state, data, range, points, projection, secondary
       opacity: data.isStacked ? 1 : visibilities[i],
       simplification
     };
-    const datasetType = type === "pie" && pieToBar ? "bar" : type;
+    const datasetType = type === "pie" && shouldConvertToBars ? "bar" : type;
     let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
     const datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
     if (datasetType === "area") {
@@ -1128,7 +1130,7 @@ function drawDatasetLine(context, points, projection, options) {
   let current = [];
   for (let j = 0, l = points.length; j < l; j++) {
     const point = points[j];
-    if (point.gap) {
+    if (point.isGap) {
       if (current.length) {
         segments.push(current);
         current = [];
@@ -1163,7 +1165,7 @@ function drawDatasetBars(context, points, projection, options) {
   context.globalAlpha = options.opacity;
   context.fillStyle = options.color;
   for (let j = 0, l = points.length; j < l; j++) {
-    if (points[j].gap) continue;
+    if (points[j].isGap) continue;
     const { labelIndex, stackValue, stackOffset = 0 } = points[j];
     const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
     const [x, yTo] = projection.toPixels(labelIndex, stackValue);
@@ -1181,7 +1183,7 @@ function drawDatasetSteps(context, points, projection, options) {
   let current = [];
   for (let j = 0, l = points.length; j < l; j++) {
     const point = points[j];
-    if (point.gap) {
+    if (point.isGap) {
       if (current.length) {
         segments.push(current);
         current = [];
@@ -1314,7 +1316,7 @@ function toggleText(element, newText, className = "", inverse = false) {
   newElement.textContent = newText;
   const selector = className.length ? `.${className.split(" ").join(".")}` : "";
   const oldElements = container.querySelectorAll(`${selector}.lovely-chart--state-hidden`);
-  oldElements.forEach((e) => e.remove());
+  oldElements.forEach((oldElement) => oldElement.remove());
   element.classList.add("lovely-chart--transition");
   element.classList.remove("lovely-chart--position-bottom", "lovely-chart--position-top");
   element.classList.add(inverse ? "lovely-chart--position-bottom" : "lovely-chart--position-top");
@@ -1334,6 +1336,8 @@ function toggleElementOut(element) {
   element.classList.add("lovely-chart--state-hidden");
 }
 
+const CAPTION_THROTTLE_MS = 100;
+const ZOOM_OUT_BIND_DELAY = 500;
 class Header {
   #container;
   #title;
@@ -1345,7 +1349,7 @@ class Header {
   #captionElement;
   #isZooming;
   #zoomBindTimeout;
-  setCaption = throttle((caption) => this.#setCaption(caption), 100, false);
+  setCaption = throttle((caption) => this.#setCaption(caption), CAPTION_THROTTLE_MS, false);
   constructor(container, title, zoomOutLabel = "Zoom out", zoomOutCallback) {
     this.#container = container;
     this.#title = title;
@@ -1362,7 +1366,7 @@ class Header {
     this.#zoomBindTimeout = window.setTimeout(() => {
       this.#zoomBindTimeout = void 0;
       addEventListener(this.#zoomOutElement, "click", this.#onZoomOut);
-    }, 500);
+    }, ZOOM_OUT_BIND_DELAY);
     this.#setCaption(caption);
   }
   destroy() {
@@ -1459,15 +1463,15 @@ function captureEvents(element, options) {
   addEventListener(element, "touchstart", onCapture);
 }
 
-function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
+function preparePoints(data, datasets, range, visibilities, bounds, shouldConvertToArea) {
   let values = datasets.map(({ values: values2 }) => values2.slice(range.from, range.to + 1));
-  if (data.isPie && !pieToArea) {
+  if (data.isPie && !shouldConvertToArea) {
     values = prepareSumsByX(values);
   }
   const points = values.map((datasetValues, i) => datasetValues.map((value, j) => {
-    const gap = value === GAP;
-    let visibleValue = gap ? 0 : value;
-    if (data.isStacked && !gap) {
+    const isGap = value === GAP;
+    let visibleValue = isGap ? 0 : value;
+    if (data.isStacked && !isGap) {
       visibleValue *= visibilities[i];
     }
     return {
@@ -1476,7 +1480,7 @@ function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
       visibleValue,
       stackOffset: 0,
       stackValue: visibleValue,
-      gap
+      isGap
     };
   }));
   if (data.isPercentage) {
@@ -1487,9 +1491,6 @@ function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
   }
   return points;
 }
-function getSumsByY(points) {
-  return sumArrays(points.map((datasetPoints) => datasetPoints.map(({ visibleValue }) => visibleValue)));
-}
 function preparePercentage(points, bounds) {
   const sumsByY = getSumsByY(points);
   points.forEach((datasetPoints) => {
@@ -1499,6 +1500,9 @@ function preparePercentage(points, bounds) {
     });
   });
 }
+function getSumsByY(points) {
+  return sumArrays(points.map((datasetPoints) => datasetPoints.map(({ visibleValue }) => visibleValue)));
+}
 function prepareStacked(points) {
   const posAccum = [];
   const negAccum = [];
@@ -1506,7 +1510,7 @@ function prepareStacked(points) {
     datasetPoints.forEach((point, j) => {
       posAccum[j] ??= 0;
       negAccum[j] ??= 0;
-      if (point.gap) {
+      if (point.isGap) {
         point.stackOffset = posAccum[j];
         point.stackValue = posAccum[j];
         return;
@@ -1582,7 +1586,7 @@ class Projection {
     return this.#withColumns ? Math.max(0, Math.min(labelIndex, this.#totalXWidth)) : labelIndex;
   }
   copy(overrides) {
-    return new Projection(proxyMerge(this.#params, overrides));
+    return new Projection(mergeProxied(this.#params, overrides));
   }
   getCenter() {
     return [
@@ -1635,7 +1639,7 @@ class Minimap {
     if (!this.#isStateChanged(newState)) {
       return;
     }
-    this.#state = proxyMerge(newState, { focusOn: NO_FOCUS });
+    this.#state = mergeProxied(newState, { focusOn: NO_FOCUS });
     clearCanvas(this.#canvas, this.#context);
     this.#drawDatasets(this.#state);
   }
@@ -1839,9 +1843,7 @@ class Minimap {
   }
 }
 
-function transition(t) {
-  return 1 - Math.pow(1 - t, 3);
-}
+const SLOW_FPS_COOLDOWN = 5e3;
 class TransitionManager {
   #onTick;
   #transitions = {};
@@ -1892,8 +1894,8 @@ class TransitionManager {
   isRunning() {
     return Boolean(Object.keys(this.#transitions).length);
   }
-  isFast(forceCheck) {
-    if (!forceCheck && (this.#startedAsSlow || this.#slowDetectedAt)) {
+  isFast(force) {
+    if (!force && (this.#startedAsSlow || this.#slowDetectedAt)) {
       return false;
     }
     return this.#fps === void 0 || this.#fps >= SPEED_TEST_FAST_FPS;
@@ -1912,7 +1914,7 @@ class TransitionManager {
     Object.entries(this.#transitions).forEach(([prop, item]) => {
       const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = item;
       const progress = Math.min(1, (Date.now() - startedAt) / duration);
-      let current = from + (to - from) * transition(progress);
+      let current = from + (to - from) * easeOut(progress);
       if (options.includes("ceil")) {
         current = Math.ceil(current);
       } else if (options.includes("floor")) {
@@ -1935,7 +1937,7 @@ class TransitionManager {
   #resetSpeedTest() {
     this.#testStartedAt = void 0;
     this.#testingFps = void 0;
-    if (this.#slowDetectedAt && Date.now() - this.#slowDetectedAt > 5e3) {
+    if (this.#slowDetectedAt && Date.now() - this.#slowDetectedAt > SLOW_FPS_COOLDOWN) {
       this.#slowDetectedAt = void 0;
     }
     this.#startedAsSlow = Boolean(this.#slowDetectedAt) || !this.isFast(true);
@@ -1954,6 +1956,9 @@ class TransitionManager {
       this.#testingFps = (this.#testingFps || 0) + 1;
     }
   }
+}
+function easeOut(progress) {
+  return 1 - Math.pow(1 - progress, 3);
 }
 
 class StateManager {
@@ -2037,7 +2042,7 @@ class StateManager {
   }
   #runCallback = () => {
     if (this.#isDestroyed) return;
-    const state = this.#transitions.isFast() ? proxyMerge(this.#state, this.#transitions.getState()) : this.#state;
+    const state = this.#transitions.isFast() ? mergeProxied(this.#state, this.#transitions.getState()) : this.#state;
     state.static = this.#state;
     this.#callback(state);
   };
@@ -2160,12 +2165,12 @@ function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, pre
   const negSums = new Array(length).fill(0);
   for (let i = 0; i < filteredValues.length; i++) {
     for (let j = 0; j < length; j++) {
-      const v = filteredValues[i][j];
-      if (v === GAP) continue;
-      if (v >= 0) {
-        posSums[j] += v;
+      const value = filteredValues[i][j];
+      if (value === GAP) continue;
+      if (value >= 0) {
+        posSums[j] += value;
       } else {
-        negSums[j] += v;
+        negSums[j] += value;
       }
     }
   }
@@ -2192,6 +2197,7 @@ function calculateYAxisScale(plotHeight, yMin, yMax) {
   return yStepToScaleLevel(viewportLabelsCount / maxRows);
 }
 
+const HIDE_TIMEOUT = 500;
 class Tools {
   #container;
   #data;
@@ -2205,13 +2211,11 @@ class Tools {
     this.#updateFilter();
   }
   redraw() {
-    if (this.#element) {
-      const oldElement = this.#element;
-      oldElement.classList.add("lovely-chart--state-hidden");
-      setTimeout(() => {
-        oldElement.parentNode.removeChild(oldElement);
-      }, 500);
-    }
+    const oldElement = this.#element;
+    oldElement.classList.add("lovely-chart--state-hidden");
+    setTimeout(() => {
+      oldElement.parentNode.removeChild(oldElement);
+    }, HIDE_TIMEOUT);
     this.#setupLayout();
     this.#element.classList.add("lovely-chart--state-transparent");
     requestAnimationFrame(() => {
@@ -2225,11 +2229,12 @@ class Tools {
       this.#element.className += " lovely-chart--state-hidden";
     }
     this.#data.datasets.forEach(({ key, name }) => {
+      const color = this.#data.colors[key];
       const control = createElement("a");
       control.href = "#";
       control.dataset.key = key;
-      const darkContent = isColorCloseToWhite(this.#data.colors[key]) ? " lovely-chart--dark-content" : "";
-      control.className = `lovely-chart--button lovely-chart--color-${this.#data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
+      const darkContent = isColorCloseToWhite(color) ? " lovely-chart--dark-content" : "";
+      control.className = `lovely-chart--button lovely-chart--color-${color.slice(1)} lovely-chart--state-checked${darkContent}`;
       const check = createElement("span");
       check.className = "lovely-chart--button-check";
       control.appendChild(check);
@@ -2283,6 +2288,9 @@ class Tools {
   }
 }
 
+const CONTENT_THROTTLE_MS = 100;
+const CIRCLE_RADIUS = 4;
+const CIRCLE_LINE_WIDTH = 2;
 class Tooltip {
   #container;
   #data;
@@ -2308,7 +2316,7 @@ class Tooltip {
   #selectLabelOnRaf = throttleWithRaf((isExternal) => this.#selectLabel(isExternal));
   #throttledUpdateContent = throttle(
     (title, statistics) => this.#updateContent(title, statistics),
-    100,
+    CONTENT_THROTTLE_MS,
     true
   );
   constructor(container, data, plotSize, colors, onZoom, onFocus) {
@@ -2342,10 +2350,8 @@ class Tooltip {
     this.#balloon.classList.toggle("lovely-chart--state-inactive", isZoomed);
   }
   destroy() {
-    if (this.#documentMoveEvent) {
-      removeEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
-      this.#documentMoveEvent = void 0;
-    }
+    removeEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
+    this.#documentMoveEvent = void 0;
   }
   #setupLayout() {
     this.#element = createElement();
@@ -2399,19 +2405,17 @@ class Tooltip {
     }
   };
   #onClick = (e) => {
-    if (this.#isZooming) {
+    if (this.#isZooming || !this.#data.isZoomable) {
       return;
     }
-    if (this.#data.isZoomable) {
-      const oldLabelIndex = this.#clickedOnLabel;
-      this.#clickedOnLabel = void 0;
-      this.#onMouseMove(e);
-      const newLabelIndex = this.#getLabelIndex();
-      if (newLabelIndex !== oldLabelIndex) {
-        this.#clickedOnLabel = newLabelIndex;
-      }
-      this.#onZoom(newLabelIndex);
+    const oldLabelIndex = this.#clickedOnLabel;
+    this.#clickedOnLabel = void 0;
+    this.#onMouseMove(e);
+    const newLabelIndex = this.#getLabelIndex();
+    if (newLabelIndex !== oldLabelIndex) {
+      this.#clickedOnLabel = newLabelIndex;
     }
+    this.#onZoom(newLabelIndex);
   };
   #onBalloonClick = () => {
     if (this.#balloon.classList.contains("lovely-chart--state-inactive")) {
@@ -2497,9 +2501,9 @@ class Tooltip {
   #drawCircle([xPx, yPx], strokeColor, fillColor) {
     this.#context.strokeStyle = strokeColor;
     this.#context.fillStyle = fillColor;
-    this.#context.lineWidth = 2;
+    this.#context.lineWidth = CIRCLE_LINE_WIDTH;
     this.#context.beginPath();
-    this.#context.arc(xPx, yPx, 4, 0, 2 * Math.PI);
+    this.#context.arc(xPx, yPx, CIRCLE_RADIUS, 0, 2 * Math.PI);
     this.#context.fill();
     this.#context.stroke();
   }
@@ -2533,7 +2537,7 @@ class Tooltip {
   #getTitle(data, labelIndex) {
     switch (data.tooltipFormatter) {
       case "statsFormatDayHourFull":
-        return statsFormatDayHourFull(data.xLabels[labelIndex].value);
+        return formatDayHourFull(data.xLabels[labelIndex].value);
       case "statsTooltipFormat('day')":
         return getLabelDate(data.xLabels[labelIndex]);
       case "statsTooltipFormat('hour')":
@@ -2545,7 +2549,7 @@ class Tooltip {
   }
   // The angular offset must come from the item's position in the original
   // (dataset-order) statistics — sectors are drawn in that order, while the
-  // displayed entries are sorted by value.
+  // displayed entries are sorted by value
   #isPieSectorSelected(statistics, statItem, totalValue, pointerVector) {
     const index = statistics.indexOf(statItem);
     const { value } = statItem;
@@ -2557,21 +2561,19 @@ class Tooltip {
   #updateTitle(title) {
     const titleContainer = this.#balloon.children[0];
     if (this.#data.isPie) {
-      if (titleContainer) {
-        titleContainer.style.display = "none";
-      }
+      titleContainer.style.display = "none";
+      return;
+    }
+    if (titleContainer.style.display === "none") {
+      titleContainer.style.display = "";
+    }
+    const currentTitle = titleContainer.querySelector(":not(.lovely-chart--state-hidden)");
+    if (!titleContainer.textContent || !currentTitle) {
+      const newTitle = createElement("span");
+      newTitle.textContent = title;
+      titleContainer.replaceChildren(newTitle);
     } else {
-      if (titleContainer.style.display === "none") {
-        titleContainer.style.display = "";
-      }
-      const currentTitle = titleContainer.querySelector(":not(.lovely-chart--state-hidden)");
-      if (!titleContainer.textContent || !currentTitle) {
-        const newTitle = createElement("span");
-        newTitle.textContent = title;
-        titleContainer.replaceChildren(newTitle);
-      } else {
-        currentTitle.textContent = title;
-      }
+      currentTitle.textContent = title;
     }
   }
   #insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
@@ -2605,7 +2607,7 @@ class Tooltip {
     const formatted = formatInteger(value);
     const prefix = this.#data.valuePrefix || "";
     const suffix = this.#data.valueSuffix || "";
-    if (this.#data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
+    if (this.#data.isCurrencyPrefix && prefix && formatted.charCodeAt(0) === 45) {
       return `-${prefix}${formatted.slice(1)}${suffix}`;
     }
     return `${prefix}${formatted}${suffix}`;
@@ -2615,7 +2617,7 @@ class Tooltip {
       return;
     }
     if (this.#data.isPie) {
-      Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach((e) => e.remove());
+      Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach((element) => element.remove());
       return;
     }
     const percentageValue = totalValue ? Math.round(value / totalValue * 100) : 0;
@@ -2664,7 +2666,7 @@ class Tooltip {
     if (this.#data.secondaryYAxis) {
       this.#renderSecondaryTotal(dataSetContainer, totalValue);
     }
-    Array.from(dataSetContainer.querySelectorAll('[data-total="true"]')).forEach((el) => dataSetContainer.appendChild(el));
+    Array.from(dataSetContainer.querySelectorAll('[data-total="true"]')).forEach((element) => dataSetContainer.appendChild(element));
     Array.from(dataSetContainer.querySelectorAll('[data-present="false"]')).forEach((dataSet) => {
       dataSet.remove();
     });
@@ -2739,11 +2741,13 @@ class Tooltip {
       distance
     };
   }
-  #getPageOffset(el) {
-    return el.getBoundingClientRect();
+  #getPageOffset(element) {
+    return element.getBoundingClientRect();
   }
 }
 
+const ZOOM_ANIMATING_TIMEOUT = 1e3;
+const PIE_LABELS_AROUND = 3;
 class Zoomer {
   #data;
   #overviewData;
@@ -2901,23 +2905,24 @@ class Zoomer {
       if (this.#data.shouldZoomToPie) {
         this.#container.classList.remove("lovely-chart--state-animating");
       }
-    }, this.#stateManager.hasAnimations() ? 1e3 : 0);
+    }, this.#stateManager.hasAnimations() ? ZOOM_ANIMATING_TIMEOUT : 0);
   }
   #generatePieData(labelIndex) {
     return {
       ...this.#overviewData,
       type: "pie",
-      labels: this.#overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
+      labels: this.#overviewData.labels.slice(labelIndex - PIE_LABELS_AROUND, labelIndex + PIE_LABELS_AROUND + 1),
       datasets: this.#overviewData.datasets.map((dataset) => {
         return {
           ...dataset,
-          values: dataset.values.slice(labelIndex - 3, labelIndex + 4)
+          values: dataset.values.slice(labelIndex - PIE_LABELS_AROUND, labelIndex + PIE_LABELS_AROUND + 1)
         };
       })
     };
   }
 }
 
+const REDRAW_DEBOUNCE_MS = 500;
 class LovelyChart {
   #container;
   #stateManager;
@@ -2940,7 +2945,7 @@ class LovelyChart {
   #onWindowOrientationChange;
   #data;
   #colors;
-  #redrawDebounced = debounce(() => this.#redraw(), 500, false, true);
+  #redrawDebounced = debounce(() => this.#redraw(), REDRAW_DEBOUNCE_MS, false, true);
   constructor(container, originalData) {
     this.#container = container;
     this.#originalData = originalData;
@@ -2964,16 +2969,12 @@ class LovelyChart {
   destroy() {
     if (this.#isDestroyed) return;
     this.#isDestroyed = true;
-    this.#themeObserver?.disconnect();
+    this.#themeObserver.disconnect();
     this.#themeObserver = void 0;
-    if (this.#onWindowResize) {
-      window.removeEventListener("resize", this.#onWindowResize);
-      this.#onWindowResize = void 0;
-    }
-    if (this.#onWindowOrientationChange) {
-      window.removeEventListener("orientationchange", this.#onWindowOrientationChange);
-      this.#onWindowOrientationChange = void 0;
-    }
+    window.removeEventListener("resize", this.#onWindowResize);
+    this.#onWindowResize = void 0;
+    window.removeEventListener("orientationchange", this.#onWindowOrientationChange);
+    this.#onWindowOrientationChange = void 0;
     this.#destroyComponents();
   }
   #setupComponents() {

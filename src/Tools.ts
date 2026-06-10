@@ -4,6 +4,9 @@ import { captureEvents } from './captureEvents';
 import { createElement } from './minifiers';
 import { isColorCloseToWhite } from './skin';
 
+// Matches the fade-out transition of the replaced controls
+const HIDE_TIMEOUT = 500;
+
 export class Tools {
   readonly #container: HTMLElement;
   readonly #data: AnalyzedData;
@@ -21,13 +24,11 @@ export class Tools {
   }
 
   redraw() {
-    if (this.#element) {
-      const oldElement = this.#element;
-      oldElement.classList.add('lovely-chart--state-hidden');
-      setTimeout(() => {
-        oldElement.parentNode!.removeChild(oldElement);
-      }, 500);
-    }
+    const oldElement = this.#element;
+    oldElement.classList.add('lovely-chart--state-hidden');
+    setTimeout(() => {
+      oldElement.parentNode!.removeChild(oldElement);
+    }, HIDE_TIMEOUT);
 
     this.#setupLayout();
     this.#element.classList.add('lovely-chart--state-transparent');
@@ -45,11 +46,12 @@ export class Tools {
     }
 
     this.#data.datasets.forEach(({ key, name }) => {
+      const color = this.#data.colors[key];
       const control = createElement<HTMLAnchorElement>('a');
       control.href = '#';
       control.dataset.key = key;
-      const darkContent = isColorCloseToWhite(this.#data.colors[key]) ? ' lovely-chart--dark-content' : '';
-      control.className = `lovely-chart--button lovely-chart--color-${this.#data.colors[key].slice(1)}`
+      const darkContent = isColorCloseToWhite(color) ? ' lovely-chart--dark-content' : '';
+      control.className = `lovely-chart--button lovely-chart--color-${color.slice(1)}`
         + ` lovely-chart--state-checked${darkContent}`;
 
       const check = createElement<HTMLSpanElement>('span');

@@ -2,6 +2,10 @@ import { addEventListener, createElement } from './minifiers';
 import { toggleText } from './toggleText';
 import { throttle } from './utils';
 
+const CAPTION_THROTTLE_MS = 100;
+// Matches the title slide-in transition, so the link is not clickable mid-animation
+const ZOOM_OUT_BIND_DELAY = 500;
+
 export class Header {
   readonly #container: HTMLElement;
   readonly #title: string;
@@ -15,7 +19,7 @@ export class Header {
   #isZooming?: boolean;
   #zoomBindTimeout?: number;
 
-  readonly setCaption = throttle((caption: string) => this.#setCaption(caption), 100, false);
+  readonly setCaption = throttle((caption: string) => this.#setCaption(caption), CAPTION_THROTTLE_MS, false);
 
   constructor(container: HTMLElement, title: string, zoomOutLabel = 'Zoom out', zoomOutCallback: () => void) {
     this.#container = container;
@@ -33,7 +37,7 @@ export class Header {
     this.#zoomBindTimeout = window.setTimeout(() => {
       this.#zoomBindTimeout = undefined;
       addEventListener(this.#zoomOutElement!, 'click', this.#onZoomOut);
-    }, 500);
+    }, ZOOM_OUT_BIND_DELAY);
 
     this.#setCaption(caption);
   }

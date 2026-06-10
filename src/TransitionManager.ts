@@ -1,6 +1,9 @@
 import { SPEED_TEST_FAST_FPS, SPEED_TEST_INTERVAL, TRANSITION_DEFAULT_DURATION } from './constants';
 
-export interface Transition {
+// A detected slow device is re-tested after this cooldown
+const SLOW_FPS_COOLDOWN = 5_000;
+
+interface Transition {
   from: number;
   to: number;
   duration: number | undefined;
@@ -8,11 +11,6 @@ export interface Transition {
   current: number;
   startedAt: number;
   progress: number;
-}
-
-function transition(t: number): number {
-  // iOS-style ease-out (no overshoot)
-  return 1 - Math.pow(1 - t, 3);
 }
 
 export class TransitionManager {
@@ -80,8 +78,8 @@ export class TransitionManager {
     return Boolean(Object.keys(this.#transitions).length);
   }
 
-  isFast(forceCheck?: boolean): boolean {
-    if (!forceCheck && (this.#startedAsSlow || this.#slowDetectedAt)) {
+  isFast(force?: boolean): boolean {
+    if (!force && (this.#startedAsSlow || this.#slowDetectedAt)) {
       return false;
     }
 
@@ -105,7 +103,7 @@ export class TransitionManager {
     Object.entries(this.#transitions).forEach(([prop, item]) => {
       const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = item;
       const progress = Math.min(1, (Date.now() - startedAt) / duration);
-      let current = from + (to - from) * transition(progress);
+      let current = from + (to - from) * easeOut(progress);
 
       if (options.includes('ceil')) {
         current = Math.ceil(current);
@@ -134,7 +132,7 @@ export class TransitionManager {
   #resetSpeedTest() {
     this.#testStartedAt = undefined;
     this.#testingFps = undefined;
-    if (this.#slowDetectedAt && Date.now() - this.#slowDetectedAt > 5000) {
+    if (this.#slowDetectedAt && Date.now() - this.#slowDetectedAt > SLOW_FPS_COOLDOWN) {
       this.#slowDetectedAt = undefined;
     }
     this.#startedAsSlow = Boolean(this.#slowDetectedAt) || !this.isFast(true);
@@ -154,4 +152,9 @@ export class TransitionManager {
       this.#testingFps = (this.#testingFps || 0) + 1;
     }
   }
+}
+
+function easeOut(progress: number): number {
+  // Ease-out curve without overshoot (iOS-like)
+  return 1 - Math.pow(1 - progress, 3);
 }

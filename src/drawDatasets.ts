@@ -31,7 +31,7 @@ export function drawDatasets(
   context: CanvasRenderingContext2D, state: ChartState, data: AnalyzedData,
   range: LabelRange, points: Point[][], projection: Projection,
   secondaryPoints: Point[] | undefined, secondaryProjection: Projection | undefined,
-  lineWidth: number, visibilities: number[], colors: ChartColors, pieToBar: boolean, simplification: number,
+  lineWidth: number, visibilities: number[], colors: ChartColors, shouldConvertToBars: boolean, simplification: number,
 ) {
   data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
@@ -45,7 +45,7 @@ export function drawDatasets(
       simplification,
     };
 
-    const datasetType = type === 'pie' && pieToBar ? 'bar' : type;
+    const datasetType = type === 'pie' && shouldConvertToBars ? 'bar' : type;
     let datasetPoints: DrawPoint[] = hasOwnYAxis ? secondaryPoints! : points[i];
     const datasetProjection = hasOwnYAxis ? secondaryProjection! : projection;
 
@@ -121,7 +121,7 @@ function drawDatasetLine(
   let current: Pixel[] = [];
   for (let j = 0, l = points.length; j < l; j++) {
     const point = points[j];
-    if (point.gap) {
+    if (point.isGap) {
       if (current.length) {
         segments.push(current);
         current = [];
@@ -164,7 +164,7 @@ function drawDatasetBars(
   context.fillStyle = options.color;
 
   for (let j = 0, l = points.length; j < l; j++) {
-    if (points[j].gap) continue;
+    if (points[j].isGap) continue;
     const { labelIndex, stackValue, stackOffset = 0 } = points[j];
 
     const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
@@ -191,7 +191,7 @@ function drawDatasetSteps(
   let current: Pixel[] = [];
   for (let j = 0, l = points.length; j < l; j++) {
     const point = points[j];
-    if (point.gap) {
+    if (point.isGap) {
       if (current.length) {
         segments.push(current);
         current = [];
@@ -293,7 +293,7 @@ function drawDatasetPie(
 
   context.beginPath();
   // `withGradient` adds slight concentric shading for depth: lighter at the
-  // inner edge (center for a plain pie), darker toward the outer edge.
+  // inner edge (center for a plain pie), darker toward the outer edge
   context.fillStyle = withGradient
     ? buildPieGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color)
     : options.color;
@@ -338,7 +338,7 @@ function parseRgba(color: string): number[] {
   return channels ? channels.map(Number) : [0, 0, 0, 1];
 }
 
-// `amount` > 0 mixes toward white (highlight), < 0 toward black (shadow).
+// `amount` > 0 mixes toward white (highlight), < 0 toward black (shadow)
 function shadeColor([r, g, b, a = 1]: number[], amount: number): string {
   const target = amount >= 0 ? 255 : 0;
   const t = Math.abs(amount);

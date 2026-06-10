@@ -1,5 +1,7 @@
 import type { ChartColors, ColorChannels } from './types';
 
+const COLOR_CLOSENESS_THRESHOLD = 70;
+
 function detectSkin() {
   return document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
 }
@@ -37,7 +39,7 @@ const COLORS = {
 
 // Prefer Constructable Stylesheets so a strict `style-src` CSP without
 // `'unsafe-inline'` does not block us; fall back to an injected <style> on
-// browsers that do not support them or where construction throws.
+// browsers that do not support them or where construction throws
 let styleSheet: CSSStyleSheet | null | undefined;
 if (typeof CSSStyleSheet === 'function') {
   try {
@@ -70,23 +72,23 @@ export function createColors(datasetColors: Record<string, string>): ChartColors
       colors[skin][prop] = hexToChannels(value);
     });
 
-    Object.keys(datasetColors).forEach((key) => {
-      colors[skin][`dataset#${key}`] = hexToChannels(datasetColors[key]);
+    Object.entries(datasetColors).forEach(([key, color]) => {
+      const colorSuffix = color.slice(1);
+      colors[skin][`dataset#${key}`] = hexToChannels(color);
 
       addCssRule(
         styleSheet!,
-        `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`,
-        `color: ${datasetColors[key]}`,
+        `.lovely-chart--tooltip-dataset-value${baseClass}-${colorSuffix}`,
+        `color: ${color}`,
       );
       addCssRule(
         styleSheet!,
-        `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`,
-        `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`,
+        `.lovely-chart--button${baseClass}-${colorSuffix}`,
+        `border-color: ${color}; color: ${color}`,
       );
 
-      const checkedBtnSelector
-        = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`;
-      addCssRule(styleSheet!, checkedBtnSelector, `background-color: ${datasetColors[key]}`);
+      const checkedButtonSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${colorSuffix}`;
+      addCssRule(styleSheet!, checkedButtonSelector, `background-color: ${color}`);
     });
   });
 
@@ -113,16 +115,16 @@ function buildCssColor([r, g, b, a = 1]: ColorChannels, opacity = 1): string {
 }
 
 export function isColorCloseToBackground(colors: ChartColors, hex: string): boolean {
-  const bg = colors[skin]['tooltip-background'];
-  const fg = hexToChannels(hex);
-  return colorDistance(bg, fg) < 70;
+  const background = colors[skin]['tooltip-background'];
+  const foreground = hexToChannels(hex);
+  return getColorDistance(background, foreground) < COLOR_CLOSENESS_THRESHOLD;
 }
 
 export function isColorCloseToWhite(hex: string): boolean {
-  return colorDistance(hexToChannels(hex), [255, 255, 255]) < 70;
+  return getColorDistance(hexToChannels(hex), [255, 255, 255]) < COLOR_CLOSENESS_THRESHOLD;
 }
 
-function colorDistance([r1, g1, b1]: ColorChannels, [r2, g2, b2]: ColorChannels): number {
+function getColorDistance([r1, g1, b1]: ColorChannels, [r2, g2, b2]: ColorChannels): number {
   return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
 }
 

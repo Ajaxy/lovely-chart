@@ -11,7 +11,7 @@ export function toggleText(element: HTMLElement, newText: string, className = ''
 
   const selector = className.length ? `.${className.split(' ').join('.')}` : '';
   const oldElements = container.querySelectorAll<HTMLElement>(`${selector}.lovely-chart--state-hidden`);
-  oldElements.forEach((e) => e.remove());
+  oldElements.forEach((oldElement) => oldElement.remove());
 
   element.classList.add('lovely-chart--transition');
   element.classList.remove('lovely-chart--position-bottom', 'lovely-chart--position-top');

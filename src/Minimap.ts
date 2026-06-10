@@ -18,7 +18,7 @@ import { getSimplificationDelta } from './formulas';
 import { createElement } from './minifiers';
 import { preparePoints } from './preparePoints';
 import { Projection } from './Projection';
-import { proxyMerge, throttleWithRaf } from './utils';
+import { mergeProxied, throttleWithRaf } from './utils';
 
 export class Minimap {
   readonly #container: HTMLElement;
@@ -68,7 +68,7 @@ export class Minimap {
       return;
     }
 
-    this.#state = proxyMerge(newState, { focusOn: NO_FOCUS });
+    this.#state = mergeProxied(newState, { focusOn: NO_FOCUS });
     clearCanvas(this.#canvas, this.#context);
 
     this.#drawDatasets(this.#state);
@@ -118,7 +118,7 @@ export class Minimap {
     this.#ruler = createElement();
     this.#ruler.className = 'lovely-chart--minimap-ruler';
     // Concatenated on purpose: the masks and slider are inline-block, so a
-    // multi-line template literal would inject layout-breaking whitespace.
+    // multi-line template literal would inject layout-breaking whitespace
     this.#ruler.innerHTML
       = '<div class="lovely-chart--minimap-mask"></div>'
         + '<div class="lovely-chart--minimap-slider">'

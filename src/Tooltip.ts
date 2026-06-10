@@ -5,11 +5,15 @@ import type {
 
 import { clearCanvas, setupCanvas } from './canvas';
 import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, X_AXIS_HEIGHT } from './constants';
-import { formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull } from './format';
+import { formatDayHourFull, formatInteger, getLabelDate, getLabelTime } from './format';
 import { getPieRadius } from './formulas';
 import { addEventListener, createElement, removeEventListener } from './minifiers';
 import { getCssColor, isColorCloseToBackground } from './skin';
 import { throttle, throttleWithRaf } from './utils';
+
+const CONTENT_THROTTLE_MS = 100;
+const CIRCLE_RADIUS = 4;
+const CIRCLE_LINE_WIDTH = 2;
 
 export class Tooltip {
   readonly #container: HTMLElement;
@@ -41,7 +45,7 @@ export class Tooltip {
   readonly #selectLabelOnRaf = throttleWithRaf((isExternal?: boolean) => this.#selectLabel(isExternal));
   readonly #throttledUpdateContent = throttle(
     (title: string | undefined, statistics: StatisticsItem[]) => this.#updateContent(title, statistics),
-    100,
+    CONTENT_THROTTLE_MS,
     true,
   );
 
@@ -95,10 +99,8 @@ export class Tooltip {
   }
 
   destroy() {
-    if (this.#documentMoveEvent) {
-      removeEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
-      this.#documentMoveEvent = undefined;
-    }
+    removeEventListener(document, this.#documentMoveEvent!, this.#onDocumentMove);
+    this.#documentMoveEvent = undefined;
   }
 
   #setupLayout() {
@@ -168,23 +170,21 @@ export class Tooltip {
   };
 
   readonly #onClick = (e: MouseEvent) => {
-    if (this.#isZooming) {
+    if (this.#isZooming || !this.#data.isZoomable) {
       return;
     }
 
-    if (this.#data.isZoomable) {
-      const oldLabelIndex = this.#clickedOnLabel;
+    const oldLabelIndex = this.#clickedOnLabel;
 
-      this.#clickedOnLabel = undefined;
-      this.#onMouseMove(e);
+    this.#clickedOnLabel = undefined;
+    this.#onMouseMove(e);
 
-      const newLabelIndex = this.#getLabelIndex();
-      if (newLabelIndex !== oldLabelIndex) {
-        this.#clickedOnLabel = newLabelIndex;
-      }
-
-      this.#onZoom(newLabelIndex);
+    const newLabelIndex = this.#getLabelIndex();
+    if (newLabelIndex !== oldLabelIndex) {
+      this.#clickedOnLabel = newLabelIndex;
     }
+
+    this.#onZoom(newLabelIndex);
   };
 
   readonly #onBalloonClick = () => {
@@ -297,10 +297,10 @@ export class Tooltip {
   #drawCircle([xPx, yPx]: Pixel, strokeColor: string, fillColor: string) {
     this.#context.strokeStyle = strokeColor;
     this.#context.fillStyle = fillColor;
-    this.#context.lineWidth = 2;
+    this.#context.lineWidth = CIRCLE_LINE_WIDTH;
 
     this.#context.beginPath();
-    this.#context.arc(xPx, yPx, 4, 0, 2 * Math.PI);
+    this.#context.arc(xPx, yPx, CIRCLE_RADIUS, 0, 2 * Math.PI);
     this.#context.fill();
     this.#context.stroke();
   }
@@ -347,7 +347,7 @@ export class Tooltip {
   #getTitle(data: AnalyzedData, labelIndex: number): string {
     switch (data.tooltipFormatter) {
       case 'statsFormatDayHourFull':
-        return statsFormatDayHourFull(data.xLabels[labelIndex].value);
+        return formatDayHourFull(data.xLabels[labelIndex].value);
       case 'statsTooltipFormat(\'day\')':
         return getLabelDate(data.xLabels[labelIndex]);
       case 'statsTooltipFormat(\'hour\')':
@@ -360,7 +360,7 @@ export class Tooltip {
 
   // The angular offset must come from the item's position in the original
   // (dataset-order) statistics — sectors are drawn in that order, while the
-  // displayed entries are sorted by value.
+  // displayed entries are sorted by value
   #isPieSectorSelected(
     statistics: StatisticsItem[],
     statItem: StatisticsItem,
@@ -383,22 +383,21 @@ export class Tooltip {
     const titleContainer = this.#balloon.children[0] as HTMLElement;
 
     if (this.#data.isPie) {
-      if (titleContainer) {
-        titleContainer.style.display = 'none';
-      }
-    } else {
-      if (titleContainer.style.display === 'none') {
-        titleContainer.style.display = '';
-      }
-      const currentTitle = titleContainer.querySelector(':not(.lovely-chart--state-hidden)');
+      titleContainer.style.display = 'none';
+      return;
+    }
 
-      if (!titleContainer.textContent || !currentTitle) {
-        const newTitle = createElement<HTMLSpanElement>('span');
-        newTitle.textContent = title!;
-        titleContainer.replaceChildren(newTitle);
-      } else {
-        currentTitle.textContent = title!;
-      }
+    if (titleContainer.style.display === 'none') {
+      titleContainer.style.display = '';
+    }
+    const currentTitle = titleContainer.querySelector(':not(.lovely-chart--state-hidden)');
+
+    if (!titleContainer.textContent || !currentTitle) {
+      const newTitle = createElement<HTMLSpanElement>('span');
+      newTitle.textContent = title!;
+      titleContainer.replaceChildren(newTitle);
+    } else {
+      currentTitle.textContent = title!;
     }
   }
 
@@ -445,7 +444,7 @@ export class Tooltip {
     const formatted = formatInteger(value);
     const prefix = this.#data.valuePrefix || '';
     const suffix = this.#data.valueSuffix || '';
-    if (this.#data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
+    if (this.#data.isCurrencyPrefix && prefix && formatted.charCodeAt(0) === 45) {
       return `-${prefix}${formatted.slice(1)}${suffix}`;
     }
     return `${prefix}${formatted}${suffix}`;
@@ -457,7 +456,7 @@ export class Tooltip {
     }
 
     if (this.#data.isPie) {
-      Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach((e) => e.remove());
+      Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach((element) => element.remove());
       return;
     }
 
@@ -521,7 +520,7 @@ export class Tooltip {
 
     // Re-append total rows to keep them at the bottom after sort reordering
     Array.from(dataSetContainer.querySelectorAll('[data-total="true"]'))
-      .forEach((el) => dataSetContainer.appendChild(el));
+      .forEach((element) => dataSetContainer.appendChild(element));
 
     Array.from(dataSetContainer.querySelectorAll('[data-present="false"]'))
       .forEach((dataSet) => {
@@ -601,8 +600,7 @@ export class Tooltip {
   #getPointerVector(): PointerVector {
     // #offsetX/Y are relative to the element, while the chart is drawn on the
     // canvas, which sits lower within it (margin-top) — translate the pointer
-    // into canvas space and measure from the projection's center, where the
-    // pie is actually drawn.
+    // into canvas space and measure from the projection's center, where the    // pie is actually drawn
     const elementRect = this.#element.getBoundingClientRect();
     const canvasRect = this.#canvas.getBoundingClientRect();
     const pointerX = this.#offsetX! - (canvasRect.left - elementRect.left);
@@ -620,7 +618,7 @@ export class Tooltip {
     };
   }
 
-  #getPageOffset(el: HTMLElement): DOMRect {
-    return el.getBoundingClientRect();
+  #getPageOffset(element: HTMLElement): DOMRect {
+    return element.getBoundingClientRect();
   }
 }

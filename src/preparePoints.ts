@@ -9,22 +9,22 @@ export function preparePoints(
   range: LabelRange,
   visibilities: number[],
   bounds: { yMin?: number; yMax?: number },
-  pieToArea?: boolean,
+  shouldConvertToArea?: boolean,
 ): Point[][] {
   let values = datasets.map(({ values }) => (
     values.slice(range.from, range.to + 1)
   ));
 
-  if (data.isPie && !pieToArea) {
+  if (data.isPie && !shouldConvertToArea) {
     values = prepareSumsByX(values);
   }
 
   const points = values.map((datasetValues, i) => (
     datasetValues.map((value, j) => {
-      const gap = value === GAP;
-      let visibleValue = gap ? 0 : value;
+      const isGap = value === GAP;
+      let visibleValue = isGap ? 0 : value;
 
-      if (data.isStacked && !gap) {
+      if (data.isStacked && !isGap) {
         visibleValue *= visibilities[i];
       }
 
@@ -34,7 +34,7 @@ export function preparePoints(
         visibleValue,
         stackOffset: 0,
         stackValue: visibleValue,
-        gap,
+        isGap,
       };
     })
   ));
@@ -50,12 +50,6 @@ export function preparePoints(
   return points;
 }
 
-function getSumsByY(points: Point[][]): number[] {
-  return sumArrays(points.map((datasetPoints) => (
-    datasetPoints.map(({ visibleValue }) => visibleValue)
-  )));
-}
-
 // TODO perf cache for [0..1], use in state
 function preparePercentage(points: Point[][], bounds: { yMax?: number }) {
   const sumsByY = getSumsByY(points);
@@ -68,6 +62,12 @@ function preparePercentage(points: Point[][], bounds: { yMax?: number }) {
   });
 }
 
+function getSumsByY(points: Point[][]): number[] {
+  return sumArrays(points.map((datasetPoints) => (
+    datasetPoints.map(({ visibleValue }) => visibleValue)
+  )));
+}
+
 function prepareStacked(points: Point[][]) {
   const posAccum: number[] = [];
   const negAccum: number[] = [];
@@ -77,7 +77,7 @@ function prepareStacked(points: Point[][]) {
       posAccum[j] ??= 0;
       negAccum[j] ??= 0;
 
-      if (point.gap) {
+      if (point.isGap) {
         point.stackOffset = posAccum[j];
         point.stackValue = posAccum[j];
         return;

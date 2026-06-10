@@ -34,6 +34,8 @@ export default tseslint.config(
       'no-prototype-builtins': 'off',
       'no-undef': 'off',
       'no-unused-vars': 'off',
+      // Functions are ordered top-down by call hierarchy
+      '@typescript-eslint/no-use-before-define': ['error', { functions: false }],
       '@stylistic/max-len': ['error', {
         code: 120,
         ignoreComments: true,

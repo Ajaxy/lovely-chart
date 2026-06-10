@@ -3,7 +3,7 @@ export const DPR = window.devicePixelRatio ?? 1;
 export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
 export const NO_FOCUS = Symbol('NO_FOCUS');
 // Raw JSON represents missing dataset values as `null`; compare via
-// `value === GAP` instead of spelling the literal.
+// `value === GAP` instead of spelling the literal
 // eslint-disable-next-line no-null/no-null
 export const GAP = null;
 export const TRANSITION_DEFAULT_DURATION = 400;
@@ -48,8 +48,8 @@ export const MONTHS_FULL = [
 export const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 export const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
-export const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
-export const MILISECONDS_IN_WEEK = 7 * MILISECONDS_IN_DAY;
+export const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
+export const MILLISECONDS_IN_WEEK = 7 * MILLISECONDS_IN_DAY;
 
 export const SPEED_TEST_INTERVAL = 200;
 export const SPEED_TEST_FAST_FPS = 4;

@@ -1,9 +1,9 @@
 import type { AnalyzedData, AnalyzedDataset, LabelType, LovelyChartParams, Range, XLabel } from './types';
 
-import { MILISECONDS_IN_DAY } from './constants';
+import { MILLISECONDS_IN_DAY } from './constants';
 import {
-  statsFormatDay, statsFormatDayHour, statsFormatMin, statsFormatMonth,
-  statsFormatText, statsFormatWeek, statsFormatYear,
+  formatDay, formatDayHour, formatMin, formatMonth,
+  formatText, formatWeek, formatYear,
 } from './format';
 import { getMaxMin } from './utils';
 
@@ -41,7 +41,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis,
     hasSecondYAxis, onZoom, withMinimap, minimapRange, noCaption, zoomOutLabel, valuePrefix, valueSuffix,
-    prefixIsCurrency, limitDate, onLimitedRangeClick,
+    isCurrencyPrefix, limitDate, onLimitedRangeClick,
   } = data;
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : undefined);
@@ -65,35 +65,35 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
   let xLabels: XLabel[];
   switch (labelFormatter) {
     case 'statsFormatYear':
-      xLabels = statsFormatYear(labels as number[]);
+      xLabels = formatYear(labels as number[]);
       break;
     case 'statsFormatMonth':
-      xLabels = statsFormatMonth(labels as number[]);
+      xLabels = formatMonth(labels as number[]);
       break;
     case 'statsFormatWeek':
-      xLabels = statsFormatWeek(labels as number[]);
+      xLabels = formatWeek(labels as number[]);
       break;
     case 'statsFormatDayHour':
-      xLabels = statsFormatDayHour(labels as number[]);
+      xLabels = formatDayHour(labels as number[]);
       break;
     case 'statsFormat(\'day\')':
-      xLabels = statsFormatDay(labels as number[]);
+      xLabels = formatDay(labels as number[]);
       break;
     case 'statsFormat(\'hour\')':
     case 'statsFormat(\'5min\')':
-      xLabels = statsFormatMin(labels as number[]);
+      xLabels = formatMin(labels as number[]);
       break;
     default:
-      xLabels = statsFormatText(labels);
+      xLabels = formatText(labels);
       break;
   }
 
   let limitBegin: number | undefined;
   if (limitDate !== undefined) {
     const totalXWidth = labels.length - 1;
-    const idx = labels.findIndex((l) => (l as number) >= limitDate);
-    if (idx > 0) {
-      limitBegin = idx / totalXWidth;
+    const index = labels.findIndex((label) => (label as number) >= limitDate);
+    if (index > 0) {
+      limitBegin = index / totalXWidth;
     }
   }
 
@@ -112,7 +112,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     hasSecondYAxis,
     valuePrefix,
     valueSuffix,
-    prefixIsCurrency,
+    isCurrencyPrefix,
     onZoom,
     isLines: data.type === 'line',
     isBars: data.type === 'bar',
@@ -156,24 +156,24 @@ function inferLabelType(labels: (number | string)[]): LabelType | undefined {
   const step = Math.abs(second - first);
 
   // Calendar steps are irregular: a year step is 365–366 days,
-  // a month step is 28–31 days, so the bounds are inclusive of the minimums.
-  if (step >= 365 * MILISECONDS_IN_DAY) {
+  // a month step is 28–31 days, so the bounds are inclusive of the minimums
+  if (step >= 365 * MILLISECONDS_IN_DAY) {
     return 'year';
   }
 
-  if (step >= 28 * MILISECONDS_IN_DAY) {
+  if (step >= 28 * MILLISECONDS_IN_DAY) {
     return 'month';
   }
 
-  if (step >= 7 * MILISECONDS_IN_DAY) {
+  if (step >= 7 * MILLISECONDS_IN_DAY) {
     return 'week';
   }
 
-  if (step >= MILISECONDS_IN_DAY) {
+  if (step >= MILLISECONDS_IN_DAY) {
     return 'day';
   }
 
-  if (step >= MILISECONDS_IN_DAY / 24) {
+  if (step >= MILLISECONDS_IN_DAY / 24) {
     return 'hour';
   }
 
@@ -181,7 +181,7 @@ function inferLabelType(labels: (number | string)[]): LabelType | undefined {
 }
 
 // Accepts a `[begin, end]` tuple of 0..1 fractions or the 'full' keyword,
-// normalized to the `{ begin, end }` shape used internally.
+// normalized to the `{ begin, end }` shape used internally
 function buildMinimapRange(minimapRange?: [number, number] | 'full'): Range | undefined {
   if (!minimapRange) {
     return undefined;

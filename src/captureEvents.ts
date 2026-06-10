@@ -2,10 +2,10 @@ import { LONG_PRESS_TIMEOUT } from './constants';
 import { addEventListener, removeEventListener } from './minifiers';
 
 // Touch events get `pageX` grafted onto them (see the StackOverflow link
-// below), so handlers see a unified shape.
+// below), so handlers see a unified shape
 export type CaptureEvent = (MouseEvent | TouchEvent) & { pageX?: number };
 
-export interface CaptureEventsOptions {
+interface CaptureEventsOptions {
   draggingCursor?: string;
   onCapture?: (e: CaptureEvent) => void;
   onRelease?: (e: CaptureEvent) => void;
@@ -29,7 +29,7 @@ export function captureEvents(element: HTMLElement, options: CaptureEventsOption
       addEventListener(document, 'touchcancel', onRelease);
 
       // https://stackoverflow.com/questions/11287877/how-can-i-get-e-offsetx-on-mobile-ipad
-      // Android does not have this value, and iOS has it but as read-only.
+      // Android does not have this value, and iOS has it but as read-only
       if (e.pageX === undefined) {
         (e as { pageX?: number }).pageX = (e as TouchEvent).touches[0].pageX;
       }

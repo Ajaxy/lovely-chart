@@ -30,6 +30,8 @@ import { Zoomer } from './Zoomer';
 
 import './styles/index.scss';
 
+const REDRAW_DEBOUNCE_MS = 500;
+
 class LovelyChart {
   readonly #container: HTMLElement;
 
@@ -58,7 +60,7 @@ class LovelyChart {
 
   readonly #data: AnalyzedData;
   readonly #colors: ChartColors;
-  readonly #redrawDebounced = debounce(() => this.#redraw(), 500, false, true);
+  readonly #redrawDebounced = debounce(() => this.#redraw(), REDRAW_DEBOUNCE_MS, false, true);
 
   constructor(container: HTMLElement, originalData: LovelyChartParams) {
     this.#container = container;
@@ -88,16 +90,12 @@ class LovelyChart {
     if (this.#isDestroyed) return;
     this.#isDestroyed = true;
 
-    this.#themeObserver?.disconnect();
+    this.#themeObserver!.disconnect();
     this.#themeObserver = undefined;
-    if (this.#onWindowResize) {
-      window.removeEventListener('resize', this.#onWindowResize);
-      this.#onWindowResize = undefined;
-    }
-    if (this.#onWindowOrientationChange) {
-      window.removeEventListener('orientationchange', this.#onWindowOrientationChange);
-      this.#onWindowOrientationChange = undefined;
-    }
+    window.removeEventListener('resize', this.#onWindowResize!);
+    this.#onWindowResize = undefined;
+    window.removeEventListener('orientationchange', this.#onWindowOrientationChange!);
+    this.#onWindowOrientationChange = undefined;
 
     this.#destroyComponents();
   }
@@ -109,7 +107,7 @@ class LovelyChart {
     this.#stateManager = new StateManager(this.#data, this.#plotSize!, this.#onStateUpdate);
     this.#axes = new Axes(this.#context!, this.#data, this.#plotSize!, this.#colors);
     if (this.#data.withMinimap) {
-      // Triggers the initial render via the range callback.
+      // Triggers the initial render via the range callback
       this.#minimap = new Minimap(this.#element!, this.#data, this.#colors, this.#onRangeChange);
     } else {
       this.#stateManager.update({ range: this.#data.minimapRange });

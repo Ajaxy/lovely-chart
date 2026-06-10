@@ -59,12 +59,12 @@ function startServer() {
 async function launchBrowser() {
   try {
     return await chromium.launch({ channel: 'chrome', headless: true });
-  } catch (e) {
+  } catch {
     try {
       return await chromium.launch({ headless: true });
-    } catch (e2) {
+    } catch (err) {
       console.error('Could not launch a browser. Install Google Chrome or run: npx playwright install chromium');
-      throw e2;
+      throw err;
     }
   }
 }
@@ -110,7 +110,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const page = await browser.newPage({ viewport: { width: 900, height: 1200 } });
 
   const errors = [];
-  page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
+  page.on('pageerror', (err) => errors.push(`[pageerror] ${err.message}`));
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`[console] ${m.text()}`);
   });
@@ -243,7 +243,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
 
   console.log(failures ? `\n${failures} check(s) FAILED` : '\nAll checks passed');
   process.exit(failures ? 1 : 0);
-})().catch((e) => {
-  console.error('Test run failed:', e);
+})().catch((err) => {
+  console.error('Test run failed:', err);
   process.exit(1);
 });

@@ -10,6 +10,10 @@ import { analyzeData } from './data';
 import { getFullLabelDate } from './format';
 import { createColors } from './skin';
 
+const ZOOM_ANIMATING_TIMEOUT = 1_000;
+// Days taken around the zoomed label to build the pie data
+const PIE_LABELS_AROUND = 3;
+
 export class Zoomer {
   readonly #data: AnalyzedData;
   readonly #overviewData: LovelyChartParams;
@@ -209,18 +213,18 @@ export class Zoomer {
       if (this.#data.shouldZoomToPie) {
         this.#container.classList.remove('lovely-chart--state-animating');
       }
-    }, this.#stateManager.hasAnimations() ? 1000 : 0);
+    }, this.#stateManager.hasAnimations() ? ZOOM_ANIMATING_TIMEOUT : 0);
   }
 
   #generatePieData(labelIndex: number): LovelyChartParams {
     return {
       ...this.#overviewData,
       type: 'pie',
-      labels: this.#overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
+      labels: this.#overviewData.labels.slice(labelIndex - PIE_LABELS_AROUND, labelIndex + PIE_LABELS_AROUND + 1),
       datasets: this.#overviewData.datasets.map((dataset) => {
         return {
           ...dataset,
-          values: dataset.values.slice(labelIndex - 3, labelIndex + 4),
+          values: dataset.values.slice(labelIndex - PIE_LABELS_AROUND, labelIndex + PIE_LABELS_AROUND + 1),
         };
       }),
     };

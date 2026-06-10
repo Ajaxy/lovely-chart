@@ -14,7 +14,7 @@ import {
 } from './constants';
 import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas';
 import { TransitionManager } from './TransitionManager';
-import { getMaxMin, proxyMerge, throttleWithRaf } from './utils';
+import { getMaxMin, mergeProxied, throttleWithRaf } from './utils';
 
 interface StateUpdate {
   range?: Partial<Range>;
@@ -138,7 +138,7 @@ export class StateManager {
   readonly #runCallback = () => {
     if (this.#isDestroyed) return;
     const state = this.#transitions.isFast()
-      ? proxyMerge(this.#state, this.#transitions.getState())
+      ? mergeProxied(this.#state, this.#transitions.getState())
       : this.#state;
     state.static = this.#state;
     this.#callback(state);
@@ -221,7 +221,7 @@ function calculatePieShifts(
   viewportSize: Size,
   filter: Filter,
   // A vector while the pointer is over the pie, NO_FOCUS after a clear,
-  // or undefined before any interaction.
+  // or undefined before any interaction
   pointerVector: PointerVector | typeof NO_FOCUS | undefined,
   labelFromIndex: number,
   labelToIndex: number,
@@ -343,12 +343,12 @@ function calculateYRangesStacked(
   const negSums = new Array(length).fill(0);
   for (let i = 0; i < filteredValues.length; i++) {
     for (let j = 0; j < length; j++) {
-      const v = filteredValues[i][j];
-      if (v === GAP) continue;
-      if (v >= 0) {
-        posSums[j] += v;
+      const value = filteredValues[i][j];
+      if (value === GAP) continue;
+      if (value >= 0) {
+        posSums[j] += value;
       } else {
-        negSums[j] += v;
+        negSums[j] += value;
       }
     }
   }

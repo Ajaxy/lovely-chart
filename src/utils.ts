@@ -1,6 +1,6 @@
 import { GAP } from './constants';
 
-// https://jsperf.com/finding-maximum-element-in-an-array
+// Manual loop keeps this hot path allocation-free and safe for huge arrays
 export function getMaxMin(array: (number | null | undefined)[]): { max?: number; min?: number } {
   const length = array.length;
   let max: number | undefined;
@@ -32,15 +32,15 @@ export function sumArrays(arrays: number[][]): number[] {
   return sums;
 }
 
-export function proxyMerge<T extends object, U extends object>(obj1: T, obj2: U): T & U {
+export function mergeProxied<T extends object, U extends object>(base: T, override: U): T & U {
   return new Proxy({}, {
-    get: (obj: Record<string | symbol, unknown>, prop: string | symbol) => {
-      if (obj[prop] !== undefined) {
-        return obj[prop];
-      } else if ((obj2 as Record<string | symbol, unknown>)[prop] !== undefined) {
-        return (obj2 as Record<string | symbol, unknown>)[prop];
+    get: (target: Record<string | symbol, unknown>, prop: string | symbol) => {
+      if (target[prop] !== undefined) {
+        return target[prop];
+      } else if ((override as Record<string | symbol, unknown>)[prop] !== undefined) {
+        return (override as Record<string | symbol, unknown>)[prop];
       } else {
-        return (obj1 as Record<string | symbol, unknown>)[prop];
+        return (base as Record<string | symbol, unknown>)[prop];
       }
     },
   }) as T & U;
@@ -80,17 +80,17 @@ export function throttle<A extends unknown[]>(
 }
 
 export function throttleWithRaf<A extends unknown[]>(fn: (...args: A) => void): (...args: A) => void {
-  let waiting = false;
+  let isWaiting = false;
   let args: A;
 
   return function (..._args: A) {
     args = _args;
 
-    if (!waiting) {
-      waiting = true;
+    if (!isWaiting) {
+      isWaiting = true;
 
       requestAnimationFrame(() => {
-        waiting = false;
+        isWaiting = false;
         fn(...args);
       });
     }

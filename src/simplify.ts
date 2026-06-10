@@ -43,7 +43,7 @@ export function simplify(
     });
   }
 
-  const worker = precalculate(points, fixedPoints);
+  const calcDistances = precalculate(points, fixedPoints);
 
   return (delta) => {
     const result: Pixel[] = [];
@@ -51,7 +51,7 @@ export function simplify(
     const removed: number[] = [];
 
     const delta2 = delta * delta;
-    const markers = worker(delta2);
+    const markers = calcDistances(delta2);
 
     for (let i = 0, l = points.length; i < l; i++) {
       if (markers[i] >= delta2 || i === 0 || i === l - 1) {
@@ -77,14 +77,14 @@ function precalculate(points: Pixel[], fixedPoints: number[] = []): (delta: numb
   let maximumDelta = 0;
 
   // Seed the subdivision tree so polylines whose start lies close to their
-  // end (i.e. near-polygons) do not break the distance calculations.
+  // end (i.e. near-polygons) do not break the distance calculations
   let subdivisionTree: SimplifyRecord | 0 = 0;
 
   for (let i = 0, l = fixedPoints.length; i < l; ++i) {
     distances[fixedPoints[i]] = MAX_LIMIT;
   }
 
-  function worker(params: QueueItem): SimplifyRecord {
+  function processSubdivision(params: QueueItem): SimplifyRecord {
     const { start, end, currentLimit } = params;
     let { record } = params;
     let usedDistance = 0;
@@ -113,7 +113,7 @@ function precalculate(points: Pixel[], fixedPoints: number[] = []): (delta: numb
           const invVectorLength = 1 / vectorLength;
 
           for (let i = start + 1; i < end; ++i) {
-            const segmentDistance = pointToSegmentDistanceSquare(
+            const segmentDistance = getSegmentDistanceSquare(
               points[i], points[start], points[end], vector, invVectorLength,
             );
 
@@ -123,7 +123,7 @@ function precalculate(points: Pixel[], fixedPoints: number[] = []): (delta: numb
             }
           }
         } else {
-          // Degenerate segment: pin the middle point.
+          // Degenerate segment: pin the middle point
           usedIndex = Math.round((start + end) * 0.5);
           usedDistance = currentLimit;
         }
@@ -166,7 +166,7 @@ function precalculate(points: Pixel[], fixedPoints: number[] = []): (delta: numb
 
   function tick(): SimplifyRecord {
     const request = queue.pop()!;
-    const result = worker(request);
+    const result = processSubdivision(request);
 
     if (request.parent && request.parentProperty) {
       request.parent[request.parentProperty] = result;
@@ -193,22 +193,24 @@ function precalculate(points: Pixel[], fixedPoints: number[] = []): (delta: numb
   };
 }
 
-function pointToSegmentDistanceSquare(p: Pixel, v1: Pixel, v2: Pixel, dv: number[], invLength: number): number {
-  let vx = v1[0];
-  let vy = v1[1];
+function getSegmentDistanceSquare(
+  point: Pixel, segmentStart: Pixel, segmentEnd: Pixel, vector: number[], invLength: number,
+): number {
+  let vx = segmentStart[0];
+  let vy = segmentStart[1];
 
-  const t = ((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * invLength;
+  const projection = ((point[0] - vx) * vector[0] + (point[1] - vy) * vector[1]) * invLength;
 
-  if (t > 1) {
-    vx = v2[0];
-    vy = v2[1];
-  } else if (t > 0) {
-    vx += dv[0] * t;
-    vy += dv[1] * t;
+  if (projection > 1) {
+    vx = segmentEnd[0];
+    vy = segmentEnd[1];
+  } else if (projection > 0) {
+    vx += vector[0] * projection;
+    vy += vector[1] * projection;
   }
 
-  const a = p[0] - vx;
-  const b = p[1] - vy;
+  const dx = point[0] - vx;
+  const dy = point[1] - vy;
 
-  return a * a + b * b;
+  return dx * dx + dy * dy;
 }
