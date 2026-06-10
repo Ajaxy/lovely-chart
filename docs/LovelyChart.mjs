@@ -2336,6 +2336,16 @@ const DEFAULT_COLORS = [
   "#E65850",
   "#5D5CDC"
 ];
+const DEFAULT_COLORS_SUBSETS = [
+  [],
+  [0],
+  [0, 2],
+  [0, 2, 5],
+  [0, 2, 5, 7],
+  [0, 2, 4, 5, 7],
+  [0, 1, 2, 4, 5, 7],
+  [0, 1, 2, 3, 4, 5, 7]
+];
 const LABEL_TYPE_TO_FORMATTER = {
   "day": "statsFormat('day')",
   "hour": "statsFormat('hour')",
@@ -2344,7 +2354,7 @@ const LABEL_TYPE_TO_FORMATTER = {
   "text": void 0
 };
 function analyzeData(data) {
-  const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
+  const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
   const labelFormatter = labelFormatterRaw || labelType && LABEL_TYPE_TO_FORMATTER[labelType];
   const { datasets, labels } = prepareDatasets(data);
   const colors = {};
@@ -2407,7 +2417,8 @@ function analyzeData(data) {
     yMin: totalYMin,
     yMax: totalYMax,
     colors,
-    minimapRange,
+    withMinimap: Boolean(withMinimap),
+    minimapRange: buildMinimapRange(minimapRange),
     hideCaption,
     zoomOutLabel,
     limitBegin,
@@ -2417,8 +2428,19 @@ function analyzeData(data) {
   analyzed.isZoomable = analyzed.onZoom || analyzed.shouldZoomToPie;
   return analyzed;
 }
+function buildMinimapRange(minimapRange) {
+  if (!minimapRange) {
+    return void 0;
+  }
+  if (minimapRange === "full") {
+    return { begin: 0, end: 1 };
+  }
+  const [begin, end] = minimapRange;
+  return { begin, end };
+}
 function prepareDatasets(data) {
   const { type, labels, datasets, hasSecondYAxis } = data;
+  const defaultColors = getDefaultColors(datasets.length);
   let nextDefaultColor = 0;
   return {
     labels: cloneArray(labels),
@@ -2428,7 +2450,7 @@ function prepareDatasets(data) {
         type,
         key: `y${i}`,
         name,
-        color: color || DEFAULT_COLORS[nextDefaultColor++ % DEFAULT_COLORS.length],
+        color: color || defaultColors[nextDefaultColor++ % defaultColors.length],
         values: cloneArray(values),
         hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
         yMin,
@@ -2436,6 +2458,10 @@ function prepareDatasets(data) {
       };
     })
   };
+}
+function getDefaultColors(datasetsCount) {
+  const subset = DEFAULT_COLORS_SUBSETS[datasetsCount];
+  return subset ? subset.map((index) => DEFAULT_COLORS[index]) : DEFAULT_COLORS;
 }
 function cloneArray(array) {
   return array.slice(0);
@@ -2511,7 +2537,9 @@ function createZoomer(data, overviewData, colors, stateManager, container, heade
         Object.assign(colors, createColors(newRawData.colors));
       }
       if (shouldZoomToLines) {
-        minimap.toggle(_isZoomed);
+        if (minimap) {
+          minimap.toggle(_isZoomed);
+        }
         tools.redraw();
         container.style.width = `${container.scrollWidth}px`;
         container.style.height = `${container.scrollHeight}px`;
@@ -2542,7 +2570,7 @@ function createZoomer(data, overviewData, colors, stateManager, container, heade
           filter2 = {};
           data.datasets.forEach(({ key }) => filter2[key] = true);
         } else {
-          range = data.shouldZoomToPie ? {
+          range = data.shouldZoomToPie || !newData.minimapRange ? {
             begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
             end: ZOOM_RANGE_MIDDLE + halfDayWidth
           } : newData.minimapRange;
@@ -2626,7 +2654,11 @@ function create(container, originalData) {
     _setupPlotCanvas();
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _axes = createAxes(_context, _data, _plotSize, _colors);
-    _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
+    if (_data.withMinimap) {
+      _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
+    } else {
+      _stateManager.update({ range: _data.minimapRange });
+    }
     _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
     _tools = createTools(_element, _data, _onFilterChange);
     _zoomer = _data.isZoomable && createZoomer(_data, _originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
@@ -2706,7 +2738,9 @@ function create(container, originalData) {
       _axes.drawYAxis(state, projection, secondaryProjection);
       _axes.drawXAxis(state, projection);
     }
-    _minimap.update(state);
+    if (_minimap) {
+      _minimap.update(state);
+    }
     _tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
   }
   function _onRangeChange(range) {

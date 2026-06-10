@@ -58,4 +58,6 @@ Parameter | Description |
 `valuePrefix`| Optional string prepended to every formatted value (e.g. `$`)
 `valueSuffix`| Optional string appended to every formatted value
 `prefixIsCurrency`| When `true`, a negative value is rendered with the minus sign in front of `valuePrefix` (`-$9.1` instead of `$-9.1`). Use with currency-like prefixes. Default `false`.
+`withMinimap`| `true` to render the minimap with the draggable range selector below the chart. Default `false`.
+`minimapRange`| Initially selected range: a `[begin, end]` tuple of fractions between 0 and 1 (e.g. `[0.8, 1]` for the last 20%), or the `'full'` keyword for the entire range. Defaults to `[0.8, 1]` when the minimap is shown, otherwise to `'full'`.
 `onZoom`| Optional function which returns `Promise` with data for the zoomed chart (new `data` object)

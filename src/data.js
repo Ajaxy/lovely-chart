@@ -29,7 +29,7 @@ const LABEL_TYPE_TO_FORMATTER = {
 };
 
 export function analyzeData(data) {
-  const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
+  const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
   const labelFormatter = labelFormatterRaw || (labelType && LABEL_TYPE_TO_FORMATTER[labelType]);
   const { datasets, labels } = prepareDatasets(data);
 
@@ -98,7 +98,8 @@ export function analyzeData(data) {
     yMin: totalYMin,
     yMax: totalYMax,
     colors,
-    minimapRange,
+    withMinimap: Boolean(withMinimap),
+    minimapRange: buildMinimapRange(minimapRange),
     hideCaption,
     zoomOutLabel,
     limitBegin,
@@ -109,6 +110,21 @@ export function analyzeData(data) {
   analyzed.isZoomable = analyzed.onZoom || analyzed.shouldZoomToPie;
 
   return analyzed;
+}
+
+// Accepts a `[begin, end]` tuple of 0..1 fractions or the 'full' keyword,
+// normalized to the `{ begin, end }` shape used internally.
+function buildMinimapRange(minimapRange) {
+  if (!minimapRange) {
+    return undefined;
+  }
+
+  if (minimapRange === 'full') {
+    return { begin: 0, end: 1 };
+  }
+
+  const [begin, end] = minimapRange;
+  return { begin, end };
 }
 
 function prepareDatasets(data) {

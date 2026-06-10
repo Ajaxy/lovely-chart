@@ -1,6 +1,7 @@
 {
   "title": "Lovely Areas with Zoom",
   "type": "area",
+  "withMinimap": true,
   "labelType": "day",
   "labels": [
     1523059200000,

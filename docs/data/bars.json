@@ -1,6 +1,7 @@
 {
   "title": "Lovely Bars with Zoom",
   "type": "bar",
+  "withMinimap": true,
   "isStacked": true,
   "labelType": "day",
   "labels": [

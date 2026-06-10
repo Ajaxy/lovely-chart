@@ -91,7 +91,9 @@ export function createZoomer(data, overviewData, colors, stateManager, container
       }
 
       if (shouldZoomToLines) {
-        minimap.toggle(_isZoomed);
+        if (minimap) {
+          minimap.toggle(_isZoomed);
+        }
         tools.redraw();
         container.style.width = `${container.scrollWidth}px`;
         container.style.height = `${container.scrollHeight}px`;
@@ -126,7 +128,7 @@ export function createZoomer(data, overviewData, colors, stateManager, container
           filter = {};
           data.datasets.forEach(({ key }) => filter[key] = true);
         } else {
-          range = data.shouldZoomToPie ? {
+          range = data.shouldZoomToPie || !newData.minimapRange ? {
             begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
             end: ZOOM_RANGE_MIDDLE + halfDayWidth,
           } : newData.minimapRange;

@@ -62,7 +62,12 @@ function create(container, originalData) {
     _setupPlotCanvas();
     _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
     _axes = createAxes(_context, _data, _plotSize, _colors);
-    _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
+    if (_data.withMinimap) {
+      // Triggers the initial render via the range callback.
+      _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
+    } else {
+      _stateManager.update({ range: _data.minimapRange });
+    }
     _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
     _tools = createTools(_element, _data, _onFilterChange);
     _zoomer = _data.isZoomable && createZoomer(_data, _originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
@@ -146,7 +151,9 @@ function create(container, originalData) {
       // TODO check isChanged
       _axes.drawXAxis(state, projection);
     }
-    _minimap.update(state);
+    if (_minimap) {
+      _minimap.update(state);
+    }
     _tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
   }
 
