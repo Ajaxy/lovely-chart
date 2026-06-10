@@ -305,7 +305,12 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
   }
 
-  function _isPieSectorSelected(statistics, value, totalValue, index, pointerVector) {
+  // The angular offset must come from the item's position in the original
+  // (dataset-order) statistics — sectors are drawn in that order, while the
+  // displayed entries are sorted by value.
+  function _isPieSectorSelected(statistics, statItem, totalValue, pointerVector) {
+    const index = statistics.indexOf(statItem);
+    const { value } = statItem;
     const offset = index > 0 ? statistics.slice(0, index).reduce((a, x) => a + x.value, 0) : 0;
     const beginAngle = offset / totalValue * Math.PI * 2 - Math.PI / 2;
     const endAngle = (offset + value) / totalValue * Math.PI * 2 - Math.PI / 2;
@@ -428,7 +433,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value != null);
     const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
     const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
-    const finalStatistics = data.isPie ? limitedStatistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : limitedStatistics;
+    const finalStatistics = data.isPie ? limitedStatistics.filter((statItem) => _isPieSectorSelected(statistics, statItem, totalValue, pointerVector)) : limitedStatistics;
 
     finalStatistics.forEach((statItem) => {
       const currentDataSet = Array.from(dataSetContainer.children)
@@ -527,11 +532,20 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function getPointerVector() {
-    const { width, height } = _element.getBoundingClientRect();
+    // _offsetX/Y are relative to the element, while the chart is drawn on the
+    // canvas, which sits lower within it (margin-top) — translate the pointer
+    // into canvas space and measure from the projection's center, where the
+    // pie is actually drawn.
+    const elementRect = _element.getBoundingClientRect();
+    const canvasRect = _canvas.getBoundingClientRect();
+    const pointerX = _offsetX - (canvasRect.left - elementRect.left);
+    const pointerY = _offsetY - (canvasRect.top - elementRect.top);
 
-    const center = [width / 2, height / 2];
-    const angle = Math.atan2(_offsetY - center[1], _offsetX - center[0]);
-    const distance = Math.sqrt((_offsetX - center[0]) ** 2 + (_offsetY - center[1]) ** 2);
+    const center = data.isPie && _projection
+      ? _projection.getCenter()
+      : [canvasRect.width / 2, canvasRect.height / 2];
+    const angle = Math.atan2(pointerY - center[1], pointerX - center[0]);
+    const distance = Math.sqrt((pointerX - center[0]) ** 2 + (pointerY - center[1]) ** 2);
 
     return {
       angle: angle >= -Math.PI / 2 ? angle : 2 * Math.PI + angle,

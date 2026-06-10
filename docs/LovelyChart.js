@@ -2101,7 +2101,9 @@ var LovelyChart = function(exports) {
           return data2.xLabels[labelIndex].text;
       }
     }
-    function _isPieSectorSelected(statistics, value, totalValue, index, pointerVector) {
+    function _isPieSectorSelected(statistics, statItem, totalValue, pointerVector) {
+      const index = statistics.indexOf(statItem);
+      const { value } = statItem;
       const offset = index > 0 ? statistics.slice(0, index).reduce((a, x) => a + x.value, 0) : 0;
       const beginAngle = offset / totalValue * Math.PI * 2 - Math.PI / 2;
       const endAngle = (offset + value) / totalValue * Math.PI * 2 - Math.PI / 2;
@@ -2200,7 +2202,7 @@ var LovelyChart = function(exports) {
       const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value != null);
       const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
       const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
-      const finalStatistics = data.isPie ? limitedStatistics.filter(({ value }, index) => _isPieSectorSelected(statistics, value, totalValue, index, pointerVector)) : limitedStatistics;
+      const finalStatistics = data.isPie ? limitedStatistics.filter((statItem) => _isPieSectorSelected(statistics, statItem, totalValue, pointerVector)) : limitedStatistics;
       finalStatistics.forEach((statItem) => {
         const currentDataSet = Array.from(dataSetContainer.children).find((element) => element.dataset.name === statItem.name);
         if (!currentDataSet) {
@@ -2275,10 +2277,13 @@ var LovelyChart = function(exports) {
       _balloon.classList.remove("lovely-chart--state-shown");
     }
     function getPointerVector() {
-      const { width, height } = _element.getBoundingClientRect();
-      const center = [width / 2, height / 2];
-      const angle = Math.atan2(_offsetY - center[1], _offsetX - center[0]);
-      const distance = Math.sqrt((_offsetX - center[0]) ** 2 + (_offsetY - center[1]) ** 2);
+      const elementRect = _element.getBoundingClientRect();
+      const canvasRect = _canvas.getBoundingClientRect();
+      const pointerX = _offsetX - (canvasRect.left - elementRect.left);
+      const pointerY = _offsetY - (canvasRect.top - elementRect.top);
+      const center = data.isPie && _projection ? _projection.getCenter() : [canvasRect.width / 2, canvasRect.height / 2];
+      const angle = Math.atan2(pointerY - center[1], pointerX - center[0]);
+      const distance = Math.sqrt((pointerX - center[0]) ** 2 + (pointerY - center[1]) ** 2);
       return {
         angle: angle >= -Math.PI / 2 ? angle : 2 * Math.PI + angle,
         distance
