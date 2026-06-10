@@ -41,7 +41,7 @@ export function drawDatasets(
     const options: DrawOptions = {
       color: getCssColor(colors, `dataset#${key}`),
       lineWidth,
-      opacity: data.isStacked ? 1 : visibilities[i],
+      opacity: data.isStacked || data.isShares ? 1 : visibilities[i],
       simplification,
     };
 

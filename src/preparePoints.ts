@@ -24,7 +24,7 @@ export function preparePoints(
       const isGap = value === GAP;
       let visibleValue = isGap ? 0 : value;
 
-      if (data.isStacked && !isGap) {
+      if ((data.isStacked || data.isShares) && !isGap) {
         visibleValue *= visibilities[i];
       }
 
@@ -39,11 +39,11 @@ export function preparePoints(
     })
   ));
 
-  if (data.isPercentage) {
+  if (data.isShares) {
     preparePercentage(points, bounds);
   }
 
-  if (data.isStacked) {
+  if (data.isStacked || data.isShares) {
     prepareStacked(points);
   }
 

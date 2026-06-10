@@ -97,6 +97,7 @@ export interface AnalyzedData {
   datasets: AnalyzedDataset[];
   isStacked?: boolean;
   isPercentage?: boolean;
+  isShares: boolean;
   secondaryYAxis?: SecondaryYAxisConfig;
   hasSecondYAxis?: boolean;
   valuePrefix?: string;

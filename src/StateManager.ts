@@ -162,7 +162,7 @@ function calculateState(
 
   const xAxisScale = calculateXAxisScale(viewportSize.width, labelFromIndex, labelToIndex);
 
-  const yRanges = data.isStacked
+  const yRanges = data.isStacked || data.isShares
     ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState)
     : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
 

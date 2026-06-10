@@ -743,6 +743,8 @@ function analyzeData(data, fallbackLabelType) {
     title,
     labelFormatter: labelFormatterRaw,
     tooltipFormatter,
+    isStacked,
+    isPercentage,
     secondaryYAxis,
     hasSecondYAxis,
     onZoom,
@@ -757,8 +759,6 @@ function analyzeData(data, fallbackLabelType) {
     onLimitedRangeClick
   } = data;
   const isPie = data.type === "pie";
-  const isStacked = isPie || Boolean(data.isStacked);
-  const isPercentage = isPie || Boolean(data.isPercentage);
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : void 0);
   const { datasets, labels } = prepareDatasets(data);
@@ -817,6 +817,7 @@ function analyzeData(data, fallbackLabelType) {
     datasets,
     isStacked,
     isPercentage,
+    isShares: Boolean(isPercentage) || isPie,
     secondaryYAxis,
     hasSecondYAxis,
     valuePrefix,
@@ -1071,7 +1072,7 @@ function drawDatasets(context, state, data, range, points, projection, secondary
     const options = {
       color: getCssColor(colors, `dataset#${key}`),
       lineWidth,
-      opacity: data.isStacked ? 1 : visibilities[i],
+      opacity: data.isStacked || data.isShares ? 1 : visibilities[i],
       simplification
     };
     const datasetType = type === "pie" && shouldConvertToBars ? "bar" : type;
@@ -1472,7 +1473,7 @@ function preparePoints(data, datasets, range, visibilities, bounds, shouldConver
   const points = values.map((datasetValues, i) => datasetValues.map((value, j) => {
     const isGap = value === GAP;
     let visibleValue = isGap ? 0 : value;
-    if (data.isStacked && !isGap) {
+    if ((data.isStacked || data.isShares) && !isGap) {
       visibleValue *= visibilities[i];
     }
     return {
@@ -1484,10 +1485,10 @@ function preparePoints(data, datasets, range, visibilities, bounds, shouldConver
       isGap
     };
   }));
-  if (data.isPercentage) {
+  if (data.isShares) {
     preparePercentage(points, bounds);
   }
-  if (data.isStacked) {
+  if (data.isStacked || data.isShares) {
     prepareStacked(points);
   }
   return points;
@@ -2054,7 +2055,7 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
   const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
   const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
   const xAxisScale = calculateXAxisScale(viewportSize.width, labelFromIndex, labelToIndex);
-  const yRanges = data.isStacked ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+  const yRanges = data.isStacked || data.isShares ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
   const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
   const yAxisScaleSecond = data.hasSecondYAxis && calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
   const yStep = yScaleLevelToStep(yAxisScale);
@@ -2661,7 +2662,8 @@ class Tooltip {
         dataSetContainer.appendChild(currentDataSet);
       }
     });
-    if ((this.#data.isBars || this.#data.isSteps || this.#data.isAreas) && this.#data.isStacked) {
+    const { isBars, isSteps, isAreas, isStacked, isShares } = this.#data;
+    if ((isBars || isSteps || isAreas) && (isStacked || isShares)) {
       this.#renderTotal(dataSetContainer, this.#formatValue(totalValue));
     }
     if (this.#data.secondaryYAxis) {

@@ -510,7 +510,8 @@ export class Tooltip {
       }
     });
 
-    if ((this.#data.isBars || this.#data.isSteps || this.#data.isAreas) && this.#data.isStacked) {
+    const { isBars, isSteps, isAreas, isStacked, isShares } = this.#data;
+    if ((isBars || isSteps || isAreas) && (isStacked || isShares)) {
       this.#renderTotal(dataSetContainer, this.#formatValue(totalValue));
     }
 
