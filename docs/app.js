@@ -30,10 +30,10 @@ document.addEventListener('DOMContentLoaded', () => {
         chart.onZoom = (date) => fetchDayData('data/zoom_bars', date);
       }
 
-      // "Lovely Areas with Zoom" — limit selection to September 1, 2018 onwards
+      // "Lovely Areas with Zoom" — limit selection to September 1, 2025 onwards
       if (i === 5) {
-        chart.limitDate = 1535760000000;
-        chart.onLimitedRangeClick = () => alert('Data before September 2018 is not available');
+        chart.limitDate = 1756684800000;
+        chart.onLimitedRangeClick = () => alert('Data before September 2025 is not available');
       }
 
       LovelyChart.create(container, chart);
