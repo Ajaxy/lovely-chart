@@ -17,11 +17,13 @@
   ],
   "scripts": {
     "build": "vite build",
+    "test": "npm run build && node test/e2e.js",
     "prepublishOnly": "npm run build",
     "examples": "npm run build && cp -R ./dist/* docs/"
   },
   "devDependencies": {
     "cssnano": "^4.1.11",
+    "playwright-core": "^1.60.0",
     "sass": "^1.83.0",
     "stylelint": "^17.1.1",
     "stylelint-config-clean-order": "^8.0.0",
