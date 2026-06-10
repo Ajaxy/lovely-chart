@@ -122,8 +122,13 @@ function inferLabelType(labels) {
     return 'text';
   }
 
-  if (typeof first !== 'number' || typeof second !== 'number') {
+  if (typeof first !== 'number') {
     return undefined;
+  }
+
+  // A single timestamp has no step to infer granularity from
+  if (typeof second !== 'number') {
+    return 'day';
   }
 
   const step = Math.abs(second - first);
