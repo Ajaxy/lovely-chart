@@ -8,7 +8,7 @@ let skin = detectSkin();
 
 const COLORS: Record<string, Record<string, string>> = {
   'skin-day': {
-    'background': '#FFFFFF',
+    background: '#FFFFFF',
     'text-color': '#222222',
     'minimap-mask': '#E2EEF9/0.6',
     'minimap-slider': '#C0D1E1',
@@ -16,12 +16,12 @@ const COLORS: Record<string, Record<string, string>> = {
     'zoom-out-text': '#108BE3',
     'tooltip-background': '#FFFFFF',
     'tooltip-arrow': '#D2D5D7',
-    'mask': '#FFFFFF/0.5',
+    mask: '#FFFFFF/0.5',
     'x-axis-text': '#252529/0.6',
     'y-axis-text': '#252529/0.6',
   },
   'skin-night': {
-    'background': '#242F3E',
+    background: '#242F3E',
     'text-color': '#FFFFFF',
     'minimap-mask': '#304259/0.6',
     'minimap-slider': '#56626D',
@@ -29,7 +29,7 @@ const COLORS: Record<string, Record<string, string>> = {
     'zoom-out-text': '#48AAF0',
     'tooltip-background': '#1c2533',
     'tooltip-arrow': '#D2D5D7',
-    'mask': '#242F3E/0.5',
+    mask: '#242F3E/0.5',
     'x-axis-text': '#A3B1C2/0.6',
     'y-axis-text': '#A3B1C2/0.6',
   },
@@ -73,10 +73,19 @@ export function createColors(datasetColors: Record<string, string>): ChartColors
     Object.keys(datasetColors).forEach((key) => {
       colors[skin][`dataset#${key}`] = hexToChannels(datasetColors[key]);
 
-      addCssRule(styleSheet!, `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`, `color: ${datasetColors[key]}`);
-      addCssRule(styleSheet!, `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`, `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`);
+      addCssRule(
+        styleSheet!,
+        `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`,
+        `color: ${datasetColors[key]}`,
+      );
+      addCssRule(
+        styleSheet!,
+        `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`,
+        `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`,
+      );
 
-      const checkedBtnSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`;
+      const checkedBtnSelector
+        = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`;
       addCssRule(styleSheet!, checkedBtnSelector, `background-color: ${datasetColors[key]}`);
     });
   });

@@ -1,6 +1,7 @@
-import { GUTTER, PLOT_PIE_RADIUS_FACTOR, MILISECONDS_IN_DAY, SIMPLIFIER_MIN_POINTS } from './constants';
 import type { Projection } from './Projection';
 import type { XLabel } from './types';
+
+import { GUTTER, MILISECONDS_IN_DAY, PLOT_PIE_RADIUS_FACTOR, SIMPLIFIER_MIN_POINTS } from './constants';
 
 export function xScaleLevelToStep(scaleLevel: number): number {
   return Math.pow(2, scaleLevel);

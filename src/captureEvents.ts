@@ -1,5 +1,5 @@
-import { addEventListener, removeEventListener } from './minifiers';
 import { LONG_PRESS_TIMEOUT } from './constants';
+import { addEventListener, removeEventListener } from './minifiers';
 
 // Touch events get `pageX` grafted onto them (see the StackOverflow link
 // below), so handlers see a unified shape.
@@ -14,8 +14,8 @@ export interface CaptureEventsOptions {
 }
 
 export function captureEvents(element: HTMLElement, options: CaptureEventsOptions) {
-  let captureEvent: CaptureEvent | null = null;
-  let longPressTimeout: number | null = null;
+  let captureEvent: CaptureEvent | undefined;
+  let longPressTimeout: number | undefined;
 
   function onCapture(e: CaptureEvent) {
     captureEvent = e;
@@ -39,7 +39,7 @@ export function captureEvents(element: HTMLElement, options: CaptureEventsOption
       document.documentElement.classList.add(`cursor-${options.draggingCursor}`);
     }
 
-    options.onCapture && options.onCapture(e);
+    options.onCapture?.(e);
 
     if (options.onLongPress) {
       longPressTimeout = window.setTimeout(() => options.onLongPress!(), LONG_PRESS_TIMEOUT);
@@ -50,7 +50,7 @@ export function captureEvents(element: HTMLElement, options: CaptureEventsOption
     if (captureEvent) {
       if (longPressTimeout) {
         clearTimeout(longPressTimeout);
-        longPressTimeout = null;
+        longPressTimeout = undefined;
       }
 
       if (options.draggingCursor) {
@@ -63,9 +63,9 @@ export function captureEvents(element: HTMLElement, options: CaptureEventsOption
       removeEventListener(document, 'touchend', onRelease);
       removeEventListener(document, 'touchmove', onMove);
 
-      captureEvent = null;
+      captureEvent = undefined;
 
-      options.onRelease && options.onRelease(e);
+      options.onRelease?.(e);
     }
   }
 
@@ -73,14 +73,14 @@ export function captureEvents(element: HTMLElement, options: CaptureEventsOption
     if (captureEvent) {
       if (longPressTimeout) {
         clearTimeout(longPressTimeout);
-        longPressTimeout = null;
+        longPressTimeout = undefined;
       }
 
       if (e.type === 'touchmove' && e.pageX === undefined) {
         (e as { pageX?: number }).pageX = (e as TouchEvent).touches[0].pageX;
       }
 
-      options.onDrag && options.onDrag(e, captureEvent, {
+      options.onDrag?.(e, captureEvent, {
         dragOffsetX: e.pageX! - captureEvent.pageX!,
       });
     }

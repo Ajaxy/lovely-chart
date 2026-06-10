@@ -1,22 +1,24 @@
-import { setupCanvas, clearCanvas } from './canvas';
-import { preparePoints } from './preparePoints';
-import { Projection } from './Projection';
-import { drawDatasets } from './drawDatasets';
+import type { CaptureEvent } from './captureEvents';
+import type { AnalyzedData, ChartColors, ChartState, Point, ProjectionParams, Range, Size } from './types';
+
+import { clearCanvas, setupCanvas } from './canvas';
 import { captureEvents } from './captureEvents';
 import {
   DEFAULT_RANGE,
-  MINIMAP_HEIGHT,
   MINIMAP_EAR_WIDTH,
-  MINIMAP_MARGIN,
+  MINIMAP_HEIGHT,
   MINIMAP_LINE_WIDTH,
+  MINIMAP_MARGIN,
   MINIMAP_MAX_ANIMATED_DATASETS,
+  NO_FOCUS,
   SIMPLIFIER_MINIMAP_FACTOR,
 } from './constants';
-import { proxyMerge, throttleWithRaf } from './utils';
-import { createElement } from './minifiers';
+import { drawDatasets } from './drawDatasets';
 import { getSimplificationDelta } from './formulas';
-import type { CaptureEvent } from './captureEvents';
-import type { AnalyzedData, ChartColors, ChartState, Point, ProjectionParams, Range, Size } from './types';
+import { createElement } from './minifiers';
+import { preparePoints } from './preparePoints';
+import { Projection } from './Projection';
+import { proxyMerge, throttleWithRaf } from './utils';
 
 export class Minimap {
   #container: HTMLElement;
@@ -32,11 +34,11 @@ export class Minimap {
   #slider!: HTMLElement;
   #limitMask?: HTMLElement;
 
-  #capturedOffset?: number | null;
+  #capturedOffset?: number;
   #range: Range = {} as Range;
   #state?: ChartState;
 
-  #limitBegin: number | null;
+  #limitBegin: number | undefined;
 
   #updateRulerOnRaf = throttleWithRaf(() => this.#updateRuler());
 
@@ -66,7 +68,7 @@ export class Minimap {
       return;
     }
 
-    this.#state = proxyMerge(newState, { focusOn: null }) as ChartState;
+    this.#state = proxyMerge(newState, { focusOn: NO_FOCUS });
     clearCanvas(this.#canvas, this.#context);
 
     this.#drawDatasets(this.#state);
@@ -115,14 +117,16 @@ export class Minimap {
   #setupRuler() {
     this.#ruler = createElement();
     this.#ruler.className = 'lovely-chart--minimap-ruler';
-    this.#ruler.innerHTML =
-      '<div class="lovely-chart--minimap-mask"></div>' +
-      '<div class="lovely-chart--minimap-slider">' +
-      '<div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div>' +
-      '<div class="lovely-chart--minimap-slider-inner"></div>' +
-      '<div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div>' +
-      '</div>' +
-      '<div class="lovely-chart--minimap-mask"></div>';
+    this.#ruler.innerHTML
+      = '<div class="lovely-chart--minimap-mask"></div>'
+        + '<div class="lovely-chart--minimap-slider">'
+        + '<div class="lovely-chart--minimap-slider-handle">'
+        + '<span class="lovely-chart--minimap-slider-handle-pin"></span></div>'
+        + '<div class="lovely-chart--minimap-slider-inner"></div>'
+        + '<div class="lovely-chart--minimap-slider-handle">'
+        + '<span class="lovely-chart--minimap-slider-handle-pin"></span></div>'
+        + '</div>'
+        + '<div class="lovely-chart--minimap-mask"></div>';
 
     this.#slider = this.#ruler.children[1] as HTMLElement;
 
@@ -160,15 +164,15 @@ export class Minimap {
   }
 
   #setupLimitMask() {
-    if (this.#limitBegin == null) return;
+    if (this.#limitBegin === undefined) return;
 
     this.#limitMask = createElement();
     this.#limitMask.className = 'lovely-chart--minimap-limit-mask';
     this.#limitMask.style.width = `${this.#limitBegin * 100}%`;
-    this.#limitMask.innerHTML =
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-      '<path fill-rule="evenodd" clip-rule="evenodd" d="M16.5265 10.2173V7.54299C16.5265 5.08532 14.4958 3.08585 11.9997 3.08585C9.50365 3.08585 7.47293 5.08532 7.47293 7.54299V10.2173C6.2992 10.2173 5.36524 11.2011 5.42629 12.3733L5.60706 15.844C5.6879 17.3962 5.72833 18.1723 6.00269 18.7852C6.39058 19.6518 7.10506 20.33 7.9906 20.6723C8.61698 20.9144 9.39412 20.9144 10.9484 20.9144H13.051C14.6053 20.9144 15.3825 20.9144 16.0088 20.6723C16.8944 20.33 17.6089 19.6518 17.9967 18.7852C18.2711 18.1723 18.3115 17.3962 18.3924 15.844L18.5731 12.3733C18.6342 11.2011 17.7002 10.2173 16.5265 10.2173ZM11.9997 4.8687C10.5023 4.8687 9.28364 6.06857 9.28364 7.54299V10.2173H14.7158V7.54299C14.7158 6.06857 13.4972 4.8687 11.9997 4.8687Z" fill="currentColor"/>' +
-      '</svg>';
+    this.#limitMask.innerHTML
+      = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">'
+        + '<path fill-rule="evenodd" clip-rule="evenodd" d="M16.5265 10.2173V7.54299C16.5265 5.08532 14.4958 3.08585 11.9997 3.08585C9.50365 3.08585 7.47293 5.08532 7.47293 7.54299V10.2173C6.2992 10.2173 5.36524 11.2011 5.42629 12.3733L5.60706 15.844C5.6879 17.3962 5.72833 18.1723 6.00269 18.7852C6.39058 19.6518 7.10506 20.33 7.9906 20.6723C8.61698 20.9144 9.39412 20.9144 10.9484 20.9144H13.051C14.6053 20.9144 15.3825 20.9144 16.0088 20.6723C16.8944 20.33 17.6089 19.6518 17.9967 18.7852C18.2711 18.1723 18.3115 17.3962 18.3924 15.844L18.5731 12.3733C18.6342 11.2011 17.7002 10.2173 16.5265 10.2173ZM11.9997 4.8687C10.5023 4.8687 9.28364 6.06857 9.28364 7.54299V10.2173H14.7158V7.54299C14.7158 6.06857 13.4972 4.8687 11.9997 4.8687Z" fill="currentColor"/>'
+        + '</svg>';
     if (this.#data.onLimitedRangeClick) {
       this.#limitMask.classList.add('lovely-chart--state-interactive');
       this.#limitMask.addEventListener('click', this.#data.onLimitedRangeClick);
@@ -215,8 +219,8 @@ export class Minimap {
     const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams, true);
     const projection = new Projection(boundsAndParams);
 
-    let secondaryPoints: Point[] | null = null;
-    let secondaryProjection: Projection | null = null;
+    let secondaryPoints: Point[] | undefined;
+    let secondaryProjection: Projection | undefined;
     if (this.#data.hasSecondYAxis) {
       const secondaryDataset = datasets.find((d) => d.hasOwnYAxis)!;
       const bounds = { yMin: state.yMinMinimapSecond!, yMax: state.yMaxMinimapSecond! };
@@ -240,11 +244,11 @@ export class Minimap {
   };
 
   #onDragRelease = () => {
-    this.#capturedOffset = null;
+    this.#capturedOffset = undefined;
   };
 
   #onSliderDrag = (moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number }) => {
-    const limitX = this.#limitBegin != null ? this.#limitBegin * this.#canvasSize.width : 0;
+    const limitX = this.#limitBegin !== undefined ? this.#limitBegin * this.#canvasSize.width : 0;
     const minX1 = limitX;
     const maxX1 = this.#canvasSize.width - this.#slider.offsetWidth;
 
@@ -257,7 +261,7 @@ export class Minimap {
   };
 
   #onLeftEarDrag = (moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number }) => {
-    const limitX = this.#limitBegin != null ? this.#limitBegin * this.#canvasSize.width : 0;
+    const limitX = this.#limitBegin !== undefined ? this.#limitBegin * this.#canvasSize.width : 0;
     const minX1 = limitX;
     const maxX1 = this.#slider.offsetLeft + this.#slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
 
@@ -280,11 +284,11 @@ export class Minimap {
   #updateRange(range: Partial<Range>, isExternal?: boolean) {
     let nextRange = Object.assign({}, this.#range, range);
 
-    if (this.#state && this.#state.minimapDelta && !isExternal) {
+    if (this.#state?.minimapDelta && !isExternal) {
       nextRange = this.#adjustDiscreteRange(nextRange);
     }
 
-    if (this.#limitBegin != null && nextRange.begin < this.#limitBegin) {
+    if (this.#limitBegin !== undefined && nextRange.begin < this.#limitBegin) {
       nextRange.begin = this.#limitBegin;
     }
 

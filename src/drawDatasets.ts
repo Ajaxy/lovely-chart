@@ -1,10 +1,13 @@
-import { getCssColor } from './skin';
-import { mergeArrays } from './utils';
-import { getPieRadius, getPieTextShift, getPieTextSize } from './formulas';
-import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT, PIE_MINIMUM_VISIBLE_PERCENT, PIE_DONUT_INNER_RADIUS_FACTOR } from './constants';
-import { simplify } from './simplify';
 import type { Projection } from './Projection';
 import type { AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, LabelRange, Pixel, Point } from './types';
+
+import {
+  NO_FOCUS, PIE_DONUT_INNER_RADIUS_FACTOR, PIE_MINIMUM_VISIBLE_PERCENT, PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT,
+} from './constants';
+import { getPieRadius, getPieTextShift, getPieTextSize } from './formulas';
+import { simplify } from './simplify';
+import { getCssColor } from './skin';
+import { mergeArrays } from './utils';
 
 interface DrawOptions {
   color: string;
@@ -16,7 +19,7 @@ interface DrawOptions {
   shift?: number;
   isDonut?: boolean;
   withGradient?: boolean;
-  focusOn?: number | null;
+  focusOn?: number;
 }
 
 interface MaskOptions {
@@ -28,7 +31,7 @@ interface MaskOptions {
 export function drawDatasets(
   context: CanvasRenderingContext2D, state: ChartState, data: AnalyzedData,
   range: LabelRange, points: Point[][], projection: Projection,
-  secondaryPoints: Point[] | null, secondaryProjection: Projection | null,
+  secondaryPoints: Point[] | undefined, secondaryProjection: Projection | undefined,
   lineWidth: number, visibilities: number[], colors: ChartColors, pieToBar: boolean, simplification: number,
 ) {
   data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
@@ -45,7 +48,7 @@ export function drawDatasets(
 
     const datasetType = type === 'pie' && pieToBar ? 'bar' : type;
     let datasetPoints: DrawPoint[] = hasOwnYAxis ? secondaryPoints! : points[i];
-    let datasetProjection = hasOwnYAxis ? secondaryProjection! : projection;
+    const datasetProjection = hasOwnYAxis ? secondaryProjection! : projection;
 
     if (datasetType === 'area') {
       const bottomLine: DrawPoint[] = [
@@ -71,13 +74,13 @@ export function drawDatasets(
       const [x1] = projection.toPixels(1, 0);
 
       options.lineWidth = x1 - x0;
-      options.focusOn = state.focusOn as number | null;
+      options.focusOn = state.focusOn as number;
     }
 
     drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
   });
 
-  if (state.focusOn != null && (data.isBars || data.isSteps)) {
+  if (state.focusOn !== undefined && state.focusOn !== NO_FOCUS && (data.isBars || data.isSteps)) {
     const [x0] = projection.toPixels(0, 0);
     const [x1] = projection.toPixels(1, 0);
 
@@ -110,7 +113,9 @@ function drawDataset(
   }
 }
 
-function drawDatasetLine(context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions) {
+function drawDatasetLine(
+  context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions,
+) {
   context.beginPath();
 
   const segments: Pixel[][] = [];
@@ -150,7 +155,9 @@ function drawDatasetLine(context: CanvasRenderingContext2D, points: DrawPoint[],
 }
 
 // TODO try areas
-function drawDatasetBars(context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions) {
+function drawDatasetBars(
+  context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions,
+) {
   const { yMin } = projection.getParams();
 
   context.save();
@@ -165,9 +172,9 @@ function drawDatasetBars(context: CanvasRenderingContext2D, points: DrawPoint[],
     const [x, yTo] = projection.toPixels(labelIndex, stackValue);
     const rectX = x - options.lineWidth / 2;
     const rectY = yTo;
-    const rectW = options.opacity === 1 ?
-      options.lineWidth + PLOT_BARS_WIDTH_SHIFT :
-      options.lineWidth + PLOT_BARS_WIDTH_SHIFT * options.opacity;
+    const rectW = options.opacity === 1
+      ? options.lineWidth + PLOT_BARS_WIDTH_SHIFT
+      : options.lineWidth + PLOT_BARS_WIDTH_SHIFT * options.opacity;
     const rectH = yFrom - yTo;
 
     context.fillRect(rectX, rectY, rectW, rectH);
@@ -176,7 +183,9 @@ function drawDatasetBars(context: CanvasRenderingContext2D, points: DrawPoint[],
   context.restore();
 }
 
-function drawDatasetSteps(context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions) {
+function drawDatasetSteps(
+  context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions,
+) {
   context.beginPath();
 
   const segments: Pixel[][] = [];
@@ -219,11 +228,15 @@ function drawBarsMask(context: CanvasRenderingContext2D, projection: Projection,
   const [x] = projection.toPixels(options.focusOn, 0);
 
   context.fillStyle = options.color;
-  context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT, height);
+  context.fillRect(
+    xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT, height,
+  );
   context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
 }
 
-function drawDatasetArea(context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions) {
+function drawDatasetArea(
+  context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions,
+) {
   context.beginPath();
 
   let pixels: Pixel[] = [];
@@ -252,7 +265,9 @@ function drawDatasetArea(context: CanvasRenderingContext2D, points: DrawPoint[],
   context.restore();
 }
 
-function drawDatasetPie(context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions) {
+function drawDatasetPie(
+  context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions,
+) {
   const { visibleValue, stackValue, stackOffset = 0 } = points[0];
 
   if (!visibleValue) {
@@ -309,7 +324,9 @@ function drawDatasetPie(context: CanvasRenderingContext2D, points: DrawPoint[], 
   context.restore();
 }
 
-function buildPieGradient(context: CanvasRenderingContext2D, cx: number, cy: number, innerRadius: number, radius: number, color: string) {
+function buildPieGradient(
+  context: CanvasRenderingContext2D, cx: number, cy: number, innerRadius: number, radius: number, color: string,
+) {
   const channels = parseRgba(color);
   const gradient = context.createRadialGradient(cx, cy, innerRadius, cx, cy, radius);
   gradient.addColorStop(0, shadeColor(channels, 0.1));

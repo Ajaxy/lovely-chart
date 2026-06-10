@@ -1,45 +1,46 @@
-import { setupCanvas, clearCanvas } from './canvas';
-import { BALLOON_OFFSET, X_AXIS_HEIGHT, MAX_TOOLTIP_ITEMS } from './constants';
-import { getPieRadius } from './formulas';
-import { formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull } from './format';
-import { getCssColor, isColorCloseToBackground } from './skin';
-import { throttle, throttleWithRaf } from './utils';
-import { addEventListener, createElement, removeEventListener } from './minifiers';
 import type { Projection } from './Projection';
 import type {
   AnalyzedData, ChartColors, ChartState, FocusOn, Pixel, Point, PointerVector, Size, StatisticsItem,
 } from './types';
+
+import { clearCanvas, setupCanvas } from './canvas';
+import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, X_AXIS_HEIGHT } from './constants';
+import { formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull } from './format';
+import { getPieRadius } from './formulas';
+import { addEventListener, createElement, removeEventListener } from './minifiers';
+import { getCssColor, isColorCloseToBackground } from './skin';
+import { throttle, throttleWithRaf } from './utils';
 
 export class Tooltip {
   #container: HTMLElement;
   #data: AnalyzedData;
   #plotSize: Size;
   #colors: ChartColors;
-  #onZoom: (labelIndex: number | null) => void;
+  #onZoom: (labelIndex: number | undefined) => void;
   #onFocus: ((focusOn: FocusOn) => void) | undefined;
 
   #state?: ChartState;
   #points?: Point[][];
   #projection?: Projection;
-  #secondaryPoints?: Point[] | null;
-  #secondaryProjection?: Projection | null;
+  #secondaryPoints?: Point[];
+  #secondaryProjection?: Projection;
 
   #element!: HTMLElement;
   #canvas!: HTMLCanvasElement;
   #context!: CanvasRenderingContext2D;
   #balloon!: HTMLElement;
 
-  #offsetX?: number | null;
+  #offsetX?: number;
   #offsetY?: number;
-  #clickedOnLabel: number | null = null;
+  #clickedOnLabel?: number;
 
   #isZoomed = false;
   #isZooming = false;
-  #documentMoveEvent: string | null = null;
+  #documentMoveEvent?: string;
 
   #selectLabelOnRaf = throttleWithRaf((isExternal?: boolean) => this.#selectLabel(isExternal));
   #throttledUpdateContent = throttle(
-    (title: string | null, statistics: StatisticsItem[]) => this.#updateContent(title, statistics),
+    (title: string | undefined, statistics: StatisticsItem[]) => this.#updateContent(title, statistics),
     100,
     true,
   );
@@ -49,7 +50,7 @@ export class Tooltip {
     data: AnalyzedData,
     plotSize: Size,
     colors: ChartColors,
-    onZoom: (labelIndex: number | null) => void,
+    onZoom: (labelIndex: number | undefined) => void,
     onFocus?: (focusOn: FocusOn) => void,
   ) {
     this.#container = container;
@@ -66,8 +67,8 @@ export class Tooltip {
     state: ChartState,
     points: Point[][],
     projection: Projection,
-    secondaryPoints: Point[] | null,
-    secondaryProjection: Projection | null,
+    secondaryPoints: Point[] | undefined,
+    secondaryProjection: Projection | undefined,
   ) {
     this.#state = state;
     this.#points = points;
@@ -96,7 +97,7 @@ export class Tooltip {
   destroy() {
     if (this.#documentMoveEvent) {
       removeEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
-      this.#documentMoveEvent = null;
+      this.#documentMoveEvent = undefined;
     }
   }
 
@@ -131,8 +132,10 @@ export class Tooltip {
 
   #setupBalloon() {
     this.#balloon = createElement();
-    this.#balloon.className = `lovely-chart--tooltip-balloon${!this.#data.isZoomable ? ' lovely-chart--state-inactive' : ''}`;
-    this.#balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
+    this.#balloon.className
+      = `lovely-chart--tooltip-balloon${!this.#data.isZoomable ? ' lovely-chart--state-inactive' : ''}`;
+    this.#balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div>'
+      + '<div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
 
     if ('ontouchstart' in window && this.#data.isZoomable) {
       addEventListener(this.#balloon, 'click', this.#onBalloonClick);
@@ -142,7 +145,7 @@ export class Tooltip {
   }
 
   #onMouseMove = (e: MouseEvent | TouchEvent) => {
-    if (e.target === this.#balloon || this.#balloon.contains(e.target as Node) || this.#clickedOnLabel !== null) {
+    if (e.target === this.#balloon || this.#balloon.contains(e.target as Node) || this.#clickedOnLabel !== undefined) {
       return;
     }
 
@@ -157,7 +160,7 @@ export class Tooltip {
   };
 
   #onDocumentMove = (e: MouseEvent | TouchEvent) => {
-    if (this.#offsetX !== null && e.target !== this.#element && !this.#element.contains(e.target as Node)) {
+    if (this.#offsetX !== undefined && e.target !== this.#element && !this.#element.contains(e.target as Node)) {
       this.#clear();
     }
   };
@@ -170,7 +173,7 @@ export class Tooltip {
     if (this.#data.isZoomable) {
       const oldLabelIndex = this.#clickedOnLabel;
 
-      this.#clickedOnLabel = null;
+      this.#clickedOnLabel = undefined;
       this.#onMouseMove(e);
 
       const newLabelIndex = this.#getLabelIndex();
@@ -192,28 +195,28 @@ export class Tooltip {
   };
 
   #clear(isExternal?: boolean) {
-    this.#offsetX = null;
-    this.#clickedOnLabel = null;
+    this.#offsetX = undefined;
+    this.#clickedOnLabel = undefined;
     clearCanvas(this.#canvas, this.#context);
     this.#hideBalloon();
 
-    if (!isExternal && this.#onFocus) {
-      this.#onFocus(null);
+    if (!isExternal) {
+      this.#onFocus?.(NO_FOCUS);
     }
   }
 
-  #getLabelIndex(): number | null {
+  #getLabelIndex(): number | undefined {
     const labelIndex = this.#projection!.findClosestLabelIndex(this.#offsetX!);
-    return labelIndex < this.#state!.labelFromIndex || labelIndex > this.#state!.labelToIndex ? null : labelIndex;
+    return labelIndex < this.#state!.labelFromIndex || labelIndex > this.#state!.labelToIndex ? undefined : labelIndex;
   }
 
   #selectLabel(isExternal?: boolean) {
-    if (this.#offsetX == null || !this.#state || this.#isZooming) {
+    if (this.#offsetX === undefined || !this.#state || this.#isZooming) {
       return;
     }
 
     const labelIndex = this.#getLabelIndex();
-    if (labelIndex === null) {
+    if (labelIndex === undefined) {
       this.#clear(isExternal);
       return;
     }
@@ -221,11 +224,11 @@ export class Tooltip {
     const pointerVector = this.#getPointerVector();
     const shouldShowBalloon = this.#data.isPie ? pointerVector.distance <= getPieRadius(this.#projection!) : true;
 
-    if (!isExternal && this.#onFocus) {
+    if (!isExternal) {
       if (this.#data.isPie) {
-        this.#onFocus(pointerVector);
+        this.#onFocus?.(pointerVector);
       } else {
-        this.#onFocus(labelIndex);
+        this.#onFocus?.(labelIndex);
       }
     }
 
@@ -267,7 +270,7 @@ export class Tooltip {
 
   #drawCircles(statistics: StatisticsItem[], labelIndex: number) {
     statistics.forEach(({ value, key, hasOwnYAxis, originalIndex }) => {
-      if (value == null) return;
+      if (value === GAP) return;
 
       const pointIndex = labelIndex - this.#state!.labelFromIndex;
       const point = hasOwnYAxis ? this.#secondaryPoints![pointIndex] : this.#points![originalIndex][pointIndex];
@@ -328,11 +331,12 @@ export class Tooltip {
   }
 
   #updateBalloon(statistics: StatisticsItem[], labelIndex: number) {
-    this.#balloon.style.transform = `translate3D(${this.#getBalloonLeftOffset(labelIndex)}px, ${this.#getBalloonTopOffset()}, 0)`;
+    this.#balloon.style.transform
+      = `translate3D(${this.#getBalloonLeftOffset(labelIndex)}px, ${this.#getBalloonTopOffset()}, 0)`;
     this.#balloon.classList.add('lovely-chart--state-shown');
 
     if (this.#data.isPie) {
-      this.#updateContent(null, statistics);
+      this.#updateContent(undefined, statistics);
     } else {
       this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics);
     }
@@ -367,13 +371,13 @@ export class Tooltip {
     const beginAngle = offset / totalValue * Math.PI * 2 - Math.PI / 2;
     const endAngle = (offset + (value ?? 0)) / totalValue * Math.PI * 2 - Math.PI / 2;
 
-    return Boolean(pointerVector) &&
-      beginAngle <= pointerVector.angle &&
-      pointerVector.angle < endAngle &&
-      pointerVector.distance <= getPieRadius(this.#projection!);
+    return Boolean(pointerVector)
+      && beginAngle <= pointerVector.angle
+      && pointerVector.angle < endAngle
+      && pointerVector.distance <= getPieRadius(this.#projection!);
   }
 
-  #updateTitle(title: string | null) {
+  #updateTitle(title: string | undefined) {
     const titleContainer = this.#balloon.children[0] as HTMLElement;
 
     if (this.#data.isPie) {
@@ -390,17 +394,21 @@ export class Tooltip {
         titleContainer.textContent = '';
 
         const newTitle = createElement<HTMLSpanElement>('span');
-        newTitle.textContent = title;
+        newTitle.textContent = title!;
         titleContainer.appendChild(newTitle);
       } else {
-        currentTitle.textContent = title;
+        currentTitle.textContent = title!;
       }
     }
   }
 
-  #insertNewDataSet(dataSetContainer: HTMLElement, { name, key, value }: StatisticsItem, totalValue: number) {
+  #insertNewDataSet(
+    dataSetContainer: HTMLElement, { name, key, value }: StatisticsItem, totalValue: number,
+  ) {
     const colorHex = this.#data.colors[key];
-    const colorClass = isColorCloseToBackground(this.#colors, colorHex) ? '' : ` lovely-chart--color-${colorHex.slice(1)}`;
+    const colorClass = isColorCloseToBackground(this.#colors, colorHex)
+      ? ''
+      : ` lovely-chart--color-${colorHex.slice(1)}`;
     const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right${colorClass}`;
     const newDataSet = createElement();
     newDataSet.className = 'lovely-chart--tooltip-dataset';
@@ -449,7 +457,7 @@ export class Tooltip {
     }
 
     if (this.#data.isPie) {
-      Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach(e => e.remove());
+      Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach((e) => e.remove());
       return;
     }
 
@@ -482,11 +490,13 @@ export class Tooltip {
 
     const totalValue = statistics.reduce((a, x) => a + (x.value ?? 0), 0);
     const pointerVector = this.#getPointerVector();
-    const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value != null);
+    const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value !== GAP);
     const sortedStatistics = filteredStatistics.sort((a, b) => b.value! - a.value!);
     const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
     const finalStatistics = this.#data.isPie
-      ? limitedStatistics.filter((statItem) => this.#isPieSectorSelected(statistics, statItem, totalValue, pointerVector))
+      ? limitedStatistics.filter(
+        (statItem) => this.#isPieSectorSelected(statistics, statItem, totalValue, pointerVector),
+      )
       : limitedStatistics;
 
     finalStatistics.forEach((statItem) => {
@@ -519,7 +529,7 @@ export class Tooltip {
       });
   }
 
-  #updateContent(title: string | null, statistics: StatisticsItem[]) {
+  #updateContent(title: string | undefined, statistics: StatisticsItem[]) {
     this.#updateTitle(title);
     this.#updateDataSets(statistics);
   }
@@ -545,7 +555,9 @@ export class Tooltip {
     } else {
       totalText.setAttribute('data-present', 'true');
 
-      const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`)!;
+      const valueElement = totalText.querySelector(
+        `.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`,
+      )!;
       valueElement.textContent = totalValue;
     }
   }
@@ -575,11 +587,12 @@ export class Tooltip {
     } else {
       totalText.setAttribute('data-present', 'true');
 
-      const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`)!;
+      const valueElement = totalText.querySelector(
+        `.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`,
+      )!;
       valueElement.textContent = `${prefix}${secondaryValue}${suffix}`;
     }
   }
-
 
   #hideBalloon() {
     this.#balloon.classList.remove('lovely-chart--state-shown');

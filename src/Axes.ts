@@ -1,9 +1,10 @@
-import { GUTTER, AXES_FONT_STYLE, X_AXIS_HEIGHT, X_AXIS_SHIFT_START, PLOT_TOP_PADDING } from './constants';
-import { humanize } from './format';
-import { getCssColor } from './skin';
-import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
 import type { Projection } from './Projection';
 import type { AnalyzedData, ChartColors, ChartState, SecondaryYAxisConfig, Size } from './types';
+
+import { AXES_FONT_STYLE, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants';
+import { humanize } from './format';
+import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
+import { getCssColor } from './skin';
 
 function getAxesFont(context: CanvasRenderingContext2D): string {
   const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
@@ -55,7 +56,7 @@ export class Axes {
     }
   }
 
-  drawYAxis(state: ChartState, projection: Projection, secondaryProjection?: Projection | null) {
+  drawYAxis(state: ChartState, projection: Projection, secondaryProjection?: Projection) {
     const {
       yAxisScale, yAxisScaleFrom, yAxisScaleTo, yAxisScaleProgress = 0,
       yMinViewport, yMinViewportFrom, yMinViewportTo,
@@ -63,7 +64,7 @@ export class Axes {
       yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
       yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
     } = state;
-    const colorKey = secondaryProjection ? `dataset#${this.#data.datasets[0].key}` : null;
+    const colorKey = secondaryProjection ? `dataset#${this.#data.datasets[0].key}` : undefined;
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
     if (this.#data.isPercentage) {
@@ -149,7 +150,7 @@ export class Axes {
     yMin: number,
     yMax: number,
     opacity = 1,
-    colorKey: string | null = null,
+    colorKey?: string,
     isSecondary = false,
   ) {
     const context = this.#context;
@@ -251,7 +252,9 @@ export class Axes {
       const secondaryValue = value * multiplier;
 
       context.fillStyle = getCssColor(this.#colors, 'y-axis-text', textOpacity);
-      context.fillText(`${prefix}${humanize(secondaryValue)}${suffix}`, this.#plotSize.width - GUTTER, yPx - GUTTER / 2);
+      context.fillText(
+        `${prefix}${humanize(secondaryValue)}${suffix}`, this.#plotSize.width - GUTTER, yPx - GUTTER / 2,
+      );
     }
   }
 

@@ -1,5 +1,6 @@
-import { MILISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
 import type { XLabel } from './types';
+
+import { MILISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
 
 export function statsFormatDayHour(labels: number[]): XLabel[] {
   return labels.map((value) => {
@@ -140,7 +141,7 @@ export function getLabelDate(
     string += ` ${date.getUTCFullYear()}`;
   }
   if (displayHours) {
-    string += `, ${('0' + date.getUTCHours()).slice(-2)}:${('0' + date.getUTCMinutes()).slice(-2)}`
+    string += `, ${('0' + date.getUTCHours()).slice(-2)}:${('0' + date.getUTCMinutes()).slice(-2)}`;
   }
 
   return string;

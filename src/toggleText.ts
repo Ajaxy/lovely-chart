@@ -5,12 +5,13 @@ export function toggleText(element: HTMLElement, newText: string, className = ''
   container.classList.add('lovely-chart--transition-container');
 
   const newElement = createElement<HTMLElement>(element.tagName);
-  newElement.className = `${className} lovely-chart--transition lovely-chart--position-${inverse ? 'top' : 'bottom'} lovely-chart--state-hidden`;
+  newElement.className = `${className} lovely-chart--transition`
+    + ` lovely-chart--position-${inverse ? 'top' : 'bottom'} lovely-chart--state-hidden`;
   newElement.textContent = newText;
 
   const selector = className.length ? `.${className.split(' ').join('.')}` : '';
   const oldElements = container.querySelectorAll<HTMLElement>(`${selector}.lovely-chart--state-hidden`);
-  oldElements.forEach(e => e.remove());
+  oldElements.forEach((e) => e.remove());
 
   element.classList.add('lovely-chart--transition');
   element.classList.remove('lovely-chart--position-bottom', 'lovely-chart--position-top');

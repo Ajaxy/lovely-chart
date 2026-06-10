@@ -1,13 +1,14 @@
-import { analyzeData } from './data';
-import { getFullLabelDate } from './format';
-import { ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants';
-import { createColors } from './skin';
 import type { Header } from './Header';
 import type { Minimap } from './Minimap';
 import type { StateManager } from './StateManager';
-import type { Tooltip } from './Tooltip';
 import type { Tools } from './Tools';
+import type { Tooltip } from './Tooltip';
 import type { AnalyzedData, ChartColors, ChartState, Filter, LovelyChartParams, Range, XLabel } from './types';
+
+import { NO_FOCUS, ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants';
+import { analyzeData } from './data';
+import { getFullLabelDate } from './format';
+import { createColors } from './skin';
 
 export class Zoomer {
   #data: AnalyzedData;
@@ -24,8 +25,8 @@ export class Zoomer {
   #isDestroyed = false;
   #stateBeforeZoomIn?: ChartState;
   #stateBeforeZoomOut?: ChartState;
-  #swapDataTimeout: number | null = null;
-  #stateAnimatingTimeout: number | null = null;
+  #swapDataTimeout?: number;
+  #stateAnimatingTimeout?: number;
 
   constructor(
     data: AnalyzedData,
@@ -69,7 +70,7 @@ export class Zoomer {
     const dataPromise = this.#data.shouldZoomToPie
       ? Promise.resolve(this.#generatePieData(labelIndex))
       : this.#data.onZoom!(value);
-    dataPromise.then((newData) => this.#replaceData(newData, labelIndex, label));
+    void dataPromise.then((newData) => this.#replaceData(newData, labelIndex, label));
   }
 
   zoomOut(state: ChartState) {
@@ -96,13 +97,13 @@ export class Zoomer {
 
   destroy() {
     this.#isDestroyed = true;
-    if (this.#swapDataTimeout !== null) {
+    if (this.#swapDataTimeout !== undefined) {
       clearTimeout(this.#swapDataTimeout);
-      this.#swapDataTimeout = null;
+      this.#swapDataTimeout = undefined;
     }
-    if (this.#stateAnimatingTimeout !== null) {
+    if (this.#stateAnimatingTimeout !== undefined) {
       clearTimeout(this.#stateAnimatingTimeout);
-      this.#stateAnimatingTimeout = null;
+      this.#stateAnimatingTimeout = undefined;
     }
   }
 
@@ -135,7 +136,7 @@ export class Zoomer {
     });
 
     this.#swapDataTimeout = window.setTimeout(() => {
-      this.#swapDataTimeout = null;
+      this.#swapDataTimeout = undefined;
       Object.assign(this.#data, newData);
 
       if (shouldZoomToLines && newRawData.colors) {
@@ -143,9 +144,7 @@ export class Zoomer {
       }
 
       if (shouldZoomToLines) {
-        if (this.#minimap) {
-          this.#minimap.toggle(this.#isZoomed);
-        }
+        this.#minimap?.toggle(this.#isZoomed);
         this.#tools.redraw();
         this.#container.style.width = `${this.#container.scrollWidth}px`;
         this.#container.style.height = `${this.#container.scrollHeight}px`;
@@ -156,7 +155,7 @@ export class Zoomer {
           begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
           end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
         },
-        focusOn: null,
+        focusOn: NO_FOCUS,
       }, true);
 
       const daysCount = this.#isZoomed || this.#data.shouldZoomToPie
@@ -193,7 +192,8 @@ export class Zoomer {
       this.#stateManager.update({
         range,
         filter,
-        minimapDelta: this.#isZoomed ? null : range.end - range.begin,
+        // 0 disables discrete range snapping (when zooming back out)
+        minimapDelta: this.#isZoomed ? 0 : range.end - range.begin,
       });
 
       if (zoomInLabel) {
@@ -205,7 +205,7 @@ export class Zoomer {
     }, this.#stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
 
     this.#stateAnimatingTimeout = window.setTimeout(() => {
-      this.#stateAnimatingTimeout = null;
+      this.#stateAnimatingTimeout = undefined;
       if (this.#data.shouldZoomToPie) {
         this.#container.classList.remove('lovely-chart--state-animating');
       }

@@ -29,25 +29,25 @@ export const simplify = (() => {
     if (points.length < 6) {
       return function () {
         return {
-          points: points,
+          points,
           indexes: indexes || points.map((_, i) => i),
           removed: [],
         };
       };
     }
 
-    let worker = precalculate(points, fixedPoints);
+    const worker = precalculate(points, fixedPoints);
 
     return function (delta) {
-      let result: Pixel[] = [],
+      const result: Pixel[] = [],
         resultIndexes: number[] = [],
         removed: number[] = [];
 
-      let delta2 = delta * delta,
+      const delta2 = delta * delta,
         markers = worker(delta2);
 
       for (let i = 0, l = points.length; i < l; i++) {
-        if (markers[i] >= delta2 || i == 0 || i == l - 1) {
+        if (markers[i] >= delta2 || i === 0 || i === l - 1) {
           result.push(points[i]);
           resultIndexes.push(indexes ? indexes[i] : i);
         } else {
@@ -57,20 +57,19 @@ export const simplify = (() => {
       return {
         points: result,
         indexes: resultIndexes,
-        removed: removed,
+        removed,
       };
     };
   }
 
-  let E1 = 1.0 / Math.pow(2, 22), // максимальная дельта
+  const E1 = 1.0 / Math.pow(2, 22), // максимальная дельта
     MAXLIMIT = 100000;
 
   function precalculate(points: Pixel[], fixedPoints?: number[]): (delta: number) => number[] {
-
-    let len = points.length,
-      distances: number[] = [],
-      queue: QueueItem[] = [],
-      maximumDelta = 0;
+    const len = points.length;
+    const distances: number[] = [];
+    const queue: QueueItem[] = [];
+    let maximumDelta = 0;
     for (let i = 0, l = points.length; i < l; ++i) {
       distances[i] = 0;
     }
@@ -79,33 +78,31 @@ export const simplify = (() => {
       fixedPoints = [];
     }
 
-    //инициализируем дерево срединным значением
-    //чтобы не попадает в ситуации когда начало линии близко к концу(те полигон)
-    //и правильные расчеты сложны
+    // инициализируем дерево срединным значением
+    // чтобы не попадает в ситуации когда начало линии близко к концу(те полигон)
+    // и правильные расчеты сложны
     let subdivisionTree: SimplifyRecord | 0 = 0;
 
     for (let i = 0, l = fixedPoints.length; i < l; ++i) {
       distances[fixedPoints[i]] = MAXLIMIT;
     }
 
-
     function worker(params: QueueItem): SimplifyRecord {
-
-      let start = params.start,
-        end = params.end,
-        record = params.record,
-        currentLimit = params.currentLimit,
-        usedDistance = 0;
+      const start = params.start;
+      const end = params.end;
+      const currentLimit = params.currentLimit;
+      let record = params.record;
+      let usedDistance = 0;
 
       if (!record) {
-        //let deltaShifts = getDeltaShifts(points);
-        let usedIndex = -1,
-          vector = [
-            points[end][0] - points[start][0],
-            points[end][1] - points[start][1],
-          ];
+        // let deltaShifts = getDeltaShifts(points);
+        let usedIndex = -1;
+        const vector = [
+          points[end][0] - points[start][0],
+          points[end][1] - points[start][1],
+        ];
         for (let i = 0, l = fixedPoints!.length; i < l; ++i) {
-          let fixId = fixedPoints![i];
+          const fixId = fixedPoints![i];
           if (fixId > start) {
             if (fixId < end) {
               usedIndex = fixId;
@@ -118,28 +115,29 @@ export const simplify = (() => {
         }
         if (usedIndex < 0) {
           if (Math.abs(vector[0]) > E1 || Math.abs(vector[1]) > E1) {
-            let vectorLength = vector[0] * vector[0] + vector[1] * vector[1],
+            const vectorLength = vector[0] * vector[0] + vector[1] * vector[1],
               vectorLength_1 = +1.0 / vectorLength;
 
             for (let i = start + 1; i < end; ++i) {
-              let segmentDistance = pointToSegmentDistanceSquare(points[i], points[start], points[end], vector, vectorLength_1);
+              const segmentDistance = pointToSegmentDistanceSquare(
+                points[i], points[start], points[end], vector, vectorLength_1,
+              );
 
               if (segmentDistance > usedDistance) {
                 usedIndex = i;
                 usedDistance = segmentDistance;
               }
             }
-
           } else {
-            //фиксируем на среднинной точке
+            // фиксируем на среднинной точке
             usedIndex = Math.round((start + end) * 0.5);
             usedDistance = currentLimit;
           }
           distances[usedIndex] = usedDistance;
         }
         record = {
-          start: start,
-          end: end,
+          start,
+          end,
           index: usedIndex,
           distance: usedDistance,
         };
@@ -148,7 +146,7 @@ export const simplify = (() => {
       if (record.index && record.distance > maximumDelta) {
         if (record.index - start >= 2) {
           queue.push({
-            start: start,
+            start,
             end: record.index,
             record: record.left,
             currentLimit: record.distance,
@@ -159,7 +157,7 @@ export const simplify = (() => {
         if (end - record.index >= 2) {
           queue.push({
             start: record.index,
-            end: end,
+            end,
             record: record.right,
             currentLimit: record.distance,
             parent: record,
@@ -172,7 +170,7 @@ export const simplify = (() => {
     }
 
     function tick(): SimplifyRecord {
-      let request = queue.pop()!,
+      const request = queue.pop()!,
         result = worker(request);
 
       if (request.parent && request.parentProperty) {
@@ -198,16 +196,13 @@ export const simplify = (() => {
 
       return distances;
     };
-
   }
 
   function pointToSegmentDistanceSquare(p: Pixel, v1: Pixel, v2: Pixel, dv: number[], dvlen_1: number): number {
-
-    let t;
     let vx = +v1[0],
       vy = +v1[1];
 
-    t = +((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * (dvlen_1);
+    const t = +((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * (dvlen_1);
 
     if (t > 1) {
       vx = +v2[0];
@@ -217,7 +212,7 @@ export const simplify = (() => {
       vy += +dv[1] * t;
     }
 
-    let a = +p[0] - vx,
+    const a = +p[0] - vx,
       b = +p[1] - vy;
 
     return +a * a + b * b;

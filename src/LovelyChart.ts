@@ -1,31 +1,33 @@
-import { StateManager } from './StateManager';
-import { Header } from './Header';
-import { Axes } from './Axes';
-import { Minimap } from './Minimap';
-import { Tooltip } from './Tooltip';
-import { Tools } from './Tools';
-import { Zoomer } from './Zoomer';
-import { createColors } from './skin';
-import { analyzeData } from './data';
-import { setupCanvas, clearCanvas } from './canvas';
-import { preparePoints } from './preparePoints';
-import { Projection } from './Projection';
-import { drawDatasets } from './drawDatasets';
-import { createElement } from './minifiers';
-import { getFullLabelDate, getLabelDate } from './format';
-import {
-  X_AXIS_HEIGHT,
-  GUTTER,
-  PLOT_TOP_PADDING,
-  PLOT_HEIGHT,
-  PLOT_LINE_WIDTH,
-  SIMPLIFIER_PLOT_FACTOR,
-} from './constants';
-import { getSimplificationDelta, isDataRange } from './formulas';
-import { debounce } from './utils';
 import type {
   AnalyzedData, ChartColors, ChartState, Filter, FocusOn, LovelyChartParams, Point, ProjectionParams, Range, Size,
 } from './types';
+
+import { Axes } from './Axes';
+import { clearCanvas, setupCanvas } from './canvas';
+import {
+  GUTTER,
+  PLOT_HEIGHT,
+  PLOT_LINE_WIDTH,
+  PLOT_TOP_PADDING,
+  SIMPLIFIER_PLOT_FACTOR,
+  X_AXIS_HEIGHT,
+} from './constants';
+import { analyzeData } from './data';
+import { drawDatasets } from './drawDatasets';
+import { getFullLabelDate, getLabelDate } from './format';
+import { getSimplificationDelta, isDataRange } from './formulas';
+import { Header } from './Header';
+import { createElement } from './minifiers';
+import { Minimap } from './Minimap';
+import { preparePoints } from './preparePoints';
+import { Projection } from './Projection';
+import { createColors } from './skin';
+import { StateManager } from './StateManager';
+import { Tools } from './Tools';
+import { Tooltip } from './Tooltip';
+import { debounce } from './utils';
+import { Zoomer } from './Zoomer';
+
 import './styles/index.scss';
 
 class LovelyChart {
@@ -50,9 +52,9 @@ class LovelyChart {
   #originalData: LovelyChartParams;
   #isDestroyed = false;
 
-  #themeObserver?: MutationObserver | null;
-  #onWindowResize?: (() => void) | null;
-  #onWindowOrientationChange?: (() => void) | null;
+  #themeObserver?: MutationObserver;
+  #onWindowResize?: () => void;
+  #onWindowOrientationChange?: () => void;
 
   #data: AnalyzedData;
   #colors: ChartColors;
@@ -74,7 +76,9 @@ class LovelyChart {
     this.#originalData = newData;
     this.#destroyComponents();
     const fresh = analyzeData(this.#originalData);
-    Object.keys(this.#data).forEach((k) => { delete (this.#data as unknown as Record<string, unknown>)[k]; });
+    Object.keys(this.#data).forEach((k) => {
+      delete (this.#data as unknown as Record<string, unknown>)[k];
+    });
     Object.assign(this.#data, fresh);
     Object.assign(this.#colors, createColors(this.#data.colors));
     this.#setupComponents();
@@ -84,17 +88,15 @@ class LovelyChart {
     if (this.#isDestroyed) return;
     this.#isDestroyed = true;
 
-    if (this.#themeObserver) {
-      this.#themeObserver.disconnect();
-      this.#themeObserver = null;
-    }
+    this.#themeObserver?.disconnect();
+    this.#themeObserver = undefined;
     if (this.#onWindowResize) {
       window.removeEventListener('resize', this.#onWindowResize);
-      this.#onWindowResize = null;
+      this.#onWindowResize = undefined;
     }
     if (this.#onWindowOrientationChange) {
       window.removeEventListener('orientationchange', this.#onWindowOrientationChange);
-      this.#onWindowOrientationChange = null;
+      this.#onWindowOrientationChange = undefined;
     }
 
     this.#destroyComponents();
@@ -112,17 +114,23 @@ class LovelyChart {
     } else {
       this.#stateManager.update({ range: this.#data.minimapRange });
     }
-    this.#tooltip = new Tooltip(this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus);
+    this.#tooltip = new Tooltip(
+      this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus,
+    );
     this.#tools = new Tools(this.#element!, this.#data, this.#onFilterChange);
     this.#zoomer = this.#data.isZoomable
-      ? new Zoomer(this.#data, this.#originalData, this.#colors, this.#stateManager, this.#element!, this.#header, this.#minimap, this.#tooltip, this.#tools)
+      ? new Zoomer(
+        this.#data, this.#originalData, this.#colors, this.#stateManager,
+        this.#element!, this.#header, this.#minimap, this.#tooltip, this.#tools,
+      )
       : undefined;
     // hideOnScroll(this.#element);
   }
 
   #setupContainer() {
     this.#element = createElement();
-    this.#element.className = `lovely-chart--container${this.#data.shouldZoomToPie ? ' lovely-chart--container-type-pie' : ''}`;
+    this.#element.className
+      = `lovely-chart--container${this.#data.shouldZoomToPie ? ' lovely-chart--container-type-pie' : ''}`;
 
     this.#container.appendChild(this.#element);
   }
@@ -167,8 +175,8 @@ class LovelyChart {
     const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams);
     const projection = new Projection(boundsAndParams);
 
-    let secondaryPoints: Point[] | null = null;
-    let secondaryProjection: Projection | null = null;
+    let secondaryPoints: Point[] | undefined;
+    let secondaryProjection: Projection | undefined;
     if (this.#data.hasSecondYAxis) {
       const secondaryDataset = datasets.find((d) => d.hasOwnYAxis)!;
       const bounds = {
@@ -198,9 +206,7 @@ class LovelyChart {
       // TODO check isChanged
       this.#axes!.drawXAxis(state, projection);
     }
-    if (this.#minimap) {
-      this.#minimap.update(state);
-    }
+    this.#minimap?.update(state);
     this.#tooltip!.update(state, points, projection, secondaryPoints, secondaryProjection);
   };
 
@@ -219,7 +225,7 @@ class LovelyChart {
     }
   };
 
-  #onZoomIn = (labelIndex: number | null) => {
+  #onZoomIn = (labelIndex: number | undefined) => {
     this.#zoomer!.zoomIn(this.#state!, labelIndex!);
   };
 
@@ -249,12 +255,12 @@ class LovelyChart {
   }
 
   #destroyComponents() {
-    if (this.#zoomer) this.#zoomer.destroy();
-    if (this.#tooltip) this.#tooltip.destroy();
-    if (this.#header) this.#header.destroy();
-    if (this.#stateManager) this.#stateManager.destroy();
+    this.#zoomer?.destroy();
+    this.#tooltip?.destroy();
+    this.#header?.destroy();
+    this.#stateManager?.destroy();
 
-    if (this.#element && this.#element.parentNode) {
+    if (this.#element?.parentNode) {
       this.#element.remove();
     }
 
@@ -281,7 +287,7 @@ class LovelyChart {
     let startIndex;
     let endIndex;
 
-    if (this.#zoomer && this.#zoomer.isZoomed()) {
+    if (this.#zoomer?.isZoomed()) {
       // TODO Fix label
       startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
       endIndex = state.labelToIndex === state.totalXWidth - 1 ? state.labelToIndex : state.labelToIndex - 1;
@@ -292,15 +298,18 @@ class LovelyChart {
 
     return isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex])
       ? (
-        `${getLabelDate(this.#data.xLabels[startIndex])}` +
-        ' — ' +
-        `${getLabelDate(this.#data.xLabels[endIndex])}`
+        `${getLabelDate(this.#data.xLabels[startIndex])}`
+        + ' — '
+        + `${getLabelDate(this.#data.xLabels[endIndex])}`
       )
       : getFullLabelDate(this.#data.xLabels[startIndex]);
   }
 }
 
-function create(container: HTMLElement, data: LovelyChartParams): { update: (newData: LovelyChartParams) => void; destroy: () => void } {
+function create(
+  container: HTMLElement,
+  data: LovelyChartParams,
+): { update: (newData: LovelyChartParams) => void; destroy: () => void } {
   return new LovelyChart(container, data);
 }
 

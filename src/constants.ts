@@ -1,6 +1,11 @@
 export const DPR = window.devicePixelRatio || 1;
 
 export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
+export const NO_FOCUS = Symbol('NO_FOCUS');
+// Raw JSON represents missing dataset values as `null`; compare via
+// `value === GAP` instead of spelling the literal.
+// eslint-disable-next-line no-null/no-null
+export const GAP = null;
 export const TRANSITION_DEFAULT_DURATION = 400;
 export const LONG_PRESS_TIMEOUT = 500;
 
@@ -33,10 +38,13 @@ export const MINIMAP_MAX_ANIMATED_DATASETS = 4;
 
 export const ZOOM_TIMEOUT = TRANSITION_DEFAULT_DURATION;
 export const ZOOM_RANGE_DELTA = 0.1;
-export const ZOOM_RANGE_MIDDLE = .5;
+export const ZOOM_RANGE_MIDDLE = 0.5;
 
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-export const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export const MONTHS_FULL = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
 export const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 

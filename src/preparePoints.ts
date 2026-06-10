@@ -1,5 +1,7 @@
-import { sumArrays } from './utils';
 import type { AnalyzedData, AnalyzedDataset, LabelRange, Point } from './types';
+
+import { GAP } from './constants';
+import { sumArrays } from './utils';
 
 export function preparePoints(
   data: AnalyzedData,
@@ -19,10 +21,10 @@ export function preparePoints(
 
   const points = values.map((datasetValues, i) => (
     datasetValues.map((value, j) => {
-      const isGap = value == null;
-      let visibleValue = isGap ? 0 : value;
+      const gap = value === GAP;
+      let visibleValue = gap ? 0 : value;
 
-      if (data.isStacked && !isGap) {
+      if (data.isStacked && !gap) {
         visibleValue *= visibilities[i];
       }
 
@@ -32,7 +34,7 @@ export function preparePoints(
         visibleValue,
         stackOffset: 0,
         stackValue: visibleValue,
-        gap: isGap,
+        gap,
       };
     })
   ));

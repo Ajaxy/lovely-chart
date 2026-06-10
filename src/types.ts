@@ -1,3 +1,5 @@
+import type { NO_FOCUS } from './constants';
+
 export type ChartType = 'line' | 'bar' | 'step' | 'area' | 'pie';
 
 export type LabelType = 'year' | 'month' | 'week' | 'day' | 'hour' | '5min' | 'dayHour' | 'text';
@@ -29,7 +31,10 @@ export interface PointerVector {
   distance: number;
 }
 
-export type FocusOn = number | PointerVector | null;
+// A label index for bars/steps, a pointer vector for pies, or the NO_FOCUS
+// sentinel to clear focus. `undefined` in a state update keeps the
+// previous value.
+export type FocusOn = number | PointerVector | typeof NO_FOCUS;
 
 export interface SecondaryYAxisConfig {
   label: string;
@@ -112,7 +117,7 @@ export interface AnalyzedData {
   minimapRange?: Range;
   noCaption?: boolean;
   zoomOutLabel?: string;
-  limitBegin: number | null;
+  limitBegin: number | undefined;
   onLimitedRangeClick?: () => void;
   shouldZoomToPie: boolean;
   isZoomable: boolean;
@@ -137,7 +142,7 @@ export interface ChartState {
   yMaxMinimapSecond?: number;
   filter: Filter;
   focusOn?: FocusOn;
-  minimapDelta?: number | null;
+  minimapDelta?: number;
   static?: ChartState;
   // The transition manager interpolates over arbitrary numeric props and adds
   // `*From`/`*To`/`*Progress` companions, plus per-dataset `opacity#*` and

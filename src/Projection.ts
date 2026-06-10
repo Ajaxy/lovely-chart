@@ -1,5 +1,6 @@
-import { proxyMerge } from './utils';
 import type { Pixel, ProjectionParams } from './types';
+
+import { proxyMerge } from './utils';
 
 export class Projection {
   #params: ProjectionParams;
@@ -76,7 +77,7 @@ export class Projection {
   }
 
   copy(overrides: Partial<ProjectionParams>): Projection {
-    return new Projection(proxyMerge(this.#params, overrides) as ProjectionParams);
+    return new Projection(proxyMerge(this.#params, overrides));
   }
 
   getCenter(): Pixel {

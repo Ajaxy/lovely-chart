@@ -3,6 +3,8 @@ var LovelyChart = (function (exports) {
 
   const DPR = window.devicePixelRatio || 1;
   const DEFAULT_RANGE = { begin: 0.8, end: 1 };
+  const NO_FOCUS = Symbol("NO_FOCUS");
+  const GAP = null;
   const TRANSITION_DEFAULT_DURATION = 400;
   const LONG_PRESS_TIMEOUT = 500;
   const GUTTER = 10;
@@ -31,7 +33,20 @@ var LovelyChart = (function (exports) {
   const ZOOM_RANGE_DELTA = 0.1;
   const ZOOM_RANGE_MIDDLE = 0.5;
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const MONTHS_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const MONTHS_FULL = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ];
   const WEEK_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const WEEK_DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1e3;
@@ -63,615 +78,6 @@ var LovelyChart = (function (exports) {
     "yAxisScale",
     "yAxisScaleSecond"
   ];
-
-  function transition(t) {
-    return 1 - Math.pow(1 - t, 3);
-  }
-  class TransitionManager {
-    #onTick;
-    #transitions = {};
-    #nextFrame = null;
-    #testStartedAt = null;
-    #fps = null;
-    #testingFps = null;
-    #slowDetectedAt = null;
-    #startedAsSlow = null;
-    constructor(onTick) {
-      this.#onTick = onTick;
-    }
-    add(prop, from, to, duration, options) {
-      this.#transitions[prop] = {
-        from,
-        to,
-        duration,
-        options,
-        current: from,
-        startedAt: Date.now(),
-        progress: 0
-      };
-      if (!this.#nextFrame) {
-        this.#resetSpeedTest();
-        this.#nextFrame = requestAnimationFrame(this.#tick);
-      }
-    }
-    remove(prop) {
-      delete this.#transitions[prop];
-      if (!this.isRunning()) {
-        cancelAnimationFrame(this.#nextFrame);
-        this.#nextFrame = null;
-      }
-    }
-    get(prop) {
-      return this.#transitions[prop];
-    }
-    getState() {
-      const state = {};
-      Object.keys(this.#transitions).forEach((prop) => {
-        const { current, from, to, progress } = this.#transitions[prop];
-        state[prop] = current;
-        state[`${prop}From`] = from;
-        state[`${prop}To`] = to;
-        state[`${prop}Progress`] = progress;
-      });
-      return state;
-    }
-    isRunning() {
-      return Boolean(Object.keys(this.#transitions).length);
-    }
-    isFast(forceCheck) {
-      if (!forceCheck && (this.#startedAsSlow || this.#slowDetectedAt)) {
-        return false;
-      }
-      return this.#fps === null || this.#fps >= SPEED_TEST_FAST_FPS;
-    }
-    destroy() {
-      if (this.#nextFrame) {
-        cancelAnimationFrame(this.#nextFrame);
-        this.#nextFrame = null;
-      }
-      Object.keys(this.#transitions).forEach((prop) => delete this.#transitions[prop]);
-    }
-    #tick = () => {
-      const isSlow = !this.isFast();
-      this.#speedTest();
-      const state = {};
-      Object.keys(this.#transitions).forEach((prop) => {
-        const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = this.#transitions[prop];
-        const progress = Math.min(1, (Date.now() - startedAt) / duration);
-        let current = from + (to - from) * transition(progress);
-        if (options.includes("ceil")) {
-          current = Math.ceil(current);
-        } else if (options.includes("floor")) {
-          current = Math.floor(current);
-        }
-        this.#transitions[prop].current = current;
-        this.#transitions[prop].progress = progress;
-        state[prop] = current;
-        if (progress === 1) {
-          this.remove(prop);
-        }
-      });
-      if (!isSlow) {
-        this.#onTick(state);
-      }
-      if (this.isRunning()) {
-        this.#nextFrame = requestAnimationFrame(this.#tick);
-      }
-    };
-    #resetSpeedTest() {
-      this.#testStartedAt = null;
-      this.#testingFps = null;
-      if (this.#slowDetectedAt && Date.now() - this.#slowDetectedAt > 5e3) {
-        this.#slowDetectedAt = null;
-      }
-      this.#startedAsSlow = Boolean(this.#slowDetectedAt) || !this.isFast(true);
-    }
-    #speedTest() {
-      if (!this.#testStartedAt || Date.now() - this.#testStartedAt >= SPEED_TEST_INTERVAL) {
-        if (this.#testingFps) {
-          this.#fps = this.#testingFps;
-          if (!this.#slowDetectedAt && !this.isFast(true)) {
-            this.#slowDetectedAt = Date.now();
-          }
-        }
-        this.#testStartedAt = Date.now();
-        this.#testingFps = 0;
-      } else {
-        this.#testingFps = (this.#testingFps || 0) + 1;
-      }
-    }
-  }
-
-  function getMaxMin(array) {
-    const length = array.length;
-    let max;
-    let min;
-    for (let i = 0; i < length; i++) {
-      const value = array[i];
-      if (value == null) continue;
-      if (max === void 0 || value > max) max = value;
-      if (min === void 0 || value < min) min = value;
-    }
-    return { max, min };
-  }
-  function mergeArrays(arrays) {
-    return [].concat.apply([], arrays);
-  }
-  function sumArrays(arrays) {
-    const sums = [];
-    const n = arrays.length;
-    for (let i = 0, l = arrays[0].length; i < l; i++) {
-      sums[i] = 0;
-      for (let j = 0; j < n; j++) {
-        sums[i] += arrays[j][i];
-      }
-    }
-    return sums;
-  }
-  function proxyMerge(obj1, obj2) {
-    return new Proxy({}, {
-      get: (obj, prop) => {
-        if (obj[prop] !== void 0) {
-          return obj[prop];
-        } else if (obj2[prop] !== void 0) {
-          return obj2[prop];
-        } else {
-          return obj1[prop];
-        }
-      }
-    });
-  }
-  function throttle(fn, ms, shouldRunFirst = true) {
-    let interval = null;
-    let isPending;
-    let args;
-    return (..._args) => {
-      isPending = true;
-      args = _args;
-      if (!interval) {
-        if (shouldRunFirst) {
-          isPending = false;
-          fn(...args);
-        }
-        interval = window.setInterval(() => {
-          if (!isPending) {
-            window.clearInterval(interval);
-            interval = null;
-            return;
-          }
-          isPending = false;
-          fn(...args);
-        }, ms);
-      }
-    };
-  }
-  function throttleWithRaf(fn) {
-    let waiting = false;
-    let args;
-    return function(..._args) {
-      args = _args;
-      if (!waiting) {
-        waiting = true;
-        requestAnimationFrame(() => {
-          waiting = false;
-          fn(...args);
-        });
-      }
-    };
-  }
-  function debounce(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
-    let waitingTimeout = null;
-    return function() {
-      if (waitingTimeout) {
-        clearTimeout(waitingTimeout);
-        waitingTimeout = null;
-      } else if (shouldRunFirst) {
-        fn();
-      }
-      waitingTimeout = window.setTimeout(() => {
-        if (shouldRunLast) {
-          fn();
-        }
-        waitingTimeout = null;
-      }, ms);
-    };
-  }
-
-  function xScaleLevelToStep(scaleLevel) {
-    return Math.pow(2, scaleLevel);
-  }
-  function xStepToScaleLevel(step) {
-    return Math.ceil(Math.log2(step || 1));
-  }
-  const SCALE_LEVELS = [
-    // Sub-unit steps for fine-grained data (e.g. portfolio P&L denominated in cents)
-    1e-4,
-    2e-4,
-    5e-4,
-    1e-3,
-    2e-3,
-    5e-3,
-    0.01,
-    0.02,
-    0.05,
-    0.1,
-    0.2,
-    0.5,
-    1,
-    2,
-    8,
-    18,
-    50,
-    100,
-    250,
-    500,
-    1e3,
-    2500,
-    5e3,
-    1e4,
-    25e3,
-    5e4,
-    1e5,
-    25e4,
-    5e5,
-    1e6,
-    25e5,
-    5e6,
-    1e7,
-    25e6,
-    5e7,
-    1e8
-  ];
-  function yScaleLevelToStep(scaleLevel) {
-    return SCALE_LEVELS[scaleLevel] || SCALE_LEVELS[SCALE_LEVELS.length - 1];
-  }
-  function yStepToScaleLevel(neededStep) {
-    const idx = SCALE_LEVELS.findIndex((step) => step >= neededStep);
-    return idx === -1 ? SCALE_LEVELS.length - 1 : idx;
-  }
-  function applyYEdgeOpacity(opacity, xPx, plotWidth) {
-    const edgeOffset = Math.min(xPx + GUTTER, plotWidth - xPx);
-    if (edgeOffset <= GUTTER * 4) {
-      opacity = Math.min(1, opacity, edgeOffset / (GUTTER * 4));
-    }
-    return opacity;
-  }
-  function applyXEdgeOpacity(opacity, yPx) {
-    return yPx - GUTTER <= GUTTER * 2 ? Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2)) : opacity;
-  }
-  function getPieRadius(projection) {
-    return Math.max(0, Math.min(...projection.getSize())) * PLOT_PIE_RADIUS_FACTOR;
-  }
-  function getPieTextSize(percent, radius) {
-    return (radius + percent * 200) / 10;
-  }
-  function getPieTextShift(percent, radius) {
-    return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
-  }
-  function isDataRange(labelFrom, labelTo) {
-    return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
-  }
-  function getSimplificationDelta(pointsLength) {
-    return pointsLength >= SIMPLIFIER_MIN_POINTS ? Math.min(pointsLength / 1e3, 1) : 0;
-  }
-
-  class StateManager {
-    #data;
-    #viewportSize;
-    #callback;
-    #range = { begin: 0, end: 1 };
-    #filter;
-    #transitionConfig;
-    #transitions;
-    #runCallbackOnRaf;
-    #state = {};
-    #isDestroyed = false;
-    constructor(data, viewportSize, callback) {
-      this.#data = data;
-      this.#viewportSize = viewportSize;
-      this.#callback = callback;
-      this.#filter = this.#buildDefaultFilter();
-      this.#transitionConfig = this.#buildTransitionConfig();
-      this.#transitions = new TransitionManager(this.#runCallback);
-      this.#runCallbackOnRaf = throttleWithRaf(this.#runCallback);
-    }
-    update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
-      if (this.#isDestroyed) return;
-      Object.assign(this.#range, range);
-      Object.assign(this.#filter, filter);
-      const prevState = this.#state;
-      this.#state = calculateState(this.#data, this.#viewportSize, this.#range, this.#filter, focusOn, minimapDelta, prevState);
-      if (!noTransition) {
-        this.#transitionConfig.forEach(({ prop, duration, options }) => {
-          const transition = this.#transitions.get(prop);
-          const currentTarget = transition ? transition.to : prevState[prop];
-          if (currentTarget !== void 0 && currentTarget !== this.#state[prop]) {
-            const current = transition ? options.includes("fast") ? prevState[prop] : transition.current : prevState[prop];
-            if (transition) {
-              this.#transitions.remove(prop);
-            }
-            this.#transitions.add(prop, current, this.#state[prop], duration, options);
-          }
-        });
-      }
-      if (!this.#transitions.isRunning() || !this.#transitions.isFast()) {
-        this.#runCallbackOnRaf();
-      }
-    }
-    hasAnimations() {
-      return this.#transitions.isFast();
-    }
-    destroy() {
-      this.#isDestroyed = true;
-      this.#transitions.destroy();
-    }
-    #buildTransitionConfig() {
-      const transitionConfig = [];
-      const datasetVisibilities = this.#data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
-      const datasetPieShifts = this.#data.datasets.map(({ key }) => `pieShift#${key} 200`);
-      mergeArrays([
-        ANIMATE_PROPS,
-        datasetVisibilities,
-        datasetPieShifts
-      ]).forEach((transition) => {
-        const [prop, duration, ...options] = transition.split(" ");
-        transitionConfig.push({ prop, duration: duration ? Number(duration) : void 0, options });
-      });
-      return transitionConfig;
-    }
-    #buildDefaultFilter() {
-      const filter = {};
-      this.#data.datasets.forEach(({ key }) => {
-        filter[key] = true;
-      });
-      return filter;
-    }
-    #runCallback = () => {
-      if (this.#isDestroyed) return;
-      const state = this.#transitions.isFast() ? proxyMerge(this.#state, this.#transitions.getState()) : this.#state;
-      state.static = this.#state;
-      this.#callback(state);
-    };
-  }
-  function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
-    const { begin, end } = range;
-    const totalXWidth = data.xLabels.length - 1;
-    const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
-    const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
-    const xAxisScale = calculateXAxisScale(viewportSize.width, labelFromIndex, labelToIndex);
-    const yRanges = data.isStacked ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
-    const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
-    const yAxisScaleSecond = data.hasSecondYAxis && calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
-    const yStep = yScaleLevelToStep(yAxisScale);
-    yRanges.yMinViewport = Math.floor(yRanges.yMinViewport / yStep) * yStep;
-    if (yAxisScaleSecond) {
-      const yStepSecond = yScaleLevelToStep(yAxisScaleSecond);
-      yRanges.yMinViewportSecond = Math.floor(yRanges.yMinViewportSecond / yStepSecond) * yStepSecond;
-    }
-    const datasetsOpacity = {};
-    data.datasets.forEach(({ key }) => {
-      datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
-    });
-    const extendedLabelFromIndex = Math.max(0, labelFromIndex - 1);
-    const extendedLabelToIndex = Math.min(labelToIndex + 1, totalXWidth);
-    const resolvedFocusOn = focusOn !== void 0 ? focusOn : prevState.focusOn;
-    const datasetsPieShift = data.isPie ? calculatePieShifts(data, viewportSize, filter, resolvedFocusOn, extendedLabelFromIndex, extendedLabelToIndex) : null;
-    return Object.assign(
-      {
-        totalXWidth,
-        xAxisScale,
-        yAxisScale,
-        yAxisScaleSecond,
-        labelFromIndex: extendedLabelFromIndex,
-        labelToIndex: extendedLabelToIndex,
-        filter: Object.assign({}, filter),
-        focusOn: resolvedFocusOn,
-        minimapDelta: minimapDelta !== void 0 ? minimapDelta : prevState.minimapDelta
-      },
-      yRanges,
-      datasetsOpacity,
-      datasetsPieShift,
-      range
-    );
-  }
-  function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFromIndex, labelToIndex) {
-    const radius = Math.max(0, Math.min(
-      viewportSize.width,
-      viewportSize.height - X_AXIS_HEIGHT - PLOT_TOP_PADDING
-    )) * PLOT_PIE_RADIUS_FACTOR;
-    const sums = data.datasets.map(({ key, values }) => filter[key] ? values.slice(labelFromIndex, labelToIndex + 1).reduce((a, x) => a + (x || 0), 0) : 0);
-    const total = sums.reduce((a, x) => a + x, 0);
-    const shifts = {};
-    let offset = 0;
-    data.datasets.forEach(({ key }, i) => {
-      const beginAngle = offset / total * Math.PI * 2 - Math.PI / 2;
-      offset += sums[i];
-      const endAngle = offset / total * Math.PI * 2 - Math.PI / 2;
-      const isFocused = Boolean(
-        pointerVector && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= radius
-      );
-      shifts[`pieShift#${key}`] = isFocused ? 1 : 0;
-    });
-    return shifts;
-  }
-  function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {
-    const secondaryYAxisDataset = data.hasSecondYAxis ? data.datasets.slice(-1)[0] : void 0;
-    const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
-    const yRanges = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets);
-    if (secondaryYAxisDataset) {
-      const {
-        yMinViewport: yMinViewportSecond,
-        yMaxViewport: yMaxViewportSecond,
-        yMinMinimap: yMinMinimapSecond,
-        yMaxMinimap: yMaxMinimapSecond
-      } = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, [secondaryYAxisDataset]);
-      Object.assign(yRanges, {
-        yMinViewportSecond,
-        yMaxViewportSecond,
-        yMinMinimapSecond,
-        yMaxMinimapSecond
-      });
-    }
-    return yRanges;
-  }
-  function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, datasets) {
-    const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(mergeArrays(datasets.map(({ yMax, yMin }) => [yMax, yMin])));
-    const yMinMinimap = yMinMinimapReal < 0 ? yMinMinimapReal : yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
-    let yMinViewport;
-    let yMaxViewport;
-    if (labelFromIndex === 0 && labelToIndex === data.xLabels.length - 1) {
-      yMinViewport = yMinMinimap;
-      yMaxViewport = yMaxMinimap;
-    } else {
-      const filteredValues = datasets.map(({ values }) => values);
-      const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
-      const viewportMaxMin = getMaxMin(mergeArrays(viewportValues));
-      const yMinViewportReal = viewportMaxMin.min !== void 0 ? viewportMaxMin.min : prevState.yMinViewport;
-      yMaxViewport = viewportMaxMin.max !== void 0 ? viewportMaxMin.max : prevState.yMaxViewport;
-      yMinViewport = yMinViewportReal < 0 ? yMinViewportReal : yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
-    }
-    return {
-      yMinViewport,
-      yMaxViewport,
-      yMinMinimap,
-      yMaxMinimap
-    };
-  }
-  function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) {
-    const filteredDatasets = data.datasets.filter((d) => filter[d.key]);
-    const filteredValues = filteredDatasets.map(({ values }) => values);
-    const length = filteredValues[0] ? filteredValues[0].length : 0;
-    const posSums = new Array(length).fill(0);
-    const negSums = new Array(length).fill(0);
-    for (let i = 0; i < filteredValues.length; i++) {
-      for (let j = 0; j < length; j++) {
-        const v = filteredValues[i][j];
-        if (v == null) continue;
-        if (v >= 0) posSums[j] += v;
-        else negSums[j] += v;
-      }
-    }
-    const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(posSums);
-    const { min: yMinMinimap = prevState.yMinMinimap } = getMaxMin(negSums);
-    const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(posSums.slice(labelFromIndex, labelToIndex + 1));
-    const { min: yMinViewport = prevState.yMinViewport } = getMaxMin(negSums.slice(labelFromIndex, labelToIndex + 1));
-    return {
-      yMinViewport,
-      yMaxViewport,
-      yMinMinimap,
-      yMaxMinimap
-    };
-  }
-  function calculateXAxisScale(plotWidth, labelFromIndex, labelToIndex) {
-    const viewportLabelsCount = labelToIndex - labelFromIndex;
-    const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
-    return xStepToScaleLevel(viewportLabelsCount / maxColumns);
-  }
-  function calculateYAxisScale(plotHeight, yMin, yMax) {
-    const availableHeight = plotHeight - X_AXIS_HEIGHT;
-    const viewportLabelsCount = yMax - yMin;
-    const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);
-    return yStepToScaleLevel(viewportLabelsCount / maxRows);
-  }
-
-  const createElement = (tagName = "div") => {
-    return document.createElement(tagName);
-  };
-  function addEventListener(element, event, cb) {
-    element.addEventListener(event, cb);
-  }
-  function removeEventListener(element, event, cb) {
-    element.removeEventListener(event, cb);
-  }
-
-  function toggleText(element, newText, className = "", inverse = false) {
-    const container = element.parentNode;
-    container.classList.add("lovely-chart--transition-container");
-    const newElement = createElement(element.tagName);
-    newElement.className = `${className} lovely-chart--transition lovely-chart--position-${inverse ? "top" : "bottom"} lovely-chart--state-hidden`;
-    newElement.textContent = newText;
-    const selector = className.length ? `.${className.split(" ").join(".")}` : "";
-    const oldElements = container.querySelectorAll(`${selector}.lovely-chart--state-hidden`);
-    oldElements.forEach((e) => e.remove());
-    element.classList.add("lovely-chart--transition");
-    element.classList.remove("lovely-chart--position-bottom", "lovely-chart--position-top");
-    element.classList.add(inverse ? "lovely-chart--position-bottom" : "lovely-chart--position-top");
-    container.insertBefore(newElement, element.nextSibling);
-    toggleElementIn(newElement);
-    toggleElementOut(element);
-    return newElement;
-  }
-  function toggleElementIn(element) {
-    element.classList.remove("lovely-chart--state-animated");
-    element.classList.add("lovely-chart--state-animated");
-    element.classList.remove("lovely-chart--state-hidden");
-  }
-  function toggleElementOut(element) {
-    element.classList.remove("lovely-chart--state-animated");
-    element.classList.add("lovely-chart--state-animated");
-    element.classList.add("lovely-chart--state-hidden");
-  }
-
-  class Header {
-    #container;
-    #title;
-    #zoomOutLabel;
-    #zoomOutCallback;
-    #element;
-    #titleElement;
-    #zoomOutElement;
-    #captionElement;
-    #isZooming;
-    #zoomBindTimeout = null;
-    setCaption = throttle((caption) => this.#setCaption(caption), 100, false);
-    constructor(container, title, zoomOutLabel = "Zoom out", zoomOutCallback) {
-      this.#container = container;
-      this.#title = title;
-      this.#zoomOutLabel = zoomOutLabel;
-      this.#zoomOutCallback = zoomOutCallback;
-      this.#setupLayout();
-    }
-    zoom(caption) {
-      this.#zoomOutElement = toggleText(this.#titleElement, this.#zoomOutLabel, "lovely-chart--header-title lovely-chart--header-zoom-out-control");
-      this.#zoomBindTimeout = window.setTimeout(() => {
-        this.#zoomBindTimeout = null;
-        addEventListener(this.#zoomOutElement, "click", this.#onZoomOut);
-      }, 500);
-      this.#setCaption(caption);
-    }
-    destroy() {
-      if (this.#zoomBindTimeout !== null) {
-        clearTimeout(this.#zoomBindTimeout);
-        this.#zoomBindTimeout = null;
-      }
-    }
-    toggleIsZooming(isZooming) {
-      this.#isZooming = isZooming;
-    }
-    #setCaption(caption) {
-      if (this.#isZooming) {
-        return;
-      }
-      this.#captionElement.textContent = caption;
-    }
-    #setupLayout() {
-      this.#element = createElement();
-      this.#element.className = "lovely-chart--header";
-      this.#titleElement = createElement();
-      this.#titleElement.className = "lovely-chart--header-title";
-      this.#titleElement.textContent = this.#title;
-      this.#element.appendChild(this.#titleElement);
-      this.#captionElement = createElement();
-      this.#captionElement.className = "lovely-chart--header-caption lovely-chart--position-right";
-      this.#element.appendChild(this.#captionElement);
-      this.#container.appendChild(this.#element);
-    }
-    #onZoomOut = () => {
-      this.#titleElement = toggleText(this.#zoomOutElement, this.#title, "lovely-chart--header-title", true);
-      this.#titleElement.classList.remove("lovely-chart--transition");
-      this.#zoomOutCallback();
-    };
-  }
 
   function statsFormatDayHour(labels) {
     return labels.map((value) => {
@@ -784,13 +190,91 @@ var LovelyChart = (function (exports) {
     return new Date(label.value).toString().match(/(\d+:\d+):/)[1];
   }
 
+  function xScaleLevelToStep(scaleLevel) {
+    return Math.pow(2, scaleLevel);
+  }
+  function xStepToScaleLevel(step) {
+    return Math.ceil(Math.log2(step || 1));
+  }
+  const SCALE_LEVELS = [
+    // Sub-unit steps for fine-grained data (e.g. portfolio P&L denominated in cents)
+    1e-4,
+    2e-4,
+    5e-4,
+    1e-3,
+    2e-3,
+    5e-3,
+    0.01,
+    0.02,
+    0.05,
+    0.1,
+    0.2,
+    0.5,
+    1,
+    2,
+    8,
+    18,
+    50,
+    100,
+    250,
+    500,
+    1e3,
+    2500,
+    5e3,
+    1e4,
+    25e3,
+    5e4,
+    1e5,
+    25e4,
+    5e5,
+    1e6,
+    25e5,
+    5e6,
+    1e7,
+    25e6,
+    5e7,
+    1e8
+  ];
+  function yScaleLevelToStep(scaleLevel) {
+    return SCALE_LEVELS[scaleLevel] || SCALE_LEVELS[SCALE_LEVELS.length - 1];
+  }
+  function yStepToScaleLevel(neededStep) {
+    const idx = SCALE_LEVELS.findIndex((step) => step >= neededStep);
+    return idx === -1 ? SCALE_LEVELS.length - 1 : idx;
+  }
+  function applyYEdgeOpacity(opacity, xPx, plotWidth) {
+    const edgeOffset = Math.min(xPx + GUTTER, plotWidth - xPx);
+    if (edgeOffset <= GUTTER * 4) {
+      opacity = Math.min(1, opacity, edgeOffset / (GUTTER * 4));
+    }
+    return opacity;
+  }
+  function applyXEdgeOpacity(opacity, yPx) {
+    return yPx - GUTTER <= GUTTER * 2 ? Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2)) : opacity;
+  }
+  function getPieRadius(projection) {
+    return Math.max(0, Math.min(...projection.getSize())) * PLOT_PIE_RADIUS_FACTOR;
+  }
+  function getPieTextSize(percent, radius) {
+    return (radius + percent * 200) / 10;
+  }
+  function getPieTextShift(percent, radius) {
+    return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
+  }
+  function isDataRange(labelFrom, labelTo) {
+    return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
+  }
+  function getSimplificationDelta(pointsLength) {
+    return pointsLength >= SIMPLIFIER_MIN_POINTS ? Math.min(pointsLength / 1e3, 1) : 0;
+  }
+
   function detectSkin() {
     return document.documentElement.classList.contains("theme-dark") ? "skin-night" : "skin-day";
   }
   let skin = detectSkin();
   const COLORS = {
     "skin-day": {
-      "background": "#FFFFFF",
+      background: "#FFFFFF",
       "text-color": "#222222",
       "minimap-mask": "#E2EEF9/0.6",
       "minimap-slider": "#C0D1E1",
@@ -798,12 +282,12 @@ var LovelyChart = (function (exports) {
       "zoom-out-text": "#108BE3",
       "tooltip-background": "#FFFFFF",
       "tooltip-arrow": "#D2D5D7",
-      "mask": "#FFFFFF/0.5",
+      mask: "#FFFFFF/0.5",
       "x-axis-text": "#252529/0.6",
       "y-axis-text": "#252529/0.6"
     },
     "skin-night": {
-      "background": "#242F3E",
+      background: "#242F3E",
       "text-color": "#FFFFFF",
       "minimap-mask": "#304259/0.6",
       "minimap-slider": "#56626D",
@@ -811,7 +295,7 @@ var LovelyChart = (function (exports) {
       "zoom-out-text": "#48AAF0",
       "tooltip-background": "#1c2533",
       "tooltip-arrow": "#D2D5D7",
-      "mask": "#242F3E/0.5",
+      mask: "#242F3E/0.5",
       "x-axis-text": "#A3B1C2/0.6",
       "y-axis-text": "#A3B1C2/0.6"
     }
@@ -845,8 +329,16 @@ var LovelyChart = (function (exports) {
       });
       Object.keys(datasetColors).forEach((key) => {
         colors[skin2][`dataset#${key}`] = hexToChannels(datasetColors[key]);
-        addCssRule(styleSheet, `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`, `color: ${datasetColors[key]}`);
-        addCssRule(styleSheet, `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`, `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`);
+        addCssRule(
+          styleSheet,
+          `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`,
+          `color: ${datasetColors[key]}`
+        );
+        addCssRule(
+          styleSheet,
+          `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`,
+          `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`
+        );
         const checkedBtnSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`;
         addCssRule(styleSheet, checkedBtnSelector, `background-color: ${datasetColors[key]}`);
       });
@@ -941,7 +433,7 @@ var LovelyChart = (function (exports) {
         yMaxViewportSecondFrom,
         yMaxViewportSecondTo
       } = state;
-      const colorKey = secondaryProjection ? `dataset#${this.#data.datasets[0].key}` : null;
+      const colorKey = secondaryProjection ? `dataset#${this.#data.datasets[0].key}` : void 0;
       const isYChanging = yMinViewportFrom !== void 0 || yMaxViewportFrom !== void 0;
       if (this.#data.isPercentage) {
         this.#drawYAxisPercents(projection);
@@ -1013,7 +505,7 @@ var LovelyChart = (function (exports) {
         }
       }
     }
-    #drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorKey = null, isSecondary = false) {
+    #drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorKey, isSecondary = false) {
       const context = this.#context;
       const plotSize = this.#plotSize;
       const step = yScaleLevelToStep(scaleLevel);
@@ -1080,7 +572,11 @@ var LovelyChart = (function (exports) {
         const textOpacity = applyXEdgeOpacity(opacity, yPx);
         const secondaryValue = value * multiplier;
         context.fillStyle = getCssColor(this.#colors, "y-axis-text", textOpacity);
-        context.fillText(`${prefix}${humanize(secondaryValue)}${suffix}`, this.#plotSize.width - GUTTER, yPx - GUTTER / 2);
+        context.fillText(
+          `${prefix}${humanize(secondaryValue)}${suffix}`,
+          this.#plotSize.width - GUTTER,
+          yPx - GUTTER / 2
+        );
       }
     }
     #formatPrimaryAxisLabel(value) {
@@ -1092,6 +588,16 @@ var LovelyChart = (function (exports) {
       }
       return `${prefix}${formatted}${suffix}`;
     }
+  }
+
+  const createElement = (tagName = "div") => {
+    return document.createElement(tagName);
+  };
+  function addEventListener(element, event, cb) {
+    element.addEventListener(event, cb);
+  }
+  function removeEventListener(element, event, cb) {
+    element.removeEventListener(event, cb);
   }
 
   function setupCanvas(container, { width, height }) {
@@ -1109,15 +615,873 @@ var LovelyChart = (function (exports) {
     context.clearRect(0, 0, canvas.width, canvas.height);
   }
 
+  function getMaxMin(array) {
+    const length = array.length;
+    let max;
+    let min;
+    for (let i = 0; i < length; i++) {
+      const value = array[i];
+      if (value === GAP || value === void 0) continue;
+      if (max === void 0 || value > max) max = value;
+      if (min === void 0 || value < min) min = value;
+    }
+    return { max, min };
+  }
+  function mergeArrays(arrays) {
+    return [].concat.apply([], arrays);
+  }
+  function sumArrays(arrays) {
+    const sums = [];
+    const n = arrays.length;
+    for (let i = 0, l = arrays[0].length; i < l; i++) {
+      sums[i] = 0;
+      for (let j = 0; j < n; j++) {
+        sums[i] += arrays[j][i];
+      }
+    }
+    return sums;
+  }
+  function proxyMerge(obj1, obj2) {
+    return new Proxy({}, {
+      get: (obj, prop) => {
+        if (obj[prop] !== void 0) {
+          return obj[prop];
+        } else if (obj2[prop] !== void 0) {
+          return obj2[prop];
+        } else {
+          return obj1[prop];
+        }
+      }
+    });
+  }
+  function throttle(fn, ms, shouldRunFirst = true) {
+    let interval;
+    let isPending;
+    let args;
+    return (..._args) => {
+      isPending = true;
+      args = _args;
+      if (!interval) {
+        if (shouldRunFirst) {
+          isPending = false;
+          fn(...args);
+        }
+        interval = window.setInterval(() => {
+          if (!isPending) {
+            window.clearInterval(interval);
+            interval = void 0;
+            return;
+          }
+          isPending = false;
+          fn(...args);
+        }, ms);
+      }
+    };
+  }
+  function throttleWithRaf(fn) {
+    let waiting = false;
+    let args;
+    return function(..._args) {
+      args = _args;
+      if (!waiting) {
+        waiting = true;
+        requestAnimationFrame(() => {
+          waiting = false;
+          fn(...args);
+        });
+      }
+    };
+  }
+  function debounce(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
+    let waitingTimeout;
+    return function() {
+      if (waitingTimeout) {
+        clearTimeout(waitingTimeout);
+        waitingTimeout = void 0;
+      } else if (shouldRunFirst) {
+        fn();
+      }
+      waitingTimeout = window.setTimeout(() => {
+        if (shouldRunLast) {
+          fn();
+        }
+        waitingTimeout = void 0;
+      }, ms);
+    };
+  }
+
+  const DEFAULT_COLORS = [
+    "#3497ED",
+    "#2373DB",
+    "#9ED448",
+    "#5FB641",
+    "#F5BD25",
+    "#F79E39",
+    "#E65850",
+    "#5D5CDC"
+  ];
+  const DEFAULT_COLORS_SUBSETS = [
+    [],
+    [0],
+    [0, 2],
+    [0, 2, 5],
+    [0, 2, 5, 7],
+    [0, 2, 4, 5, 7],
+    [0, 1, 2, 4, 5, 7],
+    [0, 1, 2, 3, 4, 5, 7]
+  ];
+  const LABEL_TYPE_TO_FORMATTER = {
+    year: "statsFormatYear",
+    month: "statsFormatMonth",
+    week: "statsFormatWeek",
+    day: "statsFormat('day')",
+    hour: "statsFormat('hour')",
+    "5min": "statsFormat('5min')",
+    dayHour: "statsFormatDayHour",
+    text: void 0
+  };
+  function analyzeData(data, fallbackLabelType) {
+    const {
+      title,
+      labelFormatter: labelFormatterRaw,
+      tooltipFormatter,
+      isStacked,
+      isPercentage,
+      secondaryYAxis,
+      hasSecondYAxis,
+      onZoom,
+      withMinimap,
+      minimapRange,
+      noCaption,
+      zoomOutLabel,
+      valuePrefix,
+      valueSuffix,
+      prefixIsCurrency,
+      limitDate,
+      onLimitedRangeClick
+    } = data;
+    const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
+    const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : void 0);
+    const { datasets, labels } = prepareDatasets(data);
+    const colors = {};
+    let totalYMin = Infinity;
+    let totalYMax = -Infinity;
+    datasets.forEach(({ key, color, yMin, yMax }) => {
+      colors[key] = color;
+      if (yMin !== void 0 && yMin < totalYMin) {
+        totalYMin = yMin;
+      }
+      if (yMax !== void 0 && yMax > totalYMax) {
+        totalYMax = yMax;
+      }
+    });
+    let xLabels;
+    switch (labelFormatter) {
+      case "statsFormatYear":
+        xLabels = statsFormatYear(labels);
+        break;
+      case "statsFormatMonth":
+        xLabels = statsFormatMonth(labels);
+        break;
+      case "statsFormatWeek":
+        xLabels = statsFormatWeek(labels);
+        break;
+      case "statsFormatDayHour":
+        xLabels = statsFormatDayHour(labels);
+        break;
+      case "statsFormat('day')":
+        xLabels = statsFormatDay(labels);
+        break;
+      case "statsFormat('hour')":
+      case "statsFormat('5min')":
+        xLabels = statsFormatMin(labels);
+        break;
+      default:
+        xLabels = statsFormatText(labels);
+        break;
+    }
+    let limitBegin;
+    if (limitDate !== void 0) {
+      const totalXWidth = labels.length - 1;
+      const idx = labels.findIndex((l) => l >= limitDate);
+      if (idx > 0) {
+        limitBegin = idx / totalXWidth;
+      }
+    }
+    const shouldZoomToPie = !onZoom && Boolean(isPercentage);
+    const analyzed = {
+      title,
+      labelType,
+      labelFormatter,
+      tooltipFormatter,
+      xLabels,
+      datasets,
+      isStacked,
+      isPercentage,
+      secondaryYAxis,
+      hasSecondYAxis,
+      valuePrefix,
+      valueSuffix,
+      prefixIsCurrency,
+      onZoom,
+      isLines: data.type === "line",
+      isBars: data.type === "bar",
+      isSteps: data.type === "step",
+      isAreas: data.type === "area",
+      isPie: data.type === "pie",
+      isDonut: Boolean(data.isDonut),
+      withGradient: Boolean(data.withGradient),
+      yMin: totalYMin,
+      yMax: totalYMax,
+      colors,
+      withMinimap: Boolean(withMinimap),
+      minimapRange: buildMinimapRange(minimapRange),
+      noCaption,
+      zoomOutLabel,
+      limitBegin,
+      onLimitedRangeClick,
+      shouldZoomToPie,
+      isZoomable: Boolean(onZoom) || shouldZoomToPie
+    };
+    return analyzed;
+  }
+  function inferLabelType(labels) {
+    const [first, second] = labels;
+    if (typeof first === "string") {
+      return "text";
+    }
+    if (typeof first !== "number") {
+      return void 0;
+    }
+    if (typeof second !== "number") {
+      return "day";
+    }
+    const step = Math.abs(second - first);
+    if (step >= 365 * MILISECONDS_IN_DAY) {
+      return "year";
+    }
+    if (step >= 28 * MILISECONDS_IN_DAY) {
+      return "month";
+    }
+    if (step >= 7 * MILISECONDS_IN_DAY) {
+      return "week";
+    }
+    if (step >= MILISECONDS_IN_DAY) {
+      return "day";
+    }
+    if (step >= MILISECONDS_IN_DAY / 24) {
+      return "hour";
+    }
+    return "5min";
+  }
+  function buildMinimapRange(minimapRange) {
+    if (!minimapRange) {
+      return void 0;
+    }
+    if (minimapRange === "full") {
+      return { begin: 0, end: 1 };
+    }
+    const [begin, end] = minimapRange;
+    return { begin, end };
+  }
+  function prepareDatasets(data) {
+    const { type, labels, datasets, hasSecondYAxis } = data;
+    const defaultColors = getDefaultColors(datasets.length);
+    let nextDefaultColor = 0;
+    return {
+      labels: cloneArray(labels),
+      datasets: datasets.map(({ name, color, values }, i) => {
+        const { min: yMin, max: yMax } = getMaxMin(values);
+        return {
+          type,
+          key: `y${i}`,
+          name,
+          color: color || defaultColors[nextDefaultColor++ % defaultColors.length],
+          values: cloneArray(values),
+          hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
+          yMin,
+          yMax
+        };
+      })
+    };
+  }
+  function getDefaultColors(datasetsCount) {
+    const subset = DEFAULT_COLORS_SUBSETS[datasetsCount];
+    return subset ? subset.map((index) => DEFAULT_COLORS[index]) : DEFAULT_COLORS;
+  }
+  function cloneArray(array) {
+    return array.slice(0);
+  }
+
+  const simplify = (() => {
+    function simplify2(points, indexes, fixedPoints) {
+      if (points.length < 6) {
+        return function() {
+          return {
+            points,
+            indexes: indexes || points.map((_, i) => i),
+            removed: []
+          };
+        };
+      }
+      const worker = precalculate(points, fixedPoints);
+      return function(delta) {
+        const result = [], resultIndexes = [], removed = [];
+        const delta2 = delta * delta, markers = worker(delta2);
+        for (let i = 0, l = points.length; i < l; i++) {
+          if (markers[i] >= delta2 || i === 0 || i === l - 1) {
+            result.push(points[i]);
+            resultIndexes.push(indexes ? indexes[i] : i);
+          } else {
+            removed.push(i);
+          }
+        }
+        return {
+          points: result,
+          indexes: resultIndexes,
+          removed
+        };
+      };
+    }
+    const E1 = 1 / Math.pow(2, 22), MAXLIMIT = 1e5;
+    function precalculate(points, fixedPoints) {
+      const len = points.length;
+      const distances = [];
+      const queue = [];
+      let maximumDelta = 0;
+      for (let i = 0, l = points.length; i < l; ++i) {
+        distances[i] = 0;
+      }
+      if (!fixedPoints) {
+        fixedPoints = [];
+      }
+      let subdivisionTree = 0;
+      for (let i = 0, l = fixedPoints.length; i < l; ++i) {
+        distances[fixedPoints[i]] = MAXLIMIT;
+      }
+      function worker(params) {
+        const start = params.start;
+        const end = params.end;
+        const currentLimit = params.currentLimit;
+        let record = params.record;
+        let usedDistance = 0;
+        if (!record) {
+          let usedIndex = -1;
+          const vector = [
+            points[end][0] - points[start][0],
+            points[end][1] - points[start][1]
+          ];
+          for (let i = 0, l = fixedPoints.length; i < l; ++i) {
+            const fixId = fixedPoints[i];
+            if (fixId > start) {
+              if (fixId < end) {
+                usedIndex = fixId;
+                usedDistance = MAXLIMIT;
+                break;
+              } else {
+                break;
+              }
+            }
+          }
+          if (usedIndex < 0) {
+            if (Math.abs(vector[0]) > E1 || Math.abs(vector[1]) > E1) {
+              const vectorLength = vector[0] * vector[0] + vector[1] * vector[1], vectorLength_1 = 1 / vectorLength;
+              for (let i = start + 1; i < end; ++i) {
+                const segmentDistance = pointToSegmentDistanceSquare(
+                  points[i],
+                  points[start],
+                  points[end],
+                  vector,
+                  vectorLength_1
+                );
+                if (segmentDistance > usedDistance) {
+                  usedIndex = i;
+                  usedDistance = segmentDistance;
+                }
+              }
+            } else {
+              usedIndex = Math.round((start + end) * 0.5);
+              usedDistance = currentLimit;
+            }
+            distances[usedIndex] = usedDistance;
+          }
+          record = {
+            start,
+            end,
+            index: usedIndex,
+            distance: usedDistance
+          };
+        }
+        if (record.index && record.distance > maximumDelta) {
+          if (record.index - start >= 2) {
+            queue.push({
+              start,
+              end: record.index,
+              record: record.left,
+              currentLimit: record.distance,
+              parent: record,
+              parentProperty: "left"
+            });
+          }
+          if (end - record.index >= 2) {
+            queue.push({
+              start: record.index,
+              end,
+              record: record.right,
+              currentLimit: record.distance,
+              parent: record,
+              parentProperty: "right"
+            });
+          }
+        }
+        return record;
+      }
+      function tick() {
+        const request = queue.pop(), result = worker(request);
+        if (request.parent && request.parentProperty) {
+          request.parent[request.parentProperty] = result;
+        }
+        return result;
+      }
+      return function(delta) {
+        maximumDelta = delta;
+        queue.push({
+          start: 0,
+          end: len - 1,
+          record: subdivisionTree,
+          currentLimit: MAXLIMIT
+        });
+        subdivisionTree = tick();
+        while (queue.length) {
+          tick();
+        }
+        return distances;
+      };
+    }
+    function pointToSegmentDistanceSquare(p, v1, v2, dv, dvlen_1) {
+      let vx = +v1[0], vy = +v1[1];
+      const t = +((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * dvlen_1;
+      if (t > 1) {
+        vx = +v2[0];
+        vy = +v2[1];
+      } else if (t > 0) {
+        vx += +dv[0] * t;
+        vy += +dv[1] * t;
+      }
+      const a = +p[0] - vx, b = +p[1] - vy;
+      return +a * a + b * b;
+    }
+    return simplify2;
+  })();
+
+  function drawDatasets(context, state, data, range, points, projection, secondaryPoints, secondaryProjection, lineWidth, visibilities, colors, pieToBar, simplification) {
+    data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
+      if (!visibilities[i]) {
+        return;
+      }
+      const options = {
+        color: getCssColor(colors, `dataset#${key}`),
+        lineWidth,
+        opacity: data.isStacked ? 1 : visibilities[i],
+        simplification
+      };
+      const datasetType = type === "pie" && pieToBar ? "bar" : type;
+      let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
+      const datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
+      if (datasetType === "area") {
+        const bottomLine = [
+          { labelIndex: range.from, stackValue: 0 },
+          { labelIndex: range.to, stackValue: 0 }
+        ];
+        const lowerBoundary = points[i - 1] || bottomLine;
+        const upperBoundary = points[i].slice().reverse();
+        datasetPoints = mergeArrays([lowerBoundary, upperBoundary]);
+      }
+      if (datasetType === "pie") {
+        options.center = projection.getCenter();
+        options.radius = getPieRadius(projection);
+        options.shift = (state[`pieShift#${key}`] || 0) * PLOT_PIE_SHIFT;
+        options.isDonut = data.isDonut;
+        options.withGradient = data.withGradient;
+      }
+      if (datasetType === "bar") {
+        const [x0] = projection.toPixels(0, 0);
+        const [x1] = projection.toPixels(1, 0);
+        options.lineWidth = x1 - x0;
+        options.focusOn = state.focusOn;
+      }
+      drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
+    });
+    if (state.focusOn !== void 0 && state.focusOn !== NO_FOCUS && (data.isBars || data.isSteps)) {
+      const [x0] = projection.toPixels(0, 0);
+      const [x1] = projection.toPixels(1, 0);
+      drawBarsMask(context, projection, {
+        focusOn: state.focusOn,
+        color: getCssColor(colors, "mask"),
+        lineWidth: data.isSteps ? x1 - x0 + lineWidth : x1 - x0
+      });
+    }
+  }
+  function drawDataset(type, context, points, projection, options) {
+    switch (type) {
+      case "line":
+        return drawDatasetLine(context, points, projection, options);
+      case "bar":
+        return drawDatasetBars(context, points, projection, options);
+      case "step":
+        return drawDatasetSteps(context, points, projection, options);
+      case "area":
+        return drawDatasetArea(context, points, projection, options);
+      case "pie":
+        return drawDatasetPie(context, points, projection, options);
+    }
+  }
+  function drawDatasetLine(context, points, projection, options) {
+    context.beginPath();
+    const segments = [];
+    let current = [];
+    for (let j = 0, l = points.length; j < l; j++) {
+      const point = points[j];
+      if (point.gap) {
+        if (current.length) {
+          segments.push(current);
+          current = [];
+        }
+        continue;
+      }
+      current.push(projection.toPixels(point.labelIndex, point.stackValue));
+    }
+    if (current.length) segments.push(current);
+    segments.forEach((segment) => {
+      let pixels = segment;
+      if (options.simplification) {
+        pixels = simplify(pixels)(options.simplification).points;
+      }
+      pixels.forEach(([x, y], k) => {
+        if (k === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      });
+    });
+    context.save();
+    context.strokeStyle = options.color;
+    context.lineWidth = options.lineWidth;
+    context.globalAlpha = options.opacity;
+    context.lineJoin = "bevel";
+    context.lineCap = "butt";
+    context.stroke();
+    context.restore();
+  }
+  function drawDatasetBars(context, points, projection, options) {
+    const { yMin } = projection.getParams();
+    context.save();
+    context.globalAlpha = options.opacity;
+    context.fillStyle = options.color;
+    for (let j = 0, l = points.length; j < l; j++) {
+      if (points[j].gap) continue;
+      const { labelIndex, stackValue, stackOffset = 0 } = points[j];
+      const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
+      const [x, yTo] = projection.toPixels(labelIndex, stackValue);
+      const rectX = x - options.lineWidth / 2;
+      const rectY = yTo;
+      const rectW = options.opacity === 1 ? options.lineWidth + PLOT_BARS_WIDTH_SHIFT : options.lineWidth + PLOT_BARS_WIDTH_SHIFT * options.opacity;
+      const rectH = yFrom - yTo;
+      context.fillRect(rectX, rectY, rectW, rectH);
+    }
+    context.restore();
+  }
+  function drawDatasetSteps(context, points, projection, options) {
+    context.beginPath();
+    const segments = [];
+    let current = [];
+    for (let j = 0, l = points.length; j < l; j++) {
+      const point = points[j];
+      if (point.gap) {
+        if (current.length) {
+          segments.push(current);
+          current = [];
+        }
+        continue;
+      }
+      current.push(
+        projection.toPixels(point.labelIndex - PLOT_BARS_WIDTH_SHIFT, point.stackValue),
+        projection.toPixels(point.labelIndex + PLOT_BARS_WIDTH_SHIFT, point.stackValue)
+      );
+    }
+    if (current.length) segments.push(current);
+    segments.forEach((segment) => {
+      segment.forEach(([x, y], k) => {
+        if (k === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      });
+    });
+    context.save();
+    context.strokeStyle = options.color;
+    context.lineWidth = options.lineWidth;
+    context.globalAlpha = options.opacity;
+    context.stroke();
+    context.restore();
+  }
+  function drawBarsMask(context, projection, options) {
+    const [xCenter, yCenter] = projection.getCenter();
+    const [width, height] = projection.getSize();
+    const [x] = projection.toPixels(options.focusOn, 0);
+    context.fillStyle = options.color;
+    context.fillRect(
+      xCenter - width / 2,
+      yCenter - height / 2,
+      x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT,
+      height
+    );
+    context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
+  }
+  function drawDatasetArea(context, points, projection, options) {
+    context.beginPath();
+    let pixels = [];
+    for (let j = 0, l = points.length; j < l; j++) {
+      const { labelIndex, stackValue } = points[j];
+      pixels.push(projection.toPixels(labelIndex, stackValue));
+    }
+    if (options.simplification) {
+      const simplifierFn = simplify(pixels);
+      pixels = simplifierFn(options.simplification).points;
+    }
+    pixels.forEach(([x, y]) => {
+      context.lineTo(x, y);
+    });
+    context.save();
+    context.fillStyle = options.color;
+    context.lineWidth = options.lineWidth;
+    context.globalAlpha = options.opacity;
+    context.lineJoin = "bevel";
+    context.lineCap = "butt";
+    context.fill();
+    context.restore();
+  }
+  function drawDatasetPie(context, points, projection, options) {
+    const { visibleValue, stackValue, stackOffset = 0 } = points[0];
+    if (!visibleValue) {
+      return;
+    }
+    const { yMin, yMax } = projection.getParams();
+    const percentFactor = 1 / (yMax - yMin);
+    const percent = visibleValue * percentFactor;
+    const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
+    const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
+    const { radius = 120, center: [x, y] = [0, 0], shift = 0, isDonut, withGradient } = options;
+    const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
+    const shiftAngle = (beginAngle + endAngle) / 2;
+    const directionX = Math.cos(shiftAngle);
+    const directionY = Math.sin(shiftAngle);
+    const shiftX = directionX * shift;
+    const shiftY = directionY * shift;
+    context.save();
+    context.beginPath();
+    context.fillStyle = withGradient ? buildPieGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color) : options.color;
+    if (isDonut) {
+      context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
+      context.arc(x + shiftX, y + shiftY, innerRadius, endAngle, beginAngle, true);
+      context.closePath();
+    } else {
+      context.moveTo(x + shiftX, y + shiftY);
+      context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
+      context.lineTo(x + shiftX, y + shiftY);
+    }
+    context.fill();
+    if (percent >= PIE_MINIMUM_VISIBLE_PERCENT) {
+      const fontFamily = getComputedStyle(context.canvas).fontFamily || "sans-serif";
+      context.font = `700 ${getPieTextSize(percent, radius)}px ${fontFamily}`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillStyle = "white";
+      const textShift = isDonut ? (radius + innerRadius) / 2 : getPieTextShift(percent, radius);
+      context.fillText(
+        `${Math.round(percent * 100)}%`,
+        x + directionX * textShift + shiftX,
+        y + directionY * textShift + shiftY
+      );
+    }
+    context.restore();
+  }
+  function buildPieGradient(context, cx, cy, innerRadius, radius, color) {
+    const channels = parseRgba(color);
+    const gradient = context.createRadialGradient(cx, cy, innerRadius, cx, cy, radius);
+    gradient.addColorStop(0, shadeColor(channels, 0.1));
+    gradient.addColorStop(1, shadeColor(channels, -0.1));
+    return gradient;
+  }
+  function parseRgba(color) {
+    const channels = color.match(/[\d.]+/g);
+    return channels ? channels.map(Number) : [0, 0, 0, 1];
+  }
+  function shadeColor([r, g, b, a = 1], amount) {
+    const target = amount >= 0 ? 255 : 0;
+    const t = Math.abs(amount);
+    const mix = (channel) => Math.round(channel + (target - channel) * t);
+    return `rgba(${mix(r)}, ${mix(g)}, ${mix(b)}, ${a})`;
+  }
+
+  function toggleText(element, newText, className = "", inverse = false) {
+    const container = element.parentNode;
+    container.classList.add("lovely-chart--transition-container");
+    const newElement = createElement(element.tagName);
+    newElement.className = `${className} lovely-chart--transition lovely-chart--position-${inverse ? "top" : "bottom"} lovely-chart--state-hidden`;
+    newElement.textContent = newText;
+    const selector = className.length ? `.${className.split(" ").join(".")}` : "";
+    const oldElements = container.querySelectorAll(`${selector}.lovely-chart--state-hidden`);
+    oldElements.forEach((e) => e.remove());
+    element.classList.add("lovely-chart--transition");
+    element.classList.remove("lovely-chart--position-bottom", "lovely-chart--position-top");
+    element.classList.add(inverse ? "lovely-chart--position-bottom" : "lovely-chart--position-top");
+    container.insertBefore(newElement, element.nextSibling);
+    toggleElementIn(newElement);
+    toggleElementOut(element);
+    return newElement;
+  }
+  function toggleElementIn(element) {
+    element.classList.remove("lovely-chart--state-animated");
+    element.classList.add("lovely-chart--state-animated");
+    element.classList.remove("lovely-chart--state-hidden");
+  }
+  function toggleElementOut(element) {
+    element.classList.remove("lovely-chart--state-animated");
+    element.classList.add("lovely-chart--state-animated");
+    element.classList.add("lovely-chart--state-hidden");
+  }
+
+  class Header {
+    #container;
+    #title;
+    #zoomOutLabel;
+    #zoomOutCallback;
+    #element;
+    #titleElement;
+    #zoomOutElement;
+    #captionElement;
+    #isZooming;
+    #zoomBindTimeout;
+    setCaption = throttle((caption) => this.#setCaption(caption), 100, false);
+    constructor(container, title, zoomOutLabel = "Zoom out", zoomOutCallback) {
+      this.#container = container;
+      this.#title = title;
+      this.#zoomOutLabel = zoomOutLabel;
+      this.#zoomOutCallback = zoomOutCallback;
+      this.#setupLayout();
+    }
+    zoom(caption) {
+      this.#zoomOutElement = toggleText(
+        this.#titleElement,
+        this.#zoomOutLabel,
+        "lovely-chart--header-title lovely-chart--header-zoom-out-control"
+      );
+      this.#zoomBindTimeout = window.setTimeout(() => {
+        this.#zoomBindTimeout = void 0;
+        addEventListener(this.#zoomOutElement, "click", this.#onZoomOut);
+      }, 500);
+      this.#setCaption(caption);
+    }
+    destroy() {
+      if (this.#zoomBindTimeout !== void 0) {
+        clearTimeout(this.#zoomBindTimeout);
+        this.#zoomBindTimeout = void 0;
+      }
+    }
+    toggleIsZooming(isZooming) {
+      this.#isZooming = isZooming;
+    }
+    #setCaption(caption) {
+      if (this.#isZooming) {
+        return;
+      }
+      this.#captionElement.textContent = caption;
+    }
+    #setupLayout() {
+      this.#element = createElement();
+      this.#element.className = "lovely-chart--header";
+      this.#titleElement = createElement();
+      this.#titleElement.className = "lovely-chart--header-title";
+      this.#titleElement.textContent = this.#title;
+      this.#element.appendChild(this.#titleElement);
+      this.#captionElement = createElement();
+      this.#captionElement.className = "lovely-chart--header-caption lovely-chart--position-right";
+      this.#element.appendChild(this.#captionElement);
+      this.#container.appendChild(this.#element);
+    }
+    #onZoomOut = () => {
+      this.#titleElement = toggleText(this.#zoomOutElement, this.#title, "lovely-chart--header-title", true);
+      this.#titleElement.classList.remove("lovely-chart--transition");
+      this.#zoomOutCallback();
+    };
+  }
+
+  function captureEvents(element, options) {
+    let captureEvent;
+    let longPressTimeout;
+    function onCapture(e) {
+      captureEvent = e;
+      if (e.type === "mousedown") {
+        addEventListener(document, "mousemove", onMove);
+        addEventListener(document, "mouseup", onRelease);
+      } else if (e.type === "touchstart") {
+        addEventListener(document, "touchmove", onMove);
+        addEventListener(document, "touchend", onRelease);
+        addEventListener(document, "touchcancel", onRelease);
+        if (e.pageX === void 0) {
+          e.pageX = e.touches[0].pageX;
+        }
+      }
+      if (options.draggingCursor) {
+        document.documentElement.classList.add(`cursor-${options.draggingCursor}`);
+      }
+      options.onCapture?.(e);
+      if (options.onLongPress) {
+        longPressTimeout = window.setTimeout(() => options.onLongPress(), LONG_PRESS_TIMEOUT);
+      }
+    }
+    function onRelease(e) {
+      if (captureEvent) {
+        if (longPressTimeout) {
+          clearTimeout(longPressTimeout);
+          longPressTimeout = void 0;
+        }
+        if (options.draggingCursor) {
+          document.documentElement.classList.remove(`cursor-${options.draggingCursor}`);
+        }
+        removeEventListener(document, "mouseup", onRelease);
+        removeEventListener(document, "mousemove", onMove);
+        removeEventListener(document, "touchcancel", onRelease);
+        removeEventListener(document, "touchend", onRelease);
+        removeEventListener(document, "touchmove", onMove);
+        captureEvent = void 0;
+        options.onRelease?.(e);
+      }
+    }
+    function onMove(e) {
+      if (captureEvent) {
+        if (longPressTimeout) {
+          clearTimeout(longPressTimeout);
+          longPressTimeout = void 0;
+        }
+        if (e.type === "touchmove" && e.pageX === void 0) {
+          e.pageX = e.touches[0].pageX;
+        }
+        options.onDrag?.(e, captureEvent, {
+          dragOffsetX: e.pageX - captureEvent.pageX
+        });
+      }
+    }
+    addEventListener(element, "mousedown", onCapture);
+    addEventListener(element, "touchstart", onCapture);
+  }
+
   function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
     let values = datasets.map(({ values: values2 }) => values2.slice(range.from, range.to + 1));
     if (data.isPie && !pieToArea) {
       values = prepareSumsByX(values);
     }
     const points = values.map((datasetValues, i) => datasetValues.map((value, j) => {
-      const isGap = value == null;
-      let visibleValue = isGap ? 0 : value;
-      if (data.isStacked && !isGap) {
+      const gap = value === GAP;
+      let visibleValue = gap ? 0 : value;
+      if (data.isStacked && !gap) {
         visibleValue *= visibilities[i];
       }
       return {
@@ -1126,7 +1490,7 @@ var LovelyChart = (function (exports) {
         visibleValue,
         stackOffset: 0,
         stackValue: visibleValue,
-        gap: isGap
+        gap
       };
     }));
     if (data.isPercentage) {
@@ -1250,455 +1614,6 @@ var LovelyChart = (function (exports) {
     }
   }
 
-  const simplify = (() => {
-    function simplify2(points, indexes, fixedPoints) {
-      if (points.length < 6) {
-        return function() {
-          return {
-            points,
-            indexes: indexes || points.map((_, i) => i),
-            removed: []
-          };
-        };
-      }
-      let worker = precalculate(points, fixedPoints);
-      return function(delta) {
-        let result = [], resultIndexes = [], removed = [];
-        let delta2 = delta * delta, markers = worker(delta2);
-        for (let i = 0, l = points.length; i < l; i++) {
-          if (markers[i] >= delta2 || i == 0 || i == l - 1) {
-            result.push(points[i]);
-            resultIndexes.push(indexes ? indexes[i] : i);
-          } else {
-            removed.push(i);
-          }
-        }
-        return {
-          points: result,
-          indexes: resultIndexes,
-          removed
-        };
-      };
-    }
-    let E1 = 1 / Math.pow(2, 22), MAXLIMIT = 1e5;
-    function precalculate(points, fixedPoints) {
-      let len = points.length, distances = [], queue = [], maximumDelta = 0;
-      for (let i = 0, l = points.length; i < l; ++i) {
-        distances[i] = 0;
-      }
-      if (!fixedPoints) {
-        fixedPoints = [];
-      }
-      let subdivisionTree = 0;
-      for (let i = 0, l = fixedPoints.length; i < l; ++i) {
-        distances[fixedPoints[i]] = MAXLIMIT;
-      }
-      function worker(params) {
-        let start = params.start, end = params.end, record = params.record, currentLimit = params.currentLimit, usedDistance = 0;
-        if (!record) {
-          let usedIndex = -1, vector = [
-            points[end][0] - points[start][0],
-            points[end][1] - points[start][1]
-          ];
-          for (let i = 0, l = fixedPoints.length; i < l; ++i) {
-            let fixId = fixedPoints[i];
-            if (fixId > start) {
-              if (fixId < end) {
-                usedIndex = fixId;
-                usedDistance = MAXLIMIT;
-                break;
-              } else {
-                break;
-              }
-            }
-          }
-          if (usedIndex < 0) {
-            if (Math.abs(vector[0]) > E1 || Math.abs(vector[1]) > E1) {
-              let vectorLength = vector[0] * vector[0] + vector[1] * vector[1], vectorLength_1 = 1 / vectorLength;
-              for (let i = start + 1; i < end; ++i) {
-                let segmentDistance = pointToSegmentDistanceSquare(points[i], points[start], points[end], vector, vectorLength_1);
-                if (segmentDistance > usedDistance) {
-                  usedIndex = i;
-                  usedDistance = segmentDistance;
-                }
-              }
-            } else {
-              usedIndex = Math.round((start + end) * 0.5);
-              usedDistance = currentLimit;
-            }
-            distances[usedIndex] = usedDistance;
-          }
-          record = {
-            start,
-            end,
-            index: usedIndex,
-            distance: usedDistance
-          };
-        }
-        if (record.index && record.distance > maximumDelta) {
-          if (record.index - start >= 2) {
-            queue.push({
-              start,
-              end: record.index,
-              record: record.left,
-              currentLimit: record.distance,
-              parent: record,
-              parentProperty: "left"
-            });
-          }
-          if (end - record.index >= 2) {
-            queue.push({
-              start: record.index,
-              end,
-              record: record.right,
-              currentLimit: record.distance,
-              parent: record,
-              parentProperty: "right"
-            });
-          }
-        }
-        return record;
-      }
-      function tick() {
-        let request = queue.pop(), result = worker(request);
-        if (request.parent && request.parentProperty) {
-          request.parent[request.parentProperty] = result;
-        }
-        return result;
-      }
-      return function(delta) {
-        maximumDelta = delta;
-        queue.push({
-          start: 0,
-          end: len - 1,
-          record: subdivisionTree,
-          currentLimit: MAXLIMIT
-        });
-        subdivisionTree = tick();
-        while (queue.length) {
-          tick();
-        }
-        return distances;
-      };
-    }
-    function pointToSegmentDistanceSquare(p, v1, v2, dv, dvlen_1) {
-      let t;
-      let vx = +v1[0], vy = +v1[1];
-      t = +((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * dvlen_1;
-      if (t > 1) {
-        vx = +v2[0];
-        vy = +v2[1];
-      } else if (t > 0) {
-        vx += +dv[0] * t;
-        vy += +dv[1] * t;
-      }
-      let a = +p[0] - vx, b = +p[1] - vy;
-      return +a * a + b * b;
-    }
-    return simplify2;
-  })();
-
-  function drawDatasets(context, state, data, range, points, projection, secondaryPoints, secondaryProjection, lineWidth, visibilities, colors, pieToBar, simplification) {
-    data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
-      if (!visibilities[i]) {
-        return;
-      }
-      const options = {
-        color: getCssColor(colors, `dataset#${key}`),
-        lineWidth,
-        opacity: data.isStacked ? 1 : visibilities[i],
-        simplification
-      };
-      const datasetType = type === "pie" && pieToBar ? "bar" : type;
-      let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
-      let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
-      if (datasetType === "area") {
-        const bottomLine = [
-          { labelIndex: range.from, stackValue: 0 },
-          { labelIndex: range.to, stackValue: 0 }
-        ];
-        const lowerBoundary = points[i - 1] || bottomLine;
-        const upperBoundary = points[i].slice().reverse();
-        datasetPoints = mergeArrays([lowerBoundary, upperBoundary]);
-      }
-      if (datasetType === "pie") {
-        options.center = projection.getCenter();
-        options.radius = getPieRadius(projection);
-        options.shift = (state[`pieShift#${key}`] || 0) * PLOT_PIE_SHIFT;
-        options.isDonut = data.isDonut;
-        options.withGradient = data.withGradient;
-      }
-      if (datasetType === "bar") {
-        const [x0] = projection.toPixels(0, 0);
-        const [x1] = projection.toPixels(1, 0);
-        options.lineWidth = x1 - x0;
-        options.focusOn = state.focusOn;
-      }
-      drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
-    });
-    if (state.focusOn != null && (data.isBars || data.isSteps)) {
-      const [x0] = projection.toPixels(0, 0);
-      const [x1] = projection.toPixels(1, 0);
-      drawBarsMask(context, projection, {
-        focusOn: state.focusOn,
-        color: getCssColor(colors, "mask"),
-        lineWidth: data.isSteps ? x1 - x0 + lineWidth : x1 - x0
-      });
-    }
-  }
-  function drawDataset(type, context, points, projection, options) {
-    switch (type) {
-      case "line":
-        return drawDatasetLine(context, points, projection, options);
-      case "bar":
-        return drawDatasetBars(context, points, projection, options);
-      case "step":
-        return drawDatasetSteps(context, points, projection, options);
-      case "area":
-        return drawDatasetArea(context, points, projection, options);
-      case "pie":
-        return drawDatasetPie(context, points, projection, options);
-    }
-  }
-  function drawDatasetLine(context, points, projection, options) {
-    context.beginPath();
-    const segments = [];
-    let current = [];
-    for (let j = 0, l = points.length; j < l; j++) {
-      const point = points[j];
-      if (point.gap) {
-        if (current.length) {
-          segments.push(current);
-          current = [];
-        }
-        continue;
-      }
-      current.push(projection.toPixels(point.labelIndex, point.stackValue));
-    }
-    if (current.length) segments.push(current);
-    segments.forEach((segment) => {
-      let pixels = segment;
-      if (options.simplification) {
-        pixels = simplify(pixels)(options.simplification).points;
-      }
-      pixels.forEach(([x, y], k) => {
-        if (k === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
-      });
-    });
-    context.save();
-    context.strokeStyle = options.color;
-    context.lineWidth = options.lineWidth;
-    context.globalAlpha = options.opacity;
-    context.lineJoin = "bevel";
-    context.lineCap = "butt";
-    context.stroke();
-    context.restore();
-  }
-  function drawDatasetBars(context, points, projection, options) {
-    const { yMin } = projection.getParams();
-    context.save();
-    context.globalAlpha = options.opacity;
-    context.fillStyle = options.color;
-    for (let j = 0, l = points.length; j < l; j++) {
-      if (points[j].gap) continue;
-      const { labelIndex, stackValue, stackOffset = 0 } = points[j];
-      const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
-      const [x, yTo] = projection.toPixels(labelIndex, stackValue);
-      const rectX = x - options.lineWidth / 2;
-      const rectY = yTo;
-      const rectW = options.opacity === 1 ? options.lineWidth + PLOT_BARS_WIDTH_SHIFT : options.lineWidth + PLOT_BARS_WIDTH_SHIFT * options.opacity;
-      const rectH = yFrom - yTo;
-      context.fillRect(rectX, rectY, rectW, rectH);
-    }
-    context.restore();
-  }
-  function drawDatasetSteps(context, points, projection, options) {
-    context.beginPath();
-    const segments = [];
-    let current = [];
-    for (let j = 0, l = points.length; j < l; j++) {
-      const point = points[j];
-      if (point.gap) {
-        if (current.length) {
-          segments.push(current);
-          current = [];
-        }
-        continue;
-      }
-      current.push(
-        projection.toPixels(point.labelIndex - PLOT_BARS_WIDTH_SHIFT, point.stackValue),
-        projection.toPixels(point.labelIndex + PLOT_BARS_WIDTH_SHIFT, point.stackValue)
-      );
-    }
-    if (current.length) segments.push(current);
-    segments.forEach((segment) => {
-      segment.forEach(([x, y], k) => {
-        if (k === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
-      });
-    });
-    context.save();
-    context.strokeStyle = options.color;
-    context.lineWidth = options.lineWidth;
-    context.globalAlpha = options.opacity;
-    context.stroke();
-    context.restore();
-  }
-  function drawBarsMask(context, projection, options) {
-    const [xCenter, yCenter] = projection.getCenter();
-    const [width, height] = projection.getSize();
-    const [x] = projection.toPixels(options.focusOn, 0);
-    context.fillStyle = options.color;
-    context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT, height);
-    context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
-  }
-  function drawDatasetArea(context, points, projection, options) {
-    context.beginPath();
-    let pixels = [];
-    for (let j = 0, l = points.length; j < l; j++) {
-      const { labelIndex, stackValue } = points[j];
-      pixels.push(projection.toPixels(labelIndex, stackValue));
-    }
-    if (options.simplification) {
-      const simplifierFn = simplify(pixels);
-      pixels = simplifierFn(options.simplification).points;
-    }
-    pixels.forEach(([x, y]) => {
-      context.lineTo(x, y);
-    });
-    context.save();
-    context.fillStyle = options.color;
-    context.lineWidth = options.lineWidth;
-    context.globalAlpha = options.opacity;
-    context.lineJoin = "bevel";
-    context.lineCap = "butt";
-    context.fill();
-    context.restore();
-  }
-  function drawDatasetPie(context, points, projection, options) {
-    const { visibleValue, stackValue, stackOffset = 0 } = points[0];
-    if (!visibleValue) {
-      return;
-    }
-    const { yMin, yMax } = projection.getParams();
-    const percentFactor = 1 / (yMax - yMin);
-    const percent = visibleValue * percentFactor;
-    const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
-    const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
-    const { radius = 120, center: [x, y] = [0, 0], shift = 0, isDonut, withGradient } = options;
-    const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
-    const shiftAngle = (beginAngle + endAngle) / 2;
-    const directionX = Math.cos(shiftAngle);
-    const directionY = Math.sin(shiftAngle);
-    const shiftX = directionX * shift;
-    const shiftY = directionY * shift;
-    context.save();
-    context.beginPath();
-    context.fillStyle = withGradient ? buildPieGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color) : options.color;
-    if (isDonut) {
-      context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
-      context.arc(x + shiftX, y + shiftY, innerRadius, endAngle, beginAngle, true);
-      context.closePath();
-    } else {
-      context.moveTo(x + shiftX, y + shiftY);
-      context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
-      context.lineTo(x + shiftX, y + shiftY);
-    }
-    context.fill();
-    if (percent >= PIE_MINIMUM_VISIBLE_PERCENT) {
-      const fontFamily = getComputedStyle(context.canvas).fontFamily || "sans-serif";
-      context.font = `700 ${getPieTextSize(percent, radius)}px ${fontFamily}`;
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.fillStyle = "white";
-      const textShift = isDonut ? (radius + innerRadius) / 2 : getPieTextShift(percent, radius);
-      context.fillText(
-        `${Math.round(percent * 100)}%`,
-        x + directionX * textShift + shiftX,
-        y + directionY * textShift + shiftY
-      );
-    }
-    context.restore();
-  }
-  function buildPieGradient(context, cx, cy, innerRadius, radius, color) {
-    const channels = parseRgba(color);
-    const gradient = context.createRadialGradient(cx, cy, innerRadius, cx, cy, radius);
-    gradient.addColorStop(0, shadeColor(channels, 0.1));
-    gradient.addColorStop(1, shadeColor(channels, -0.1));
-    return gradient;
-  }
-  function parseRgba(color) {
-    const channels = color.match(/[\d.]+/g);
-    return channels ? channels.map(Number) : [0, 0, 0, 1];
-  }
-  function shadeColor([r, g, b, a = 1], amount) {
-    const target = amount >= 0 ? 255 : 0;
-    const t = Math.abs(amount);
-    const mix = (channel) => Math.round(channel + (target - channel) * t);
-    return `rgba(${mix(r)}, ${mix(g)}, ${mix(b)}, ${a})`;
-  }
-
-  function captureEvents(element, options) {
-    let captureEvent = null;
-    let longPressTimeout = null;
-    function onCapture(e) {
-      captureEvent = e;
-      if (e.type === "mousedown") {
-        addEventListener(document, "mousemove", onMove);
-        addEventListener(document, "mouseup", onRelease);
-      } else if (e.type === "touchstart") {
-        addEventListener(document, "touchmove", onMove);
-        addEventListener(document, "touchend", onRelease);
-        addEventListener(document, "touchcancel", onRelease);
-        if (e.pageX === void 0) {
-          e.pageX = e.touches[0].pageX;
-        }
-      }
-      if (options.draggingCursor) {
-        document.documentElement.classList.add(`cursor-${options.draggingCursor}`);
-      }
-      options.onCapture && options.onCapture(e);
-      if (options.onLongPress) {
-        longPressTimeout = window.setTimeout(() => options.onLongPress(), LONG_PRESS_TIMEOUT);
-      }
-    }
-    function onRelease(e) {
-      if (captureEvent) {
-        if (longPressTimeout) {
-          clearTimeout(longPressTimeout);
-          longPressTimeout = null;
-        }
-        if (options.draggingCursor) {
-          document.documentElement.classList.remove(`cursor-${options.draggingCursor}`);
-        }
-        removeEventListener(document, "mouseup", onRelease);
-        removeEventListener(document, "mousemove", onMove);
-        removeEventListener(document, "touchcancel", onRelease);
-        removeEventListener(document, "touchend", onRelease);
-        removeEventListener(document, "touchmove", onMove);
-        captureEvent = null;
-        options.onRelease && options.onRelease(e);
-      }
-    }
-    function onMove(e) {
-      if (captureEvent) {
-        if (longPressTimeout) {
-          clearTimeout(longPressTimeout);
-          longPressTimeout = null;
-        }
-        if (e.type === "touchmove" && e.pageX === void 0) {
-          e.pageX = e.touches[0].pageX;
-        }
-        options.onDrag && options.onDrag(e, captureEvent, {
-          dragOffsetX: e.pageX - captureEvent.pageX
-        });
-      }
-    }
-    addEventListener(element, "mousedown", onCapture);
-    addEventListener(element, "touchstart", onCapture);
-  }
-
   class Minimap {
     #container;
     #data;
@@ -1736,7 +1651,7 @@ var LovelyChart = (function (exports) {
       if (!this.#isStateChanged(newState)) {
         return;
       }
-      this.#state = proxyMerge(newState, { focusOn: null });
+      this.#state = proxyMerge(newState, { focusOn: NO_FOCUS });
       clearCanvas(this.#canvas, this.#context);
       this.#drawDatasets(this.#state);
     }
@@ -1805,7 +1720,7 @@ var LovelyChart = (function (exports) {
       this.#element.appendChild(this.#ruler);
     }
     #setupLimitMask() {
-      if (this.#limitBegin == null) return;
+      if (this.#limitBegin === void 0) return;
       this.#limitMask = createElement();
       this.#limitMask.className = "lovely-chart--minimap-limit-mask";
       this.#limitMask.style.width = `${this.#limitBegin * 100}%`;
@@ -1849,8 +1764,8 @@ var LovelyChart = (function (exports) {
       const visibilities = datasets.map(({ key }) => this.#state[`opacity#${key}`]);
       const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams, true);
       const projection = new Projection(boundsAndParams);
-      let secondaryPoints = null;
-      let secondaryProjection = null;
+      let secondaryPoints;
+      let secondaryProjection;
       if (this.#data.hasSecondYAxis) {
         const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
         const bounds = { yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond };
@@ -1880,10 +1795,10 @@ var LovelyChart = (function (exports) {
       this.#capturedOffset = e.target.offsetLeft;
     };
     #onDragRelease = () => {
-      this.#capturedOffset = null;
+      this.#capturedOffset = void 0;
     };
     #onSliderDrag = (moveEvent, captureEvent, { dragOffsetX }) => {
-      const limitX = this.#limitBegin != null ? this.#limitBegin * this.#canvasSize.width : 0;
+      const limitX = this.#limitBegin !== void 0 ? this.#limitBegin * this.#canvasSize.width : 0;
       const minX1 = limitX;
       const maxX1 = this.#canvasSize.width - this.#slider.offsetWidth;
       const newX1 = Math.max(minX1, Math.min(this.#capturedOffset + dragOffsetX - MINIMAP_EAR_WIDTH, maxX1));
@@ -1893,7 +1808,7 @@ var LovelyChart = (function (exports) {
       this.#updateRange({ begin, end });
     };
     #onLeftEarDrag = (moveEvent, captureEvent, { dragOffsetX }) => {
-      const limitX = this.#limitBegin != null ? this.#limitBegin * this.#canvasSize.width : 0;
+      const limitX = this.#limitBegin !== void 0 ? this.#limitBegin * this.#canvasSize.width : 0;
       const minX1 = limitX;
       const maxX1 = this.#slider.offsetLeft + this.#slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
       const newX1 = Math.min(maxX1, Math.max(minX1, this.#capturedOffset + dragOffsetX));
@@ -1909,10 +1824,10 @@ var LovelyChart = (function (exports) {
     };
     #updateRange(range, isExternal) {
       let nextRange = Object.assign({}, this.#range, range);
-      if (this.#state && this.#state.minimapDelta && !isExternal) {
+      if (this.#state?.minimapDelta && !isExternal) {
         nextRange = this.#adjustDiscreteRange(nextRange);
       }
-      if (this.#limitBegin != null && nextRange.begin < this.#limitBegin) {
+      if (this.#limitBegin !== void 0 && nextRange.begin < this.#limitBegin) {
         nextRange.begin = this.#limitBegin;
       }
       if (nextRange.begin === this.#range.begin && nextRange.end === this.#range.end) {
@@ -1937,6 +1852,453 @@ var LovelyChart = (function (exports) {
     }
   }
 
+  function transition(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+  class TransitionManager {
+    #onTick;
+    #transitions = {};
+    #nextFrame;
+    #testStartedAt;
+    #fps;
+    #testingFps;
+    #slowDetectedAt;
+    #startedAsSlow;
+    constructor(onTick) {
+      this.#onTick = onTick;
+    }
+    add(prop, from, to, duration, options) {
+      this.#transitions[prop] = {
+        from,
+        to,
+        duration,
+        options,
+        current: from,
+        startedAt: Date.now(),
+        progress: 0
+      };
+      if (!this.#nextFrame) {
+        this.#resetSpeedTest();
+        this.#nextFrame = requestAnimationFrame(this.#tick);
+      }
+    }
+    remove(prop) {
+      delete this.#transitions[prop];
+      if (!this.isRunning()) {
+        cancelAnimationFrame(this.#nextFrame);
+        this.#nextFrame = void 0;
+      }
+    }
+    get(prop) {
+      return this.#transitions[prop];
+    }
+    getState() {
+      const state = {};
+      Object.keys(this.#transitions).forEach((prop) => {
+        const { current, from, to, progress } = this.#transitions[prop];
+        state[prop] = current;
+        state[`${prop}From`] = from;
+        state[`${prop}To`] = to;
+        state[`${prop}Progress`] = progress;
+      });
+      return state;
+    }
+    isRunning() {
+      return Boolean(Object.keys(this.#transitions).length);
+    }
+    isFast(forceCheck) {
+      if (!forceCheck && (this.#startedAsSlow || this.#slowDetectedAt)) {
+        return false;
+      }
+      return this.#fps === void 0 || this.#fps >= SPEED_TEST_FAST_FPS;
+    }
+    destroy() {
+      if (this.#nextFrame) {
+        cancelAnimationFrame(this.#nextFrame);
+        this.#nextFrame = void 0;
+      }
+      Object.keys(this.#transitions).forEach((prop) => delete this.#transitions[prop]);
+    }
+    #tick = () => {
+      const isSlow = !this.isFast();
+      this.#speedTest();
+      const state = {};
+      Object.keys(this.#transitions).forEach((prop) => {
+        const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = this.#transitions[prop];
+        const progress = Math.min(1, (Date.now() - startedAt) / duration);
+        let current = from + (to - from) * transition(progress);
+        if (options.includes("ceil")) {
+          current = Math.ceil(current);
+        } else if (options.includes("floor")) {
+          current = Math.floor(current);
+        }
+        this.#transitions[prop].current = current;
+        this.#transitions[prop].progress = progress;
+        state[prop] = current;
+        if (progress === 1) {
+          this.remove(prop);
+        }
+      });
+      if (!isSlow) {
+        this.#onTick(state);
+      }
+      if (this.isRunning()) {
+        this.#nextFrame = requestAnimationFrame(this.#tick);
+      }
+    };
+    #resetSpeedTest() {
+      this.#testStartedAt = void 0;
+      this.#testingFps = void 0;
+      if (this.#slowDetectedAt && Date.now() - this.#slowDetectedAt > 5e3) {
+        this.#slowDetectedAt = void 0;
+      }
+      this.#startedAsSlow = Boolean(this.#slowDetectedAt) || !this.isFast(true);
+    }
+    #speedTest() {
+      if (!this.#testStartedAt || Date.now() - this.#testStartedAt >= SPEED_TEST_INTERVAL) {
+        if (this.#testingFps) {
+          this.#fps = this.#testingFps;
+          if (!this.#slowDetectedAt && !this.isFast(true)) {
+            this.#slowDetectedAt = Date.now();
+          }
+        }
+        this.#testStartedAt = Date.now();
+        this.#testingFps = 0;
+      } else {
+        this.#testingFps = (this.#testingFps || 0) + 1;
+      }
+    }
+  }
+
+  class StateManager {
+    #data;
+    #viewportSize;
+    #callback;
+    #range = { begin: 0, end: 1 };
+    #filter;
+    #transitionConfig;
+    #transitions;
+    #runCallbackOnRaf;
+    #state = {};
+    #isDestroyed = false;
+    constructor(data, viewportSize, callback) {
+      this.#data = data;
+      this.#viewportSize = viewportSize;
+      this.#callback = callback;
+      this.#filter = this.#buildDefaultFilter();
+      this.#transitionConfig = this.#buildTransitionConfig();
+      this.#transitions = new TransitionManager(this.#runCallback);
+      this.#runCallbackOnRaf = throttleWithRaf(this.#runCallback);
+    }
+    update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
+      if (this.#isDestroyed) return;
+      Object.assign(this.#range, range);
+      Object.assign(this.#filter, filter);
+      const prevState = this.#state;
+      this.#state = calculateState(
+        this.#data,
+        this.#viewportSize,
+        this.#range,
+        this.#filter,
+        focusOn,
+        minimapDelta,
+        prevState
+      );
+      if (!noTransition) {
+        this.#transitionConfig.forEach(({ prop, duration, options }) => {
+          const transition = this.#transitions.get(prop);
+          const currentTarget = transition ? transition.to : prevState[prop];
+          if (currentTarget !== void 0 && currentTarget !== this.#state[prop]) {
+            const current = transition ? options.includes("fast") ? prevState[prop] : transition.current : prevState[prop];
+            if (transition) {
+              this.#transitions.remove(prop);
+            }
+            this.#transitions.add(prop, current, this.#state[prop], duration, options);
+          }
+        });
+      }
+      if (!this.#transitions.isRunning() || !this.#transitions.isFast()) {
+        this.#runCallbackOnRaf();
+      }
+    }
+    hasAnimations() {
+      return this.#transitions.isFast();
+    }
+    destroy() {
+      this.#isDestroyed = true;
+      this.#transitions.destroy();
+    }
+    #buildTransitionConfig() {
+      const transitionConfig = [];
+      const datasetVisibilities = this.#data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
+      const datasetPieShifts = this.#data.datasets.map(({ key }) => `pieShift#${key} 200`);
+      mergeArrays([
+        ANIMATE_PROPS,
+        datasetVisibilities,
+        datasetPieShifts
+      ]).forEach((transition) => {
+        const [prop, duration, ...options] = transition.split(" ");
+        transitionConfig.push({ prop, duration: duration ? Number(duration) : void 0, options });
+      });
+      return transitionConfig;
+    }
+    #buildDefaultFilter() {
+      const filter = {};
+      this.#data.datasets.forEach(({ key }) => {
+        filter[key] = true;
+      });
+      return filter;
+    }
+    #runCallback = () => {
+      if (this.#isDestroyed) return;
+      const state = this.#transitions.isFast() ? proxyMerge(this.#state, this.#transitions.getState()) : this.#state;
+      state.static = this.#state;
+      this.#callback(state);
+    };
+  }
+  function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
+    const { begin, end } = range;
+    const totalXWidth = data.xLabels.length - 1;
+    const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
+    const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
+    const xAxisScale = calculateXAxisScale(viewportSize.width, labelFromIndex, labelToIndex);
+    const yRanges = data.isStacked ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+    const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
+    const yAxisScaleSecond = data.hasSecondYAxis && calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
+    const yStep = yScaleLevelToStep(yAxisScale);
+    yRanges.yMinViewport = Math.floor(yRanges.yMinViewport / yStep) * yStep;
+    if (yAxisScaleSecond) {
+      const yStepSecond = yScaleLevelToStep(yAxisScaleSecond);
+      yRanges.yMinViewportSecond = Math.floor(yRanges.yMinViewportSecond / yStepSecond) * yStepSecond;
+    }
+    const datasetsOpacity = {};
+    data.datasets.forEach(({ key }) => {
+      datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
+    });
+    const extendedLabelFromIndex = Math.max(0, labelFromIndex - 1);
+    const extendedLabelToIndex = Math.min(labelToIndex + 1, totalXWidth);
+    const resolvedFocusOn = focusOn !== void 0 ? focusOn : prevState.focusOn;
+    const datasetsPieShift = data.isPie ? calculatePieShifts(
+      // For pie charts `focusOn` is never a plain label index
+      data,
+      viewportSize,
+      filter,
+      resolvedFocusOn,
+      extendedLabelFromIndex,
+      extendedLabelToIndex
+    ) : void 0;
+    return Object.assign(
+      {
+        totalXWidth,
+        xAxisScale,
+        yAxisScale,
+        yAxisScaleSecond,
+        labelFromIndex: extendedLabelFromIndex,
+        labelToIndex: extendedLabelToIndex,
+        filter: Object.assign({}, filter),
+        focusOn: resolvedFocusOn,
+        minimapDelta: minimapDelta !== void 0 ? minimapDelta : prevState.minimapDelta
+      },
+      yRanges,
+      datasetsOpacity,
+      datasetsPieShift,
+      range
+    );
+  }
+  function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFromIndex, labelToIndex) {
+    const radius = Math.max(0, Math.min(
+      viewportSize.width,
+      viewportSize.height - X_AXIS_HEIGHT - PLOT_TOP_PADDING
+    )) * PLOT_PIE_RADIUS_FACTOR;
+    const sums = data.datasets.map(({ key, values }) => filter[key] ? values.slice(labelFromIndex, labelToIndex + 1).reduce((a, x) => a + (x || 0), 0) : 0);
+    const total = sums.reduce((a, x) => a + x, 0);
+    const shifts = {};
+    let offset = 0;
+    data.datasets.forEach(({ key }, i) => {
+      const beginAngle = offset / total * Math.PI * 2 - Math.PI / 2;
+      offset += sums[i];
+      const endAngle = offset / total * Math.PI * 2 - Math.PI / 2;
+      const isFocused = Boolean(
+        pointerVector && pointerVector !== NO_FOCUS && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= radius
+      );
+      shifts[`pieShift#${key}`] = isFocused ? 1 : 0;
+    });
+    return shifts;
+  }
+  function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {
+    const secondaryYAxisDataset = data.hasSecondYAxis ? data.datasets.slice(-1)[0] : void 0;
+    const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
+    const yRanges = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets);
+    if (secondaryYAxisDataset) {
+      const {
+        yMinViewport: yMinViewportSecond,
+        yMaxViewport: yMaxViewportSecond,
+        yMinMinimap: yMinMinimapSecond,
+        yMaxMinimap: yMaxMinimapSecond
+      } = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, [secondaryYAxisDataset]);
+      Object.assign(yRanges, {
+        yMinViewportSecond,
+        yMaxViewportSecond,
+        yMinMinimapSecond,
+        yMaxMinimapSecond
+      });
+    }
+    return yRanges;
+  }
+  function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, datasets) {
+    const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(mergeArrays(datasets.map(({ yMax, yMin }) => [yMax, yMin])));
+    const yMinMinimap = yMinMinimapReal < 0 ? yMinMinimapReal : yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
+    let yMinViewport;
+    let yMaxViewport;
+    if (labelFromIndex === 0 && labelToIndex === data.xLabels.length - 1) {
+      yMinViewport = yMinMinimap;
+      yMaxViewport = yMaxMinimap;
+    } else {
+      const filteredValues = datasets.map(({ values }) => values);
+      const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
+      const viewportMaxMin = getMaxMin(mergeArrays(viewportValues));
+      const yMinViewportReal = viewportMaxMin.min !== void 0 ? viewportMaxMin.min : prevState.yMinViewport;
+      yMaxViewport = viewportMaxMin.max !== void 0 ? viewportMaxMin.max : prevState.yMaxViewport;
+      yMinViewport = yMinViewportReal < 0 ? yMinViewportReal : yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
+    }
+    return {
+      yMinViewport,
+      yMaxViewport,
+      yMinMinimap,
+      yMaxMinimap
+    };
+  }
+  function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) {
+    const filteredDatasets = data.datasets.filter((d) => filter[d.key]);
+    const filteredValues = filteredDatasets.map(({ values }) => values);
+    const length = filteredValues[0] ? filteredValues[0].length : 0;
+    const posSums = new Array(length).fill(0);
+    const negSums = new Array(length).fill(0);
+    for (let i = 0; i < filteredValues.length; i++) {
+      for (let j = 0; j < length; j++) {
+        const v = filteredValues[i][j];
+        if (v === GAP) continue;
+        if (v >= 0) {
+          posSums[j] += v;
+        } else {
+          negSums[j] += v;
+        }
+      }
+    }
+    const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(posSums);
+    const { min: yMinMinimap = prevState.yMinMinimap } = getMaxMin(negSums);
+    const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(posSums.slice(labelFromIndex, labelToIndex + 1));
+    const { min: yMinViewport = prevState.yMinViewport } = getMaxMin(negSums.slice(labelFromIndex, labelToIndex + 1));
+    return {
+      yMinViewport,
+      yMaxViewport,
+      yMinMinimap,
+      yMaxMinimap
+    };
+  }
+  function calculateXAxisScale(plotWidth, labelFromIndex, labelToIndex) {
+    const viewportLabelsCount = labelToIndex - labelFromIndex;
+    const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
+    return xStepToScaleLevel(viewportLabelsCount / maxColumns);
+  }
+  function calculateYAxisScale(plotHeight, yMin, yMax) {
+    const availableHeight = plotHeight - X_AXIS_HEIGHT;
+    const viewportLabelsCount = yMax - yMin;
+    const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);
+    return yStepToScaleLevel(viewportLabelsCount / maxRows);
+  }
+
+  class Tools {
+    #container;
+    #data;
+    #filterCallback;
+    #element;
+    constructor(container, data, filterCallback) {
+      this.#container = container;
+      this.#data = data;
+      this.#filterCallback = filterCallback;
+      this.#setupLayout();
+      this.#updateFilter();
+    }
+    redraw() {
+      if (this.#element) {
+        const oldElement = this.#element;
+        oldElement.classList.add("lovely-chart--state-hidden");
+        setTimeout(() => {
+          oldElement.parentNode.removeChild(oldElement);
+        }, 500);
+      }
+      this.#setupLayout();
+      this.#element.classList.add("lovely-chart--state-transparent");
+      requestAnimationFrame(() => {
+        this.#element.classList.remove("lovely-chart--state-transparent");
+      });
+    }
+    #setupLayout() {
+      this.#element = createElement();
+      this.#element.className = "lovely-chart--tools";
+      if (this.#data.datasets.length < 2) {
+        this.#element.className += " lovely-chart--state-hidden";
+      }
+      this.#data.datasets.forEach(({ key, name }) => {
+        const control = createElement("a");
+        control.href = "#";
+        control.dataset.key = key;
+        const darkContent = isColorCloseToWhite(this.#data.colors[key]) ? " lovely-chart--dark-content" : "";
+        control.className = `lovely-chart--button lovely-chart--color-${this.#data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
+        const check = createElement("span");
+        check.className = "lovely-chart--button-check";
+        control.appendChild(check);
+        const label = createElement("span");
+        label.className = "lovely-chart--button-label";
+        label.textContent = name;
+        control.appendChild(label);
+        control.addEventListener("click", (e) => {
+          e.preventDefault();
+          if (!control.dataset.clickPrevented) {
+            this.#updateFilter(control);
+          }
+          delete control.dataset.clickPrevented;
+        });
+        captureEvents(control, {
+          onLongPress: () => {
+            control.dataset.clickPrevented = "true";
+            this.#updateFilter(control, true);
+          }
+        });
+        this.#element.appendChild(control);
+      });
+      this.#container.appendChild(this.#element);
+    }
+    #updateFilter(button, isLongPress = false) {
+      const buttons = Array.from(this.#element.getElementsByTagName("a"));
+      const isSingleChecked = this.#element.querySelectorAll(".lovely-chart--state-checked").length === 1;
+      if (button) {
+        if (button.classList.contains("lovely-chart--state-checked") && isSingleChecked) {
+          if (isLongPress) {
+            buttons.forEach((b) => b.classList.add("lovely-chart--state-checked"));
+            button.classList.remove("lovely-chart--state-checked");
+          } else {
+            button.classList.remove("lovely-chart--state-shake");
+            requestAnimationFrame(() => {
+              button.classList.add("lovely-chart--state-shake");
+            });
+          }
+        } else if (isLongPress) {
+          buttons.forEach((b) => b.classList.remove("lovely-chart--state-checked"));
+          button.classList.add("lovely-chart--state-checked");
+        } else {
+          button.classList.toggle("lovely-chart--state-checked");
+        }
+      }
+      const filter = {};
+      buttons.forEach((input) => {
+        filter[input.dataset.key] = input.classList.contains("lovely-chart--state-checked");
+      });
+      this.#filterCallback(filter);
+    }
+  }
+
   class Tooltip {
     #container;
     #data;
@@ -1955,10 +2317,10 @@ var LovelyChart = (function (exports) {
     #balloon;
     #offsetX;
     #offsetY;
-    #clickedOnLabel = null;
+    #clickedOnLabel;
     #isZoomed = false;
     #isZooming = false;
-    #documentMoveEvent = null;
+    #documentMoveEvent;
     #selectLabelOnRaf = throttleWithRaf((isExternal) => this.#selectLabel(isExternal));
     #throttledUpdateContent = throttle(
       (title, statistics) => this.#updateContent(title, statistics),
@@ -1998,7 +2360,7 @@ var LovelyChart = (function (exports) {
     destroy() {
       if (this.#documentMoveEvent) {
         removeEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
-        this.#documentMoveEvent = null;
+        this.#documentMoveEvent = void 0;
       }
     }
     #setupLayout() {
@@ -2034,7 +2396,7 @@ var LovelyChart = (function (exports) {
       this.#element.appendChild(this.#balloon);
     }
     #onMouseMove = (e) => {
-      if (e.target === this.#balloon || this.#balloon.contains(e.target) || this.#clickedOnLabel !== null) {
+      if (e.target === this.#balloon || this.#balloon.contains(e.target) || this.#clickedOnLabel !== void 0) {
         return;
       }
       this.#isZooming = false;
@@ -2045,7 +2407,7 @@ var LovelyChart = (function (exports) {
       this.#selectLabelOnRaf();
     };
     #onDocumentMove = (e) => {
-      if (this.#offsetX !== null && e.target !== this.#element && !this.#element.contains(e.target)) {
+      if (this.#offsetX !== void 0 && e.target !== this.#element && !this.#element.contains(e.target)) {
         this.#clear();
       }
     };
@@ -2055,7 +2417,7 @@ var LovelyChart = (function (exports) {
       }
       if (this.#data.isZoomable) {
         const oldLabelIndex = this.#clickedOnLabel;
-        this.#clickedOnLabel = null;
+        this.#clickedOnLabel = void 0;
         this.#onMouseMove(e);
         const newLabelIndex = this.#getLabelIndex();
         if (newLabelIndex !== oldLabelIndex) {
@@ -2072,34 +2434,34 @@ var LovelyChart = (function (exports) {
       this.#onZoom(labelIndex);
     };
     #clear(isExternal) {
-      this.#offsetX = null;
-      this.#clickedOnLabel = null;
+      this.#offsetX = void 0;
+      this.#clickedOnLabel = void 0;
       clearCanvas(this.#canvas, this.#context);
       this.#hideBalloon();
-      if (!isExternal && this.#onFocus) {
-        this.#onFocus(null);
+      if (!isExternal) {
+        this.#onFocus?.(NO_FOCUS);
       }
     }
     #getLabelIndex() {
       const labelIndex = this.#projection.findClosestLabelIndex(this.#offsetX);
-      return labelIndex < this.#state.labelFromIndex || labelIndex > this.#state.labelToIndex ? null : labelIndex;
+      return labelIndex < this.#state.labelFromIndex || labelIndex > this.#state.labelToIndex ? void 0 : labelIndex;
     }
     #selectLabel(isExternal) {
-      if (this.#offsetX == null || !this.#state || this.#isZooming) {
+      if (this.#offsetX === void 0 || !this.#state || this.#isZooming) {
         return;
       }
       const labelIndex = this.#getLabelIndex();
-      if (labelIndex === null) {
+      if (labelIndex === void 0) {
         this.#clear(isExternal);
         return;
       }
       const pointerVector = this.#getPointerVector();
       const shouldShowBalloon = this.#data.isPie ? pointerVector.distance <= getPieRadius(this.#projection) : true;
-      if (!isExternal && this.#onFocus) {
+      if (!isExternal) {
         if (this.#data.isPie) {
-          this.#onFocus(pointerVector);
+          this.#onFocus?.(pointerVector);
         } else {
-          this.#onFocus(labelIndex);
+          this.#onFocus?.(labelIndex);
         }
       }
       const getValue = (values, labelIndex2) => {
@@ -2131,7 +2493,7 @@ var LovelyChart = (function (exports) {
     }
     #drawCircles(statistics, labelIndex) {
       statistics.forEach(({ value, key, hasOwnYAxis, originalIndex }) => {
-        if (value == null) return;
+        if (value === GAP) return;
         const pointIndex = labelIndex - this.#state.labelFromIndex;
         const point = hasOwnYAxis ? this.#secondaryPoints[pointIndex] : this.#points[originalIndex][pointIndex];
         if (!point) {
@@ -2176,7 +2538,7 @@ var LovelyChart = (function (exports) {
       this.#balloon.style.transform = `translate3D(${this.#getBalloonLeftOffset(labelIndex)}px, ${this.#getBalloonTopOffset()}, 0)`;
       this.#balloon.classList.add("lovely-chart--state-shown");
       if (this.#data.isPie) {
-        this.#updateContent(null, statistics);
+        this.#updateContent(void 0, statistics);
       } else {
         this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics);
       }
@@ -2295,10 +2657,12 @@ var LovelyChart = (function (exports) {
       });
       const totalValue = statistics.reduce((a, x) => a + (x.value ?? 0), 0);
       const pointerVector = this.#getPointerVector();
-      const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value != null);
+      const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value !== GAP);
       const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
       const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
-      const finalStatistics = this.#data.isPie ? limitedStatistics.filter((statItem) => this.#isPieSectorSelected(statistics, statItem, totalValue, pointerVector)) : limitedStatistics;
+      const finalStatistics = this.#data.isPie ? limitedStatistics.filter(
+        (statItem) => this.#isPieSectorSelected(statistics, statItem, totalValue, pointerVector)
+      ) : limitedStatistics;
       finalStatistics.forEach((statItem) => {
         const currentDataSet = Array.from(dataSetContainer.children).find((element) => element.dataset.name === statItem.name);
         if (!currentDataSet) {
@@ -2341,7 +2705,9 @@ var LovelyChart = (function (exports) {
         dataSetContainer.appendChild(newTotalText);
       } else {
         totalText.setAttribute("data-present", "true");
-        const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
+        const valueElement = totalText.querySelector(
+          `.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`
+        );
         valueElement.textContent = totalValue;
       }
     }
@@ -2365,7 +2731,9 @@ var LovelyChart = (function (exports) {
         dataSetContainer.appendChild(newTotalText);
       } else {
         totalText.setAttribute("data-present", "true");
-        const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
+        const valueElement = totalText.querySelector(
+          `.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`
+        );
         valueElement.textContent = `${prefix}${secondaryValue}${suffix}`;
       }
     }
@@ -2390,282 +2758,6 @@ var LovelyChart = (function (exports) {
     }
   }
 
-  class Tools {
-    #container;
-    #data;
-    #filterCallback;
-    #element;
-    constructor(container, data, filterCallback) {
-      this.#container = container;
-      this.#data = data;
-      this.#filterCallback = filterCallback;
-      this.#setupLayout();
-      this.#updateFilter();
-    }
-    redraw() {
-      if (this.#element) {
-        const oldElement = this.#element;
-        oldElement.classList.add("lovely-chart--state-hidden");
-        setTimeout(() => {
-          oldElement.parentNode.removeChild(oldElement);
-        }, 500);
-      }
-      this.#setupLayout();
-      this.#element.classList.add("lovely-chart--state-transparent");
-      requestAnimationFrame(() => {
-        this.#element.classList.remove("lovely-chart--state-transparent");
-      });
-    }
-    #setupLayout() {
-      this.#element = createElement();
-      this.#element.className = "lovely-chart--tools";
-      if (this.#data.datasets.length < 2) {
-        this.#element.className += " lovely-chart--state-hidden";
-      }
-      this.#data.datasets.forEach(({ key, name }) => {
-        const control = createElement("a");
-        control.href = "#";
-        control.dataset.key = key;
-        const darkContent = isColorCloseToWhite(this.#data.colors[key]) ? " lovely-chart--dark-content" : "";
-        control.className = `lovely-chart--button lovely-chart--color-${this.#data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
-        const check = createElement("span");
-        check.className = "lovely-chart--button-check";
-        control.appendChild(check);
-        const label = createElement("span");
-        label.className = "lovely-chart--button-label";
-        label.textContent = name;
-        control.appendChild(label);
-        control.addEventListener("click", (e) => {
-          e.preventDefault();
-          if (!control.dataset.clickPrevented) {
-            this.#updateFilter(control);
-          }
-          delete control.dataset.clickPrevented;
-        });
-        captureEvents(control, {
-          onLongPress: () => {
-            control.dataset.clickPrevented = "true";
-            this.#updateFilter(control, true);
-          }
-        });
-        this.#element.appendChild(control);
-      });
-      this.#container.appendChild(this.#element);
-    }
-    #updateFilter(button, isLongPress = false) {
-      const buttons = Array.from(this.#element.getElementsByTagName("a"));
-      const isSingleChecked = this.#element.querySelectorAll(".lovely-chart--state-checked").length === 1;
-      if (button) {
-        if (button.classList.contains("lovely-chart--state-checked") && isSingleChecked) {
-          if (isLongPress) {
-            buttons.forEach((b) => b.classList.add("lovely-chart--state-checked"));
-            button.classList.remove("lovely-chart--state-checked");
-          } else {
-            button.classList.remove("lovely-chart--state-shake");
-            requestAnimationFrame(() => {
-              button.classList.add("lovely-chart--state-shake");
-            });
-          }
-        } else if (isLongPress) {
-          buttons.forEach((b) => b.classList.remove("lovely-chart--state-checked"));
-          button.classList.add("lovely-chart--state-checked");
-        } else {
-          button.classList.toggle("lovely-chart--state-checked");
-        }
-      }
-      const filter = {};
-      buttons.forEach((input) => {
-        filter[input.dataset.key] = input.classList.contains("lovely-chart--state-checked");
-      });
-      this.#filterCallback(filter);
-    }
-  }
-
-  const DEFAULT_COLORS = [
-    "#3497ED",
-    "#2373DB",
-    "#9ED448",
-    "#5FB641",
-    "#F5BD25",
-    "#F79E39",
-    "#E65850",
-    "#5D5CDC"
-  ];
-  const DEFAULT_COLORS_SUBSETS = [
-    [],
-    [0],
-    [0, 2],
-    [0, 2, 5],
-    [0, 2, 5, 7],
-    [0, 2, 4, 5, 7],
-    [0, 1, 2, 4, 5, 7],
-    [0, 1, 2, 3, 4, 5, 7]
-  ];
-  const LABEL_TYPE_TO_FORMATTER = {
-    "year": "statsFormatYear",
-    "month": "statsFormatMonth",
-    "week": "statsFormatWeek",
-    "day": "statsFormat('day')",
-    "hour": "statsFormat('hour')",
-    "5min": "statsFormat('5min')",
-    "dayHour": "statsFormatDayHour",
-    "text": void 0
-  };
-  function analyzeData(data, fallbackLabelType) {
-    const { title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, noCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
-    const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
-    const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : void 0);
-    const { datasets, labels } = prepareDatasets(data);
-    const colors = {};
-    let totalYMin = Infinity;
-    let totalYMax = -Infinity;
-    datasets.forEach(({ key, color, yMin, yMax }) => {
-      colors[key] = color;
-      if (yMin !== void 0 && yMin < totalYMin) {
-        totalYMin = yMin;
-      }
-      if (yMax !== void 0 && yMax > totalYMax) {
-        totalYMax = yMax;
-      }
-    });
-    let xLabels;
-    switch (labelFormatter) {
-      case "statsFormatYear":
-        xLabels = statsFormatYear(labels);
-        break;
-      case "statsFormatMonth":
-        xLabels = statsFormatMonth(labels);
-        break;
-      case "statsFormatWeek":
-        xLabels = statsFormatWeek(labels);
-        break;
-      case "statsFormatDayHour":
-        xLabels = statsFormatDayHour(labels);
-        break;
-      case "statsFormat('day')":
-        xLabels = statsFormatDay(labels);
-        break;
-      case "statsFormat('hour')":
-      case "statsFormat('5min')":
-        xLabels = statsFormatMin(labels);
-        break;
-      default:
-        xLabels = statsFormatText(labels);
-        break;
-    }
-    let limitBegin = null;
-    if (limitDate != null) {
-      const totalXWidth = labels.length - 1;
-      const idx = labels.findIndex((l) => l >= limitDate);
-      if (idx > 0) {
-        limitBegin = idx / totalXWidth;
-      }
-    }
-    const shouldZoomToPie = !onZoom && Boolean(isPercentage);
-    const analyzed = {
-      title,
-      labelType,
-      labelFormatter,
-      tooltipFormatter,
-      xLabels,
-      datasets,
-      isStacked,
-      isPercentage,
-      secondaryYAxis,
-      hasSecondYAxis,
-      valuePrefix,
-      valueSuffix,
-      prefixIsCurrency,
-      onZoom,
-      isLines: data.type === "line",
-      isBars: data.type === "bar",
-      isSteps: data.type === "step",
-      isAreas: data.type === "area",
-      isPie: data.type === "pie",
-      isDonut: Boolean(data.isDonut),
-      withGradient: Boolean(data.withGradient),
-      yMin: totalYMin,
-      yMax: totalYMax,
-      colors,
-      withMinimap: Boolean(withMinimap),
-      minimapRange: buildMinimapRange(minimapRange),
-      noCaption,
-      zoomOutLabel,
-      limitBegin,
-      onLimitedRangeClick,
-      shouldZoomToPie,
-      isZoomable: Boolean(onZoom) || shouldZoomToPie
-    };
-    return analyzed;
-  }
-  function inferLabelType(labels) {
-    const [first, second] = labels;
-    if (typeof first === "string") {
-      return "text";
-    }
-    if (typeof first !== "number") {
-      return void 0;
-    }
-    if (typeof second !== "number") {
-      return "day";
-    }
-    const step = Math.abs(second - first);
-    if (step >= 365 * MILISECONDS_IN_DAY) {
-      return "year";
-    }
-    if (step >= 28 * MILISECONDS_IN_DAY) {
-      return "month";
-    }
-    if (step >= 7 * MILISECONDS_IN_DAY) {
-      return "week";
-    }
-    if (step >= MILISECONDS_IN_DAY) {
-      return "day";
-    }
-    if (step >= MILISECONDS_IN_DAY / 24) {
-      return "hour";
-    }
-    return "5min";
-  }
-  function buildMinimapRange(minimapRange) {
-    if (!minimapRange) {
-      return void 0;
-    }
-    if (minimapRange === "full") {
-      return { begin: 0, end: 1 };
-    }
-    const [begin, end] = minimapRange;
-    return { begin, end };
-  }
-  function prepareDatasets(data) {
-    const { type, labels, datasets, hasSecondYAxis } = data;
-    const defaultColors = getDefaultColors(datasets.length);
-    let nextDefaultColor = 0;
-    return {
-      labels: cloneArray(labels),
-      datasets: datasets.map(({ name, color, values }, i) => {
-        const { min: yMin, max: yMax } = getMaxMin(values);
-        return {
-          type,
-          key: `y${i}`,
-          name,
-          color: color || defaultColors[nextDefaultColor++ % defaultColors.length],
-          values: cloneArray(values),
-          hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
-          yMin,
-          yMax
-        };
-      })
-    };
-  }
-  function getDefaultColors(datasetsCount) {
-    const subset = DEFAULT_COLORS_SUBSETS[datasetsCount];
-    return subset ? subset.map((index) => DEFAULT_COLORS[index]) : DEFAULT_COLORS;
-  }
-  function cloneArray(array) {
-    return array.slice(0);
-  }
-
   class Zoomer {
     #data;
     #overviewData;
@@ -2680,8 +2772,8 @@ var LovelyChart = (function (exports) {
     #isDestroyed = false;
     #stateBeforeZoomIn;
     #stateBeforeZoomOut;
-    #swapDataTimeout = null;
-    #stateAnimatingTimeout = null;
+    #swapDataTimeout;
+    #stateAnimatingTimeout;
     constructor(data, overviewData, colors, stateManager, container, header, minimap, tooltip, tools) {
       this.#data = data;
       this.#overviewData = overviewData;
@@ -2708,7 +2800,7 @@ var LovelyChart = (function (exports) {
       }
       const { value } = label;
       const dataPromise = this.#data.shouldZoomToPie ? Promise.resolve(this.#generatePieData(labelIndex)) : this.#data.onZoom(value);
-      dataPromise.then((newData) => this.#replaceData(newData, labelIndex, label));
+      void dataPromise.then((newData) => this.#replaceData(newData, labelIndex, label));
     }
     zoomOut(state) {
       if (!this.#isZoomed) {
@@ -2730,13 +2822,13 @@ var LovelyChart = (function (exports) {
     }
     destroy() {
       this.#isDestroyed = true;
-      if (this.#swapDataTimeout !== null) {
+      if (this.#swapDataTimeout !== void 0) {
         clearTimeout(this.#swapDataTimeout);
-        this.#swapDataTimeout = null;
+        this.#swapDataTimeout = void 0;
       }
-      if (this.#stateAnimatingTimeout !== null) {
+      if (this.#stateAnimatingTimeout !== void 0) {
         clearTimeout(this.#stateAnimatingTimeout);
-        this.#stateAnimatingTimeout = null;
+        this.#stateAnimatingTimeout = void 0;
       }
     }
     #replaceData(newRawData, labelIndex, zoomInLabel) {
@@ -2762,15 +2854,13 @@ var LovelyChart = (function (exports) {
         filter
       });
       this.#swapDataTimeout = window.setTimeout(() => {
-        this.#swapDataTimeout = null;
+        this.#swapDataTimeout = void 0;
         Object.assign(this.#data, newData);
         if (shouldZoomToLines && newRawData.colors) {
           Object.assign(this.#colors, createColors(newRawData.colors));
         }
         if (shouldZoomToLines) {
-          if (this.#minimap) {
-            this.#minimap.toggle(this.#isZoomed);
-          }
+          this.#minimap?.toggle(this.#isZoomed);
           this.#tools.redraw();
           this.#container.style.width = `${this.#container.scrollWidth}px`;
           this.#container.style.height = `${this.#container.scrollHeight}px`;
@@ -2780,7 +2870,7 @@ var LovelyChart = (function (exports) {
             begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
             end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA
           },
-          focusOn: null
+          focusOn: NO_FOCUS
         }, true);
         const daysCount = this.#isZoomed || this.#data.shouldZoomToPie ? this.#data.xLabels.length : this.#data.xLabels.length / 24;
         const halfDayWidth = 1 / daysCount / 2;
@@ -2811,7 +2901,8 @@ var LovelyChart = (function (exports) {
         this.#stateManager.update({
           range,
           filter: filter2,
-          minimapDelta: this.#isZoomed ? null : range.end - range.begin
+          // 0 disables discrete range snapping (when zooming back out)
+          minimapDelta: this.#isZoomed ? 0 : range.end - range.begin
         });
         if (zoomInLabel) {
           this.#header.zoom(getFullLabelDate(zoomInLabel));
@@ -2820,7 +2911,7 @@ var LovelyChart = (function (exports) {
         this.#header.toggleIsZooming(false);
       }, this.#stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
       this.#stateAnimatingTimeout = window.setTimeout(() => {
-        this.#stateAnimatingTimeout = null;
+        this.#stateAnimatingTimeout = void 0;
         if (this.#data.shouldZoomToPie) {
           this.#container.classList.remove("lovely-chart--state-animating");
         }
@@ -2890,17 +2981,15 @@ var LovelyChart = (function (exports) {
     destroy() {
       if (this.#isDestroyed) return;
       this.#isDestroyed = true;
-      if (this.#themeObserver) {
-        this.#themeObserver.disconnect();
-        this.#themeObserver = null;
-      }
+      this.#themeObserver?.disconnect();
+      this.#themeObserver = void 0;
       if (this.#onWindowResize) {
         window.removeEventListener("resize", this.#onWindowResize);
-        this.#onWindowResize = null;
+        this.#onWindowResize = void 0;
       }
       if (this.#onWindowOrientationChange) {
         window.removeEventListener("orientationchange", this.#onWindowOrientationChange);
-        this.#onWindowOrientationChange = null;
+        this.#onWindowOrientationChange = void 0;
       }
       this.#destroyComponents();
     }
@@ -2915,9 +3004,26 @@ var LovelyChart = (function (exports) {
       } else {
         this.#stateManager.update({ range: this.#data.minimapRange });
       }
-      this.#tooltip = new Tooltip(this.#element, this.#data, this.#plotSize, this.#colors, this.#onZoomIn, this.#onFocus);
+      this.#tooltip = new Tooltip(
+        this.#element,
+        this.#data,
+        this.#plotSize,
+        this.#colors,
+        this.#onZoomIn,
+        this.#onFocus
+      );
       this.#tools = new Tools(this.#element, this.#data, this.#onFilterChange);
-      this.#zoomer = this.#data.isZoomable ? new Zoomer(this.#data, this.#originalData, this.#colors, this.#stateManager, this.#element, this.#header, this.#minimap, this.#tooltip, this.#tools) : void 0;
+      this.#zoomer = this.#data.isZoomable ? new Zoomer(
+        this.#data,
+        this.#originalData,
+        this.#colors,
+        this.#stateManager,
+        this.#element,
+        this.#header,
+        this.#minimap,
+        this.#tooltip,
+        this.#tools
+      ) : void 0;
     }
     #setupContainer() {
       this.#element = createElement();
@@ -2959,8 +3065,8 @@ var LovelyChart = (function (exports) {
       const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
       const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams);
       const projection = new Projection(boundsAndParams);
-      let secondaryPoints = null;
-      let secondaryProjection = null;
+      let secondaryPoints;
+      let secondaryProjection;
       if (this.#data.hasSecondYAxis) {
         const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
         const bounds = {
@@ -2995,9 +3101,7 @@ var LovelyChart = (function (exports) {
         this.#axes.drawYAxis(state, projection, secondaryProjection);
         this.#axes.drawXAxis(state, projection);
       }
-      if (this.#minimap) {
-        this.#minimap.update(state);
-      }
+      this.#minimap?.update(state);
       this.#tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
     };
     #onRangeChange = (range) => {
@@ -3036,11 +3140,11 @@ var LovelyChart = (function (exports) {
       window.addEventListener("orientationchange", this.#onWindowOrientationChange);
     }
     #destroyComponents() {
-      if (this.#zoomer) this.#zoomer.destroy();
-      if (this.#tooltip) this.#tooltip.destroy();
-      if (this.#header) this.#header.destroy();
-      if (this.#stateManager) this.#stateManager.destroy();
-      if (this.#element && this.#element.parentNode) {
+      this.#zoomer?.destroy();
+      this.#tooltip?.destroy();
+      this.#header?.destroy();
+      this.#stateManager?.destroy();
+      if (this.#element?.parentNode) {
         this.#element.remove();
       }
       this.#element = void 0;
@@ -3063,7 +3167,7 @@ var LovelyChart = (function (exports) {
     #getCaption(state) {
       let startIndex;
       let endIndex;
-      if (this.#zoomer && this.#zoomer.isZoomed()) {
+      if (this.#zoomer?.isZoomed()) {
         startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
         endIndex = state.labelToIndex === state.totalXWidth - 1 ? state.labelToIndex : state.labelToIndex - 1;
       } else {

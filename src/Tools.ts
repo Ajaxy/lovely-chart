@@ -1,7 +1,8 @@
-import { createElement } from './minifiers';
-import { captureEvents } from './captureEvents';
-import { isColorCloseToWhite } from './skin';
 import type { AnalyzedData, Filter } from './types';
+
+import { captureEvents } from './captureEvents';
+import { createElement } from './minifiers';
+import { isColorCloseToWhite } from './skin';
 
 export class Tools {
   #container: HTMLElement;
@@ -48,7 +49,8 @@ export class Tools {
       control.href = '#';
       control.dataset.key = key;
       const darkContent = isColorCloseToWhite(this.#data.colors[key]) ? ' lovely-chart--dark-content' : '';
-      control.className = `lovely-chart--button lovely-chart--color-${this.#data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
+      control.className = `lovely-chart--button lovely-chart--color-${this.#data.colors[key].slice(1)}`
+        + ` lovely-chart--state-checked${darkContent}`;
 
       const check = createElement<HTMLSpanElement>('span');
       check.className = 'lovely-chart--button-check';

@@ -1,23 +1,26 @@
-import { TransitionManager } from './TransitionManager';
-import { throttleWithRaf, getMaxMin, mergeArrays, proxyMerge } from './utils';
+import type { AnalyzedData, ChartState, Filter, FocusOn, PointerVector, Range, Size } from './types';
+
 import {
+  ANIMATE_PROPS,
   AXES_MAX_COLUMN_WIDTH,
   AXES_MAX_ROW_HEIGHT,
-  X_AXIS_HEIGHT,
-  ANIMATE_PROPS,
-  TRANSITION_DEFAULT_DURATION,
-  Y_AXIS_ZERO_BASED_THRESHOLD,
+  GAP,
+  NO_FOCUS,
   PLOT_PIE_RADIUS_FACTOR,
   PLOT_TOP_PADDING,
+  TRANSITION_DEFAULT_DURATION,
+  X_AXIS_HEIGHT,
+  Y_AXIS_ZERO_BASED_THRESHOLD,
 } from './constants';
 import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas';
-import type { AnalyzedData, ChartState, Filter, FocusOn, PointerVector, Range, Size } from './types';
+import { TransitionManager } from './TransitionManager';
+import { getMaxMin, mergeArrays, proxyMerge, throttleWithRaf } from './utils';
 
 interface StateUpdate {
   range?: Partial<Range>;
   filter?: Filter;
   focusOn?: FocusOn;
-  minimapDelta?: number | null;
+  minimapDelta?: number;
 }
 
 interface TransitionConfigItem {
@@ -68,7 +71,9 @@ export class StateManager {
     Object.assign(this.#filter, filter);
 
     const prevState = this.#state;
-    this.#state = calculateState(this.#data, this.#viewportSize, this.#range, this.#filter, focusOn, minimapDelta, prevState);
+    this.#state = calculateState(
+      this.#data, this.#viewportSize, this.#range, this.#filter, focusOn, minimapDelta, prevState,
+    );
 
     if (!noTransition) {
       this.#transitionConfig.forEach(({ prop, duration, options }) => {
@@ -133,7 +138,7 @@ export class StateManager {
   #runCallback = () => {
     if (this.#isDestroyed) return;
     const state = this.#transitions.isFast()
-      ? proxyMerge(this.#state, this.#transitions.getState()) as ChartState
+      ? proxyMerge(this.#state, this.#transitions.getState())
       : this.#state;
     state.static = this.#state;
     this.#callback(state);
@@ -146,7 +151,7 @@ function calculateState(
   range: Range,
   filter: Filter,
   focusOn: FocusOn | undefined,
-  minimapDelta: number | null | undefined,
+  minimapDelta: number | undefined,
   prevState: ChartState,
 ): ChartState {
   const { begin, end } = range;
@@ -162,8 +167,8 @@ function calculateState(
     : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
 
   const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
-  const yAxisScaleSecond = data.hasSecondYAxis &&
-    calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond!, yRanges.yMaxViewportSecond!);
+  const yAxisScaleSecond = data.hasSecondYAxis
+    && calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond!, yRanges.yMaxViewportSecond!);
 
   const yStep = yScaleLevelToStep(yAxisScale);
   yRanges.yMinViewport = Math.floor(yRanges.yMinViewport / yStep) * yStep;
@@ -183,8 +188,12 @@ function calculateState(
   const resolvedFocusOn = focusOn !== undefined ? focusOn : prevState.focusOn;
 
   const datasetsPieShift = data.isPie
-    ? calculatePieShifts(data, viewportSize, filter, resolvedFocusOn as PointerVector | null | undefined, extendedLabelFromIndex, extendedLabelToIndex)
-    : null;
+    ? calculatePieShifts(
+      // For pie charts `focusOn` is never a plain label index
+      data, viewportSize, filter, resolvedFocusOn as Exclude<FocusOn, number> | undefined,
+      extendedLabelFromIndex, extendedLabelToIndex,
+    )
+    : undefined;
 
   // TODO perf
   return Object.assign(
@@ -213,7 +222,9 @@ function calculatePieShifts(
   data: AnalyzedData,
   viewportSize: Size,
   filter: Filter,
-  pointerVector: PointerVector | null | undefined,
+  // A vector while the pointer is over the pie, NO_FOCUS after a clear,
+  // or undefined before any interaction.
+  pointerVector: PointerVector | typeof NO_FOCUS | undefined,
   labelFromIndex: number,
   labelToIndex: number,
 ): Record<string, number> {
@@ -237,10 +248,11 @@ function calculatePieShifts(
     const endAngle = offset / total * Math.PI * 2 - Math.PI / 2;
 
     const isFocused = Boolean(
-      pointerVector &&
-      beginAngle <= pointerVector.angle &&
-      pointerVector.angle < endAngle &&
-      pointerVector.distance <= radius,
+      pointerVector
+      && pointerVector !== NO_FOCUS
+      && beginAngle <= pointerVector.angle
+      && pointerVector.angle < endAngle
+      && pointerVector.distance <= radius,
     );
 
     shifts[`pieShift#${key}`] = isFocused ? 1 : 0;
@@ -334,8 +346,12 @@ function calculateYRangesStacked(
   for (let i = 0; i < filteredValues.length; i++) {
     for (let j = 0; j < length; j++) {
       const v = filteredValues[i][j];
-      if (v == null) continue;
-      if (v >= 0) posSums[j] += v; else negSums[j] += v;
+      if (v === GAP) continue;
+      if (v >= 0) {
+        posSums[j] += v;
+      } else {
+        negSums[j] += v;
+      }
     }
   }
 

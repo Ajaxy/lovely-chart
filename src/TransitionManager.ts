@@ -20,13 +20,13 @@ export class TransitionManager {
 
   #transitions: Record<string, Transition> = {};
 
-  #nextFrame: number | null = null;
+  #nextFrame?: number;
 
-  #testStartedAt: number | null = null;
-  #fps: number | null = null;
-  #testingFps: number | null = null;
-  #slowDetectedAt: number | null = null;
-  #startedAsSlow: boolean | null = null;
+  #testStartedAt?: number;
+  #fps?: number;
+  #testingFps?: number;
+  #slowDetectedAt?: number;
+  #startedAsSlow?: boolean;
 
   constructor(onTick: (state: Record<string, number>) => void) {
     this.#onTick = onTick;
@@ -54,7 +54,7 @@ export class TransitionManager {
 
     if (!this.isRunning()) {
       cancelAnimationFrame(this.#nextFrame!);
-      this.#nextFrame = null;
+      this.#nextFrame = undefined;
     }
   }
 
@@ -86,13 +86,13 @@ export class TransitionManager {
       return false;
     }
 
-    return this.#fps === null || this.#fps >= SPEED_TEST_FAST_FPS;
+    return this.#fps === undefined || this.#fps >= SPEED_TEST_FAST_FPS;
   }
 
   destroy() {
     if (this.#nextFrame) {
       cancelAnimationFrame(this.#nextFrame);
-      this.#nextFrame = null;
+      this.#nextFrame = undefined;
     }
     Object.keys(this.#transitions).forEach((prop) => delete this.#transitions[prop]);
   }
@@ -133,10 +133,10 @@ export class TransitionManager {
   };
 
   #resetSpeedTest() {
-    this.#testStartedAt = null;
-    this.#testingFps = null;
+    this.#testStartedAt = undefined;
+    this.#testingFps = undefined;
     if (this.#slowDetectedAt && Date.now() - this.#slowDetectedAt > 5000) {
-      this.#slowDetectedAt = null;
+      this.#slowDetectedAt = undefined;
     }
     this.#startedAsSlow = Boolean(this.#slowDetectedAt) || !this.isFast(true);
   }

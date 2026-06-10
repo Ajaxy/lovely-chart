@@ -1,3 +1,5 @@
+import { GAP } from './constants';
+
 // https://jsperf.com/finding-maximum-element-in-an-array
 export function getMaxMin(array: (number | null | undefined)[]): { max?: number; min?: number } {
   const length = array.length;
@@ -7,7 +9,7 @@ export function getMaxMin(array: (number | null | undefined)[]): { max?: number;
   for (let i = 0; i < length; i++) {
     const value = array[i];
 
-    if (value == null) continue;
+    if (value === GAP || value === undefined) continue;
     if (max === undefined || value > max) max = value;
     if (min === undefined || value < min) min = value;
   }
@@ -54,7 +56,7 @@ export function throttle<A extends unknown[]>(
   ms: number,
   shouldRunFirst = true,
 ): (...args: A) => void {
-  let interval: number | null = null;
+  let interval: number | undefined;
   let isPending: boolean;
   let args: A;
 
@@ -70,8 +72,8 @@ export function throttle<A extends unknown[]>(
 
       interval = window.setInterval(() => {
         if (!isPending) {
-          window.clearInterval(interval!);
-          interval = null;
+          window.clearInterval(interval);
+          interval = undefined;
           return;
         }
 
@@ -101,12 +103,12 @@ export function throttleWithRaf<A extends unknown[]>(fn: (...args: A) => void): 
 }
 
 export function debounce(fn: () => void, ms: number, shouldRunFirst = true, shouldRunLast = true): () => void {
-  let waitingTimeout: number | null = null;
+  let waitingTimeout: number | undefined;
 
   return function () {
     if (waitingTimeout) {
       clearTimeout(waitingTimeout);
-      waitingTimeout = null;
+      waitingTimeout = undefined;
     } else if (shouldRunFirst) {
       fn();
     }
@@ -116,7 +118,7 @@ export function debounce(fn: () => void, ms: number, shouldRunFirst = true, shou
         fn();
       }
 
-      waitingTimeout = null;
+      waitingTimeout = undefined;
     }, ms);
   };
 }

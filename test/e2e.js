@@ -77,7 +77,7 @@ function check(name, condition, details = '') {
   if (!condition) failures++;
 }
 
-async function paintedPixels(page, chartIndex) {
+function paintedPixels(page, chartIndex) {
   return page.evaluate((i) => {
     const canvas = document.querySelectorAll('.lovely-chart--container')[i].querySelector('canvas');
     const d = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
@@ -174,7 +174,8 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await sleep(400);
   const checkedLeft = await chart0.locator('.lovely-chart--button.lovely-chart--state-checked').count();
   const shaken = await chart0.locator('.lovely-chart--state-shake').count();
-  check('last checked dataset refuses to uncheck', checkedLeft === 1 && shaken === 1, `checked: ${checkedLeft}, shake: ${shaken}`);
+  check('last checked dataset refuses to uncheck', checkedLeft === 1 && shaken === 1,
+    `checked: ${checkedLeft}, shake: ${shaken}`);
   for (let i = 0; i < nBtns; i++) {
     const b = buttons.nth(i);
     if (!(await b.evaluate((el) => el.classList.contains('lovely-chart--state-checked')))) await b.click();
@@ -200,7 +201,8 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const zoomOutCtl = chart2.locator('.lovely-chart--header-zoom-out-control');
   const zoomedIn = (await zoomOutCtl.count()) > 0;
   const dayCaption = await caption2();
-  check('zoom-in shows zoom-out control and day caption', zoomedIn && dayCaption !== rangeCaption, JSON.stringify(dayCaption));
+  check('zoom-in shows zoom-out control and day caption', zoomedIn && dayCaption !== rangeCaption,
+    JSON.stringify(dayCaption));
 
   if (zoomedIn) {
     await zoomOutCtl.first().click();

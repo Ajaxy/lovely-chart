@@ -1,4 +1,4 @@
-import { createElement, addEventListener } from './minifiers';
+import { addEventListener, createElement } from './minifiers';
 import { toggleText } from './toggleText';
 import { throttle } from './utils';
 
@@ -13,7 +13,7 @@ export class Header {
   #zoomOutElement?: HTMLElement;
   #captionElement!: HTMLElement;
   #isZooming?: boolean;
-  #zoomBindTimeout: number | null = null;
+  #zoomBindTimeout?: number;
 
   setCaption = throttle((caption: string) => this.#setCaption(caption), 100, false);
 
@@ -27,9 +27,11 @@ export class Header {
   }
 
   zoom(caption: string) {
-    this.#zoomOutElement = toggleText(this.#titleElement, this.#zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
+    this.#zoomOutElement = toggleText(
+      this.#titleElement, this.#zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control',
+    );
     this.#zoomBindTimeout = window.setTimeout(() => {
-      this.#zoomBindTimeout = null;
+      this.#zoomBindTimeout = undefined;
       addEventListener(this.#zoomOutElement!, 'click', this.#onZoomOut);
     }, 500);
 
@@ -37,9 +39,9 @@ export class Header {
   }
 
   destroy() {
-    if (this.#zoomBindTimeout !== null) {
+    if (this.#zoomBindTimeout !== undefined) {
       clearTimeout(this.#zoomBindTimeout);
-      this.#zoomBindTimeout = null;
+      this.#zoomBindTimeout = undefined;
     }
   }
 

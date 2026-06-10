@@ -1,7 +1,11 @@
-import { getMaxMin } from './utils';
-import { statsFormatDay, statsFormatDayHour, statsFormatText, statsFormatMin, statsFormatWeek, statsFormatMonth, statsFormatYear } from './format';
-import { MILISECONDS_IN_DAY } from './constants';
 import type { AnalyzedData, AnalyzedDataset, LabelType, LovelyChartParams, Range, XLabel } from './types';
+
+import { MILISECONDS_IN_DAY } from './constants';
+import {
+  statsFormatDay, statsFormatDayHour, statsFormatMin, statsFormatMonth,
+  statsFormatText, statsFormatWeek, statsFormatYear,
+} from './format';
+import { getMaxMin } from './utils';
 
 const DEFAULT_COLORS = [
   '#3497ED', '#2373DB', '#9ED448', '#5FB641',
@@ -23,18 +27,22 @@ const DEFAULT_COLORS_SUBSETS = [
 ];
 
 const LABEL_TYPE_TO_FORMATTER: Record<LabelType, string | undefined> = {
-  'year': 'statsFormatYear',
-  'month': 'statsFormatMonth',
-  'week': 'statsFormatWeek',
-  'day': "statsFormat('day')",
-  'hour': "statsFormat('hour')",
-  '5min': "statsFormat('5min')",
-  'dayHour': 'statsFormatDayHour',
-  'text': undefined,
+  year: 'statsFormatYear',
+  month: 'statsFormatMonth',
+  week: 'statsFormatWeek',
+  day: 'statsFormat(\'day\')',
+  hour: 'statsFormat(\'hour\')',
+  '5min': 'statsFormat(\'5min\')',
+  dayHour: 'statsFormatDayHour',
+  text: undefined,
 };
 
 export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelType): AnalyzedData {
-  const { title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, noCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
+  const {
+    title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis,
+    hasSecondYAxis, onZoom, withMinimap, minimapRange, noCaption, zoomOutLabel, valuePrefix, valueSuffix,
+    prefixIsCurrency, limitDate, onLimitedRangeClick,
+  } = data;
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : undefined);
   const { datasets, labels } = prepareDatasets(data);
@@ -80,8 +88,8 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
       break;
   }
 
-  let limitBegin: number | null = null;
-  if (limitDate != null) {
+  let limitBegin: number | undefined;
+  if (limitDate !== undefined) {
     const totalXWidth = labels.length - 1;
     const idx = labels.findIndex((l) => (l as number) >= limitDate);
     if (idx > 0) {
