@@ -2354,7 +2354,7 @@ const LABEL_TYPE_TO_FORMATTER = {
   "text": void 0
 };
 function analyzeData(data, fallbackLabelType) {
-  const { title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
+  const { title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, noCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || labelType && LABEL_TYPE_TO_FORMATTER[labelType];
   const { datasets, labels } = prepareDatasets(data);
@@ -2421,7 +2421,7 @@ function analyzeData(data, fallbackLabelType) {
     colors,
     withMinimap: Boolean(withMinimap),
     minimapRange: buildMinimapRange(minimapRange),
-    hideCaption,
+    noCaption,
     zoomOutLabel,
     limitBegin,
     onLimitedRangeClick
@@ -2732,7 +2732,7 @@ function create(container, originalData) {
       secondaryPoints = preparePoints(_data, [secondaryDataset], range, visibilities, bounds)[0];
       secondaryProjection = projection.copy(bounds);
     }
-    if (!_data.hideCaption) {
+    if (!_data.noCaption) {
       _header.setCaption(_getCaption(state));
     }
     clearCanvas(_plot, _context);

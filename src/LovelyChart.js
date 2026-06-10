@@ -132,7 +132,7 @@ function create(container, originalData) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    if (!_data.hideCaption) {
+    if (!_data.noCaption) {
       _header.setCaption(_getCaption(state));
     }
 
