@@ -838,21 +838,16 @@ function createProjection(params) {
     yPadding = 0,
     withColumns = false
   } = params;
-  let effectiveWidth = availableWidth;
-  if (begin === 0) {
-    effectiveWidth -= xPadding;
-  }
-  if (end === 1) {
-    effectiveWidth -= xPadding;
-  }
   const xUnitsCount = withColumns ? totalXWidth + 1 : totalXWidth;
-  const xFactor = effectiveWidth / ((end !== begin ? end - begin : 1) * xUnitsCount);
-  let xOffsetPx = begin * xUnitsCount * xFactor;
+  const xRatio = end !== begin ? end - begin : 1;
+  const baseXFactor = availableWidth / (xRatio * xUnitsCount);
+  const leftPadding = Math.max(0, xPadding - begin * xUnitsCount * baseXFactor);
+  const rightPadding = Math.max(0, xPadding - (1 - end) * xUnitsCount * baseXFactor);
+  const effectiveWidth = availableWidth - leftPadding - rightPadding;
+  const xFactor = effectiveWidth / (xRatio * xUnitsCount);
+  let xOffsetPx = begin * xUnitsCount * xFactor - leftPadding;
   if (withColumns) {
     xOffsetPx -= xFactor / 2;
-  }
-  if (begin === 0) {
-    xOffsetPx -= xPadding;
   }
   const effectiveHeight = availableHeight - yPadding;
   const yFactor = effectiveHeight / (yMax - yMin);

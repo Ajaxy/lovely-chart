@@ -14,26 +14,25 @@ export function createProjection(params) {
     withColumns = false,
   } = params;
 
-  let effectiveWidth = availableWidth;
-
-  // TODO bug get rid of padding jumps
-  if (begin === 0) {
-    effectiveWidth -= xPadding;
-  }
-  if (end === 1) {
-    effectiveWidth -= xPadding;
-  }
   // In column mode (bars, steps) every label owns a full-width column, so the
   // X scale spans one extra unit and label positions shift to column centers —
   // otherwise the first and last columns are cut in half at the plot edges.
   const xUnitsCount = withColumns ? totalXWidth + 1 : totalXWidth;
-  const xFactor = effectiveWidth / ((end !== begin ? end - begin : 1) * xUnitsCount);
-  let xOffsetPx = (begin * xUnitsCount) * xFactor;
+  const xRatio = end !== begin ? end - begin : 1;
+
+  // The chart bleeds beyond the container edge while panning, but keeps an
+  // edge margin when scrolled all the way to the begin/end. The margin fades
+  // in over the last `xPadding` of scroll distance — applying it only at
+  // exactly 0/1 made the layout jump when the minimap hit a boundary.
+  const baseXFactor = availableWidth / (xRatio * xUnitsCount);
+  const leftPadding = Math.max(0, xPadding - begin * xUnitsCount * baseXFactor);
+  const rightPadding = Math.max(0, xPadding - (1 - end) * xUnitsCount * baseXFactor);
+  const effectiveWidth = availableWidth - leftPadding - rightPadding;
+
+  const xFactor = effectiveWidth / (xRatio * xUnitsCount);
+  let xOffsetPx = (begin * xUnitsCount) * xFactor - leftPadding;
   if (withColumns) {
     xOffsetPx -= xFactor / 2;
-  }
-  if (begin === 0) {
-    xOffsetPx -= xPadding;
   }
 
   const effectiveHeight = availableHeight - yPadding;
