@@ -50,7 +50,7 @@ export const SIMPLIFIER_MIN_POINTS = 1000;
 export const SIMPLIFIER_PLOT_FACTOR = 1;
 export const SIMPLIFIER_MINIMAP_FACTOR = 0.5;
 
-export const ANIMATE_PROPS = [
+export const ANIMATE_PROPS: string[] = [
   // Viewport X-axis
   'begin 200 fast', 'end 200 fast', 'labelFromIndex 200 fast floor', 'labelToIndex 200 fast ceil',
 

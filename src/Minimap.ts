@@ -1,8 +1,8 @@
-import { setupCanvas, clearCanvas } from './canvas.js';
-import { preparePoints } from './preparePoints.js';
-import { Projection } from './Projection.js';
-import { drawDatasets } from './drawDatasets.js';
-import { captureEvents } from './captureEvents.js';
+import { setupCanvas, clearCanvas } from './canvas';
+import { preparePoints } from './preparePoints';
+import { Projection } from './Projection';
+import { drawDatasets } from './drawDatasets';
+import { captureEvents } from './captureEvents';
 import {
   DEFAULT_RANGE,
   MINIMAP_HEIGHT,
@@ -11,34 +11,36 @@ import {
   MINIMAP_LINE_WIDTH,
   MINIMAP_MAX_ANIMATED_DATASETS,
   SIMPLIFIER_MINIMAP_FACTOR,
-} from './constants.js';
-import { proxyMerge, throttleWithRaf } from './utils.js';
-import { createElement } from './minifiers.js';
-import { getSimplificationDelta } from './formulas.js';
+} from './constants';
+import { proxyMerge, throttleWithRaf } from './utils';
+import { createElement } from './minifiers';
+import { getSimplificationDelta } from './formulas';
+import type { CaptureEvent } from './captureEvents';
+import type { AnalyzedData, ChartColors, ChartState, Point, ProjectionParams, Range, Size } from './types';
 
 export class Minimap {
-  #container;
-  #data;
-  #colors;
-  #rangeCallback;
+  #container: HTMLElement;
+  #data: AnalyzedData;
+  #colors: ChartColors;
+  #rangeCallback: (range: Range) => void;
 
-  #element;
-  #canvas;
-  #context;
-  #canvasSize;
-  #ruler;
-  #slider;
-  #limitMask;
+  #element!: HTMLElement;
+  #canvas!: HTMLCanvasElement;
+  #context!: CanvasRenderingContext2D;
+  #canvasSize!: Size;
+  #ruler!: HTMLElement;
+  #slider!: HTMLElement;
+  #limitMask?: HTMLElement;
 
-  #capturedOffset;
-  #range = {};
-  #state;
+  #capturedOffset?: number | null;
+  #range: Range = {} as Range;
+  #state?: ChartState;
 
-  #limitBegin;
+  #limitBegin: number | null;
 
   #updateRulerOnRaf = throttleWithRaf(() => this.#updateRuler());
 
-  constructor(container, data, colors, rangeCallback) {
+  constructor(container: HTMLElement, data: AnalyzedData, colors: ChartColors, rangeCallback: (range: Range) => void) {
     this.#container = container;
     this.#data = data;
     this.#colors = colors;
@@ -50,27 +52,27 @@ export class Minimap {
     this.#updateRange(data.minimapRange || DEFAULT_RANGE);
   }
 
-  update(newState) {
+  update(newState: ChartState) {
     const { begin, end } = newState;
     if (!this.#capturedOffset) {
       this.#updateRange({ begin, end }, true);
     }
 
     if (this.#data.datasets.length >= MINIMAP_MAX_ANIMATED_DATASETS) {
-      newState = newState.static;
+      newState = newState.static!;
     }
 
     if (!this.#isStateChanged(newState)) {
       return;
     }
 
-    this.#state = proxyMerge(newState, { focusOn: null });
+    this.#state = proxyMerge(newState, { focusOn: null }) as ChartState;
     clearCanvas(this.#canvas, this.#context);
 
     this.#drawDatasets(this.#state);
   }
 
-  toggle(shouldShow) {
+  toggle(shouldShow: boolean) {
     this.#element.classList.toggle('lovely-chart--state-hidden', !shouldShow);
 
     requestAnimationFrame(() => {
@@ -96,7 +98,7 @@ export class Minimap {
     };
   }
 
-  #getSize() {
+  #getSize(): Size {
     return {
       width: this.#container.offsetWidth - MINIMAP_MARGIN * 2,
       height: MINIMAP_HEIGHT,
@@ -122,10 +124,10 @@ export class Minimap {
       '</div>' +
       '<div class="lovely-chart--minimap-mask"></div>';
 
-    this.#slider = this.#ruler.children[1];
+    this.#slider = this.#ruler.children[1] as HTMLElement;
 
     captureEvents(
-      this.#slider.children[1],
+      this.#slider.children[1] as HTMLElement,
       {
         onCapture: this.#onDragCapture,
         onDrag: this.#onSliderDrag,
@@ -135,7 +137,7 @@ export class Minimap {
     );
 
     captureEvents(
-      this.#slider.children[0],
+      this.#slider.children[0] as HTMLElement,
       {
         onCapture: this.#onDragCapture,
         onDrag: this.#onLeftEarDrag,
@@ -145,7 +147,7 @@ export class Minimap {
     );
 
     captureEvents(
-      this.#slider.children[2],
+      this.#slider.children[2] as HTMLElement,
       {
         onCapture: this.#onDragCapture,
         onDrag: this.#onRightEarDrag,
@@ -174,14 +176,14 @@ export class Minimap {
     this.#element.appendChild(this.#limitMask);
   }
 
-  #isStateChanged(newState) {
+  #isStateChanged(newState: ChartState): boolean {
     if (!this.#state) {
       return true;
     }
 
     const { datasets } = this.#data;
 
-    if (datasets.some(({ key }) => this.#state[`opacity#${key}`] !== newState[`opacity#${key}`])) {
+    if (datasets.some(({ key }) => this.#state![`opacity#${key}`] !== newState[`opacity#${key}`])) {
       return true;
     }
 
@@ -192,13 +194,13 @@ export class Minimap {
     return false;
   }
 
-  #drawDatasets(state = {}) {
+  #drawDatasets(state: ChartState = {} as ChartState) {
     const { datasets } = this.#data;
     const range = {
       from: 0,
       to: state.totalXWidth,
     };
-    const boundsAndParams = {
+    const boundsAndParams: ProjectionParams = {
       begin: 0,
       end: 1,
       totalXWidth: state.totalXWidth,
@@ -209,15 +211,15 @@ export class Minimap {
       yPadding: 1,
       withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isPie,
     };
-    const visibilities = datasets.map(({ key }) => this.#state[`opacity#${key}`]);
+    const visibilities = datasets.map(({ key }) => this.#state![`opacity#${key}`] as number);
     const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams, true);
     const projection = new Projection(boundsAndParams);
 
-    let secondaryPoints = null;
-    let secondaryProjection = null;
+    let secondaryPoints: Point[] | null = null;
+    let secondaryProjection: Projection | null = null;
     if (this.#data.hasSecondYAxis) {
-      const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
-      const bounds = { yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond };
+      const secondaryDataset = datasets.find((d) => d.hasOwnYAxis)!;
+      const bounds = { yMin: state.yMinMinimapSecond!, yMax: state.yMaxMinimapSecond! };
       secondaryPoints = preparePoints(this.#data, [secondaryDataset], range, visibilities, bounds)[0];
       secondaryProjection = projection.copy(bounds);
     }
@@ -232,21 +234,21 @@ export class Minimap {
     );
   }
 
-  #onDragCapture = (e) => {
+  #onDragCapture = (e: CaptureEvent) => {
     e.preventDefault();
-    this.#capturedOffset = e.target.offsetLeft;
+    this.#capturedOffset = (e.target as HTMLElement).offsetLeft;
   };
 
   #onDragRelease = () => {
     this.#capturedOffset = null;
   };
 
-  #onSliderDrag = (moveEvent, captureEvent, { dragOffsetX }) => {
+  #onSliderDrag = (moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number }) => {
     const limitX = this.#limitBegin != null ? this.#limitBegin * this.#canvasSize.width : 0;
     const minX1 = limitX;
     const maxX1 = this.#canvasSize.width - this.#slider.offsetWidth;
 
-    const newX1 = Math.max(minX1, Math.min(this.#capturedOffset + dragOffsetX - MINIMAP_EAR_WIDTH, maxX1));
+    const newX1 = Math.max(minX1, Math.min(this.#capturedOffset! + dragOffsetX - MINIMAP_EAR_WIDTH, maxX1));
     const newX2 = newX1 + this.#slider.offsetWidth;
     const begin = newX1 / this.#canvasSize.width;
     const end = newX2 / this.#canvasSize.width;
@@ -254,28 +256,28 @@ export class Minimap {
     this.#updateRange({ begin, end });
   };
 
-  #onLeftEarDrag = (moveEvent, captureEvent, { dragOffsetX }) => {
+  #onLeftEarDrag = (moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number }) => {
     const limitX = this.#limitBegin != null ? this.#limitBegin * this.#canvasSize.width : 0;
     const minX1 = limitX;
     const maxX1 = this.#slider.offsetLeft + this.#slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
 
-    const newX1 = Math.min(maxX1, Math.max(minX1, this.#capturedOffset + dragOffsetX));
+    const newX1 = Math.min(maxX1, Math.max(minX1, this.#capturedOffset! + dragOffsetX));
     const begin = newX1 / this.#canvasSize.width;
 
     this.#updateRange({ begin });
   };
 
-  #onRightEarDrag = (moveEvent, captureEvent, { dragOffsetX }) => {
+  #onRightEarDrag = (moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number }) => {
     const minX2 = this.#slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
     const maxX2 = this.#canvasSize.width;
 
-    const newX2 = Math.max(minX2, Math.min(this.#capturedOffset + MINIMAP_EAR_WIDTH + dragOffsetX, maxX2));
+    const newX2 = Math.max(minX2, Math.min(this.#capturedOffset! + MINIMAP_EAR_WIDTH + dragOffsetX, maxX2));
     const end = newX2 / this.#canvasSize.width;
 
     this.#updateRange({ end });
   };
 
-  #updateRange(range, isExternal) {
+  #updateRange(range: Partial<Range>, isExternal?: boolean) {
     let nextRange = Object.assign({}, this.#range, range);
 
     if (this.#state && this.#state.minimapDelta && !isExternal) {
@@ -298,10 +300,10 @@ export class Minimap {
     }
   }
 
-  #adjustDiscreteRange(nextRange) {
+  #adjustDiscreteRange(nextRange: Range): Range {
     // TODO sometimes beginChange and endChange are different for slider drag because of pixels division
-    const begin = Math.round(nextRange.begin / this.#state.minimapDelta) * this.#state.minimapDelta;
-    const end = Math.round(nextRange.end / this.#state.minimapDelta) * this.#state.minimapDelta;
+    const begin = Math.round(nextRange.begin / this.#state!.minimapDelta!) * this.#state!.minimapDelta!;
+    const end = Math.round(nextRange.end / this.#state!.minimapDelta!) * this.#state!.minimapDelta!;
 
     return { begin, end };
   }
@@ -309,8 +311,8 @@ export class Minimap {
   #updateRuler() {
     const { begin, end } = this.#range;
 
-    this.#ruler.children[0].style.width = `${begin * 100}%`;
-    this.#ruler.children[1].style.width = `${(end - begin) * 100}%`;
-    this.#ruler.children[2].style.width = `${(1 - end) * 100}%`;
+    (this.#ruler.children[0] as HTMLElement).style.width = `${begin * 100}%`;
+    (this.#ruler.children[1] as HTMLElement).style.width = `${(end - begin) * 100}%`;
+    (this.#ruler.children[2] as HTMLElement).style.width = `${(1 - end) * 100}%`;
   }
 }

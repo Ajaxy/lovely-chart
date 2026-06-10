@@ -1,0 +1,192 @@
+export type ChartType = 'line' | 'bar' | 'step' | 'area' | 'pie';
+
+export type LabelType = 'year' | 'month' | 'week' | 'day' | 'hour' | '5min' | 'dayHour' | 'text';
+
+export interface Range {
+  begin: number;
+  end: number;
+}
+
+export interface LabelRange {
+  from: number;
+  to: number;
+}
+
+export interface Size {
+  width: number;
+  height: number;
+}
+
+export interface XLabel {
+  value: number;
+  text: string;
+}
+
+export type Filter = Record<string, boolean>;
+
+export interface PointerVector {
+  angle: number;
+  distance: number;
+}
+
+export type FocusOn = number | PointerVector | null;
+
+export interface SecondaryYAxisConfig {
+  label: string;
+  multiplier: number;
+  prefix?: string;
+  suffix?: string;
+}
+
+export interface LovelyChartDatasetParams {
+  name: string;
+  color?: string;
+  values: (number | null)[];
+}
+
+/** Raw data accepted by `LovelyChart.create()` and `onZoom` callbacks. */
+export interface LovelyChartParams {
+  type: ChartType;
+  labels: (number | string)[];
+  datasets: LovelyChartDatasetParams[];
+  title?: string;
+  colors?: Record<string, string>;
+  labelType?: LabelType;
+  labelFormatter?: string;
+  tooltipFormatter?: string;
+  isStacked?: boolean;
+  isPercentage?: boolean;
+  isDonut?: boolean;
+  withGradient?: boolean;
+  hasSecondYAxis?: boolean;
+  secondaryYAxis?: SecondaryYAxisConfig;
+  onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
+  withMinimap?: boolean;
+  minimapRange?: [number, number] | 'full';
+  noCaption?: boolean;
+  zoomOutLabel?: string;
+  valuePrefix?: string;
+  valueSuffix?: string;
+  prefixIsCurrency?: boolean;
+  limitDate?: number;
+  onLimitedRangeClick?: () => void;
+}
+
+export interface AnalyzedDataset {
+  type: ChartType;
+  key: string;
+  name: string;
+  color: string;
+  values: (number | null)[];
+  hasOwnYAxis: boolean | undefined;
+  yMin: number | undefined;
+  yMax: number | undefined;
+}
+
+export interface AnalyzedData {
+  title?: string;
+  labelType?: LabelType;
+  labelFormatter?: string;
+  tooltipFormatter?: string;
+  xLabels: XLabel[];
+  datasets: AnalyzedDataset[];
+  isStacked?: boolean;
+  isPercentage?: boolean;
+  secondaryYAxis?: SecondaryYAxisConfig;
+  hasSecondYAxis?: boolean;
+  valuePrefix?: string;
+  valueSuffix?: string;
+  prefixIsCurrency?: boolean;
+  onZoom?: LovelyChartParams['onZoom'];
+  isLines: boolean;
+  isBars: boolean;
+  isSteps: boolean;
+  isAreas: boolean;
+  isPie: boolean;
+  isDonut: boolean;
+  withGradient: boolean;
+  yMin: number;
+  yMax: number;
+  colors: Record<string, string>;
+  withMinimap: boolean;
+  minimapRange?: Range;
+  noCaption?: boolean;
+  zoomOutLabel?: string;
+  limitBegin: number | null;
+  onLimitedRangeClick?: () => void;
+  shouldZoomToPie: boolean;
+  isZoomable: boolean;
+}
+
+export interface ChartState {
+  begin: number;
+  end: number;
+  totalXWidth: number;
+  labelFromIndex: number;
+  labelToIndex: number;
+  xAxisScale: number;
+  yAxisScale: number;
+  yAxisScaleSecond?: number | false;
+  yMinViewport: number;
+  yMaxViewport: number;
+  yMinMinimap: number;
+  yMaxMinimap: number;
+  yMinViewportSecond?: number;
+  yMaxViewportSecond?: number;
+  yMinMinimapSecond?: number;
+  yMaxMinimapSecond?: number;
+  filter: Filter;
+  focusOn?: FocusOn;
+  minimapDelta?: number | null;
+  static?: ChartState;
+  // The transition manager interpolates over arbitrary numeric props and adds
+  // `*From`/`*To`/`*Progress` companions, plus per-dataset `opacity#*` and
+  // `pieShift#*` values — all keyed dynamically.
+  [prop: string]: any;
+}
+
+export interface Point {
+  labelIndex: number;
+  value: number | null;
+  visibleValue: number;
+  stackOffset: number;
+  stackValue: number;
+  gap: boolean;
+  percent?: number;
+}
+
+/** The subset of `Point` the canvas renderers actually consume. */
+export interface DrawPoint {
+  labelIndex: number;
+  stackValue: number;
+  stackOffset?: number;
+  visibleValue?: number;
+  gap?: boolean;
+}
+
+export interface ProjectionParams {
+  begin: number;
+  end: number;
+  totalXWidth: number;
+  yMin: number;
+  yMax: number;
+  availableWidth: number;
+  availableHeight: number;
+  xPadding?: number;
+  yPadding?: number;
+  withColumns?: boolean;
+}
+
+export type Pixel = [number, number];
+
+export type ColorChannels = [number, number, number, number?];
+export type SkinColors = Record<string, ColorChannels>;
+export type ChartColors = Record<string, SkinColors>;
+
+export interface StatisticsItem {
+  key: string;
+  name: string;
+  value: number | null;
+  hasOwnYAxis: boolean | undefined;
+  originalIndex: number;
+}

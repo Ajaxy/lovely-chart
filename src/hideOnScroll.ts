@@ -1,11 +1,11 @@
-import { debounce } from './utils.js';
+import { debounce } from './utils';
 
 export const hideOnScroll = (() => {
-  const chartEls = [];
+  const chartEls: HTMLElement[] = [];
   const showAllDebounced = debounce(showAll, 500, true, false);
   const hideScrolledDebounced = debounce(hideScrolled, 500, false, true);
 
-  function setup(chartEl) {
+  function setup(chartEl: HTMLElement) {
     chartEls.push(chartEl);
 
     if (chartEls.length === 1) {

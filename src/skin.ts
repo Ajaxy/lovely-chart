@@ -1,10 +1,12 @@
+import type { ChartColors, ColorChannels } from './types';
+
 function detectSkin() {
   return document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
 }
 
 let skin = detectSkin();
 
-const COLORS = {
+const COLORS: Record<string, Record<string, string>> = {
   'skin-day': {
     'background': '#FFFFFF',
     'text-color': '#222222',
@@ -36,7 +38,7 @@ const COLORS = {
 // Prefer Constructable Stylesheets so a strict `style-src` CSP without
 // `'unsafe-inline'` does not block us; fall back to an injected <style> on
 // browsers that do not support them or where construction throws.
-let styleSheet;
+let styleSheet: CSSStyleSheet | null | undefined;
 if (typeof CSSStyleSheet === 'function') {
   try {
     styleSheet = new CSSStyleSheet();
@@ -57,8 +59,8 @@ new MutationObserver(() => {
   skin = detectSkin();
 }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
-export function createColors(datasetColors) {
-  const colors = {};
+export function createColors(datasetColors: Record<string, string>): ChartColors {
+  const colors: ChartColors = {};
   const baseClass = `.lovely-chart--color`;
 
   ['skin-day', 'skin-night'].forEach((skin) => {
@@ -71,22 +73,22 @@ export function createColors(datasetColors) {
     Object.keys(datasetColors).forEach((key) => {
       colors[skin][`dataset#${key}`] = hexToChannels(datasetColors[key]);
 
-      addCssRule(styleSheet, `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`, `color: ${datasetColors[key]}`);
-      addCssRule(styleSheet, `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`, `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`);
+      addCssRule(styleSheet!, `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`, `color: ${datasetColors[key]}`);
+      addCssRule(styleSheet!, `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`, `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`);
 
       const checkedBtnSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`;
-      addCssRule(styleSheet, checkedBtnSelector, `background-color: ${datasetColors[key]}`);
+      addCssRule(styleSheet!, checkedBtnSelector, `background-color: ${datasetColors[key]}`);
     });
   });
 
   return colors;
 }
 
-export function getCssColor(colors, key, opacity) {
+export function getCssColor(colors: ChartColors, key: string, opacity?: number): string {
   return buildCssColor(colors[skin][key], opacity);
 }
 
-function hexToChannels(hexWithAlpha) {
+function hexToChannels(hexWithAlpha: string): ColorChannels {
   const [hex, alpha] = hexWithAlpha.replace('#', '').split('/');
 
   return [
@@ -97,24 +99,24 @@ function hexToChannels(hexWithAlpha) {
   ];
 }
 
-function buildCssColor([r, g, b, a = 1], opacity = 1) {
+function buildCssColor([r, g, b, a = 1]: ColorChannels, opacity = 1): string {
   return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
 }
 
-export function isColorCloseToBackground(colors, hex) {
+export function isColorCloseToBackground(colors: ChartColors, hex: string): boolean {
   const bg = colors[skin]['tooltip-background'];
   const fg = hexToChannels(hex);
   return colorDistance(bg, fg) < 70;
 }
 
-export function isColorCloseToWhite(hex) {
+export function isColorCloseToWhite(hex: string): boolean {
   return colorDistance(hexToChannels(hex), [255, 255, 255]) < 70;
 }
 
-function colorDistance([r1, g1, b1], [r2, g2, b2]) {
+function colorDistance([r1, g1, b1]: ColorChannels, [r2, g2, b2]: ColorChannels): number {
   return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
 }
 
-function addCssRule(sheet, selector, rule) {
+function addCssRule(sheet: CSSStyleSheet, selector: string, rule: string) {
   sheet.insertRule(`${selector} { ${rule} }`, sheet.cssRules.length);
 }

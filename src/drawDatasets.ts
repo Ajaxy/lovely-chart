@@ -1,20 +1,42 @@
-import { getCssColor } from './skin.js';
-import { mergeArrays } from './utils.js';
-import { getPieRadius, getPieTextShift, getPieTextSize } from './formulas.js';
-import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT, PIE_MINIMUM_VISIBLE_PERCENT, PIE_DONUT_INNER_RADIUS_FACTOR } from './constants.js';
-import { simplify } from './simplify.js';
+import { getCssColor } from './skin';
+import { mergeArrays } from './utils';
+import { getPieRadius, getPieTextShift, getPieTextSize } from './formulas';
+import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT, PIE_MINIMUM_VISIBLE_PERCENT, PIE_DONUT_INNER_RADIUS_FACTOR } from './constants';
+import { simplify } from './simplify';
+import type { Projection } from './Projection';
+import type { AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, LabelRange, Pixel, Point } from './types';
+
+interface DrawOptions {
+  color: string;
+  lineWidth: number;
+  opacity: number;
+  simplification: number;
+  center?: Pixel;
+  radius?: number;
+  shift?: number;
+  isDonut?: boolean;
+  withGradient?: boolean;
+  focusOn?: number | null;
+}
+
+interface MaskOptions {
+  focusOn: number;
+  color: string;
+  lineWidth: number;
+}
 
 export function drawDatasets(
-  context, state, data,
-  range, points, projection, secondaryPoints, secondaryProjection,
-  lineWidth, visibilities, colors, pieToBar, simplification,
+  context: CanvasRenderingContext2D, state: ChartState, data: AnalyzedData,
+  range: LabelRange, points: Point[][], projection: Projection,
+  secondaryPoints: Point[] | null, secondaryProjection: Projection | null,
+  lineWidth: number, visibilities: number[], colors: ChartColors, pieToBar: boolean, simplification: number,
 ) {
   data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
       return;
     }
 
-    const options = {
+    const options: DrawOptions = {
       color: getCssColor(colors, `dataset#${key}`),
       lineWidth,
       opacity: data.isStacked ? 1 : visibilities[i],
@@ -22,18 +44,18 @@ export function drawDatasets(
     };
 
     const datasetType = type === 'pie' && pieToBar ? 'bar' : type;
-    let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
-    let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
+    let datasetPoints: DrawPoint[] = hasOwnYAxis ? secondaryPoints! : points[i];
+    let datasetProjection = hasOwnYAxis ? secondaryProjection! : projection;
 
     if (datasetType === 'area') {
-      const bottomLine = [
+      const bottomLine: DrawPoint[] = [
         { labelIndex: range.from, stackValue: 0 },
         { labelIndex: range.to, stackValue: 0 },
       ];
-      const lowerBoundary = points[i - 1] || bottomLine;
+      const lowerBoundary: DrawPoint[] = points[i - 1] || bottomLine;
       const upperBoundary = points[i].slice().reverse();
 
-      datasetPoints = mergeArrays([lowerBoundary, upperBoundary]);
+      datasetPoints = mergeArrays<DrawPoint>([lowerBoundary, upperBoundary]);
     }
 
     if (datasetType === 'pie') {
@@ -49,7 +71,7 @@ export function drawDatasets(
       const [x1] = projection.toPixels(1, 0);
 
       options.lineWidth = x1 - x0;
-      options.focusOn = state.focusOn;
+      options.focusOn = state.focusOn as number | null;
     }
 
     drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
@@ -60,33 +82,39 @@ export function drawDatasets(
     const [x1] = projection.toPixels(1, 0);
 
     drawBarsMask(context, projection, {
-      focusOn: state.focusOn,
+      focusOn: state.focusOn as number,
       color: getCssColor(colors, 'mask'),
       lineWidth: data.isSteps ? x1 - x0 + lineWidth : x1 - x0,
     });
   }
 }
 
-function drawDataset(type, ...args) {
+function drawDataset(
+  type: ChartType,
+  context: CanvasRenderingContext2D,
+  points: DrawPoint[],
+  projection: Projection,
+  options: DrawOptions,
+) {
   switch (type) {
     case 'line':
-      return drawDatasetLine(...args);
+      return drawDatasetLine(context, points, projection, options);
     case 'bar':
-      return drawDatasetBars(...args);
+      return drawDatasetBars(context, points, projection, options);
     case 'step':
-      return drawDatasetSteps(...args);
+      return drawDatasetSteps(context, points, projection, options);
     case 'area':
-      return drawDatasetArea(...args);
+      return drawDatasetArea(context, points, projection, options);
     case 'pie':
-      return drawDatasetPie(...args);
+      return drawDatasetPie(context, points, projection, options);
   }
 }
 
-function drawDatasetLine(context, points, projection, options) {
+function drawDatasetLine(context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions) {
   context.beginPath();
 
-  const segments = [];
-  let current = [];
+  const segments: Pixel[][] = [];
+  let current: Pixel[] = [];
   for (let j = 0, l = points.length; j < l; j++) {
     const point = points[j];
     if (point.gap) {
@@ -122,7 +150,7 @@ function drawDatasetLine(context, points, projection, options) {
 }
 
 // TODO try areas
-function drawDatasetBars(context, points, projection, options) {
+function drawDatasetBars(context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions) {
   const { yMin } = projection.getParams();
 
   context.save();
@@ -148,11 +176,11 @@ function drawDatasetBars(context, points, projection, options) {
   context.restore();
 }
 
-function drawDatasetSteps(context, points, projection, options) {
+function drawDatasetSteps(context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions) {
   context.beginPath();
 
-  const segments = [];
-  let current = [];
+  const segments: Pixel[][] = [];
+  let current: Pixel[] = [];
   for (let j = 0, l = points.length; j < l; j++) {
     const point = points[j];
     if (point.gap) {
@@ -184,7 +212,7 @@ function drawDatasetSteps(context, points, projection, options) {
   context.restore();
 }
 
-function drawBarsMask(context, projection, options) {
+function drawBarsMask(context: CanvasRenderingContext2D, projection: Projection, options: MaskOptions) {
   const [xCenter, yCenter] = projection.getCenter();
   const [width, height] = projection.getSize();
 
@@ -195,10 +223,10 @@ function drawBarsMask(context, projection, options) {
   context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
 }
 
-function drawDatasetArea(context, points, projection, options) {
+function drawDatasetArea(context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions) {
   context.beginPath();
 
-  let pixels = [];
+  let pixels: Pixel[] = [];
 
   for (let j = 0, l = points.length; j < l; j++) {
     const { labelIndex, stackValue } = points[j];
@@ -224,7 +252,7 @@ function drawDatasetArea(context, points, projection, options) {
   context.restore();
 }
 
-function drawDatasetPie(context, points, projection, options) {
+function drawDatasetPie(context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions) {
   const { visibleValue, stackValue, stackOffset = 0 } = points[0];
 
   if (!visibleValue) {
@@ -238,7 +266,7 @@ function drawDatasetPie(context, points, projection, options) {
   const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
   const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
 
-  const { radius = 120, center: [x, y], shift = 0, isDonut, withGradient } = options;
+  const { radius = 120, center: [x, y] = [0, 0], shift = 0, isDonut, withGradient } = options;
   const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
 
   const shiftAngle = (beginAngle + endAngle) / 2;
@@ -281,7 +309,7 @@ function drawDatasetPie(context, points, projection, options) {
   context.restore();
 }
 
-function buildPieGradient(context, cx, cy, innerRadius, radius, color) {
+function buildPieGradient(context: CanvasRenderingContext2D, cx: number, cy: number, innerRadius: number, radius: number, color: string) {
   const channels = parseRgba(color);
   const gradient = context.createRadialGradient(cx, cy, innerRadius, cx, cy, radius);
   gradient.addColorStop(0, shadeColor(channels, 0.1));
@@ -289,15 +317,15 @@ function buildPieGradient(context, cx, cy, innerRadius, radius, color) {
   return gradient;
 }
 
-function parseRgba(color) {
+function parseRgba(color: string): number[] {
   const channels = color.match(/[\d.]+/g);
   return channels ? channels.map(Number) : [0, 0, 0, 1];
 }
 
 // `amount` > 0 mixes toward white (highlight), < 0 toward black (shadow).
-function shadeColor([r, g, b, a = 1], amount) {
+function shadeColor([r, g, b, a = 1]: number[], amount: number): string {
   const target = amount >= 0 ? 255 : 0;
   const t = Math.abs(amount);
-  const mix = (channel) => Math.round(channel + (target - channel) * t);
+  const mix = (channel: number) => Math.round(channel + (target - channel) * t);
   return `rgba(${mix(r)}, ${mix(g)}, ${mix(b)}, ${a})`;
 }

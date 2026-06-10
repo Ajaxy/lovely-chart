@@ -1,15 +1,16 @@
-import { createElement } from './minifiers.js';
-import { captureEvents } from './captureEvents.js';
-import { isColorCloseToWhite } from './skin.js';
+import { createElement } from './minifiers';
+import { captureEvents } from './captureEvents';
+import { isColorCloseToWhite } from './skin';
+import type { AnalyzedData, Filter } from './types';
 
 export class Tools {
-  #container;
-  #data;
-  #filterCallback;
+  #container: HTMLElement;
+  #data: AnalyzedData;
+  #filterCallback: (filter: Filter) => void;
 
-  #element;
+  #element!: HTMLElement;
 
-  constructor(container, data, filterCallback) {
+  constructor(container: HTMLElement, data: AnalyzedData, filterCallback: (filter: Filter) => void) {
     this.#container = container;
     this.#data = data;
     this.#filterCallback = filterCallback;
@@ -23,7 +24,7 @@ export class Tools {
       const oldElement = this.#element;
       oldElement.classList.add('lovely-chart--state-hidden');
       setTimeout(() => {
-        oldElement.parentNode.removeChild(oldElement);
+        oldElement.parentNode!.removeChild(oldElement);
       }, 500);
     }
 
@@ -43,17 +44,17 @@ export class Tools {
     }
 
     this.#data.datasets.forEach(({ key, name }) => {
-      const control = createElement('a');
+      const control = createElement<HTMLAnchorElement>('a');
       control.href = '#';
       control.dataset.key = key;
       const darkContent = isColorCloseToWhite(this.#data.colors[key]) ? ' lovely-chart--dark-content' : '';
       control.className = `lovely-chart--button lovely-chart--color-${this.#data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
 
-      const check = createElement('span');
+      const check = createElement<HTMLSpanElement>('span');
       check.className = 'lovely-chart--button-check';
       control.appendChild(check);
 
-      const label = createElement('span');
+      const label = createElement<HTMLSpanElement>('span');
       label.className = 'lovely-chart--button-label';
       label.textContent = name;
       control.appendChild(label);
@@ -82,7 +83,7 @@ export class Tools {
     this.#container.appendChild(this.#element);
   }
 
-  #updateFilter(button, isLongPress = false) {
+  #updateFilter(button?: HTMLAnchorElement, isLongPress = false) {
     const buttons = Array.from(this.#element.getElementsByTagName('a'));
     const isSingleChecked = this.#element.querySelectorAll('.lovely-chart--state-checked').length === 1;
 
@@ -105,10 +106,10 @@ export class Tools {
       }
     }
 
-    const filter = {};
+    const filter: Filter = {};
 
     buttons.forEach((input) => {
-      filter[input.dataset.key] = input.classList.contains('lovely-chart--state-checked');
+      filter[input.dataset.key!] = input.classList.contains('lovely-chart--state-checked');
     });
 
     this.#filterCallback(filter);

@@ -1,11 +1,23 @@
-import { addEventListener, removeEventListener } from './minifiers.js';
-import { LONG_PRESS_TIMEOUT } from './constants.js';
+import { addEventListener, removeEventListener } from './minifiers';
+import { LONG_PRESS_TIMEOUT } from './constants';
 
-export function captureEvents(element, options) {
-  let captureEvent = null;
-  let longPressTimeout = null;
+// Touch events get `pageX` grafted onto them (see the StackOverflow link
+// below), so handlers see a unified shape.
+export type CaptureEvent = (MouseEvent | TouchEvent) & { pageX?: number };
 
-  function onCapture(e) {
+export interface CaptureEventsOptions {
+  draggingCursor?: string;
+  onCapture?: (e: CaptureEvent) => void;
+  onRelease?: (e: CaptureEvent) => void;
+  onDrag?: (moveEvent: CaptureEvent, captureEvent: CaptureEvent, extra: { dragOffsetX: number }) => void;
+  onLongPress?: () => void;
+}
+
+export function captureEvents(element: HTMLElement, options: CaptureEventsOptions) {
+  let captureEvent: CaptureEvent | null = null;
+  let longPressTimeout: number | null = null;
+
+  function onCapture(e: CaptureEvent) {
     captureEvent = e;
 
     if (e.type === 'mousedown') {
@@ -19,7 +31,7 @@ export function captureEvents(element, options) {
       // https://stackoverflow.com/questions/11287877/how-can-i-get-e-offsetx-on-mobile-ipad
       // Android does not have this value, and iOS has it but as read-only.
       if (e.pageX === undefined) {
-        e.pageX = e.touches[0].pageX;
+        (e as { pageX?: number }).pageX = (e as TouchEvent).touches[0].pageX;
       }
     }
 
@@ -30,11 +42,11 @@ export function captureEvents(element, options) {
     options.onCapture && options.onCapture(e);
 
     if (options.onLongPress) {
-      longPressTimeout = setTimeout(() => options.onLongPress(), LONG_PRESS_TIMEOUT);
+      longPressTimeout = window.setTimeout(() => options.onLongPress!(), LONG_PRESS_TIMEOUT);
     }
   }
 
-  function onRelease(e) {
+  function onRelease(e: CaptureEvent) {
     if (captureEvent) {
       if (longPressTimeout) {
         clearTimeout(longPressTimeout);
@@ -57,7 +69,7 @@ export function captureEvents(element, options) {
     }
   }
 
-  function onMove(e) {
+  function onMove(e: CaptureEvent) {
     if (captureEvent) {
       if (longPressTimeout) {
         clearTimeout(longPressTimeout);
@@ -65,11 +77,11 @@ export function captureEvents(element, options) {
       }
 
       if (e.type === 'touchmove' && e.pageX === undefined) {
-        e.pageX = e.touches[0].pageX;
+        (e as { pageX?: number }).pageX = (e as TouchEvent).touches[0].pageX;
       }
 
       options.onDrag && options.onDrag(e, captureEvent, {
-        dragOffsetX: e.pageX - captureEvent.pageX,
+        dragOffsetX: e.pageX! - captureEvent.pageX!,
       });
     }
   }

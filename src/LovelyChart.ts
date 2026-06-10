@@ -1,18 +1,18 @@
-import { StateManager } from './StateManager.js';
-import { Header } from './Header.js';
-import { Axes } from './Axes.js';
-import { Minimap } from './Minimap.js';
-import { Tooltip } from './Tooltip.js';
-import { Tools } from './Tools.js';
-import { Zoomer } from './Zoomer.js';
-import { createColors } from './skin.js';
-import { analyzeData } from './data.js';
-import { setupCanvas, clearCanvas } from './canvas.js';
-import { preparePoints } from './preparePoints.js';
-import { Projection } from './Projection.js';
-import { drawDatasets } from './drawDatasets.js';
-import { createElement } from './minifiers.js';
-import { getFullLabelDate, getLabelDate } from './format.js';
+import { StateManager } from './StateManager';
+import { Header } from './Header';
+import { Axes } from './Axes';
+import { Minimap } from './Minimap';
+import { Tooltip } from './Tooltip';
+import { Tools } from './Tools';
+import { Zoomer } from './Zoomer';
+import { createColors } from './skin';
+import { analyzeData } from './data';
+import { setupCanvas, clearCanvas } from './canvas';
+import { preparePoints } from './preparePoints';
+import { Projection } from './Projection';
+import { drawDatasets } from './drawDatasets';
+import { createElement } from './minifiers';
+import { getFullLabelDate, getLabelDate } from './format';
 import {
   X_AXIS_HEIGHT,
   GUTTER,
@@ -20,42 +20,45 @@ import {
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
   SIMPLIFIER_PLOT_FACTOR,
-} from './constants.js';
-import { getSimplificationDelta, isDataRange } from './formulas.js';
-import { debounce } from './utils.js';
+} from './constants';
+import { getSimplificationDelta, isDataRange } from './formulas';
+import { debounce } from './utils';
+import type {
+  AnalyzedData, ChartColors, ChartState, Filter, FocusOn, LovelyChartParams, Point, ProjectionParams, Range, Size,
+} from './types';
 import './styles/index.scss';
 
 class LovelyChart {
-  #container;
+  #container: HTMLElement;
 
-  #stateManager;
+  #stateManager?: StateManager;
 
-  #element;
-  #plot;
-  #context;
-  #plotSize;
+  #element?: HTMLElement;
+  #plot?: HTMLCanvasElement;
+  #context?: CanvasRenderingContext2D;
+  #plotSize?: Size;
 
-  #header;
-  #axes;
-  #minimap;
-  #tooltip;
-  #tools;
-  #zoomer;
+  #header?: Header;
+  #axes?: Axes;
+  #minimap?: Minimap;
+  #tooltip?: Tooltip;
+  #tools?: Tools;
+  #zoomer?: Zoomer;
 
-  #state;
+  #state?: ChartState;
   #windowWidth = window.innerWidth;
-  #originalData;
+  #originalData: LovelyChartParams;
   #isDestroyed = false;
 
-  #themeObserver;
-  #onWindowResize;
-  #onWindowOrientationChange;
+  #themeObserver?: MutationObserver | null;
+  #onWindowResize?: (() => void) | null;
+  #onWindowOrientationChange?: (() => void) | null;
 
-  #data;
-  #colors;
+  #data: AnalyzedData;
+  #colors: ChartColors;
   #redrawDebounced = debounce(() => this.#redraw(), 500, false, true);
 
-  constructor(container, originalData) {
+  constructor(container: HTMLElement, originalData: LovelyChartParams) {
     this.#container = container;
     this.#originalData = originalData;
 
@@ -66,12 +69,12 @@ class LovelyChart {
     this.#setupGlobalListeners();
   }
 
-  update(newData) {
+  update(newData: LovelyChartParams) {
     if (this.#isDestroyed) return;
     this.#originalData = newData;
     this.#destroyComponents();
     const fresh = analyzeData(this.#originalData);
-    Object.keys(this.#data).forEach((k) => { delete this.#data[k]; });
+    Object.keys(this.#data).forEach((k) => { delete (this.#data as unknown as Record<string, unknown>)[k]; });
     Object.assign(this.#data, fresh);
     Object.assign(this.#colors, createColors(this.#data.colors));
     this.#setupComponents();
@@ -99,20 +102,20 @@ class LovelyChart {
 
   #setupComponents() {
     this.#setupContainer();
-    this.#header = new Header(this.#element, this.#data.title, this.#data.zoomOutLabel, this.#onZoomOut);
+    this.#header = new Header(this.#element!, this.#data.title!, this.#data.zoomOutLabel, this.#onZoomOut);
     this.#setupPlotCanvas();
-    this.#stateManager = new StateManager(this.#data, this.#plotSize, this.#onStateUpdate);
-    this.#axes = new Axes(this.#context, this.#data, this.#plotSize, this.#colors);
+    this.#stateManager = new StateManager(this.#data, this.#plotSize!, this.#onStateUpdate);
+    this.#axes = new Axes(this.#context!, this.#data, this.#plotSize!, this.#colors);
     if (this.#data.withMinimap) {
       // Triggers the initial render via the range callback.
-      this.#minimap = new Minimap(this.#element, this.#data, this.#colors, this.#onRangeChange);
+      this.#minimap = new Minimap(this.#element!, this.#data, this.#colors, this.#onRangeChange);
     } else {
       this.#stateManager.update({ range: this.#data.minimapRange });
     }
-    this.#tooltip = new Tooltip(this.#element, this.#data, this.#plotSize, this.#colors, this.#onZoomIn, this.#onFocus);
-    this.#tools = new Tools(this.#element, this.#data, this.#onFilterChange);
+    this.#tooltip = new Tooltip(this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus);
+    this.#tools = new Tools(this.#element!, this.#data, this.#onFilterChange);
     this.#zoomer = this.#data.isZoomable
-      ? new Zoomer(this.#data, this.#originalData, this.#colors, this.#stateManager, this.#element, this.#header, this.#minimap, this.#tooltip, this.#tools)
+      ? new Zoomer(this.#data, this.#originalData, this.#colors, this.#stateManager, this.#element!, this.#header, this.#minimap, this.#tooltip, this.#tools)
       : undefined;
     // hideOnScroll(this.#element);
   }
@@ -125,8 +128,8 @@ class LovelyChart {
   }
 
   #setupPlotCanvas() {
-    const { canvas, context } = setupCanvas(this.#element, {
-      width: this.#element.clientWidth,
+    const { canvas, context } = setupCanvas(this.#element!, {
+      width: this.#element!.clientWidth,
       height: PLOT_HEIGHT,
     });
 
@@ -139,7 +142,7 @@ class LovelyChart {
     };
   }
 
-  #onStateUpdate = (state) => {
+  #onStateUpdate = (state: ChartState) => {
     if (this.#isDestroyed) return;
     this.#state = state;
 
@@ -148,80 +151,80 @@ class LovelyChart {
       from: state.labelFromIndex,
       to: state.labelToIndex,
     };
-    const boundsAndParams = {
+    const boundsAndParams: ProjectionParams = {
       begin: state.begin,
       end: state.end,
       totalXWidth: state.totalXWidth,
       yMin: state.yMinViewport,
       yMax: state.yMaxViewport,
-      availableWidth: this.#plotSize.width,
-      availableHeight: this.#plotSize.height - X_AXIS_HEIGHT,
+      availableWidth: this.#plotSize!.width,
+      availableHeight: this.#plotSize!.height - X_AXIS_HEIGHT,
       xPadding: GUTTER,
       yPadding: PLOT_TOP_PADDING,
       withColumns: this.#data.isBars || this.#data.isSteps,
     };
-    const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
+    const visibilities = datasets.map(({ key }) => state[`opacity#${key}`] as number);
     const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams);
     const projection = new Projection(boundsAndParams);
 
-    let secondaryPoints = null;
-    let secondaryProjection = null;
+    let secondaryPoints: Point[] | null = null;
+    let secondaryProjection: Projection | null = null;
     if (this.#data.hasSecondYAxis) {
-      const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
+      const secondaryDataset = datasets.find((d) => d.hasOwnYAxis)!;
       const bounds = {
-        yMin: state.yMinViewportSecond,
-        yMax: state.yMaxViewportSecond,
+        yMin: state.yMinViewportSecond!,
+        yMax: state.yMaxViewportSecond!,
       };
       secondaryPoints = preparePoints(this.#data, [secondaryDataset], range, visibilities, bounds)[0];
       secondaryProjection = projection.copy(bounds);
     }
 
     if (!this.#data.noCaption && this.#data.labelType !== 'text') {
-      this.#header.setCaption(this.#getCaption(state));
+      this.#header!.setCaption(this.#getCaption(state));
     }
 
-    clearCanvas(this.#plot, this.#context);
+    clearCanvas(this.#plot!, this.#context!);
 
     const totalPoints = points.reduce((a, p) => a + p.length, 0);
     const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_PLOT_FACTOR;
 
     drawDatasets(
-      this.#context, state, this.#data,
+      this.#context!, state, this.#data,
       range, points, projection, secondaryPoints, secondaryProjection,
       PLOT_LINE_WIDTH, visibilities, this.#colors, false, simplification,
     );
     if (!this.#data.isPie) {
-      this.#axes.drawYAxis(state, projection, secondaryProjection);
+      this.#axes!.drawYAxis(state, projection, secondaryProjection);
       // TODO check isChanged
-      this.#axes.drawXAxis(state, projection);
+      this.#axes!.drawXAxis(state, projection);
     }
     if (this.#minimap) {
       this.#minimap.update(state);
     }
-    this.#tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
+    this.#tooltip!.update(state, points, projection, secondaryPoints, secondaryProjection);
   };
 
-  #onRangeChange = (range) => {
-    this.#stateManager.update({ range });
+  #onRangeChange = (range: Range) => {
+    this.#stateManager!.update({ range });
   };
 
-  #onFilterChange = (filter) => {
-    this.#stateManager.update({ filter });
+  #onFilterChange = (filter: Filter) => {
+    this.#stateManager!.update({ filter });
   };
 
-  #onFocus = (focusOn) => {
+  #onFocus = (focusOn: FocusOn) => {
     if (this.#data.isBars || this.#data.isPie || this.#data.isSteps) {
       // TODO animate
-      this.#stateManager.update({ focusOn });
+      this.#stateManager!.update({ focusOn });
     }
   };
 
-  #onZoomIn = (labelIndex) => {
-    this.#zoomer.zoomIn(this.#state, labelIndex);
+  #onZoomIn = (labelIndex: number | null) => {
+    this.#zoomer!.zoomIn(this.#state!, labelIndex!);
   };
 
   #onZoomOut = () => {
-    this.#zoomer.zoomOut(this.#state);
+    this.#zoomer!.zoomOut(this.#state!);
   };
 
   #setupGlobalListeners() {
@@ -255,16 +258,16 @@ class LovelyChart {
       this.#element.remove();
     }
 
-    this.#element = null;
-    this.#plot = null;
-    this.#context = null;
-    this.#header = null;
-    this.#axes = null;
-    this.#minimap = null;
-    this.#tooltip = null;
-    this.#tools = null;
-    this.#zoomer = null;
-    this.#stateManager = null;
+    this.#element = undefined;
+    this.#plot = undefined;
+    this.#context = undefined;
+    this.#header = undefined;
+    this.#axes = undefined;
+    this.#minimap = undefined;
+    this.#tooltip = undefined;
+    this.#tools = undefined;
+    this.#zoomer = undefined;
+    this.#stateManager = undefined;
   }
 
   #redraw() {
@@ -274,7 +277,7 @@ class LovelyChart {
     this.#setupComponents();
   }
 
-  #getCaption(state) {
+  #getCaption(state: ChartState): string {
     let startIndex;
     let endIndex;
 
@@ -297,7 +300,7 @@ class LovelyChart {
   }
 }
 
-function create(container, data) {
+function create(container: HTMLElement, data: LovelyChartParams): { update: (newData: LovelyChartParams) => void; destroy: () => void } {
   return new LovelyChart(container, data);
 }
 

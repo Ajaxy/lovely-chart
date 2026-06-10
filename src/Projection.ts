@@ -1,20 +1,21 @@
-import { proxyMerge } from './utils.js';
+import { proxyMerge } from './utils';
+import type { Pixel, ProjectionParams } from './types';
 
 export class Projection {
-  #params;
+  #params: ProjectionParams;
 
-  #totalXWidth;
-  #withColumns;
-  #availableWidth;
-  #availableHeight;
-  #effectiveHeight;
+  #totalXWidth: number;
+  #withColumns: boolean;
+  #availableWidth: number;
+  #availableHeight: number;
+  #effectiveHeight: number;
 
-  #xFactor;
-  #xOffsetPx;
-  #yFactor;
-  #yOffsetPx;
+  #xFactor: number;
+  #xOffsetPx: number;
+  #yFactor: number;
+  #yOffsetPx: number;
 
-  constructor(params) {
+  constructor(params: ProjectionParams) {
     const {
       begin,
       end,
@@ -60,36 +61,36 @@ export class Projection {
     this.#yOffsetPx = yMin * this.#yFactor;
   }
 
-  toPixels(labelIndex, value) {
+  toPixels(labelIndex: number, value: number): Pixel {
     return [
       labelIndex * this.#xFactor - this.#xOffsetPx,
       this.#availableHeight - (value * this.#yFactor - this.#yOffsetPx),
     ];
   }
 
-  findClosestLabelIndex(xPx) {
+  findClosestLabelIndex(xPx: number): number {
     const labelIndex = Math.round((xPx + this.#xOffsetPx) / this.#xFactor);
     // In column mode the gutters and the very edge pixels round outside the
     // lateral columns — keep them within the outermost ones.
     return this.#withColumns ? Math.max(0, Math.min(labelIndex, this.#totalXWidth)) : labelIndex;
   }
 
-  copy(overrides) {
-    return new Projection(proxyMerge(this.#params, overrides));
+  copy(overrides: Partial<ProjectionParams>): Projection {
+    return new Projection(proxyMerge(this.#params, overrides) as ProjectionParams);
   }
 
-  getCenter() {
+  getCenter(): Pixel {
     return [
       this.#availableWidth / 2,
       this.#availableHeight - this.#effectiveHeight / 2,
     ];
   }
 
-  getSize() {
+  getSize(): Pixel {
     return [this.#availableWidth, this.#effectiveHeight];
   }
 
-  getParams() {
+  getParams(): ProjectionParams {
     return this.#params;
   }
 }

@@ -1,6 +1,7 @@
-import { MILISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants.js';
+import { MILISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
+import type { XLabel } from './types';
 
-export function statsFormatDayHour(labels) {
+export function statsFormatDayHour(labels: number[]): XLabel[] {
   return labels.map((value) => {
     const date = new Date(value);
     const hours = String(date.getHours()).padStart(2, '0');
@@ -11,13 +12,13 @@ export function statsFormatDayHour(labels) {
   });
 }
 
-export function statsFormatDayHourFull(value) {
+export function statsFormatDayHourFull(value: number): string {
   const date = new Date(value);
   const hours = String(date.getHours()).padStart(2, '0');
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`;
 }
 
-export function statsFormatDay(labels) {
+export function statsFormatDay(labels: number[]): XLabel[] {
   return labels.map((value) => {
     const date = new Date(value);
     const day = date.getDate();
@@ -30,14 +31,14 @@ export function statsFormatDay(labels) {
   });
 }
 
-export function statsFormatMin(labels) {
+export function statsFormatMin(labels: number[]): XLabel[] {
   return labels.map((value) => ({
     value,
-    text: new Date(value).toString().match(/(\d+:\d+):/)[1],
+    text: new Date(value).toString().match(/(\d+:\d+):/)![1],
   }));
 }
 
-export function statsFormatWeek(labels) {
+export function statsFormatWeek(labels: number[]): XLabel[] {
   return labels.map((value) => {
     const date = new Date(value);
     const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
@@ -49,30 +50,30 @@ export function statsFormatWeek(labels) {
   });
 }
 
-export function statsFormatMonth(labels) {
+export function statsFormatMonth(labels: number[]): XLabel[] {
   return labels.map((value) => ({
     value,
     text: MONTHS_FULL[new Date(value).getUTCMonth()],
   }));
 }
 
-export function statsFormatYear(labels) {
+export function statsFormatYear(labels: number[]): XLabel[] {
   return labels.map((value) => ({
     value,
     text: String(new Date(value).getUTCFullYear()),
   }));
 }
 
-export function statsFormatText(labels) {
+export function statsFormatText(labels: (number | string)[]): XLabel[] {
   return labels.map((value, i) => {
     return ({
       value: i,
-      text: value,
+      text: String(value),
     });
   });
 }
 
-export function humanize(value, decimals = 1) {
+export function humanize(value: number, decimals = 1): string {
   const abs = Math.abs(value);
   const sign = value < 0 ? '-' : '';
 
@@ -88,14 +89,14 @@ export function humanize(value, decimals = 1) {
 }
 
 // TODO perf
-function keepThreeDigits(value, decimals) {
+function keepThreeDigits(value: number, decimals: number): string {
   return value
     .toFixed(decimals)
     .replace(/(\d{3,})\.\d+/, '$1')
     .replace(/\.0+$/, '');
 }
 
-export function formatInteger(n) {
+export function formatInteger(n: number): string {
   if (!Number.isInteger(n)) {
     const abs = Math.abs(n);
     const decimals = (abs > 0 && abs < 1)
@@ -108,15 +109,25 @@ export function formatInteger(n) {
   return addThousandSeparators(String(n));
 }
 
-function addThousandSeparators(s) {
+function addThousandSeparators(s: string): string {
   return s.replace(/\d(?=(\d{3})+$)/g, '$& ');
 }
 
-export function getFullLabelDate(label, { isShort = false } = {}) {
+interface LabelDateOptions {
+  isShort?: boolean;
+  displayWeekDay?: boolean;
+  displayYear?: boolean;
+  displayHours?: boolean;
+}
+
+export function getFullLabelDate(label: XLabel, { isShort = false }: LabelDateOptions = {}): string {
   return getLabelDate(label, { isShort, displayWeekDay: true });
 }
 
-export function getLabelDate(label, { isShort = false, displayWeekDay = false, displayYear = true, displayHours = false } = {}) {
+export function getLabelDate(
+  label: XLabel,
+  { isShort = false, displayWeekDay = false, displayYear = true, displayHours = false }: LabelDateOptions = {},
+): string {
   const { value } = label;
   const date = new Date(value);
   const weekDaysArray = isShort ? WEEK_DAYS_SHORT : WEEK_DAYS;
@@ -135,6 +146,6 @@ export function getLabelDate(label, { isShort = false, displayWeekDay = false, d
   return string;
 }
 
-export function getLabelTime(label) {
-  return new Date(label.value).toString().match(/(\d+:\d+):/)[1];
+export function getLabelTime(label: XLabel): string {
+  return new Date(label.value).toString().match(/(\d+:\d+):/)![1];
 }

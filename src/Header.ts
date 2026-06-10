@@ -1,23 +1,23 @@
-import { createElement, addEventListener } from './minifiers.js';
-import { toggleText } from './toggleText.js';
-import { throttle } from './utils.js';
+import { createElement, addEventListener } from './minifiers';
+import { toggleText } from './toggleText';
+import { throttle } from './utils';
 
 export class Header {
-  #container;
-  #title;
-  #zoomOutLabel;
-  #zoomOutCallback;
+  #container: HTMLElement;
+  #title: string;
+  #zoomOutLabel: string;
+  #zoomOutCallback: () => void;
 
-  #element;
-  #titleElement;
-  #zoomOutElement;
-  #captionElement;
-  #isZooming;
-  #zoomBindTimeout = null;
+  #element!: HTMLElement;
+  #titleElement!: HTMLElement;
+  #zoomOutElement?: HTMLElement;
+  #captionElement!: HTMLElement;
+  #isZooming?: boolean;
+  #zoomBindTimeout: number | null = null;
 
-  setCaption = throttle((caption) => this.#setCaption(caption), 100, false);
+  setCaption = throttle((caption: string) => this.#setCaption(caption), 100, false);
 
-  constructor(container, title, zoomOutLabel = 'Zoom out', zoomOutCallback) {
+  constructor(container: HTMLElement, title: string, zoomOutLabel = 'Zoom out', zoomOutCallback: () => void) {
     this.#container = container;
     this.#title = title;
     this.#zoomOutLabel = zoomOutLabel;
@@ -26,11 +26,11 @@ export class Header {
     this.#setupLayout();
   }
 
-  zoom(caption) {
+  zoom(caption: string) {
     this.#zoomOutElement = toggleText(this.#titleElement, this.#zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
-    this.#zoomBindTimeout = setTimeout(() => {
+    this.#zoomBindTimeout = window.setTimeout(() => {
       this.#zoomBindTimeout = null;
-      addEventListener(this.#zoomOutElement, 'click', this.#onZoomOut);
+      addEventListener(this.#zoomOutElement!, 'click', this.#onZoomOut);
     }, 500);
 
     this.#setCaption(caption);
@@ -43,11 +43,11 @@ export class Header {
     }
   }
 
-  toggleIsZooming(isZooming) {
+  toggleIsZooming(isZooming: boolean) {
     this.#isZooming = isZooming;
   }
 
-  #setCaption(caption) {
+  #setCaption(caption: string) {
     if (this.#isZooming) {
       return;
     }
@@ -72,7 +72,7 @@ export class Header {
   }
 
   #onZoomOut = () => {
-    this.#titleElement = toggleText(this.#zoomOutElement, this.#title, 'lovely-chart--header-title', true);
+    this.#titleElement = toggleText(this.#zoomOutElement!, this.#title, 'lovely-chart--header-title', true);
     this.#titleElement.classList.remove('lovely-chart--transition');
 
     this.#zoomOutCallback();

@@ -1,28 +1,38 @@
-import { SPEED_TEST_FAST_FPS, SPEED_TEST_INTERVAL, TRANSITION_DEFAULT_DURATION } from './constants.js';
+import { SPEED_TEST_FAST_FPS, SPEED_TEST_INTERVAL, TRANSITION_DEFAULT_DURATION } from './constants';
 
-function transition(t) {
+export interface Transition {
+  from: number;
+  to: number;
+  duration: number | undefined;
+  options: string[];
+  current: number;
+  startedAt: number;
+  progress: number;
+}
+
+function transition(t: number): number {
   // iOS-style ease-out (no overshoot)
   return 1 - Math.pow(1 - t, 3);
 }
 
 export class TransitionManager {
-  #onTick;
+  #onTick: (state: Record<string, number>) => void;
 
-  #transitions = {};
+  #transitions: Record<string, Transition> = {};
 
-  #nextFrame = null;
+  #nextFrame: number | null = null;
 
-  #testStartedAt = null;
-  #fps = null;
-  #testingFps = null;
-  #slowDetectedAt = null;
-  #startedAsSlow = null;
+  #testStartedAt: number | null = null;
+  #fps: number | null = null;
+  #testingFps: number | null = null;
+  #slowDetectedAt: number | null = null;
+  #startedAsSlow: boolean | null = null;
 
-  constructor(onTick) {
+  constructor(onTick: (state: Record<string, number>) => void) {
     this.#onTick = onTick;
   }
 
-  add(prop, from, to, duration, options) {
+  add(prop: string, from: number, to: number, duration: number | undefined, options: string[]) {
     this.#transitions[prop] = {
       from,
       to,
@@ -39,21 +49,21 @@ export class TransitionManager {
     }
   }
 
-  remove(prop) {
+  remove(prop: string) {
     delete this.#transitions[prop];
 
     if (!this.isRunning()) {
-      cancelAnimationFrame(this.#nextFrame);
+      cancelAnimationFrame(this.#nextFrame!);
       this.#nextFrame = null;
     }
   }
 
-  get(prop) {
+  get(prop: string): Transition | undefined {
     return this.#transitions[prop];
   }
 
-  getState() {
-    const state = {};
+  getState(): Record<string, number> {
+    const state: Record<string, number> = {};
 
     Object.keys(this.#transitions).forEach((prop) => {
       const { current, from, to, progress } = this.#transitions[prop];
@@ -67,11 +77,11 @@ export class TransitionManager {
     return state;
   }
 
-  isRunning() {
+  isRunning(): boolean {
     return Boolean(Object.keys(this.#transitions).length);
   }
 
-  isFast(forceCheck) {
+  isFast(forceCheck?: boolean): boolean {
     if (!forceCheck && (this.#startedAsSlow || this.#slowDetectedAt)) {
       return false;
     }
@@ -91,7 +101,7 @@ export class TransitionManager {
     const isSlow = !this.isFast();
     this.#speedTest();
 
-    const state = {};
+    const state: Record<string, number> = {};
 
     Object.keys(this.#transitions).forEach((prop) => {
       const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = this.#transitions[prop];
@@ -142,7 +152,7 @@ export class TransitionManager {
       this.#testStartedAt = Date.now();
       this.#testingFps = 0;
     } else {
-      this.#testingFps++;
+      this.#testingFps = (this.#testingFps || 0) + 1;
     }
   }
 }

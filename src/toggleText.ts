@@ -1,15 +1,15 @@
-import { createElement } from './minifiers.js';
+import { createElement } from './minifiers';
 
-export function toggleText(element, newText, className = '', inverse = false) {
-  const container = element.parentNode;
+export function toggleText(element: HTMLElement, newText: string, className = '', inverse = false): HTMLElement {
+  const container = element.parentNode as HTMLElement;
   container.classList.add('lovely-chart--transition-container');
 
-  const newElement = createElement(element.tagName);
+  const newElement = createElement<HTMLElement>(element.tagName);
   newElement.className = `${className} lovely-chart--transition lovely-chart--position-${inverse ? 'top' : 'bottom'} lovely-chart--state-hidden`;
   newElement.textContent = newText;
 
   const selector = className.length ? `.${className.split(' ').join('.')}` : '';
-  const oldElements = container.querySelectorAll(`${selector}.lovely-chart--state-hidden`);
+  const oldElements = container.querySelectorAll<HTMLElement>(`${selector}.lovely-chart--state-hidden`);
   oldElements.forEach(e => e.remove());
 
   element.classList.add('lovely-chart--transition');
@@ -23,14 +23,14 @@ export function toggleText(element, newText, className = '', inverse = false) {
   return newElement;
 }
 
-function toggleElementIn(element) {
+function toggleElementIn(element: HTMLElement) {
   // Remove and add `animated` class to re-trigger animation
   element.classList.remove('lovely-chart--state-animated');
   element.classList.add('lovely-chart--state-animated');
   element.classList.remove('lovely-chart--state-hidden');
 }
 
-function toggleElementOut(element) {
+function toggleElementOut(element: HTMLElement) {
   // Remove and add `animated` class to re-trigger animation
   element.classList.remove('lovely-chart--state-animated');
   element.classList.add('lovely-chart--state-animated');

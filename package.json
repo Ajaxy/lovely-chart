@@ -17,7 +17,8 @@
   ],
   "scripts": {
     "build": "vite build",
-    "test": "npm run build && node test/e2e.js",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && npm run build && node test/e2e.js",
     "prepublishOnly": "npm run build",
     "examples": "npm run build && cp -R ./dist/* docs/"
   },
@@ -28,6 +29,7 @@
     "stylelint": "^17.1.1",
     "stylelint-config-clean-order": "^8.0.0",
     "stylelint-config-recommended-scss": "^17.0.0",
+    "typescript": "^6.0.3",
     "vite": "^6.0.3"
   },
   "repository": {

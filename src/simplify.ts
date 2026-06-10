@@ -1,10 +1,36 @@
+import type { Pixel } from './types';
+
+interface SimplifyResult {
+  points: Pixel[];
+  indexes: number[];
+  removed: number[];
+}
+
+interface SimplifyRecord {
+  start: number;
+  end: number;
+  index: number;
+  distance: number;
+  left?: SimplifyRecord;
+  right?: SimplifyRecord;
+}
+
+interface QueueItem {
+  start: number;
+  end: number;
+  record: SimplifyRecord | 0 | undefined;
+  currentLimit: number;
+  parent?: SimplifyRecord;
+  parentProperty?: 'left' | 'right';
+}
+
 export const simplify = (() => {
-  function simplify(points, indexes, fixedPoints) {
+  function simplify(points: Pixel[], indexes?: number[], fixedPoints?: number[]): (delta: number) => SimplifyResult {
     if (points.length < 6) {
       return function () {
         return {
           points: points,
-          indexes: indexes,
+          indexes: indexes || points.map((_, i) => i),
           removed: [],
         };
       };
@@ -13,9 +39,9 @@ export const simplify = (() => {
     let worker = precalculate(points, fixedPoints);
 
     return function (delta) {
-      let result = [],
-        resultIndexes = [],
-        removed = [];
+      let result: Pixel[] = [],
+        resultIndexes: number[] = [],
+        removed: number[] = [];
 
       let delta2 = delta * delta,
         markers = worker(delta2);
@@ -39,12 +65,12 @@ export const simplify = (() => {
   let E1 = 1.0 / Math.pow(2, 22), // максимальная дельта
     MAXLIMIT = 100000;
 
-  function precalculate(points, fixedPoints) {
+  function precalculate(points: Pixel[], fixedPoints?: number[]): (delta: number) => number[] {
 
     let len = points.length,
-      distances = [],
-      queue = [],
-      maximumDelta;
+      distances: number[] = [],
+      queue: QueueItem[] = [],
+      maximumDelta = 0;
     for (let i = 0, l = points.length; i < l; ++i) {
       distances[i] = 0;
     }
@@ -56,14 +82,14 @@ export const simplify = (() => {
     //инициализируем дерево срединным значением
     //чтобы не попадает в ситуации когда начало линии близко к концу(те полигон)
     //и правильные расчеты сложны
-    let subdivisionTree = 0;
+    let subdivisionTree: SimplifyRecord | 0 = 0;
 
     for (let i = 0, l = fixedPoints.length; i < l; ++i) {
       distances[fixedPoints[i]] = MAXLIMIT;
     }
 
 
-    function worker(params) {
+    function worker(params: QueueItem): SimplifyRecord {
 
       let start = params.start,
         end = params.end,
@@ -78,8 +104,8 @@ export const simplify = (() => {
             points[end][0] - points[start][0],
             points[end][1] - points[start][1],
           ];
-        for (let i = 0, l = fixedPoints.length; i < l; ++i) {
-          let fixId = fixedPoints[i];
+        for (let i = 0, l = fixedPoints!.length; i < l; ++i) {
+          let fixId = fixedPoints![i];
           if (fixId > start) {
             if (fixId < end) {
               usedIndex = fixId;
@@ -145,8 +171,8 @@ export const simplify = (() => {
       return record;
     }
 
-    function tick() {
-      let request = queue.pop(),
+    function tick(): SimplifyRecord {
+      let request = queue.pop()!,
         result = worker(request);
 
       if (request.parent && request.parentProperty) {
@@ -175,7 +201,7 @@ export const simplify = (() => {
 
   }
 
-  function pointToSegmentDistanceSquare(p, v1, v2, dv, dvlen_1) {
+  function pointToSegmentDistanceSquare(p: Pixel, v1: Pixel, v2: Pixel, dv: number[], dvlen_1: number): number {
 
     let t;
     let vx = +v1[0],

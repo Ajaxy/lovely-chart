@@ -1,6 +1,14 @@
-import { sumArrays } from './utils.js';
+import { sumArrays } from './utils';
+import type { AnalyzedData, AnalyzedDataset, LabelRange, Point } from './types';
 
-export function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
+export function preparePoints(
+  data: AnalyzedData,
+  datasets: AnalyzedDataset[],
+  range: LabelRange,
+  visibilities: number[],
+  bounds: { yMin?: number; yMax?: number },
+  pieToArea?: boolean,
+): Point[][] {
   let values = datasets.map(({ values }) => (
     values.slice(range.from, range.to + 1)
   ));
@@ -40,27 +48,27 @@ export function preparePoints(data, datasets, range, visibilities, bounds, pieTo
   return points;
 }
 
-function getSumsByY(points) {
+function getSumsByY(points: Point[][]): number[] {
   return sumArrays(points.map((datasetPoints) => (
     datasetPoints.map(({ visibleValue }) => visibleValue)
   )));
 }
 
 // TODO perf cache for [0..1], use in state
-function preparePercentage(points, bounds) {
+function preparePercentage(points: Point[][], bounds: { yMax?: number }) {
   const sumsByY = getSumsByY(points);
 
   points.forEach((datasetPoints) => {
     datasetPoints.forEach((point, j) => {
       point.percent = point.visibleValue / sumsByY[j];
-      point.visibleValue = point.percent * bounds.yMax;
+      point.visibleValue = point.percent * bounds.yMax!;
     });
   });
 }
 
-function prepareStacked(points) {
-  const posAccum = [];
-  const negAccum = [];
+function prepareStacked(points: Point[][]) {
+  const posAccum: number[] = [];
+  const negAccum: number[] = [];
 
   points.forEach((datasetPoints) => {
     datasetPoints.forEach((point, j) => {
@@ -88,8 +96,8 @@ function prepareStacked(points) {
   });
 }
 
-function prepareSumsByX(values) {
+function prepareSumsByX(values: (number | null)[][]): (number | null)[][] {
   return values.map((datasetValues) => (
-    [datasetValues.reduce((sum, value) => sum + value, 0)]
+    [datasetValues.reduce<number>((sum, value) => sum + (value ?? 0), 0)]
   ));
 }

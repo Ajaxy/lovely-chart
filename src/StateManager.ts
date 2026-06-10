@@ -1,5 +1,5 @@
-import { TransitionManager } from './TransitionManager.js';
-import { throttleWithRaf, getMaxMin, mergeArrays, proxyMerge } from './utils.js';
+import { TransitionManager } from './TransitionManager';
+import { throttleWithRaf, getMaxMin, mergeArrays, proxyMerge } from './utils';
 import {
   AXES_MAX_COLUMN_WIDTH,
   AXES_MAX_ROW_HEIGHT,
@@ -9,24 +9,49 @@ import {
   Y_AXIS_ZERO_BASED_THRESHOLD,
   PLOT_PIE_RADIUS_FACTOR,
   PLOT_TOP_PADDING,
-} from './constants.js';
-import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas.js';
+} from './constants';
+import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas';
+import type { AnalyzedData, ChartState, Filter, FocusOn, PointerVector, Range, Size } from './types';
+
+interface StateUpdate {
+  range?: Partial<Range>;
+  filter?: Filter;
+  focusOn?: FocusOn;
+  minimapDelta?: number | null;
+}
+
+interface TransitionConfigItem {
+  prop: string;
+  duration: number | undefined;
+  options: string[];
+}
+
+interface YRanges {
+  yMinViewport: number;
+  yMaxViewport: number;
+  yMinMinimap: number;
+  yMaxMinimap: number;
+  yMinViewportSecond?: number;
+  yMaxViewportSecond?: number;
+  yMinMinimapSecond?: number;
+  yMaxMinimapSecond?: number;
+}
 
 export class StateManager {
-  #data;
-  #viewportSize;
-  #callback;
+  #data: AnalyzedData;
+  #viewportSize: Size;
+  #callback: (state: ChartState) => void;
 
-  #range = { begin: 0, end: 1 };
-  #filter;
-  #transitionConfig;
-  #transitions;
-  #runCallbackOnRaf;
+  #range: Range = { begin: 0, end: 1 };
+  #filter: Filter;
+  #transitionConfig: TransitionConfigItem[];
+  #transitions: TransitionManager;
+  #runCallbackOnRaf: () => void;
 
-  #state = {};
+  #state = {} as ChartState;
   #isDestroyed = false;
 
-  constructor(data, viewportSize, callback) {
+  constructor(data: AnalyzedData, viewportSize: Size, callback: (state: ChartState) => void) {
     this.#data = data;
     this.#viewportSize = viewportSize;
     this.#callback = callback;
@@ -37,7 +62,7 @@ export class StateManager {
     this.#runCallbackOnRaf = throttleWithRaf(this.#runCallback);
   }
 
-  update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
+  update({ range = {}, filter = {}, focusOn, minimapDelta }: StateUpdate = {}, noTransition?: boolean) {
     if (this.#isDestroyed) return;
     Object.assign(this.#range, range);
     Object.assign(this.#filter, filter);
@@ -69,7 +94,7 @@ export class StateManager {
     }
   }
 
-  hasAnimations() {
+  hasAnimations(): boolean {
     return this.#transitions.isFast();
   }
 
@@ -78,8 +103,8 @@ export class StateManager {
     this.#transitions.destroy();
   }
 
-  #buildTransitionConfig() {
-    const transitionConfig = [];
+  #buildTransitionConfig(): TransitionConfigItem[] {
+    const transitionConfig: TransitionConfigItem[] = [];
     const datasetVisibilities = this.#data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
     const datasetPieShifts = this.#data.datasets.map(({ key }) => `pieShift#${key} 200`);
 
@@ -89,14 +114,14 @@ export class StateManager {
       datasetPieShifts,
     ]).forEach((transition) => {
       const [prop, duration, ...options] = transition.split(' ');
-      transitionConfig.push({ prop, duration, options });
+      transitionConfig.push({ prop, duration: duration ? Number(duration) : undefined, options });
     });
 
     return transitionConfig;
   }
 
-  #buildDefaultFilter() {
-    const filter = {};
+  #buildDefaultFilter(): Filter {
+    const filter: Filter = {};
 
     this.#data.datasets.forEach(({ key }) => {
       filter[key] = true;
@@ -107,13 +132,23 @@ export class StateManager {
 
   #runCallback = () => {
     if (this.#isDestroyed) return;
-    const state = this.#transitions.isFast() ? proxyMerge(this.#state, this.#transitions.getState()) : this.#state;
+    const state = this.#transitions.isFast()
+      ? proxyMerge(this.#state, this.#transitions.getState()) as ChartState
+      : this.#state;
     state.static = this.#state;
     this.#callback(state);
   };
 }
 
-function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
+function calculateState(
+  data: AnalyzedData,
+  viewportSize: Size,
+  range: Range,
+  filter: Filter,
+  focusOn: FocusOn | undefined,
+  minimapDelta: number | null | undefined,
+  prevState: ChartState,
+): ChartState {
   const { begin, end } = range;
   const totalXWidth = data.xLabels.length - 1;
 
@@ -128,17 +163,17 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
 
   const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
   const yAxisScaleSecond = data.hasSecondYAxis &&
-    calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
+    calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond!, yRanges.yMaxViewportSecond!);
 
   const yStep = yScaleLevelToStep(yAxisScale);
   yRanges.yMinViewport = Math.floor(yRanges.yMinViewport / yStep) * yStep;
 
   if (yAxisScaleSecond) {
     const yStepSecond = yScaleLevelToStep(yAxisScaleSecond);
-    yRanges.yMinViewportSecond = Math.floor(yRanges.yMinViewportSecond / yStepSecond) * yStepSecond;
+    yRanges.yMinViewportSecond = Math.floor(yRanges.yMinViewportSecond! / yStepSecond) * yStepSecond;
   }
 
-  const datasetsOpacity = {};
+  const datasetsOpacity: Record<string, number> = {};
   data.datasets.forEach(({ key }) => {
     datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
   });
@@ -148,7 +183,7 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
   const resolvedFocusOn = focusOn !== undefined ? focusOn : prevState.focusOn;
 
   const datasetsPieShift = data.isPie
-    ? calculatePieShifts(data, viewportSize, filter, resolvedFocusOn, extendedLabelFromIndex, extendedLabelToIndex)
+    ? calculatePieShifts(data, viewportSize, filter, resolvedFocusOn as PointerVector | null | undefined, extendedLabelFromIndex, extendedLabelToIndex)
     : null;
 
   // TODO perf
@@ -168,13 +203,20 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
     datasetsOpacity,
     datasetsPieShift,
     range,
-  );
+  ) as ChartState;
 }
 
 // Targets (0 or 1) for the animated `pieShift#*` props: 1 for the sector
 // currently under the pointer. Mirrors the sector containment test used by
 // the tooltip, with angles growing from -PI/2 over the filtered totals.
-function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFromIndex, labelToIndex) {
+function calculatePieShifts(
+  data: AnalyzedData,
+  viewportSize: Size,
+  filter: Filter,
+  pointerVector: PointerVector | null | undefined,
+  labelFromIndex: number,
+  labelToIndex: number,
+): Record<string, number> {
   const radius = Math.max(0, Math.min(
     viewportSize.width,
     viewportSize.height - X_AXIS_HEIGHT - PLOT_TOP_PADDING,
@@ -182,12 +224,12 @@ function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFrom
 
   const sums = data.datasets.map(({ key, values }) => (
     filter[key]
-      ? values.slice(labelFromIndex, labelToIndex + 1).reduce((a, x) => a + (x || 0), 0)
+      ? values.slice(labelFromIndex, labelToIndex + 1).reduce<number>((a, x) => a + (x || 0), 0)
       : 0
   ));
   const total = sums.reduce((a, x) => a + x, 0);
 
-  const shifts = {};
+  const shifts: Record<string, number> = {};
   let offset = 0;
   data.datasets.forEach(({ key }, i) => {
     const beginAngle = offset / total * Math.PI * 2 - Math.PI / 2;
@@ -207,11 +249,17 @@ function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFrom
   return shifts;
 }
 
-function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {
-  const secondaryYAxisDataset = data.hasSecondYAxis && data.datasets.slice(-1)[0];
+function calculateYRanges(
+  data: AnalyzedData,
+  filter: Filter,
+  labelFromIndex: number,
+  labelToIndex: number,
+  prevState: ChartState,
+): YRanges {
+  const secondaryYAxisDataset = data.hasSecondYAxis ? data.datasets.slice(-1)[0] : undefined;
   const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
 
-  const yRanges = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets);
+  const yRanges: YRanges = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets);
 
   if (secondaryYAxisDataset) {
     const {
@@ -232,7 +280,13 @@ function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState)
   return yRanges;
 }
 
-function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, datasets) {
+function calculateYRangesForGroup(
+  data: AnalyzedData,
+  labelFromIndex: number,
+  labelToIndex: number,
+  prevState: ChartState,
+  datasets: AnalyzedData['datasets'],
+): YRanges {
   const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
     = getMaxMin(mergeArrays(datasets.map(({ yMax, yMin }) => [yMax, yMin])));
   const yMinMinimap = yMinMinimapReal < 0
@@ -249,7 +303,7 @@ function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState,
     const filteredValues = datasets.map(({ values }) => values);
     const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
     const viewportMaxMin = getMaxMin(mergeArrays(viewportValues));
-    const yMinViewportReal = viewportMaxMin.min !== undefined ? viewportMaxMin.min : prevState.yMinViewport;
+    const yMinViewportReal: number = viewportMaxMin.min !== undefined ? viewportMaxMin.min : prevState.yMinViewport;
     yMaxViewport = viewportMaxMin.max !== undefined ? viewportMaxMin.max : prevState.yMaxViewport;
     yMinViewport = yMinViewportReal < 0
       ? yMinViewportReal
@@ -264,7 +318,13 @@ function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState,
   };
 }
 
-function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) {
+function calculateYRangesStacked(
+  data: AnalyzedData,
+  filter: Filter,
+  labelFromIndex: number,
+  labelToIndex: number,
+  prevState: ChartState,
+): YRanges {
   const filteredDatasets = data.datasets.filter((d) => filter[d.key]);
   const filteredValues = filteredDatasets.map(({ values }) => values);
 
@@ -292,14 +352,14 @@ function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, pre
   };
 }
 
-function calculateXAxisScale(plotWidth, labelFromIndex, labelToIndex) {
+function calculateXAxisScale(plotWidth: number, labelFromIndex: number, labelToIndex: number): number {
   const viewportLabelsCount = labelToIndex - labelFromIndex;
   const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
 
   return xStepToScaleLevel(viewportLabelsCount / maxColumns);
 }
 
-function calculateYAxisScale(plotHeight, yMin, yMax) {
+function calculateYAxisScale(plotHeight: number, yMin: number, yMax: number): number {
   const availableHeight = plotHeight - X_AXIS_HEIGHT;
   const viewportLabelsCount = yMax - yMin;
   const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);

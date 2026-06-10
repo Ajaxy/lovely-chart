@@ -1,27 +1,29 @@
-import { GUTTER, AXES_FONT_STYLE, X_AXIS_HEIGHT, X_AXIS_SHIFT_START, PLOT_TOP_PADDING } from './constants.js';
-import { humanize } from './format.js';
-import { getCssColor } from './skin.js';
-import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas.js';
+import { GUTTER, AXES_FONT_STYLE, X_AXIS_HEIGHT, X_AXIS_SHIFT_START, PLOT_TOP_PADDING } from './constants';
+import { humanize } from './format';
+import { getCssColor } from './skin';
+import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
+import type { Projection } from './Projection';
+import type { AnalyzedData, ChartColors, ChartState, SecondaryYAxisConfig, Size } from './types';
 
-function getAxesFont(context) {
+function getAxesFont(context: CanvasRenderingContext2D): string {
   const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
   return `${AXES_FONT_STYLE} ${fontFamily}`;
 }
 
 export class Axes {
-  #context;
-  #data;
-  #plotSize;
-  #colors;
+  #context: CanvasRenderingContext2D;
+  #data: AnalyzedData;
+  #plotSize: Size;
+  #colors: ChartColors;
 
-  constructor(context, data, plotSize, colors) {
+  constructor(context: CanvasRenderingContext2D, data: AnalyzedData, plotSize: Size, colors: ChartColors) {
     this.#context = context;
     this.#data = data;
     this.#plotSize = plotSize;
     this.#colors = colors;
   }
 
-  drawXAxis(state, projection) {
+  drawXAxis(state: ChartState, projection: Projection) {
     const context = this.#context;
     const plotSize = this.#plotSize;
 
@@ -53,7 +55,7 @@ export class Axes {
     }
   }
 
-  drawYAxis(state, projection, secondaryProjection) {
+  drawYAxis(state: ChartState, projection: Projection, secondaryProjection?: Projection | null) {
     const {
       yAxisScale, yAxisScaleFrom, yAxisScaleTo, yAxisScaleProgress = 0,
       yMinViewport, yMinViewportFrom, yMinViewportTo,
@@ -61,7 +63,7 @@ export class Axes {
       yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
       yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
     } = state;
-    const colorKey = secondaryProjection && `dataset#${this.#data.datasets[0].key}`;
+    const colorKey = secondaryProjection ? `dataset#${this.#data.datasets[0].key}` : null;
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
     if (this.#data.isPercentage) {
@@ -140,7 +142,16 @@ export class Axes {
     }
   }
 
-  #drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorKey = null, isSecondary = false) {
+  #drawYAxisScaled(
+    state: ChartState,
+    projection: Projection,
+    scaleLevel: number,
+    yMin: number,
+    yMax: number,
+    opacity = 1,
+    colorKey: string | null = null,
+    isSecondary = false,
+  ) {
     const context = this.#context;
     const plotSize = this.#plotSize;
     const step = yScaleLevelToStep(scaleLevel);
@@ -174,7 +185,7 @@ export class Axes {
       }
 
       if (isSecondary) {
-        context.strokeStyle = getCssColor(this.#colors, colorKey, opacity);
+        context.strokeStyle = getCssColor(this.#colors, colorKey!, opacity);
 
         context.moveTo(plotSize.width - GUTTER, yPx);
         context.lineTo(plotSize.width - GUTTER * 2, yPx);
@@ -188,7 +199,7 @@ export class Axes {
     context.stroke();
   }
 
-  #drawYAxisPercents(projection) {
+  #drawYAxisPercents(projection: Projection) {
     const context = this.#context;
     const plotSize = this.#plotSize;
     const percentValues = [0, 0.25, 0.50, 0.75, 1];
@@ -215,7 +226,15 @@ export class Axes {
     context.stroke();
   }
 
-  #drawSecondaryYAxis(state, projection, scaleLevel, yMin, yMax, opacity = 1, secondaryYAxis) {
+  #drawSecondaryYAxis(
+    state: ChartState,
+    projection: Projection,
+    scaleLevel: number,
+    yMin: number,
+    yMax: number,
+    opacity = 1,
+    secondaryYAxis: SecondaryYAxisConfig,
+  ) {
     const context = this.#context;
     const { multiplier, prefix = '', suffix = '' } = secondaryYAxis;
     const step = yScaleLevelToStep(scaleLevel);
@@ -236,7 +255,7 @@ export class Axes {
     }
   }
 
-  #formatPrimaryAxisLabel(value) {
+  #formatPrimaryAxisLabel(value: number): string {
     const formatted = String(humanize(value));
     const prefix = this.#data.valuePrefix || '';
     const suffix = this.#data.valueSuffix || '';

@@ -1,8 +1,8 @@
 // https://jsperf.com/finding-maximum-element-in-an-array
-export function getMaxMin(array) {
+export function getMaxMin(array: (number | null | undefined)[]): { max?: number; min?: number } {
   const length = array.length;
-  let max;
-  let min;
+  let max: number | undefined;
+  let min: number | undefined;
 
   for (let i = 0; i < length; i++) {
     const value = array[i];
@@ -16,11 +16,11 @@ export function getMaxMin(array) {
 }
 
 // https://jsperf.com/multi-array-concat/24
-export function mergeArrays(arrays) {
-  return [].concat.apply([], arrays);
+export function mergeArrays<T>(arrays: T[][]): T[] {
+  return ([] as T[]).concat.apply([], arrays as never[]);
 }
 
-export function sumArrays(arrays) {
+export function sumArrays(arrays: number[][]): number[] {
   const sums = [];
   const n = arrays.length;
 
@@ -35,60 +35,58 @@ export function sumArrays(arrays) {
   return sums;
 }
 
-export function proxyMerge(obj1, obj2) {
+export function proxyMerge<T extends object, U extends object>(obj1: T, obj2: U): T & U {
   return new Proxy({}, {
-    get: (obj, prop) => {
+    get: (obj: Record<string | symbol, unknown>, prop: string | symbol) => {
       if (obj[prop] !== undefined) {
         return obj[prop];
-      } else if (obj2[prop] !== undefined) {
-        return obj2[prop];
+      } else if ((obj2 as Record<string | symbol, unknown>)[prop] !== undefined) {
+        return (obj2 as Record<string | symbol, unknown>)[prop];
       } else {
-        return obj1[prop];
+        return (obj1 as Record<string | symbol, unknown>)[prop];
       }
     },
-  });
+  }) as T & U;
 }
 
-export function throttle(
-  fn,
-  ms,
+export function throttle<A extends unknown[]>(
+  fn: (...args: A) => void,
+  ms: number,
   shouldRunFirst = true,
-) {
-  let interval = null;
-  let isPending;
-  let args;
+): (...args: A) => void {
+  let interval: number | null = null;
+  let isPending: boolean;
+  let args: A;
 
-  return (..._args) => {
+  return (..._args: A) => {
     isPending = true;
     args = _args;
 
     if (!interval) {
       if (shouldRunFirst) {
         isPending = false;
-        // @ts-ignore
         fn(...args);
       }
 
       interval = window.setInterval(() => {
         if (!isPending) {
-          window.clearInterval(interval);
+          window.clearInterval(interval!);
           interval = null;
           return;
         }
 
         isPending = false;
-        // @ts-ignore
         fn(...args);
       }, ms);
     }
   };
 }
 
-export function throttleWithRaf(fn) {
+export function throttleWithRaf<A extends unknown[]>(fn: (...args: A) => void): (...args: A) => void {
   let waiting = false;
-  let args;
+  let args: A;
 
-  return function (..._args) {
+  return function (..._args: A) {
     args = _args;
 
     if (!waiting) {
@@ -102,8 +100,8 @@ export function throttleWithRaf(fn) {
   };
 }
 
-export function debounce(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
-  let waitingTimeout = null;
+export function debounce(fn: () => void, ms: number, shouldRunFirst = true, shouldRunLast = true): () => void {
+  let waitingTimeout: number | null = null;
 
   return function () {
     if (waitingTimeout) {
@@ -113,7 +111,7 @@ export function debounce(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
       fn();
     }
 
-    waitingTimeout = setTimeout(() => {
+    waitingTimeout = window.setTimeout(() => {
       if (shouldRunLast) {
         fn();
       }
