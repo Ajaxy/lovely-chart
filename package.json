@@ -21,7 +21,11 @@
     "lint": "eslint .",
     "test": "npm run typecheck && npm run lint && npm run build && node test/e2e.js",
     "prepublishOnly": "npm run build",
-    "examples": "npm run build && cp -R ./dist/* docs/"
+    "examples": "npm run build && cp -R ./dist/* docs/",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs,ts}": "eslint --fix"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -32,6 +36,8 @@
     "eslint-plugin-no-null": "^1.0.2",
     "eslint-plugin-simple-import-sort": "^13.0.0",
     "eslint-plugin-unused-imports": "^4.4.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "playwright-core": "^1.60.0",
     "sass": "^1.83.0",
     "stylelint": "^17.1.1",
