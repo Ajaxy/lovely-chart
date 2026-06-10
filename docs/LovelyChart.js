@@ -30,9 +30,11 @@ var LovelyChart = function(exports) {
   const ZOOM_RANGE_DELTA = 0.1;
   const ZOOM_RANGE_MIDDLE = 0.5;
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const MONTHS_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const WEEK_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const WEEK_DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1e3;
+  const MILISECONDS_IN_WEEK = 7 * MILISECONDS_IN_DAY;
   const SPEED_TEST_INTERVAL = 200;
   const SPEED_TEST_FAST_FPS = 4;
   const SIMPLIFIER_MIN_POINTS = 1e3;
@@ -647,6 +649,28 @@ var LovelyChart = function(exports) {
     return labels.map((value) => ({
       value,
       text: new Date(value).toString().match(/(\d+:\d+):/)[1]
+    }));
+  }
+  function statsFormatWeek(labels) {
+    return labels.map((value) => {
+      const date = new Date(value);
+      const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
+      return {
+        value,
+        text: `Week ${Math.floor((value - yearStart) / MILISECONDS_IN_WEEK) + 1}`
+      };
+    });
+  }
+  function statsFormatMonth(labels) {
+    return labels.map((value) => ({
+      value,
+      text: MONTHS_FULL[new Date(value).getUTCMonth()]
+    }));
+  }
+  function statsFormatYear(labels) {
+    return labels.map((value) => ({
+      value,
+      text: String(new Date(value).getUTCFullYear())
     }));
   }
   function statsFormatText(labels) {
@@ -2349,6 +2373,9 @@ var LovelyChart = function(exports) {
     [0, 1, 2, 3, 4, 5, 7]
   ];
   const LABEL_TYPE_TO_FORMATTER = {
+    "year": "statsFormatYear",
+    "month": "statsFormatMonth",
+    "week": "statsFormatWeek",
     "day": "statsFormat('day')",
     "hour": "statsFormat('hour')",
     "5min": "statsFormat('5min')",
@@ -2374,6 +2401,15 @@ var LovelyChart = function(exports) {
     });
     let xLabels;
     switch (labelFormatter) {
+      case "statsFormatYear":
+        xLabels = statsFormatYear(labels);
+        break;
+      case "statsFormatMonth":
+        xLabels = statsFormatMonth(labels);
+        break;
+      case "statsFormatWeek":
+        xLabels = statsFormatWeek(labels);
+        break;
       case "statsFormatDayHour":
         xLabels = statsFormatDayHour(labels);
         break;
@@ -2437,10 +2473,22 @@ var LovelyChart = function(exports) {
     if (typeof first === "string") {
       return "text";
     }
-    if (typeof first !== "number" || typeof second !== "number") {
+    if (typeof first !== "number") {
       return void 0;
     }
+    if (typeof second !== "number") {
+      return "day";
+    }
     const step = Math.abs(second - first);
+    if (step >= 365 * MILISECONDS_IN_DAY) {
+      return "year";
+    }
+    if (step >= 28 * MILISECONDS_IN_DAY) {
+      return "month";
+    }
+    if (step >= 7 * MILISECONDS_IN_DAY) {
+      return "week";
+    }
     if (step >= MILISECONDS_IN_DAY) {
       return "day";
     }
@@ -2734,7 +2782,7 @@ var LovelyChart = function(exports) {
         secondaryPoints = preparePoints(_data, [secondaryDataset], range, visibilities, bounds)[0];
         secondaryProjection = projection.copy(bounds);
       }
-      if (!_data.noCaption) {
+      if (!_data.noCaption && _data.labelType !== "text") {
         _header.setCaption(_getCaption(state));
       }
       clearCanvas(_plot, _context);
@@ -2862,11 +2910,6 @@ var LovelyChart = function(exports) {
       } else {
         startIndex = state.labelFromIndex;
         endIndex = state.labelToIndex;
-      }
-      if (_data.labelType === "text") {
-        const startText = _data.xLabels[startIndex].text;
-        const endText = _data.xLabels[endIndex].text;
-        return startText === endText ? startText : `${startText} — ${endText}`;
       }
       return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex]) ? `${getLabelDate(_data.xLabels[startIndex])} — ${getLabelDate(_data.xLabels[endIndex])}` : getFullLabelDate(_data.xLabels[startIndex]);
     }

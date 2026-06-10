@@ -48,7 +48,7 @@ Parameter | Description |
 `title`| Chart headline
 `type`| Chart type. Supported types: `line`, `area`, `bar`, `pie`
 `labels`| Array of UNIX timestamps in milliseconds, or arbitrary strings for text labels
-`labelType`| Optional X-axis label kind: `day`, `hour`, `5min`, `dayHour` or `text`. When omitted, it is inferred from the first two `labels` records: strings → `text`, timestamps → `day`/`hour`/`5min` depending on the step between them.
+`labelType`| Optional X-axis label kind: `year`, `month`, `week`, `day`, `hour`, `5min`, `dayHour` or `text`. When omitted, it is inferred from the first two `labels` records: strings → `text`, timestamps → `year`/`month`/`week`/`day`/`hour`/`5min` depending on the step between them. `year` labels render as `2026`, `month` as `January`, `week` as `Week 1` (week of the year). Charts with `text` labels show no header caption.
 `datasets`| Array of params for each dataset
 `datasets[*].name`| Dataset name
 `datasets[*].color`| Dataset color

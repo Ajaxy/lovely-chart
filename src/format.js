@@ -1,4 +1,4 @@
-import { MONTHS, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants.js';
+import { MILISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants.js';
 
 export function statsFormatDayHour(labels) {
   return labels.map((value) => {
@@ -34,6 +34,32 @@ export function statsFormatMin(labels) {
   return labels.map((value) => ({
     value,
     text: new Date(value).toString().match(/(\d+:\d+):/)[1],
+  }));
+}
+
+export function statsFormatWeek(labels) {
+  return labels.map((value) => {
+    const date = new Date(value);
+    const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
+
+    return {
+      value,
+      text: `Week ${Math.floor((value - yearStart) / MILISECONDS_IN_WEEK) + 1}`,
+    };
+  });
+}
+
+export function statsFormatMonth(labels) {
+  return labels.map((value) => ({
+    value,
+    text: MONTHS_FULL[new Date(value).getUTCMonth()],
+  }));
+}
+
+export function statsFormatYear(labels) {
+  return labels.map((value) => ({
+    value,
+    text: String(new Date(value).getUTCFullYear()),
   }));
 }
 

@@ -1,5 +1,5 @@
 import { getMaxMin } from './utils.js';
-import { statsFormatDay, statsFormatDayHour, statsFormatText, statsFormatMin } from './format.js';
+import { statsFormatDay, statsFormatDayHour, statsFormatText, statsFormatMin, statsFormatWeek, statsFormatMonth, statsFormatYear } from './format.js';
 import { MILISECONDS_IN_DAY } from './constants.js';
 
 const DEFAULT_COLORS = [
@@ -22,6 +22,9 @@ const DEFAULT_COLORS_SUBSETS = [
 ];
 
 const LABEL_TYPE_TO_FORMATTER = {
+  'year': 'statsFormatYear',
+  'month': 'statsFormatMonth',
+  'week': 'statsFormatWeek',
   'day': "statsFormat('day')",
   'hour': "statsFormat('hour')",
   '5min': "statsFormat('5min')",
@@ -52,6 +55,15 @@ export function analyzeData(data, fallbackLabelType) {
 
   let xLabels;
   switch (labelFormatter) {
+    case 'statsFormatYear':
+      xLabels = statsFormatYear(labels);
+      break;
+    case 'statsFormatMonth':
+      xLabels = statsFormatMonth(labels);
+      break;
+    case 'statsFormatWeek':
+      xLabels = statsFormatWeek(labels);
+      break;
     case 'statsFormatDayHour':
       xLabels = statsFormatDayHour(labels);
       break;
@@ -132,6 +144,20 @@ function inferLabelType(labels) {
   }
 
   const step = Math.abs(second - first);
+
+  // Calendar steps are irregular: a year step is 365–366 days,
+  // a month step is 28–31 days, so the bounds are inclusive of the minimums.
+  if (step >= 365 * MILISECONDS_IN_DAY) {
+    return 'year';
+  }
+
+  if (step >= 28 * MILISECONDS_IN_DAY) {
+    return 'month';
+  }
+
+  if (step >= 7 * MILISECONDS_IN_DAY) {
+    return 'week';
+  }
 
   if (step >= MILISECONDS_IN_DAY) {
     return 'day';

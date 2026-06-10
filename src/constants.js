@@ -36,10 +36,12 @@ export const ZOOM_RANGE_DELTA = 0.1;
 export const ZOOM_RANGE_MIDDLE = .5;
 
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
+export const MILISECONDS_IN_WEEK = 7 * MILISECONDS_IN_DAY;
 
 export const SPEED_TEST_INTERVAL = 200;
 export const SPEED_TEST_FAST_FPS = 4;

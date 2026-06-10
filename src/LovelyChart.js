@@ -132,7 +132,7 @@ function create(container, originalData) {
       secondaryProjection = projection.copy(bounds);
     }
 
-    if (!_data.noCaption) {
+    if (!_data.noCaption && _data.labelType !== 'text') {
       _header.setCaption(_getCaption(state));
     }
 
@@ -272,13 +272,6 @@ function create(container, originalData) {
     } else {
       startIndex = state.labelFromIndex;
       endIndex = state.labelToIndex;
-    }
-
-    if (_data.labelType === 'text') {
-      const startText = _data.xLabels[startIndex].text;
-      const endText = _data.xLabels[endIndex].text;
-
-      return startText === endText ? startText : `${startText} — ${endText}`;
     }
 
     return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex])
