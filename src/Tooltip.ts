@@ -12,12 +12,12 @@ import { getCssColor, isColorCloseToBackground } from './skin';
 import { throttle, throttleWithRaf } from './utils';
 
 export class Tooltip {
-  #container: HTMLElement;
-  #data: AnalyzedData;
-  #plotSize: Size;
-  #colors: ChartColors;
-  #onZoom: (labelIndex: number | undefined) => void;
-  #onFocus: ((focusOn: FocusOn) => void) | undefined;
+  readonly #container: HTMLElement;
+  readonly #data: AnalyzedData;
+  readonly #plotSize: Size;
+  readonly #colors: ChartColors;
+  readonly #onZoom: (labelIndex: number | undefined) => void;
+  readonly #onFocus: ((focusOn: FocusOn) => void) | undefined;
 
   #state?: ChartState;
   #points?: Point[][];
@@ -38,8 +38,8 @@ export class Tooltip {
   #isZooming = false;
   #documentMoveEvent?: string;
 
-  #selectLabelOnRaf = throttleWithRaf((isExternal?: boolean) => this.#selectLabel(isExternal));
-  #throttledUpdateContent = throttle(
+  readonly #selectLabelOnRaf = throttleWithRaf((isExternal?: boolean) => this.#selectLabel(isExternal));
+  readonly #throttledUpdateContent = throttle(
     (title: string | undefined, statistics: StatisticsItem[]) => this.#updateContent(title, statistics),
     100,
     true,
@@ -134,8 +134,10 @@ export class Tooltip {
     this.#balloon = createElement();
     this.#balloon.className
       = `lovely-chart--tooltip-balloon${!this.#data.isZoomable ? ' lovely-chart--state-inactive' : ''}`;
-    this.#balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div>'
-      + '<div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
+    this.#balloon.innerHTML = `
+      <div class="lovely-chart--tooltip-title"></div>
+      <div class="lovely-chart--tooltip-legend"></div>
+      <div class="lovely-chart--spinner"></div>`;
 
     if ('ontouchstart' in window && this.#data.isZoomable) {
       addEventListener(this.#balloon, 'click', this.#onBalloonClick);
@@ -144,7 +146,7 @@ export class Tooltip {
     this.#element.appendChild(this.#balloon);
   }
 
-  #onMouseMove = (e: MouseEvent | TouchEvent) => {
+  readonly #onMouseMove = (e: MouseEvent | TouchEvent) => {
     if (e.target === this.#balloon || this.#balloon.contains(e.target as Node) || this.#clickedOnLabel !== undefined) {
       return;
     }
@@ -159,13 +161,13 @@ export class Tooltip {
     this.#selectLabelOnRaf();
   };
 
-  #onDocumentMove = (e: MouseEvent | TouchEvent) => {
+  readonly #onDocumentMove = (e: MouseEvent | TouchEvent) => {
     if (this.#offsetX !== undefined && e.target !== this.#element && !this.#element.contains(e.target as Node)) {
       this.#clear();
     }
   };
 
-  #onClick = (e: MouseEvent) => {
+  readonly #onClick = (e: MouseEvent) => {
     if (this.#isZooming) {
       return;
     }
@@ -185,7 +187,7 @@ export class Tooltip {
     }
   };
 
-  #onBalloonClick = () => {
+  readonly #onBalloonClick = () => {
     if (this.#balloon.classList.contains('lovely-chart--state-inactive')) {
       return;
     }
@@ -391,11 +393,9 @@ export class Tooltip {
       const currentTitle = titleContainer.querySelector(':not(.lovely-chart--state-hidden)');
 
       if (!titleContainer.textContent || !currentTitle) {
-        titleContainer.textContent = '';
-
         const newTitle = createElement<HTMLSpanElement>('span');
         newTitle.textContent = title!;
-        titleContainer.appendChild(newTitle);
+        titleContainer.replaceChildren(newTitle);
       } else {
         currentTitle.textContent = title!;
       }

@@ -7,7 +7,6 @@ import {
 import { getPieRadius, getPieTextShift, getPieTextSize } from './formulas';
 import { simplify } from './simplify';
 import { getCssColor } from './skin';
-import { mergeArrays } from './utils';
 
 interface DrawOptions {
   color: string;
@@ -58,7 +57,7 @@ export function drawDatasets(
       const lowerBoundary: DrawPoint[] = points[i - 1] || bottomLine;
       const upperBoundary = points[i].slice().reverse();
 
-      datasetPoints = mergeArrays<DrawPoint>([lowerBoundary, upperBoundary]);
+      datasetPoints = [...lowerBoundary, ...upperBoundary];
     }
 
     if (datasetType === 'pie') {

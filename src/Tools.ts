@@ -5,9 +5,9 @@ import { createElement } from './minifiers';
 import { isColorCloseToWhite } from './skin';
 
 export class Tools {
-  #container: HTMLElement;
-  #data: AnalyzedData;
-  #filterCallback: (filter: Filter) => void;
+  readonly #container: HTMLElement;
+  readonly #data: AnalyzedData;
+  readonly #filterCallback: (filter: Filter) => void;
 
   #element!: HTMLElement;
 

@@ -1,4 +1,4 @@
-const DPR = window.devicePixelRatio || 1;
+const DPR = window.devicePixelRatio ?? 1;
 const DEFAULT_RANGE = { begin: 0.8, end: 1 };
 const NO_FOCUS = Symbol("NO_FOCUS");
 const GAP = null;
@@ -179,7 +179,9 @@ function getLabelDate(label, { isShort = false, displayWeekDay = false, displayY
     string += ` ${date.getUTCFullYear()}`;
   }
   if (displayHours) {
-    string += `, ${("0" + date.getUTCHours()).slice(-2)}:${("0" + date.getUTCMinutes()).slice(-2)}`;
+    const hours = String(date.getUTCHours()).padStart(2, "0");
+    const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+    string += `, ${hours}:${minutes}`;
   }
   return string;
 }
@@ -233,7 +235,7 @@ const SCALE_LEVELS = [
   1e8
 ];
 function yScaleLevelToStep(scaleLevel) {
-  return SCALE_LEVELS[scaleLevel] || SCALE_LEVELS[SCALE_LEVELS.length - 1];
+  return SCALE_LEVELS[scaleLevel] || SCALE_LEVELS.at(-1);
 }
 function yStepToScaleLevel(neededStep) {
   const idx = SCALE_LEVELS.findIndex((step) => step >= neededStep);
@@ -302,7 +304,7 @@ if (typeof CSSStyleSheet === "function") {
   try {
     styleSheet = new CSSStyleSheet();
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, styleSheet];
-  } catch (e) {
+  } catch {
     styleSheet = void 0;
   }
 }
@@ -321,8 +323,8 @@ function createColors(datasetColors) {
   const baseClass = `.lovely-chart--color`;
   ["skin-day", "skin-night"].forEach((skin2) => {
     colors[skin2] = {};
-    Object.keys(COLORS[skin2]).forEach((prop) => {
-      colors[skin2][prop] = hexToChannels(COLORS[skin2][prop]);
+    Object.entries(COLORS[skin2]).forEach(([prop, value]) => {
+      colors[skin2][prop] = hexToChannels(value);
     });
     Object.keys(datasetColors).forEach((key) => {
       colors[skin2][`dataset#${key}`] = hexToChannels(datasetColors[key]);
@@ -476,7 +478,7 @@ class Axes {
     }
     if (secondaryProjection) {
       const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
-      const secondaryColorKey = `dataset#${this.#data.datasets[this.#data.datasets.length - 1].key}`;
+      const secondaryColorKey = `dataset#${this.#data.datasets.at(-1).key}`;
       const isYChanging2 = yMinViewportSecondFrom !== void 0 || yMaxViewportSecondFrom !== void 0;
       this.#drawYAxisScaled(
         state,
@@ -623,9 +625,6 @@ function getMaxMin(array) {
     if (min === void 0 || value < min) min = value;
   }
   return { max, min };
-}
-function mergeArrays(arrays) {
-  return [].concat.apply([], arrays);
 }
 function sumArrays(arrays) {
   const sums = [];
@@ -886,7 +885,7 @@ function prepareDatasets(data) {
   const defaultColors = getDefaultColors(datasets.length);
   let nextDefaultColor = 0;
   return {
-    labels: cloneArray(labels),
+    labels: [...labels],
     datasets: datasets.map(({ name, color, values }, i) => {
       const { min: yMin, max: yMax } = getMaxMin(values);
       return {
@@ -894,7 +893,7 @@ function prepareDatasets(data) {
         key: `y${i}`,
         name,
         color: color || defaultColors[nextDefaultColor++ % defaultColors.length],
-        values: cloneArray(values),
+        values: [...values],
         hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
         yMin,
         yMax
@@ -906,170 +905,160 @@ function getDefaultColors(datasetsCount) {
   const subset = DEFAULT_COLORS_SUBSETS[datasetsCount];
   return subset ? subset.map((index) => DEFAULT_COLORS[index]) : DEFAULT_COLORS;
 }
-function cloneArray(array) {
-  return array.slice(0);
-}
 
-const simplify = (() => {
-  function simplify2(points, indexes, fixedPoints) {
-    if (points.length < 6) {
-      return function() {
-        return {
-          points,
-          indexes: indexes || points.map((_, i) => i),
-          removed: []
-        };
-      };
+const MIN_DELTA = 1 / 2 ** 22;
+const MAX_LIMIT = 1e5;
+function simplify(points, indexes, fixedPoints) {
+  if (points.length < 6) {
+    return () => ({
+      points,
+      indexes: indexes ?? points.map((_, i) => i),
+      removed: []
+    });
+  }
+  const worker = precalculate(points, fixedPoints);
+  return (delta) => {
+    const result = [];
+    const resultIndexes = [];
+    const removed = [];
+    const delta2 = delta * delta;
+    const markers = worker(delta2);
+    for (let i = 0, l = points.length; i < l; i++) {
+      if (markers[i] >= delta2 || i === 0 || i === l - 1) {
+        result.push(points[i]);
+        resultIndexes.push(indexes ? indexes[i] : i);
+      } else {
+        removed.push(i);
+      }
     }
-    const worker = precalculate(points, fixedPoints);
-    return function(delta) {
-      const result = [], resultIndexes = [], removed = [];
-      const delta2 = delta * delta, markers = worker(delta2);
-      for (let i = 0, l = points.length; i < l; i++) {
-        if (markers[i] >= delta2 || i === 0 || i === l - 1) {
-          result.push(points[i]);
-          resultIndexes.push(indexes ? indexes[i] : i);
+    return {
+      points: result,
+      indexes: resultIndexes,
+      removed
+    };
+  };
+}
+function precalculate(points, fixedPoints = []) {
+  const len = points.length;
+  const distances = new Array(len).fill(0);
+  const queue = [];
+  let maximumDelta = 0;
+  let subdivisionTree = 0;
+  for (let i = 0, l = fixedPoints.length; i < l; ++i) {
+    distances[fixedPoints[i]] = MAX_LIMIT;
+  }
+  function worker(params) {
+    const { start, end, currentLimit } = params;
+    let { record } = params;
+    let usedDistance = 0;
+    if (!record) {
+      let usedIndex = -1;
+      const vector = [
+        points[end][0] - points[start][0],
+        points[end][1] - points[start][1]
+      ];
+      for (let i = 0, l = fixedPoints.length; i < l; ++i) {
+        const fixId = fixedPoints[i];
+        if (fixId > start) {
+          if (fixId < end) {
+            usedIndex = fixId;
+            usedDistance = MAX_LIMIT;
+          }
+          break;
+        }
+      }
+      if (usedIndex < 0) {
+        if (Math.abs(vector[0]) > MIN_DELTA || Math.abs(vector[1]) > MIN_DELTA) {
+          const vectorLength = vector[0] * vector[0] + vector[1] * vector[1];
+          const invVectorLength = 1 / vectorLength;
+          for (let i = start + 1; i < end; ++i) {
+            const segmentDistance = pointToSegmentDistanceSquare(
+              points[i],
+              points[start],
+              points[end],
+              vector,
+              invVectorLength
+            );
+            if (segmentDistance > usedDistance) {
+              usedIndex = i;
+              usedDistance = segmentDistance;
+            }
+          }
         } else {
-          removed.push(i);
+          usedIndex = Math.round((start + end) * 0.5);
+          usedDistance = currentLimit;
         }
+        distances[usedIndex] = usedDistance;
       }
-      return {
-        points: result,
-        indexes: resultIndexes,
-        removed
+      record = {
+        start,
+        end,
+        index: usedIndex,
+        distance: usedDistance
       };
-    };
-  }
-  const E1 = 1 / Math.pow(2, 22), MAXLIMIT = 1e5;
-  function precalculate(points, fixedPoints) {
-    const len = points.length;
-    const distances = [];
-    const queue = [];
-    let maximumDelta = 0;
-    for (let i = 0, l = points.length; i < l; ++i) {
-      distances[i] = 0;
     }
-    if (!fixedPoints) {
-      fixedPoints = [];
-    }
-    let subdivisionTree = 0;
-    for (let i = 0, l = fixedPoints.length; i < l; ++i) {
-      distances[fixedPoints[i]] = MAXLIMIT;
-    }
-    function worker(params) {
-      const start = params.start;
-      const end = params.end;
-      const currentLimit = params.currentLimit;
-      let record = params.record;
-      let usedDistance = 0;
-      if (!record) {
-        let usedIndex = -1;
-        const vector = [
-          points[end][0] - points[start][0],
-          points[end][1] - points[start][1]
-        ];
-        for (let i = 0, l = fixedPoints.length; i < l; ++i) {
-          const fixId = fixedPoints[i];
-          if (fixId > start) {
-            if (fixId < end) {
-              usedIndex = fixId;
-              usedDistance = MAXLIMIT;
-              break;
-            } else {
-              break;
-            }
-          }
-        }
-        if (usedIndex < 0) {
-          if (Math.abs(vector[0]) > E1 || Math.abs(vector[1]) > E1) {
-            const vectorLength = vector[0] * vector[0] + vector[1] * vector[1], vectorLength_1 = 1 / vectorLength;
-            for (let i = start + 1; i < end; ++i) {
-              const segmentDistance = pointToSegmentDistanceSquare(
-                points[i],
-                points[start],
-                points[end],
-                vector,
-                vectorLength_1
-              );
-              if (segmentDistance > usedDistance) {
-                usedIndex = i;
-                usedDistance = segmentDistance;
-              }
-            }
-          } else {
-            usedIndex = Math.round((start + end) * 0.5);
-            usedDistance = currentLimit;
-          }
-          distances[usedIndex] = usedDistance;
-        }
-        record = {
+    if (record.index && record.distance > maximumDelta) {
+      if (record.index - start >= 2) {
+        queue.push({
           start,
+          end: record.index,
+          record: record.left,
+          currentLimit: record.distance,
+          parent: record,
+          parentProperty: "left"
+        });
+      }
+      if (end - record.index >= 2) {
+        queue.push({
+          start: record.index,
           end,
-          index: usedIndex,
-          distance: usedDistance
-        };
+          record: record.right,
+          currentLimit: record.distance,
+          parent: record,
+          parentProperty: "right"
+        });
       }
-      if (record.index && record.distance > maximumDelta) {
-        if (record.index - start >= 2) {
-          queue.push({
-            start,
-            end: record.index,
-            record: record.left,
-            currentLimit: record.distance,
-            parent: record,
-            parentProperty: "left"
-          });
-        }
-        if (end - record.index >= 2) {
-          queue.push({
-            start: record.index,
-            end,
-            record: record.right,
-            currentLimit: record.distance,
-            parent: record,
-            parentProperty: "right"
-          });
-        }
-      }
-      return record;
     }
-    function tick() {
-      const request = queue.pop(), result = worker(request);
-      if (request.parent && request.parentProperty) {
-        request.parent[request.parentProperty] = result;
-      }
-      return result;
-    }
-    return function(delta) {
-      maximumDelta = delta;
-      queue.push({
-        start: 0,
-        end: len - 1,
-        record: subdivisionTree,
-        currentLimit: MAXLIMIT
-      });
-      subdivisionTree = tick();
-      while (queue.length) {
-        tick();
-      }
-      return distances;
-    };
+    return record;
   }
-  function pointToSegmentDistanceSquare(p, v1, v2, dv, dvlen_1) {
-    let vx = +v1[0], vy = +v1[1];
-    const t = +((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * dvlen_1;
-    if (t > 1) {
-      vx = +v2[0];
-      vy = +v2[1];
-    } else if (t > 0) {
-      vx += +dv[0] * t;
-      vy += +dv[1] * t;
+  function tick() {
+    const request = queue.pop();
+    const result = worker(request);
+    if (request.parent && request.parentProperty) {
+      request.parent[request.parentProperty] = result;
     }
-    const a = +p[0] - vx, b = +p[1] - vy;
-    return +a * a + b * b;
+    return result;
   }
-  return simplify2;
-})();
+  return (delta) => {
+    maximumDelta = delta;
+    queue.push({
+      start: 0,
+      end: len - 1,
+      record: subdivisionTree,
+      currentLimit: MAX_LIMIT
+    });
+    subdivisionTree = tick();
+    while (queue.length) {
+      tick();
+    }
+    return distances;
+  };
+}
+function pointToSegmentDistanceSquare(p, v1, v2, dv, invLength) {
+  let vx = v1[0];
+  let vy = v1[1];
+  const t = ((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * invLength;
+  if (t > 1) {
+    vx = v2[0];
+    vy = v2[1];
+  } else if (t > 0) {
+    vx += dv[0] * t;
+    vy += dv[1] * t;
+  }
+  const a = p[0] - vx;
+  const b = p[1] - vy;
+  return a * a + b * b;
+}
 
 function drawDatasets(context, state, data, range, points, projection, secondaryPoints, secondaryProjection, lineWidth, visibilities, colors, pieToBar, simplification) {
   data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
@@ -1092,7 +1081,7 @@ function drawDatasets(context, state, data, range, points, projection, secondary
       ];
       const lowerBoundary = points[i - 1] || bottomLine;
       const upperBoundary = points[i].slice().reverse();
-      datasetPoints = mergeArrays([lowerBoundary, upperBoundary]);
+      datasetPoints = [...lowerBoundary, ...upperBoundary];
     }
     if (datasetType === "pie") {
       options.center = projection.getCenter();
@@ -1515,10 +1504,8 @@ function prepareStacked(points) {
   const negAccum = [];
   points.forEach((datasetPoints) => {
     datasetPoints.forEach((point, j) => {
-      if (posAccum[j] === void 0) {
-        posAccum[j] = 0;
-        negAccum[j] = 0;
-      }
+      posAccum[j] ??= 0;
+      negAccum[j] ??= 0;
       if (point.gap) {
         point.stackOffset = posAccum[j];
         point.stackValue = posAccum[j];
@@ -1635,7 +1622,7 @@ class Minimap {
     this.#rangeCallback = rangeCallback;
     this.#limitBegin = data.limitBegin;
     this.#setupLayout();
-    this.#updateRange(data.minimapRange || DEFAULT_RANGE);
+    this.#updateRange(data.minimapRange ?? DEFAULT_RANGE);
   }
   update(newState) {
     const { begin, end } = newState;
@@ -1721,7 +1708,10 @@ class Minimap {
     this.#limitMask = createElement();
     this.#limitMask.className = "lovely-chart--minimap-limit-mask";
     this.#limitMask.style.width = `${this.#limitBegin * 100}%`;
-    this.#limitMask.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.5265 10.2173V7.54299C16.5265 5.08532 14.4958 3.08585 11.9997 3.08585C9.50365 3.08585 7.47293 5.08532 7.47293 7.54299V10.2173C6.2992 10.2173 5.36524 11.2011 5.42629 12.3733L5.60706 15.844C5.6879 17.3962 5.72833 18.1723 6.00269 18.7852C6.39058 19.6518 7.10506 20.33 7.9906 20.6723C8.61698 20.9144 9.39412 20.9144 10.9484 20.9144H13.051C14.6053 20.9144 15.3825 20.9144 16.0088 20.6723C16.8944 20.33 17.6089 19.6518 17.9967 18.7852C18.2711 18.1723 18.3115 17.3962 18.3924 15.844L18.5731 12.3733C18.6342 11.2011 17.7002 10.2173 16.5265 10.2173ZM11.9997 4.8687C10.5023 4.8687 9.28364 6.06857 9.28364 7.54299V10.2173H14.7158V7.54299C14.7158 6.06857 13.4972 4.8687 11.9997 4.8687Z" fill="currentColor"/></svg>';
+    this.#limitMask.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M16.5265 10.2173V7.54299C16.5265 5.08532 14.4958 3.08585 11.9997 3.08585C9.50365 3.08585 7.47293 5.08532 7.47293 7.54299V10.2173C6.2992 10.2173 5.36524 11.2011 5.42629 12.3733L5.60706 15.844C5.6879 17.3962 5.72833 18.1723 6.00269 18.7852C6.39058 19.6518 7.10506 20.33 7.9906 20.6723C8.61698 20.9144 9.39412 20.9144 10.9484 20.9144H13.051C14.6053 20.9144 15.3825 20.9144 16.0088 20.6723C16.8944 20.33 17.6089 19.6518 17.9967 18.7852C18.2711 18.1723 18.3115 17.3962 18.3924 15.844L18.5731 12.3733C18.6342 11.2011 17.7002 10.2173 16.5265 10.2173ZM11.9997 4.8687C10.5023 4.8687 9.28364 6.06857 9.28364 7.54299V10.2173H14.7158V7.54299C14.7158 6.06857 13.4972 4.8687 11.9997 4.8687Z" fill="currentColor"/>
+      </svg>`;
     if (this.#data.onLimitedRangeClick) {
       this.#limitMask.classList.add("lovely-chart--state-interactive");
       this.#limitMask.addEventListener("click", this.#data.onLimitedRangeClick);
@@ -1820,7 +1810,7 @@ class Minimap {
     this.#updateRange({ end });
   };
   #updateRange(range, isExternal) {
-    let nextRange = Object.assign({}, this.#range, range);
+    let nextRange = { ...this.#range, ...range };
     if (this.#state?.minimapDelta && !isExternal) {
       nextRange = this.#adjustDiscreteRange(nextRange);
     }
@@ -1891,8 +1881,7 @@ class TransitionManager {
   }
   getState() {
     const state = {};
-    Object.keys(this.#transitions).forEach((prop) => {
-      const { current, from, to, progress } = this.#transitions[prop];
+    Object.entries(this.#transitions).forEach(([prop, { current, from, to, progress }]) => {
       state[prop] = current;
       state[`${prop}From`] = from;
       state[`${prop}To`] = to;
@@ -1914,14 +1903,14 @@ class TransitionManager {
       cancelAnimationFrame(this.#nextFrame);
       this.#nextFrame = void 0;
     }
-    Object.keys(this.#transitions).forEach((prop) => delete this.#transitions[prop]);
+    this.#transitions = {};
   }
   #tick = () => {
     const isSlow = !this.isFast();
     this.#speedTest();
     const state = {};
-    Object.keys(this.#transitions).forEach((prop) => {
-      const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = this.#transitions[prop];
+    Object.entries(this.#transitions).forEach(([prop, item]) => {
+      const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = item;
       const progress = Math.min(1, (Date.now() - startedAt) / duration);
       let current = from + (to - from) * transition(progress);
       if (options.includes("ceil")) {
@@ -1929,8 +1918,8 @@ class TransitionManager {
       } else if (options.includes("floor")) {
         current = Math.floor(current);
       }
-      this.#transitions[prop].current = current;
-      this.#transitions[prop].progress = progress;
+      item.current = current;
+      item.progress = progress;
       state[prop] = current;
       if (progress === 1) {
         this.remove(prop);
@@ -2029,11 +2018,11 @@ class StateManager {
     const transitionConfig = [];
     const datasetVisibilities = this.#data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
     const datasetPieShifts = this.#data.datasets.map(({ key }) => `pieShift#${key} 200`);
-    mergeArrays([
-      ANIMATE_PROPS,
-      datasetVisibilities,
-      datasetPieShifts
-    ]).forEach((transition) => {
+    [
+      ...ANIMATE_PROPS,
+      ...datasetVisibilities,
+      ...datasetPieShifts
+    ].forEach((transition) => {
       const [prop, duration, ...options] = transition.split(" ");
       transitionConfig.push({ prop, duration: duration ? Number(duration) : void 0, options });
     });
@@ -2084,23 +2073,21 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
     extendedLabelFromIndex,
     extendedLabelToIndex
   ) : void 0;
-  return Object.assign(
-    {
-      totalXWidth,
-      xAxisScale,
-      yAxisScale,
-      yAxisScaleSecond,
-      labelFromIndex: extendedLabelFromIndex,
-      labelToIndex: extendedLabelToIndex,
-      filter: Object.assign({}, filter),
-      focusOn: resolvedFocusOn,
-      minimapDelta: minimapDelta !== void 0 ? minimapDelta : prevState.minimapDelta
-    },
-    yRanges,
-    datasetsOpacity,
-    datasetsPieShift,
-    range
-  );
+  return {
+    totalXWidth,
+    xAxisScale,
+    yAxisScale,
+    yAxisScaleSecond,
+    labelFromIndex: extendedLabelFromIndex,
+    labelToIndex: extendedLabelToIndex,
+    filter: { ...filter },
+    focusOn: resolvedFocusOn,
+    minimapDelta: minimapDelta !== void 0 ? minimapDelta : prevState.minimapDelta,
+    ...yRanges,
+    ...datasetsOpacity,
+    ...datasetsPieShift,
+    ...range
+  };
 }
 function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFromIndex, labelToIndex) {
   const radius = Math.max(0, Math.min(
@@ -2123,7 +2110,7 @@ function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFrom
   return shifts;
 }
 function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {
-  const secondaryYAxisDataset = data.hasSecondYAxis ? data.datasets.slice(-1)[0] : void 0;
+  const secondaryYAxisDataset = data.hasSecondYAxis ? data.datasets.at(-1) : void 0;
   const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
   const yRanges = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets);
   if (secondaryYAxisDataset) {
@@ -2143,7 +2130,7 @@ function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState)
   return yRanges;
 }
 function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, datasets) {
-  const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(mergeArrays(datasets.map(({ yMax, yMin }) => [yMax, yMin])));
+  const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(datasets.flatMap(({ yMax, yMin }) => [yMax, yMin]));
   const yMinMinimap = yMinMinimapReal < 0 ? yMinMinimapReal : yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
   let yMinViewport;
   let yMaxViewport;
@@ -2153,7 +2140,7 @@ function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState,
   } else {
     const filteredValues = datasets.map(({ values }) => values);
     const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
-    const viewportMaxMin = getMaxMin(mergeArrays(viewportValues));
+    const viewportMaxMin = getMaxMin(viewportValues.flat());
     const yMinViewportReal = viewportMaxMin.min !== void 0 ? viewportMaxMin.min : prevState.yMinViewport;
     yMaxViewport = viewportMaxMin.max !== void 0 ? viewportMaxMin.max : prevState.yMaxViewport;
     yMinViewport = yMinViewportReal < 0 ? yMinViewportReal : yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
@@ -2386,7 +2373,10 @@ class Tooltip {
   #setupBalloon() {
     this.#balloon = createElement();
     this.#balloon.className = `lovely-chart--tooltip-balloon${!this.#data.isZoomable ? " lovely-chart--state-inactive" : ""}`;
-    this.#balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
+    this.#balloon.innerHTML = `
+      <div class="lovely-chart--tooltip-title"></div>
+      <div class="lovely-chart--tooltip-legend"></div>
+      <div class="lovely-chart--spinner"></div>`;
     if ("ontouchstart" in window && this.#data.isZoomable) {
       addEventListener(this.#balloon, "click", this.#onBalloonClick);
     }
@@ -2576,10 +2566,9 @@ class Tooltip {
       }
       const currentTitle = titleContainer.querySelector(":not(.lovely-chart--state-hidden)");
       if (!titleContainer.textContent || !currentTitle) {
-        titleContainer.textContent = "";
         const newTitle = createElement("span");
         newTitle.textContent = title;
-        titleContainer.appendChild(newTitle);
+        titleContainer.replaceChildren(newTitle);
       } else {
         currentTitle.textContent = title;
       }
@@ -2915,20 +2904,17 @@ class Zoomer {
     }, this.#stateManager.hasAnimations() ? 1e3 : 0);
   }
   #generatePieData(labelIndex) {
-    return Object.assign(
-      {},
-      this.#overviewData,
-      {
-        type: "pie",
-        labels: this.#overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
-        datasets: this.#overviewData.datasets.map((dataset) => {
-          return {
-            ...dataset,
-            values: dataset.values.slice(labelIndex - 3, labelIndex + 4)
-          };
-        })
-      }
-    );
+    return {
+      ...this.#overviewData,
+      type: "pie",
+      labels: this.#overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
+      datasets: this.#overviewData.datasets.map((dataset) => {
+        return {
+          ...dataset,
+          values: dataset.values.slice(labelIndex - 3, labelIndex + 4)
+        };
+      })
+    };
   }
 }
 
@@ -3177,6 +3163,5 @@ class LovelyChart {
 function create(container, data) {
   return new LovelyChart(container, data);
 }
-const LovelyChart$1 = { create };
 
-export { create, LovelyChart$1 as default };
+export { create };

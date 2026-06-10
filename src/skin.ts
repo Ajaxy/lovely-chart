@@ -6,7 +6,7 @@ function detectSkin() {
 
 let skin = detectSkin();
 
-const COLORS: Record<string, Record<string, string>> = {
+const COLORS = {
   'skin-day': {
     background: '#FFFFFF',
     'text-color': '#222222',
@@ -33,7 +33,7 @@ const COLORS: Record<string, Record<string, string>> = {
     'x-axis-text': '#A3B1C2/0.6',
     'y-axis-text': '#A3B1C2/0.6',
   },
-};
+} satisfies Record<string, Record<string, string>>;
 
 // Prefer Constructable Stylesheets so a strict `style-src` CSP without
 // `'unsafe-inline'` does not block us; fall back to an injected <style> on
@@ -43,7 +43,7 @@ if (typeof CSSStyleSheet === 'function') {
   try {
     styleSheet = new CSSStyleSheet();
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, styleSheet];
-  } catch (e) {
+  } catch {
     styleSheet = undefined;
   }
 }
@@ -63,11 +63,11 @@ export function createColors(datasetColors: Record<string, string>): ChartColors
   const colors: ChartColors = {};
   const baseClass = `.lovely-chart--color`;
 
-  ['skin-day', 'skin-night'].forEach((skin) => {
+  (['skin-day', 'skin-night'] as const).forEach((skin) => {
     colors[skin] = {};
 
-    Object.keys(COLORS[skin]).forEach((prop) => {
-      colors[skin][prop] = hexToChannels(COLORS[skin][prop]);
+    Object.entries(COLORS[skin]).forEach(([prop, value]) => {
+      colors[skin][prop] = hexToChannels(value);
     });
 
     Object.keys(datasetColors).forEach((key) => {

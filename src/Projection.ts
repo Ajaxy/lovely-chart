@@ -3,18 +3,18 @@ import type { Pixel, ProjectionParams } from './types';
 import { proxyMerge } from './utils';
 
 export class Projection {
-  #params: ProjectionParams;
+  readonly #params: ProjectionParams;
 
-  #totalXWidth: number;
-  #withColumns: boolean;
-  #availableWidth: number;
-  #availableHeight: number;
-  #effectiveHeight: number;
+  readonly #totalXWidth: number;
+  readonly #withColumns: boolean;
+  readonly #availableWidth: number;
+  readonly #availableHeight: number;
+  readonly #effectiveHeight: number;
 
-  #xFactor: number;
-  #xOffsetPx: number;
-  #yFactor: number;
-  #yOffsetPx: number;
+  readonly #xFactor: number;
+  readonly #xOffsetPx: number;
+  readonly #yFactor: number;
+  readonly #yOffsetPx: number;
 
   constructor(params: ProjectionParams) {
     const {

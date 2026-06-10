@@ -3,10 +3,10 @@ import { toggleText } from './toggleText';
 import { throttle } from './utils';
 
 export class Header {
-  #container: HTMLElement;
-  #title: string;
-  #zoomOutLabel: string;
-  #zoomOutCallback: () => void;
+  readonly #container: HTMLElement;
+  readonly #title: string;
+  readonly #zoomOutLabel: string;
+  readonly #zoomOutCallback: () => void;
 
   #element!: HTMLElement;
   #titleElement!: HTMLElement;
@@ -15,7 +15,7 @@ export class Header {
   #isZooming?: boolean;
   #zoomBindTimeout?: number;
 
-  setCaption = throttle((caption: string) => this.#setCaption(caption), 100, false);
+  readonly setCaption = throttle((caption: string) => this.#setCaption(caption), 100, false);
 
   constructor(container: HTMLElement, title: string, zoomOutLabel = 'Zoom out', zoomOutCallback: () => void) {
     this.#container = container;
@@ -73,7 +73,7 @@ export class Header {
     this.#container.appendChild(this.#element);
   }
 
-  #onZoomOut = () => {
+  readonly #onZoomOut = () => {
     this.#titleElement = toggleText(this.#zoomOutElement!, this.#title, 'lovely-chart--header-title', true);
     this.#titleElement.classList.remove('lovely-chart--transition');
 

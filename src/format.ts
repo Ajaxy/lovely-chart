@@ -141,7 +141,9 @@ export function getLabelDate(
     string += ` ${date.getUTCFullYear()}`;
   }
   if (displayHours) {
-    string += `, ${('0' + date.getUTCHours()).slice(-2)}:${('0' + date.getUTCMinutes()).slice(-2)}`;
+    const hours = String(date.getUTCHours()).padStart(2, '0');
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+    string += `, ${hours}:${minutes}`;
   }
 
   return string;

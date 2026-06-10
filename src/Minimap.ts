@@ -21,10 +21,10 @@ import { Projection } from './Projection';
 import { proxyMerge, throttleWithRaf } from './utils';
 
 export class Minimap {
-  #container: HTMLElement;
-  #data: AnalyzedData;
-  #colors: ChartColors;
-  #rangeCallback: (range: Range) => void;
+  readonly #container: HTMLElement;
+  readonly #data: AnalyzedData;
+  readonly #colors: ChartColors;
+  readonly #rangeCallback: (range: Range) => void;
 
   #element!: HTMLElement;
   #canvas!: HTMLCanvasElement;
@@ -38,9 +38,9 @@ export class Minimap {
   #range: Range = {} as Range;
   #state?: ChartState;
 
-  #limitBegin: number | undefined;
+  readonly #limitBegin: number | undefined;
 
-  #updateRulerOnRaf = throttleWithRaf(() => this.#updateRuler());
+  readonly #updateRulerOnRaf = throttleWithRaf(() => this.#updateRuler());
 
   constructor(container: HTMLElement, data: AnalyzedData, colors: ChartColors, rangeCallback: (range: Range) => void) {
     this.#container = container;
@@ -51,7 +51,7 @@ export class Minimap {
     this.#limitBegin = data.limitBegin;
 
     this.#setupLayout();
-    this.#updateRange(data.minimapRange || DEFAULT_RANGE);
+    this.#updateRange(data.minimapRange ?? DEFAULT_RANGE);
   }
 
   update(newState: ChartState) {
@@ -117,6 +117,8 @@ export class Minimap {
   #setupRuler() {
     this.#ruler = createElement();
     this.#ruler.className = 'lovely-chart--minimap-ruler';
+    // Concatenated on purpose: the masks and slider are inline-block, so a
+    // multi-line template literal would inject layout-breaking whitespace.
     this.#ruler.innerHTML
       = '<div class="lovely-chart--minimap-mask"></div>'
         + '<div class="lovely-chart--minimap-slider">'
@@ -169,10 +171,10 @@ export class Minimap {
     this.#limitMask = createElement();
     this.#limitMask.className = 'lovely-chart--minimap-limit-mask';
     this.#limitMask.style.width = `${this.#limitBegin * 100}%`;
-    this.#limitMask.innerHTML
-      = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">'
-        + '<path fill-rule="evenodd" clip-rule="evenodd" d="M16.5265 10.2173V7.54299C16.5265 5.08532 14.4958 3.08585 11.9997 3.08585C9.50365 3.08585 7.47293 5.08532 7.47293 7.54299V10.2173C6.2992 10.2173 5.36524 11.2011 5.42629 12.3733L5.60706 15.844C5.6879 17.3962 5.72833 18.1723 6.00269 18.7852C6.39058 19.6518 7.10506 20.33 7.9906 20.6723C8.61698 20.9144 9.39412 20.9144 10.9484 20.9144H13.051C14.6053 20.9144 15.3825 20.9144 16.0088 20.6723C16.8944 20.33 17.6089 19.6518 17.9967 18.7852C18.2711 18.1723 18.3115 17.3962 18.3924 15.844L18.5731 12.3733C18.6342 11.2011 17.7002 10.2173 16.5265 10.2173ZM11.9997 4.8687C10.5023 4.8687 9.28364 6.06857 9.28364 7.54299V10.2173H14.7158V7.54299C14.7158 6.06857 13.4972 4.8687 11.9997 4.8687Z" fill="currentColor"/>'
-        + '</svg>';
+    this.#limitMask.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M16.5265 10.2173V7.54299C16.5265 5.08532 14.4958 3.08585 11.9997 3.08585C9.50365 3.08585 7.47293 5.08532 7.47293 7.54299V10.2173C6.2992 10.2173 5.36524 11.2011 5.42629 12.3733L5.60706 15.844C5.6879 17.3962 5.72833 18.1723 6.00269 18.7852C6.39058 19.6518 7.10506 20.33 7.9906 20.6723C8.61698 20.9144 9.39412 20.9144 10.9484 20.9144H13.051C14.6053 20.9144 15.3825 20.9144 16.0088 20.6723C16.8944 20.33 17.6089 19.6518 17.9967 18.7852C18.2711 18.1723 18.3115 17.3962 18.3924 15.844L18.5731 12.3733C18.6342 11.2011 17.7002 10.2173 16.5265 10.2173ZM11.9997 4.8687C10.5023 4.8687 9.28364 6.06857 9.28364 7.54299V10.2173H14.7158V7.54299C14.7158 6.06857 13.4972 4.8687 11.9997 4.8687Z" fill="currentColor"/>
+      </svg>`;
     if (this.#data.onLimitedRangeClick) {
       this.#limitMask.classList.add('lovely-chart--state-interactive');
       this.#limitMask.addEventListener('click', this.#data.onLimitedRangeClick);
@@ -238,16 +240,18 @@ export class Minimap {
     );
   }
 
-  #onDragCapture = (e: CaptureEvent) => {
+  readonly #onDragCapture = (e: CaptureEvent) => {
     e.preventDefault();
     this.#capturedOffset = (e.target as HTMLElement).offsetLeft;
   };
 
-  #onDragRelease = () => {
+  readonly #onDragRelease = () => {
     this.#capturedOffset = undefined;
   };
 
-  #onSliderDrag = (moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number }) => {
+  readonly #onSliderDrag = (
+    moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number },
+  ) => {
     const limitX = this.#limitBegin !== undefined ? this.#limitBegin * this.#canvasSize.width : 0;
     const minX1 = limitX;
     const maxX1 = this.#canvasSize.width - this.#slider.offsetWidth;
@@ -260,7 +264,9 @@ export class Minimap {
     this.#updateRange({ begin, end });
   };
 
-  #onLeftEarDrag = (moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number }) => {
+  readonly #onLeftEarDrag = (
+    moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number },
+  ) => {
     const limitX = this.#limitBegin !== undefined ? this.#limitBegin * this.#canvasSize.width : 0;
     const minX1 = limitX;
     const maxX1 = this.#slider.offsetLeft + this.#slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
@@ -271,7 +277,9 @@ export class Minimap {
     this.#updateRange({ begin });
   };
 
-  #onRightEarDrag = (moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number }) => {
+  readonly #onRightEarDrag = (
+    moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number },
+  ) => {
     const minX2 = this.#slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
     const maxX2 = this.#canvasSize.width;
 
@@ -282,7 +290,7 @@ export class Minimap {
   };
 
   #updateRange(range: Partial<Range>, isExternal?: boolean) {
-    let nextRange = Object.assign({}, this.#range, range);
+    let nextRange = { ...this.#range, ...range };
 
     if (this.#state?.minimapDelta && !isExternal) {
       nextRange = this.#adjustDiscreteRange(nextRange);

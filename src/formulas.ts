@@ -14,12 +14,12 @@ export function xStepToScaleLevel(step: number): number {
 const SCALE_LEVELS = [
   // Sub-unit steps for fine-grained data (e.g. portfolio P&L denominated in cents)
   0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-  1, 2, 8, 18, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000,
-  250000, 500000, 1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000,
+  1, 2, 8, 18, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000,
+  250_000, 500_000, 1_000_000, 2_500_000, 5_000_000, 10_000_000, 25_000_000, 50_000_000, 100_000_000,
 ];
 
 export function yScaleLevelToStep(scaleLevel: number): number {
-  return SCALE_LEVELS[scaleLevel] || SCALE_LEVELS[SCALE_LEVELS.length - 1];
+  return SCALE_LEVELS[scaleLevel] || SCALE_LEVELS.at(-1)!;
 }
 
 export function yStepToScaleLevel(neededStep: number): number {

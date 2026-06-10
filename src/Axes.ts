@@ -12,10 +12,10 @@ function getAxesFont(context: CanvasRenderingContext2D): string {
 }
 
 export class Axes {
-  #context: CanvasRenderingContext2D;
-  #data: AnalyzedData;
-  #plotSize: Size;
-  #colors: ChartColors;
+  readonly #context: CanvasRenderingContext2D;
+  readonly #data: AnalyzedData;
+  readonly #plotSize: Size;
+  readonly #colors: ChartColors;
 
   constructor(context: CanvasRenderingContext2D, data: AnalyzedData, plotSize: Size, colors: ChartColors) {
     this.#context = context;
@@ -114,7 +114,7 @@ export class Axes {
 
     if (secondaryProjection) {
       const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
-      const secondaryColorKey = `dataset#${this.#data.datasets[this.#data.datasets.length - 1].key}`;
+      const secondaryColorKey = `dataset#${this.#data.datasets.at(-1)!.key}`;
       const isYChanging = yMinViewportSecondFrom !== undefined || yMaxViewportSecondFrom !== undefined;
 
       this.#drawYAxisScaled(

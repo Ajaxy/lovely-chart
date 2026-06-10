@@ -16,7 +16,7 @@ function transition(t: number): number {
 }
 
 export class TransitionManager {
-  #onTick: (state: Record<string, number>) => void;
+  readonly #onTick: (state: Record<string, number>) => void;
 
   #transitions: Record<string, Transition> = {};
 
@@ -65,8 +65,7 @@ export class TransitionManager {
   getState(): Record<string, number> {
     const state: Record<string, number> = {};
 
-    Object.keys(this.#transitions).forEach((prop) => {
-      const { current, from, to, progress } = this.#transitions[prop];
+    Object.entries(this.#transitions).forEach(([prop, { current, from, to, progress }]) => {
       state[prop] = current;
       // TODO perf lazy
       state[`${prop}From`] = from;
@@ -94,17 +93,17 @@ export class TransitionManager {
       cancelAnimationFrame(this.#nextFrame);
       this.#nextFrame = undefined;
     }
-    Object.keys(this.#transitions).forEach((prop) => delete this.#transitions[prop]);
+    this.#transitions = {};
   }
 
-  #tick = () => {
+  readonly #tick = () => {
     const isSlow = !this.isFast();
     this.#speedTest();
 
     const state: Record<string, number> = {};
 
-    Object.keys(this.#transitions).forEach((prop) => {
-      const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = this.#transitions[prop];
+    Object.entries(this.#transitions).forEach(([prop, item]) => {
+      const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = item;
       const progress = Math.min(1, (Date.now() - startedAt) / duration);
       let current = from + (to - from) * transition(progress);
 
@@ -114,8 +113,8 @@ export class TransitionManager {
         current = Math.floor(current);
       }
 
-      this.#transitions[prop].current = current;
-      this.#transitions[prop].progress = progress;
+      item.current = current;
+      item.progress = progress;
       state[prop] = current;
 
       if (progress === 1) {

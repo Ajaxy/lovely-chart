@@ -202,7 +202,7 @@ function prepareDatasets(data: LovelyChartParams): { labels: (number | string)[]
   let nextDefaultColor = 0;
 
   return {
-    labels: cloneArray(labels),
+    labels: [...labels],
     datasets: datasets.map(({ name, color, values }, i) => {
       const { min: yMin, max: yMax } = getMaxMin(values);
 
@@ -211,7 +211,7 @@ function prepareDatasets(data: LovelyChartParams): { labels: (number | string)[]
         key: `y${i}`,
         name,
         color: color || defaultColors[nextDefaultColor++ % defaultColors.length],
-        values: cloneArray(values),
+        values: [...values],
         hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
         yMin,
         yMax,
@@ -223,8 +223,4 @@ function prepareDatasets(data: LovelyChartParams): { labels: (number | string)[]
 function getDefaultColors(datasetsCount: number): string[] {
   const subset = DEFAULT_COLORS_SUBSETS[datasetsCount];
   return subset ? subset.map((index) => DEFAULT_COLORS[index]) : DEFAULT_COLORS;
-}
-
-function cloneArray<T>(array: T[]): T[] {
-  return array.slice(0);
 }

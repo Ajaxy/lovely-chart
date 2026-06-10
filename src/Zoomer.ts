@@ -11,15 +11,15 @@ import { getFullLabelDate } from './format';
 import { createColors } from './skin';
 
 export class Zoomer {
-  #data: AnalyzedData;
-  #overviewData: LovelyChartParams;
-  #colors: ChartColors;
-  #stateManager: StateManager;
-  #container: HTMLElement;
-  #header: Header;
-  #minimap: Minimap | undefined;
-  #tooltip: Tooltip;
-  #tools: Tools;
+  readonly #data: AnalyzedData;
+  readonly #overviewData: LovelyChartParams;
+  readonly #colors: ChartColors;
+  readonly #stateManager: StateManager;
+  readonly #container: HTMLElement;
+  readonly #header: Header;
+  readonly #minimap: Minimap | undefined;
+  readonly #tooltip: Tooltip;
+  readonly #tools: Tools;
 
   #isZoomed = false;
   #isDestroyed = false;
@@ -213,19 +213,16 @@ export class Zoomer {
   }
 
   #generatePieData(labelIndex: number): LovelyChartParams {
-    return Object.assign(
-      {},
-      this.#overviewData,
-      {
-        type: 'pie' as const,
-        labels: this.#overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
-        datasets: this.#overviewData.datasets.map((dataset) => {
-          return {
-            ...dataset,
-            values: dataset.values.slice(labelIndex - 3, labelIndex + 4),
-          };
-        }),
-      },
-    );
+    return {
+      ...this.#overviewData,
+      type: 'pie',
+      labels: this.#overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
+      datasets: this.#overviewData.datasets.map((dataset) => {
+        return {
+          ...dataset,
+          values: dataset.values.slice(labelIndex - 3, labelIndex + 4),
+        };
+      }),
+    };
   }
 }

@@ -74,10 +74,8 @@ function prepareStacked(points: Point[][]) {
 
   points.forEach((datasetPoints) => {
     datasetPoints.forEach((point, j) => {
-      if (posAccum[j] === undefined) {
-        posAccum[j] = 0;
-        negAccum[j] = 0;
-      }
+      posAccum[j] ??= 0;
+      negAccum[j] ??= 0;
 
       if (point.gap) {
         point.stackOffset = posAccum[j];

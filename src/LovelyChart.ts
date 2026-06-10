@@ -31,7 +31,7 @@ import { Zoomer } from './Zoomer';
 import './styles/index.scss';
 
 class LovelyChart {
-  #container: HTMLElement;
+  readonly #container: HTMLElement;
 
   #stateManager?: StateManager;
 
@@ -56,9 +56,9 @@ class LovelyChart {
   #onWindowResize?: () => void;
   #onWindowOrientationChange?: () => void;
 
-  #data: AnalyzedData;
-  #colors: ChartColors;
-  #redrawDebounced = debounce(() => this.#redraw(), 500, false, true);
+  readonly #data: AnalyzedData;
+  readonly #colors: ChartColors;
+  readonly #redrawDebounced = debounce(() => this.#redraw(), 500, false, true);
 
   constructor(container: HTMLElement, originalData: LovelyChartParams) {
     this.#container = container;
@@ -124,7 +124,6 @@ class LovelyChart {
         this.#element!, this.#header, this.#minimap, this.#tooltip, this.#tools,
       )
       : undefined;
-    // hideOnScroll(this.#element);
   }
 
   #setupContainer() {
@@ -150,7 +149,7 @@ class LovelyChart {
     };
   }
 
-  #onStateUpdate = (state: ChartState) => {
+  readonly #onStateUpdate = (state: ChartState) => {
     if (this.#isDestroyed) return;
     this.#state = state;
 
@@ -210,26 +209,26 @@ class LovelyChart {
     this.#tooltip!.update(state, points, projection, secondaryPoints, secondaryProjection);
   };
 
-  #onRangeChange = (range: Range) => {
+  readonly #onRangeChange = (range: Range) => {
     this.#stateManager!.update({ range });
   };
 
-  #onFilterChange = (filter: Filter) => {
+  readonly #onFilterChange = (filter: Filter) => {
     this.#stateManager!.update({ filter });
   };
 
-  #onFocus = (focusOn: FocusOn) => {
+  readonly #onFocus = (focusOn: FocusOn) => {
     if (this.#data.isBars || this.#data.isPie || this.#data.isSteps) {
       // TODO animate
       this.#stateManager!.update({ focusOn });
     }
   };
 
-  #onZoomIn = (labelIndex: number | undefined) => {
+  readonly #onZoomIn = (labelIndex: number | undefined) => {
     this.#zoomer!.zoomIn(this.#state!, labelIndex!);
   };
 
-  #onZoomOut = () => {
+  readonly #onZoomOut = () => {
     this.#zoomer!.zoomOut(this.#state!);
   };
 
@@ -297,21 +296,14 @@ class LovelyChart {
     }
 
     return isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex])
-      ? (
-        `${getLabelDate(this.#data.xLabels[startIndex])}`
-        + ' — '
-        + `${getLabelDate(this.#data.xLabels[endIndex])}`
-      )
+      ? `${getLabelDate(this.#data.xLabels[startIndex])} — ${getLabelDate(this.#data.xLabels[endIndex])}`
       : getFullLabelDate(this.#data.xLabels[startIndex]);
   }
 }
 
-function create(
+export function create(
   container: HTMLElement,
   data: LovelyChartParams,
 ): { update: (newData: LovelyChartParams) => void; destroy: () => void } {
   return new LovelyChart(container, data);
 }
-
-export { create };
-export default { create };

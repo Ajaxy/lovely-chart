@@ -17,11 +17,6 @@ export function getMaxMin(array: (number | null | undefined)[]): { max?: number;
   return { max, min };
 }
 
-// https://jsperf.com/multi-array-concat/24
-export function mergeArrays<T>(arrays: T[][]): T[] {
-  return ([] as T[]).concat.apply([], arrays as never[]);
-}
-
 export function sumArrays(arrays: number[][]): number[] {
   const sums = [];
   const n = arrays.length;

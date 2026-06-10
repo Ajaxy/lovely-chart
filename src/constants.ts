@@ -1,4 +1,4 @@
-export const DPR = window.devicePixelRatio || 1;
+export const DPR = window.devicePixelRatio ?? 1;
 
 export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
 export const NO_FOCUS = Symbol('NO_FOCUS');
@@ -40,13 +40,13 @@ export const ZOOM_TIMEOUT = TRANSITION_DEFAULT_DURATION;
 export const ZOOM_RANGE_DELTA = 0.1;
 export const ZOOM_RANGE_MIDDLE = 0.5;
 
-export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 export const MONTHS_FULL = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
-];
-export const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-export const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+] as const;
+export const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+export const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
 export const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
 export const MILISECONDS_IN_WEEK = 7 * MILISECONDS_IN_DAY;
