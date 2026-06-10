@@ -1,36 +1,46 @@
 # LovelyChart
 
-🏆 A [Telegram Chart Contest 2019](https://contest.dev/chart-js) award winning library.
+<a href="https://www.npmjs.com/package/lovely-chart" target="_blank"><img alt="npm version" src="https://img.shields.io/npm/v/lovely-chart.svg"/></a>
 
-`mobile friendly`, `high performance`, `extra lightweight`, `zero dependency`, `production ready`, `open source`
+## Overview
 
-<a href="https://www.npmjs.com/package/lovely-chart" target="_blank"><img src="https://img.shields.io/npm/v/lovely-chart.svg"/></a> <img alt="lightweight chart js library" src="https://badgen.net/bundlephobia/minzip/lovely-chart">
+**LovelyChart** is a tiny, dependency-free library to work with beautiful interactive charts.
+
+It draws line, area, bar and pie charts with smooth animated transitions, a draggable minimap for range selection, tooltips, dataset toggling, drill-down zooming and a built-in day/night theme. Everything is touch-friendly and fast enough for low-end mobile devices, at just a few kilobytes over the wire.
+
+🏆 A [Telegram Chart Contest](https://contest.dev/chart-js) award winning library.
 
 ## Demo
 
 https://ajaxy.github.io/lovely-chart/
 
-<img height="400" src="http://chatik.ajaxy.ru/uploads/lovely-chart.png" /> <img height="400" src="http://chatik.ajaxy.ru/uploads/lovely-chart-3.png" />
-
 ## Usage
 
 ```js
 import * as LovelyChart from 'lovely-chart';
-import '~/lovely-chart/dist/LovelyChart.css';
+import 'lovely-chart/LovelyChart.css';
 
-const chart = LovelyChart.create(container, data);
+const chart = LovelyChart.create(element, {
+  title: 'Online Users',
+  type: 'line',
+  labels: [1735689600000, 1735776000000, /* … */],
+  datasets: [
+    { name: 'Desktop', color: '#3497ED', values: [1274, 1305, /* … */] },
+    { name: 'Mobile', color: '#9ED448', values: [2861, 2914, /* … */] },
+  ],
+  withMinimap: true,
+  // See "Data parameters" below for the full list of options
+});
 
-// Replace the chart data and re-render.
+// Replace the data and re-render
 chart.update(newData);
 
-// Tear down the chart: removes the DOM, detaches all global listeners
-// (window resize/orientation, document mousemove/touchstart, theme
-// MutationObserver), cancels pending animation frames and timeouts.
+// Tear down the chart and detach all listeners
 chart.destroy();
 ```
 
 #### Arguments for `LovelyChart.create`
-- `container` — DOM Node in which the chart is rendered. The chart layout resizes automatically to occupy the entire available width.
+- `element` — DOM node in which the chart is rendered. The chart layout resizes automatically to occupy the entire available width.
 - `data` — Parameters for a chart.
 
 #### Returned instance
@@ -39,7 +49,7 @@ chart.destroy();
 Method | Description |
 ---------|----|
 `update(newData)` | Replaces the current data with `newData` (same shape as the initial `data` argument) and re-renders. Resets transient view state (zoom, range, filter). No-op after `destroy()`.
-`destroy()` | Tears down the chart: removes the DOM subtree from `container`, detaches all global listeners (window `resize` / `orientationchange`, document `mousemove` / `touchstart`, theme `MutationObserver`), cancels pending animation frames and timeouts. Idempotent. Call this from your framework's cleanup hook (e.g. React `useEffect` cleanup) to avoid resource leaks.
+`destroy()` | Tears down the chart: removes the DOM subtree from `element`, detaches all global listeners (window `resize` / `orientationchange`, document `mousemove` / `touchstart`, theme `MutationObserver`), cancels pending animation frames and timeouts. Idempotent. Call this from your framework's cleanup hook (e.g. React `useEffect` cleanup) to avoid resource leaks.
 
 #### Data parameters
 
