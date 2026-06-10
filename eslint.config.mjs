@@ -133,7 +133,6 @@ export default tseslint.config(
     files: ['test/**', 'vite.config.js'],
     rules: {
       'no-console': 'off',
-      '@typescript-eslint/no-require-imports': 'off',
     },
   },
   globalIgnores([

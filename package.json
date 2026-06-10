@@ -2,13 +2,10 @@
   "name": "lovely-chart",
   "version": "1.4.1",
   "description": "",
-  "main": "dist/LovelyChart.js",
-  "module": "dist/LovelyChart.mjs",
+  "type": "module",
+  "main": "./dist/LovelyChart.js",
   "exports": {
-    ".": {
-      "import": "./dist/LovelyChart.mjs",
-      "default": "./dist/LovelyChart.js"
-    },
+    ".": "./dist/LovelyChart.js",
     "./LovelyChart.css": "./dist/LovelyChart.css",
     "./package.json": "./package.json"
   },

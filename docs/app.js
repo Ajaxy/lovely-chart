@@ -1,3 +1,5 @@
+import * as LovelyChart from './LovelyChart.js';
+
 function fetchJson(path) {
   return fetch(path).then((response) => response.json());
 }

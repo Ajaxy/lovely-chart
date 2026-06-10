@@ -8,12 +8,12 @@
  * chromium (`npx playwright install chromium`) as fallback.
  */
 
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const { chromium } = require('playwright-core');
+import fs from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import { chromium } from 'playwright-core';
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 const DOCS = path.join(ROOT, 'docs');
 
