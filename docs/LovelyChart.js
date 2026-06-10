@@ -8,11 +8,11 @@ const GUTTER = 10;
 const PLOT_HEIGHT = 320;
 const PLOT_TOP_PADDING = 15;
 const PLOT_LINE_WIDTH = 2;
-const PLOT_PIE_RADIUS_FACTOR = 0.9 / 2;
-const PLOT_PIE_SHIFT = 10;
+const PLOT_CIRCLE_RADIUS_FACTOR = 0.9 / 2;
+const PLOT_CIRCLE_SHIFT = 10;
 const PLOT_BARS_WIDTH_SHIFT = 0.5;
-const PIE_MINIMUM_VISIBLE_PERCENT = 0.02;
-const PIE_DONUT_INNER_RADIUS_FACTOR = 0.5;
+const CIRCLE_MINIMUM_VISIBLE_PERCENT = 0.02;
+const DONUT_INNER_RADIUS_FACTOR = 0.5;
 const BALLOON_OFFSET = 20;
 const MAX_TOOLTIP_ITEMS = 12;
 const AXES_FONT_STYLE = "300 10px";
@@ -251,13 +251,13 @@ function applyYEdgeOpacity(opacity, xPx, plotWidth) {
 function applyXEdgeOpacity(opacity, yPx) {
   return yPx - GUTTER <= GUTTER * 2 ? Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2)) : opacity;
 }
-function getPieRadius(projection) {
-  return Math.max(0, Math.min(...projection.getSize())) * PLOT_PIE_RADIUS_FACTOR;
+function getCircleRadius(projection) {
+  return Math.max(0, Math.min(...projection.getSize())) * PLOT_CIRCLE_RADIUS_FACTOR;
 }
-function getPieTextSize(percent, radius) {
+function getCircleTextSize(percent, radius) {
   return (radius + percent * 200) / 10;
 }
-function getPieTextShift(percent, radius) {
+function getCircleTextShift(percent, radius) {
   return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
 }
 function isDataRange(labelFrom, labelTo) {
@@ -748,6 +748,8 @@ function analyzeData(data, fallbackLabelType) {
     secondaryYAxis,
     hasSecondYAxis,
     onZoom,
+    noZoom,
+    zoomType,
     withMinimap,
     minimapRange,
     noCaption,
@@ -759,6 +761,8 @@ function analyzeData(data, fallbackLabelType) {
     onLimitedRangeClick
   } = data;
   const isPie = data.type === "pie";
+  const isDonut = data.type === "donut";
+  const isCircle = isPie || isDonut;
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : void 0);
   const { datasets, labels } = prepareDatasets(data);
@@ -807,7 +811,7 @@ function analyzeData(data, fallbackLabelType) {
       limitBegin = index / totalXWidth;
     }
   }
-  const shouldZoomToPie = !onZoom && Boolean(isPercentage);
+  const shouldZoomToShares = !onZoom && !noZoom && Boolean(isPercentage);
   const analyzed = {
     title,
     labelType,
@@ -817,7 +821,7 @@ function analyzeData(data, fallbackLabelType) {
     datasets,
     isStacked,
     isPercentage,
-    isShares: Boolean(isPercentage) || isPie,
+    isShares: Boolean(isPercentage) || isCircle,
     secondaryYAxis,
     hasSecondYAxis,
     valuePrefix,
@@ -829,7 +833,8 @@ function analyzeData(data, fallbackLabelType) {
     isSteps: data.type === "step",
     isAreas: data.type === "area",
     isPie,
-    isDonut: Boolean(data.isDonut),
+    isDonut,
+    isCircle,
     withGradient: Boolean(data.withGradient),
     yMin: totalYMin,
     yMax: totalYMax,
@@ -840,8 +845,9 @@ function analyzeData(data, fallbackLabelType) {
     zoomOutLabel,
     limitBegin,
     onLimitedRangeClick,
-    shouldZoomToPie,
-    isZoomable: Boolean(onZoom) || shouldZoomToPie
+    shouldZoomToShares,
+    zoomType: zoomType || "pie",
+    isZoomable: !noZoom && (Boolean(onZoom) || shouldZoomToShares)
   };
   return analyzed;
 }
@@ -1075,7 +1081,7 @@ function drawDatasets(context, state, data, range, points, projection, secondary
       opacity: data.isStacked || data.isShares ? 1 : visibilities[i],
       simplification
     };
-    const datasetType = type === "pie" && shouldConvertToBars ? "bar" : type;
+    const datasetType = (type === "pie" || type === "donut") && shouldConvertToBars ? "bar" : type;
     let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
     const datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
     if (datasetType === "area") {
@@ -1087,10 +1093,10 @@ function drawDatasets(context, state, data, range, points, projection, secondary
       const upperBoundary = points[i].slice().reverse();
       datasetPoints = [...lowerBoundary, ...upperBoundary];
     }
-    if (datasetType === "pie") {
+    if (datasetType === "pie" || datasetType === "donut") {
       options.center = projection.getCenter();
-      options.radius = getPieRadius(projection);
-      options.shift = (state[`pieShift#${key}`] || 0) * PLOT_PIE_SHIFT;
+      options.radius = getCircleRadius(projection);
+      options.shift = (state[`circleShift#${key}`] || 0) * PLOT_CIRCLE_SHIFT;
       options.isDonut = data.isDonut;
       options.withGradient = data.withGradient;
     }
@@ -1123,7 +1129,8 @@ function drawDataset(type, context, points, projection, options) {
     case "area":
       return drawDatasetArea(context, points, projection, options);
     case "pie":
-      return drawDatasetPie(context, points, projection, options);
+    case "donut":
+      return drawDatasetCircle(context, points, projection, options);
   }
 }
 function drawDatasetLine(context, points, projection, options) {
@@ -1247,7 +1254,7 @@ function drawDatasetArea(context, points, projection, options) {
   context.fill();
   context.restore();
 }
-function drawDatasetPie(context, points, projection, options) {
+function drawDatasetCircle(context, points, projection, options) {
   const { visibleValue, stackValue, stackOffset = 0 } = points[0];
   if (!visibleValue) {
     return;
@@ -1258,7 +1265,7 @@ function drawDatasetPie(context, points, projection, options) {
   const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
   const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
   const { radius = 120, center: [x, y] = [0, 0], shift = 0, isDonut, withGradient } = options;
-  const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
+  const innerRadius = isDonut ? radius * DONUT_INNER_RADIUS_FACTOR : 0;
   const shiftAngle = (beginAngle + endAngle) / 2;
   const directionX = Math.cos(shiftAngle);
   const directionY = Math.sin(shiftAngle);
@@ -1266,7 +1273,7 @@ function drawDatasetPie(context, points, projection, options) {
   const shiftY = directionY * shift;
   context.save();
   context.beginPath();
-  context.fillStyle = withGradient ? buildPieGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color) : options.color;
+  context.fillStyle = withGradient ? buildCircleGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color) : options.color;
   if (isDonut) {
     context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
     context.arc(x + shiftX, y + shiftY, innerRadius, endAngle, beginAngle, true);
@@ -1277,13 +1284,13 @@ function drawDatasetPie(context, points, projection, options) {
     context.lineTo(x + shiftX, y + shiftY);
   }
   context.fill();
-  if (percent >= PIE_MINIMUM_VISIBLE_PERCENT) {
+  if (percent >= CIRCLE_MINIMUM_VISIBLE_PERCENT) {
     const fontFamily = getComputedStyle(context.canvas).fontFamily || "sans-serif";
-    context.font = `700 ${getPieTextSize(percent, radius)}px ${fontFamily}`;
+    context.font = `700 ${getCircleTextSize(percent, radius)}px ${fontFamily}`;
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.fillStyle = "white";
-    const textShift = isDonut ? (radius + innerRadius) / 2 : getPieTextShift(percent, radius);
+    const textShift = isDonut ? (radius + innerRadius) / 2 : getCircleTextShift(percent, radius);
     context.fillText(
       `${Math.round(percent * 100)}%`,
       x + directionX * textShift + shiftX,
@@ -1292,7 +1299,7 @@ function drawDatasetPie(context, points, projection, options) {
   }
   context.restore();
 }
-function buildPieGradient(context, cx, cy, innerRadius, radius, color) {
+function buildCircleGradient(context, cx, cy, innerRadius, radius, color) {
   const channels = parseRgba(color);
   const gradient = context.createRadialGradient(cx, cy, innerRadius, cx, cy, radius);
   gradient.addColorStop(0, shadeColor(channels, 0.1));
@@ -1467,7 +1474,7 @@ function captureEvents(element, options) {
 
 function preparePoints(data, datasets, range, visibilities, bounds, shouldConvertToArea) {
   let values = datasets.map(({ values: values2 }) => values2.slice(range.from, range.to + 1));
-  if (data.isPie && !shouldConvertToArea) {
+  if (data.isCircle && !shouldConvertToArea) {
     values = prepareSumsByX(values);
   }
   const points = values.map((datasetValues, i) => datasetValues.map((value, j) => {
@@ -1752,7 +1759,7 @@ class Minimap {
       availableWidth: this.#canvasSize.width,
       availableHeight: this.#canvasSize.height,
       yPadding: 1,
-      withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isPie
+      withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isCircle
     };
     const visibilities = datasets.map(({ key }) => this.#state[`opacity#${key}`]);
     const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams, true);
@@ -2024,11 +2031,11 @@ class StateManager {
   #buildTransitionConfig() {
     const transitionConfig = [];
     const datasetVisibilities = this.#data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
-    const datasetPieShifts = this.#data.datasets.map(({ key }) => `pieShift#${key} 200`);
+    const datasetCircleShifts = this.#data.datasets.map(({ key }) => `circleShift#${key} 200`);
     [
       ...ANIMATE_PROPS,
       ...datasetVisibilities,
-      ...datasetPieShifts
+      ...datasetCircleShifts
     ].forEach((transition) => {
       const [prop, duration, ...options] = transition.split(" ");
       transitionConfig.push({ prop, duration: duration ? Number(duration) : void 0, options });
@@ -2071,8 +2078,8 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
   const extendedLabelFromIndex = Math.max(0, labelFromIndex - 1);
   const extendedLabelToIndex = Math.min(labelToIndex + 1, totalXWidth);
   const resolvedFocusOn = focusOn !== void 0 ? focusOn : prevState.focusOn;
-  const datasetsPieShift = data.isPie ? calculatePieShifts(
-    // For pie charts `focusOn` is never a plain label index
+  const datasetsCircleShift = data.isCircle ? calculateCircleShifts(
+    // For circle charts `focusOn` is never a plain label index
     data,
     viewportSize,
     filter,
@@ -2092,15 +2099,15 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
     minimapDelta: minimapDelta !== void 0 ? minimapDelta : prevState.minimapDelta,
     ...yRanges,
     ...datasetsOpacity,
-    ...datasetsPieShift,
+    ...datasetsCircleShift,
     ...range
   };
 }
-function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFromIndex, labelToIndex) {
+function calculateCircleShifts(data, viewportSize, filter, pointerVector, labelFromIndex, labelToIndex) {
   const radius = Math.max(0, Math.min(
     viewportSize.width,
     viewportSize.height - X_AXIS_HEIGHT - PLOT_TOP_PADDING
-  )) * PLOT_PIE_RADIUS_FACTOR;
+  )) * PLOT_CIRCLE_RADIUS_FACTOR;
   const sums = data.datasets.map(({ key, values }) => filter[key] ? values.slice(labelFromIndex, labelToIndex + 1).reduce((a, x) => a + (x || 0), 0) : 0);
   const total = sums.reduce((a, x) => a + x, 0);
   const shifts = {};
@@ -2112,7 +2119,7 @@ function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFrom
     const isFocused = Boolean(
       pointerVector && pointerVector !== NO_FOCUS && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= radius
     );
-    shifts[`pieShift#${key}`] = isFocused ? 1 : 0;
+    shifts[`circleShift#${key}`] = isFocused ? 1 : 0;
   });
   return shifts;
 }
@@ -2449,16 +2456,16 @@ class Tooltip {
       return;
     }
     const pointerVector = this.#getPointerVector();
-    const shouldShowBalloon = this.#data.isPie ? pointerVector.distance <= getPieRadius(this.#projection) : true;
+    const shouldShowBalloon = this.#data.isCircle ? pointerVector.distance <= getCircleRadius(this.#projection) : true;
     if (!isExternal) {
-      if (this.#data.isPie) {
+      if (this.#data.isCircle) {
         this.#onFocus?.(pointerVector);
       } else {
         this.#onFocus?.(labelIndex);
       }
     }
     const getValue = (values, labelIndex2) => {
-      if (this.#data.isPie) {
+      if (this.#data.isCircle) {
         return values.slice(this.#state.labelFromIndex, this.#state.labelToIndex + 1).reduce((a, x) => a + (x ?? 0), 0);
       }
       return values[labelIndex2];
@@ -2520,17 +2527,17 @@ class Tooltip {
   #getBalloonLeftOffset(labelIndex) {
     const meanLabel = (this.#state.labelFromIndex + this.#state.labelToIndex) / 2;
     const { angle } = this.#getPointerVector();
-    const shouldPlaceRight = this.#data.isPie ? angle > Math.PI / 2 : labelIndex < meanLabel;
+    const shouldPlaceRight = this.#data.isCircle ? angle > Math.PI / 2 : labelIndex < meanLabel;
     const leftOffset = shouldPlaceRight ? this.#offsetX + BALLOON_OFFSET : this.#offsetX - (this.#balloon.offsetWidth + BALLOON_OFFSET);
     return Math.min(Math.max(0, leftOffset), this.#container.offsetWidth - this.#balloon.offsetWidth);
   }
   #getBalloonTopOffset() {
-    return this.#data.isPie ? `${this.#offsetY}px` : 0;
+    return this.#data.isCircle ? `${this.#offsetY}px` : 0;
   }
   #updateBalloon(statistics, labelIndex) {
     this.#balloon.style.transform = `translate3D(${this.#getBalloonLeftOffset(labelIndex)}px, ${this.#getBalloonTopOffset()}, 0)`;
     this.#balloon.classList.add("lovely-chart--state-shown");
-    if (this.#data.isPie) {
+    if (this.#data.isCircle) {
       this.#updateContent(void 0, statistics);
     } else {
       this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics);
@@ -2552,17 +2559,17 @@ class Tooltip {
   // The angular offset must come from the item's position in the original
   // (dataset-order) statistics — sectors are drawn in that order, while the
   // displayed entries are sorted by value
-  #isPieSectorSelected(statistics, statItem, totalValue, pointerVector) {
+  #isCircleSectorSelected(statistics, statItem, totalValue, pointerVector) {
     const index = statistics.indexOf(statItem);
     const { value } = statItem;
     const offset = index > 0 ? statistics.slice(0, index).reduce((a, x) => a + (x.value ?? 0), 0) : 0;
     const beginAngle = offset / totalValue * Math.PI * 2 - Math.PI / 2;
     const endAngle = (offset + (value ?? 0)) / totalValue * Math.PI * 2 - Math.PI / 2;
-    return Boolean(pointerVector) && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= getPieRadius(this.#projection);
+    return Boolean(pointerVector) && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= getCircleRadius(this.#projection);
   }
   #updateTitle(title) {
     const titleContainer = this.#balloon.children[0];
-    if (this.#data.isPie) {
+    if (this.#data.isCircle) {
       titleContainer.style.display = "none";
       return;
     }
@@ -2618,7 +2625,7 @@ class Tooltip {
     if (!this.#data.isPercentage) {
       return;
     }
-    if (this.#data.isPie) {
+    if (this.#data.isCircle) {
       Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach((element) => element.remove());
       return;
     }
@@ -2635,11 +2642,11 @@ class Tooltip {
   }
   #updateDataSets(statistics) {
     const dataSetContainer = this.#balloon.children[1];
-    if (this.#data.isPie) {
-      dataSetContainer.classList.add("lovely-chart--tooltip-legend-pie");
+    if (this.#data.isCircle) {
+      dataSetContainer.classList.add("lovely-chart--tooltip-legend-circle");
     }
     Array.from(dataSetContainer.children).forEach((dataSet) => {
-      if (!this.#data.isPie && dataSetContainer.classList.contains("lovely-chart--tooltip-legend-pie")) {
+      if (!this.#data.isCircle && dataSetContainer.classList.contains("lovely-chart--tooltip-legend-circle")) {
         dataSet.remove();
       } else {
         dataSet.setAttribute("data-present", "false");
@@ -2650,8 +2657,8 @@ class Tooltip {
     const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value !== GAP);
     const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
     const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
-    const finalStatistics = this.#data.isPie ? limitedStatistics.filter(
-      (statItem) => this.#isPieSectorSelected(statistics, statItem, totalValue, pointerVector)
+    const finalStatistics = this.#data.isCircle ? limitedStatistics.filter(
+      (statItem) => this.#isCircleSectorSelected(statistics, statItem, totalValue, pointerVector)
     ) : limitedStatistics;
     finalStatistics.forEach((statItem) => {
       const currentDataSet = Array.from(dataSetContainer.children).find((element) => element.dataset.name === statItem.name);
@@ -2736,7 +2743,7 @@ class Tooltip {
     const canvasRect = this.#canvas.getBoundingClientRect();
     const pointerX = this.#offsetX - (canvasRect.left - elementRect.left);
     const pointerY = this.#offsetY - (canvasRect.top - elementRect.top);
-    const center = this.#data.isPie && this.#projection ? this.#projection.getCenter() : [canvasRect.width / 2, canvasRect.height / 2];
+    const center = this.#data.isCircle && this.#projection ? this.#projection.getCenter() : [canvasRect.width / 2, canvasRect.height / 2];
     const angle = Math.atan2(pointerY - center[1], pointerX - center[0]);
     const distance = Math.sqrt((pointerX - center[0]) ** 2 + (pointerY - center[1]) ** 2);
     return {
@@ -2750,7 +2757,7 @@ class Tooltip {
 }
 
 const ZOOM_ANIMATING_TIMEOUT = 1e3;
-const PIE_LABELS_AROUND = 3;
+const CIRCLE_LABELS_AROUND = 3;
 class Zoomer {
   #data;
   #overviewData;
@@ -2787,12 +2794,12 @@ class Zoomer {
     this.#header.toggleIsZooming(true);
     this.#tooltip.toggleLoading(true);
     this.#tooltip.toggleIsZoomed(true);
-    if (this.#data.shouldZoomToPie) {
+    if (this.#data.shouldZoomToShares) {
       this.#container.classList.add("lovely-chart--state-zoomed-in");
       this.#container.classList.add("lovely-chart--state-animating");
     }
     const { value } = label;
-    const dataPromise = this.#data.shouldZoomToPie ? Promise.resolve(this.#generatePieData(labelIndex)) : this.#data.onZoom(value);
+    const dataPromise = this.#data.shouldZoomToShares ? Promise.resolve(this.#generateCircleData(labelIndex)) : this.#data.onZoom(value);
     void dataPromise.then((newData) => this.#replaceData(newData, labelIndex, label));
   }
   zoomOut(state) {
@@ -2803,7 +2810,7 @@ class Zoomer {
     this.#header.toggleIsZooming(true);
     this.#tooltip.toggleLoading(true);
     this.#tooltip.toggleIsZoomed(false);
-    if (this.#data.shouldZoomToPie) {
+    if (this.#data.shouldZoomToShares) {
       this.#container.classList.remove("lovely-chart--state-zoomed-in");
       this.#container.classList.add("lovely-chart--state-animating");
     }
@@ -2837,7 +2844,7 @@ class Zoomer {
     const labelMiddle = labelIndex / (this.#data.xLabels.length - 1);
     const filter = {};
     this.#data.datasets.forEach(({ key }) => filter[key] = false);
-    const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToPie ? "day" : "hour");
+    const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToShares ? "day" : "hour");
     const shouldZoomToLines = Object.keys(this.#data.datasets).length !== Object.keys(newData.datasets).length;
     this.#stateManager.update({
       range: {
@@ -2865,7 +2872,7 @@ class Zoomer {
         },
         focusOn: NO_FOCUS
       }, true);
-      const daysCount = this.#isZoomed || this.#data.shouldZoomToPie ? this.#data.xLabels.length : this.#data.xLabels.length / 24;
+      const daysCount = this.#isZoomed || this.#data.shouldZoomToShares ? this.#data.xLabels.length : this.#data.xLabels.length / 24;
       const halfDayWidth = 1 / daysCount / 2;
       const centeredDayRange = {
         begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
@@ -2888,7 +2895,7 @@ class Zoomer {
           filter2 = {};
           this.#data.datasets.forEach(({ key }) => filter2[key] = true);
         } else {
-          range = this.#data.shouldZoomToPie ? centeredDayRange : newData.minimapRange ?? this.#buildDayRange(newData.xLabels, zoomInLabel.value) ?? centeredDayRange;
+          range = this.#data.shouldZoomToShares ? centeredDayRange : newData.minimapRange ?? this.#buildDayRange(newData.xLabels, zoomInLabel.value) ?? centeredDayRange;
           filter2 = this.#stateBeforeZoomIn.filter;
         }
       }
@@ -2906,7 +2913,7 @@ class Zoomer {
     }, this.#stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
     this.#stateAnimatingTimeout = window.setTimeout(() => {
       this.#stateAnimatingTimeout = void 0;
-      if (this.#data.shouldZoomToPie) {
+      if (this.#data.shouldZoomToShares) {
         this.#container.classList.remove("lovely-chart--state-animating");
       }
     }, this.#stateManager.hasAnimations() ? ZOOM_ANIMATING_TIMEOUT : 0);
@@ -2928,15 +2935,15 @@ class Zoomer {
       end: Math.min(1, (dayEnd + 0.5) / totalXWidth)
     };
   }
-  #generatePieData(labelIndex) {
+  #generateCircleData(labelIndex) {
     return {
       ...this.#overviewData,
-      type: "pie",
-      labels: this.#overviewData.labels.slice(labelIndex - PIE_LABELS_AROUND, labelIndex + PIE_LABELS_AROUND + 1),
+      type: this.#data.zoomType,
+      labels: this.#overviewData.labels.slice(labelIndex - CIRCLE_LABELS_AROUND, labelIndex + CIRCLE_LABELS_AROUND + 1),
       datasets: this.#overviewData.datasets.map((dataset) => {
         return {
           ...dataset,
-          values: dataset.values.slice(labelIndex - PIE_LABELS_AROUND, labelIndex + PIE_LABELS_AROUND + 1)
+          values: dataset.values.slice(labelIndex - CIRCLE_LABELS_AROUND, labelIndex + CIRCLE_LABELS_AROUND + 1)
         };
       })
     };
@@ -3032,7 +3039,7 @@ class LovelyChart {
   }
   #setupContainer() {
     this.#element = createElement();
-    this.#element.className = `lovely-chart--container${this.#data.shouldZoomToPie ? " lovely-chart--container-type-pie" : ""}`;
+    this.#element.className = `lovely-chart--container${this.#data.shouldZoomToShares ? " lovely-chart--container-type-circle" : ""}`;
     this.#container.appendChild(this.#element);
   }
   #setupPlotCanvas() {
@@ -3102,7 +3109,7 @@ class LovelyChart {
       false,
       simplification
     );
-    if (!this.#data.isPie) {
+    if (!this.#data.isCircle) {
       this.#axes.drawYAxis(state, projection, secondaryProjection);
       this.#axes.drawXAxis(state, projection);
     }
@@ -3116,7 +3123,7 @@ class LovelyChart {
     this.#stateManager.update({ filter });
   };
   #onFocus = (focusOn) => {
-    if (this.#data.isBars || this.#data.isPie || this.#data.isSteps) {
+    if (this.#data.isBars || this.#data.isCircle || this.#data.isSteps) {
       this.#stateManager.update({ focusOn });
     }
   };

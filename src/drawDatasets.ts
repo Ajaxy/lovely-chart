@@ -2,9 +2,9 @@ import type { Projection } from './Projection';
 import type { AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, LabelRange, Pixel, Point } from './types';
 
 import {
-  NO_FOCUS, PIE_DONUT_INNER_RADIUS_FACTOR, PIE_MINIMUM_VISIBLE_PERCENT, PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT,
+  CIRCLE_MINIMUM_VISIBLE_PERCENT, DONUT_INNER_RADIUS_FACTOR, NO_FOCUS, PLOT_BARS_WIDTH_SHIFT, PLOT_CIRCLE_SHIFT,
 } from './constants';
-import { getPieRadius, getPieTextShift, getPieTextSize } from './formulas';
+import { getCircleRadius, getCircleTextShift, getCircleTextSize } from './formulas';
 import { simplify } from './simplify';
 import { getCssColor } from './skin';
 
@@ -45,7 +45,7 @@ export function drawDatasets(
       simplification,
     };
 
-    const datasetType = type === 'pie' && shouldConvertToBars ? 'bar' : type;
+    const datasetType = (type === 'pie' || type === 'donut') && shouldConvertToBars ? 'bar' : type;
     let datasetPoints: DrawPoint[] = hasOwnYAxis ? secondaryPoints! : points[i];
     const datasetProjection = hasOwnYAxis ? secondaryProjection! : projection;
 
@@ -60,10 +60,10 @@ export function drawDatasets(
       datasetPoints = [...lowerBoundary, ...upperBoundary];
     }
 
-    if (datasetType === 'pie') {
+    if (datasetType === 'pie' || datasetType === 'donut') {
       options.center = projection.getCenter();
-      options.radius = getPieRadius(projection);
-      options.shift = (state[`pieShift#${key}`] || 0) * PLOT_PIE_SHIFT;
+      options.radius = getCircleRadius(projection);
+      options.shift = (state[`circleShift#${key}`] || 0) * PLOT_CIRCLE_SHIFT;
       options.isDonut = data.isDonut;
       options.withGradient = data.withGradient;
     }
@@ -108,7 +108,8 @@ function drawDataset(
     case 'area':
       return drawDatasetArea(context, points, projection, options);
     case 'pie':
-      return drawDatasetPie(context, points, projection, options);
+    case 'donut':
+      return drawDatasetCircle(context, points, projection, options);
   }
 }
 
@@ -264,7 +265,7 @@ function drawDatasetArea(
   context.restore();
 }
 
-function drawDatasetPie(
+function drawDatasetCircle(
   context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions,
 ) {
   const { visibleValue, stackValue, stackOffset = 0 } = points[0];
@@ -281,7 +282,7 @@ function drawDatasetPie(
   const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
 
   const { radius = 120, center: [x, y] = [0, 0], shift = 0, isDonut, withGradient } = options;
-  const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
+  const innerRadius = isDonut ? radius * DONUT_INNER_RADIUS_FACTOR : 0;
 
   const shiftAngle = (beginAngle + endAngle) / 2;
   const directionX = Math.cos(shiftAngle);
@@ -295,7 +296,7 @@ function drawDatasetPie(
   // `withGradient` adds slight concentric shading for depth: lighter at the
   // inner edge (center for a plain pie), darker toward the outer edge
   context.fillStyle = withGradient
-    ? buildPieGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color)
+    ? buildCircleGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color)
     : options.color;
   if (isDonut) {
     context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
@@ -308,13 +309,13 @@ function drawDatasetPie(
   }
   context.fill();
 
-  if (percent >= PIE_MINIMUM_VISIBLE_PERCENT) {
+  if (percent >= CIRCLE_MINIMUM_VISIBLE_PERCENT) {
     const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
-    context.font = `700 ${getPieTextSize(percent, radius)}px ${fontFamily}`;
+    context.font = `700 ${getCircleTextSize(percent, radius)}px ${fontFamily}`;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillStyle = 'white';
-    const textShift = isDonut ? (radius + innerRadius) / 2 : getPieTextShift(percent, radius);
+    const textShift = isDonut ? (radius + innerRadius) / 2 : getCircleTextShift(percent, radius);
     context.fillText(
       `${Math.round(percent * 100)}%`, x + directionX * textShift + shiftX, y + directionY * textShift + shiftY,
     );
@@ -323,7 +324,7 @@ function drawDatasetPie(
   context.restore();
 }
 
-function buildPieGradient(
+function buildCircleGradient(
   context: CanvasRenderingContext2D, cx: number, cy: number, innerRadius: number, radius: number, color: string,
 ) {
   const channels = parseRgba(color);

@@ -127,7 +127,7 @@ class LovelyChart {
   #setupContainer() {
     this.#element = createElement();
     this.#element.className
-      = `lovely-chart--container${this.#data.shouldZoomToPie ? ' lovely-chart--container-type-pie' : ''}`;
+      = `lovely-chart--container${this.#data.shouldZoomToShares ? ' lovely-chart--container-type-circle' : ''}`;
 
     this.#container.appendChild(this.#element);
   }
@@ -198,7 +198,7 @@ class LovelyChart {
       range, points, projection, secondaryPoints, secondaryProjection,
       PLOT_LINE_WIDTH, visibilities, this.#colors, false, simplification,
     );
-    if (!this.#data.isPie) {
+    if (!this.#data.isCircle) {
       this.#axes!.drawYAxis(state, projection, secondaryProjection);
       // TODO check isChanged
       this.#axes!.drawXAxis(state, projection);
@@ -216,7 +216,7 @@ class LovelyChart {
   };
 
   readonly #onFocus = (focusOn: FocusOn) => {
-    if (this.#data.isBars || this.#data.isPie || this.#data.isSteps) {
+    if (this.#data.isBars || this.#data.isCircle || this.#data.isSteps) {
       // TODO animate
       this.#stateManager!.update({ focusOn });
     }

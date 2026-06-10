@@ -1,6 +1,6 @@
 import type { NO_FOCUS } from './constants';
 
-export type ChartType = 'line' | 'bar' | 'step' | 'area' | 'pie';
+export type ChartType = 'line' | 'bar' | 'step' | 'area' | 'pie' | 'donut';
 
 export type LabelType = 'year' | 'month' | 'week' | 'day' | 'hour' | '5min' | 'dayHour' | 'text';
 
@@ -61,11 +61,12 @@ export interface LovelyChartParams {
   tooltipFormatter?: string;
   isStacked?: boolean;
   isPercentage?: boolean;
-  isDonut?: boolean;
   withGradient?: boolean;
   hasSecondYAxis?: boolean;
   secondaryYAxis?: SecondaryYAxisConfig;
   onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
+  noZoom?: boolean;
+  zoomType?: 'pie' | 'donut';
   withMinimap?: boolean;
   minimapRange?: [number, number] | 'full';
   noCaption?: boolean;
@@ -110,6 +111,7 @@ export interface AnalyzedData {
   isAreas: boolean;
   isPie: boolean;
   isDonut: boolean;
+  isCircle: boolean;
   withGradient: boolean;
   yMin: number;
   yMax: number;
@@ -120,7 +122,8 @@ export interface AnalyzedData {
   zoomOutLabel?: string;
   limitBegin: number | undefined;
   onLimitedRangeClick?: () => void;
-  shouldZoomToPie: boolean;
+  shouldZoomToShares: boolean;
+  zoomType: 'pie' | 'donut';
   isZoomable: boolean;
 }
 
@@ -147,7 +150,7 @@ export interface ChartState {
   static?: ChartState;
   // The transition manager interpolates over arbitrary numeric props and adds
   // `*From`/`*To`/`*Progress` companions, plus per-dataset `opacity#*` and
-  // `pieShift#*` values — all keyed dynamically
+  // `circleShift#*` values — all keyed dynamically
   [prop: string]: any;
 }
 

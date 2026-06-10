@@ -1,7 +1,6 @@
 {
   "title": "Lovely Donut",
-  "type": "pie",
-  "isDonut": true,
+  "type": "donut",
   "labels": [
     1771891200000,
     1771977600000,

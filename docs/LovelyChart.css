@@ -134,19 +134,19 @@ html.theme-dark .lovely-chart--container {
   margin-top: 10px;
 }
 
-.lovely-chart--container-type-pie.lovely-chart--state-animating > canvas {
+.lovely-chart--container-type-circle.lovely-chart--state-animating > canvas {
   transform-origin: center calc(50% - 7.5px);
 }
-.lovely-chart--container-type-pie.lovely-chart--state-animating.lovely-chart--state-zoomed-in > canvas {
-  animation: lovely-chart--animation-pie-transition-in 0.6s;
+.lovely-chart--container-type-circle.lovely-chart--state-animating.lovely-chart--state-zoomed-in > canvas {
+  animation: lovely-chart--animation-circle-transition-in 0.6s;
   animation-timing-function: ease-out;
 }
-.lovely-chart--container-type-pie.lovely-chart--state-animating:not(.lovely-chart--state-zoomed-in) > canvas {
-  animation: lovely-chart--animation-pie-transition-out 0.55s;
+.lovely-chart--container-type-circle.lovely-chart--state-animating:not(.lovely-chart--state-zoomed-in) > canvas {
+  animation: lovely-chart--animation-circle-transition-out 0.55s;
   animation-timing-function: ease-in;
 }
 
-@keyframes lovely-chart--animation-pie-transition-in {
+@keyframes lovely-chart--animation-circle-transition-in {
   0% {
     transform: rotate(-360deg);
     -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
@@ -164,7 +164,7 @@ html.theme-dark .lovely-chart--container {
   }
 }
 @media (max-width: 480px) {
-  @keyframes lovely-chart--animation-pie-transition-in {
+  @keyframes lovely-chart--animation-circle-transition-in {
     0% {
       transform: rotate(-360deg);
       -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
@@ -182,7 +182,7 @@ html.theme-dark .lovely-chart--container {
     }
   }
 }
-@keyframes lovely-chart--animation-pie-transition-out {
+@keyframes lovely-chart--animation-circle-transition-out {
   0% {
     transform: rotate(360deg);
     -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
@@ -200,7 +200,7 @@ html.theme-dark .lovely-chart--container {
   }
 }
 @media (max-width: 480px) {
-  @keyframes lovely-chart--animation-pie-transition-out {
+  @keyframes lovely-chart--animation-circle-transition-out {
     0% {
       transform: rotate(360deg);
       -webkit-clip-path: circle(40% at center calc(50% - 7.5px));

@@ -1,7 +1,7 @@
 import type { Projection } from './Projection';
 import type { XLabel } from './types';
 
-import { GUTTER, MILLISECONDS_IN_DAY, PLOT_PIE_RADIUS_FACTOR, SIMPLIFIER_MIN_POINTS } from './constants';
+import { GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, SIMPLIFIER_MIN_POINTS } from './constants';
 
 export function xScaleLevelToStep(scaleLevel: number): number {
   return Math.pow(2, scaleLevel);
@@ -43,15 +43,15 @@ export function applyXEdgeOpacity(opacity: number, yPx: number): number {
     : opacity;
 }
 
-export function getPieRadius(projection: Projection): number {
-  return Math.max(0, Math.min(...projection.getSize())) * PLOT_PIE_RADIUS_FACTOR;
+export function getCircleRadius(projection: Projection): number {
+  return Math.max(0, Math.min(...projection.getSize())) * PLOT_CIRCLE_RADIUS_FACTOR;
 }
 
-export function getPieTextSize(percent: number, radius: number): number {
+export function getCircleTextSize(percent: number, radius: number): number {
   return (radius + percent * 200) / 10;
 }
 
-export function getPieTextShift(percent: number, radius: number): number {
+export function getCircleTextShift(percent: number, radius: number): number {
   return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
 }
 

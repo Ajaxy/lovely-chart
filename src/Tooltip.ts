@@ -6,7 +6,7 @@ import type {
 import { clearCanvas, setupCanvas } from './canvas';
 import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, X_AXIS_HEIGHT } from './constants';
 import { formatDayHourFull, formatInteger, getLabelDate, getLabelTime } from './format';
-import { getPieRadius } from './formulas';
+import { getCircleRadius } from './formulas';
 import { addEventListener, createElement, removeEventListener } from './minifiers';
 import { getCssColor, isColorCloseToBackground } from './skin';
 import { throttle, throttleWithRaf } from './utils';
@@ -224,10 +224,10 @@ export class Tooltip {
     }
 
     const pointerVector = this.#getPointerVector();
-    const shouldShowBalloon = this.#data.isPie ? pointerVector.distance <= getPieRadius(this.#projection!) : true;
+    const shouldShowBalloon = this.#data.isCircle ? pointerVector.distance <= getCircleRadius(this.#projection!) : true;
 
     if (!isExternal) {
-      if (this.#data.isPie) {
+      if (this.#data.isCircle) {
         this.#onFocus?.(pointerVector);
       } else {
         this.#onFocus?.(labelIndex);
@@ -235,7 +235,7 @@ export class Tooltip {
     }
 
     const getValue = (values: (number | null)[], labelIndex: number): number | null => {
-      if (this.#data.isPie) {
+      if (this.#data.isCircle) {
         return values.slice(this.#state!.labelFromIndex, this.#state!.labelToIndex + 1)
           .reduce<number>((a, x) => a + (x ?? 0), 0);
       }
@@ -319,7 +319,7 @@ export class Tooltip {
     const meanLabel = (this.#state!.labelFromIndex + this.#state!.labelToIndex) / 2;
     const { angle } = this.#getPointerVector();
 
-    const shouldPlaceRight = this.#data.isPie ? angle > Math.PI / 2 : labelIndex < meanLabel;
+    const shouldPlaceRight = this.#data.isCircle ? angle > Math.PI / 2 : labelIndex < meanLabel;
 
     const leftOffset = shouldPlaceRight
       ? this.#offsetX! + BALLOON_OFFSET
@@ -329,7 +329,7 @@ export class Tooltip {
   }
 
   #getBalloonTopOffset(): string | number {
-    return this.#data.isPie ? `${this.#offsetY}px` : 0;
+    return this.#data.isCircle ? `${this.#offsetY}px` : 0;
   }
 
   #updateBalloon(statistics: StatisticsItem[], labelIndex: number) {
@@ -337,7 +337,7 @@ export class Tooltip {
       = `translate3D(${this.#getBalloonLeftOffset(labelIndex)}px, ${this.#getBalloonTopOffset()}, 0)`;
     this.#balloon.classList.add('lovely-chart--state-shown');
 
-    if (this.#data.isPie) {
+    if (this.#data.isCircle) {
       this.#updateContent(undefined, statistics);
     } else {
       this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics);
@@ -361,7 +361,7 @@ export class Tooltip {
   // The angular offset must come from the item's position in the original
   // (dataset-order) statistics — sectors are drawn in that order, while the
   // displayed entries are sorted by value
-  #isPieSectorSelected(
+  #isCircleSectorSelected(
     statistics: StatisticsItem[],
     statItem: StatisticsItem,
     totalValue: number,
@@ -376,13 +376,13 @@ export class Tooltip {
     return Boolean(pointerVector)
       && beginAngle <= pointerVector.angle
       && pointerVector.angle < endAngle
-      && pointerVector.distance <= getPieRadius(this.#projection!);
+      && pointerVector.distance <= getCircleRadius(this.#projection!);
   }
 
   #updateTitle(title: string | undefined) {
     const titleContainer = this.#balloon.children[0] as HTMLElement;
 
-    if (this.#data.isPie) {
+    if (this.#data.isCircle) {
       titleContainer.style.display = 'none';
       return;
     }
@@ -455,7 +455,7 @@ export class Tooltip {
       return;
     }
 
-    if (this.#data.isPie) {
+    if (this.#data.isCircle) {
       Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach((element) => element.remove());
       return;
     }
@@ -475,12 +475,12 @@ export class Tooltip {
 
   #updateDataSets(statistics: StatisticsItem[]) {
     const dataSetContainer = this.#balloon.children[1] as HTMLElement;
-    if (this.#data.isPie) {
-      dataSetContainer.classList.add('lovely-chart--tooltip-legend-pie');
+    if (this.#data.isCircle) {
+      dataSetContainer.classList.add('lovely-chart--tooltip-legend-circle');
     }
 
     Array.from(dataSetContainer.children).forEach((dataSet) => {
-      if (!this.#data.isPie && dataSetContainer.classList.contains('lovely-chart--tooltip-legend-pie')) {
+      if (!this.#data.isCircle && dataSetContainer.classList.contains('lovely-chart--tooltip-legend-circle')) {
         dataSet.remove();
       } else {
         dataSet.setAttribute('data-present', 'false');
@@ -492,9 +492,9 @@ export class Tooltip {
     const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value !== GAP);
     const sortedStatistics = filteredStatistics.sort((a, b) => b.value! - a.value!);
     const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
-    const finalStatistics = this.#data.isPie
+    const finalStatistics = this.#data.isCircle
       ? limitedStatistics.filter(
-        (statItem) => this.#isPieSectorSelected(statistics, statItem, totalValue, pointerVector),
+        (statItem) => this.#isCircleSectorSelected(statistics, statItem, totalValue, pointerVector),
       )
       : limitedStatistics;
 
@@ -607,7 +607,7 @@ export class Tooltip {
     const pointerX = this.#offsetX! - (canvasRect.left - elementRect.left);
     const pointerY = this.#offsetY! - (canvasRect.top - elementRect.top);
 
-    const center = this.#data.isPie && this.#projection
+    const center = this.#data.isCircle && this.#projection
       ? this.#projection.getCenter()
       : [canvasRect.width / 2, canvasRect.height / 2];
     const angle = Math.atan2(pointerY - center[1], pointerX - center[0]);

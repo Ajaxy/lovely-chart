@@ -215,7 +215,7 @@ export class Minimap {
       availableWidth: this.#canvasSize.width,
       availableHeight: this.#canvasSize.height,
       yPadding: 1,
-      withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isPie,
+      withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isCircle,
     };
     const visibilities = datasets.map(({ key }) => this.#state![`opacity#${key}`] as number);
     const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams, true);

@@ -11,8 +11,8 @@ import { getFullLabelDate } from './format';
 import { createColors } from './skin';
 
 const ZOOM_ANIMATING_TIMEOUT = 1_000;
-// Days taken around the zoomed label to build the pie data
-const PIE_LABELS_AROUND = 3;
+// Days taken around the zoomed label to build the circle data
+const CIRCLE_LABELS_AROUND = 3;
 
 export class Zoomer {
   readonly #data: AnalyzedData;
@@ -65,14 +65,14 @@ export class Zoomer {
     this.#header.toggleIsZooming(true);
     this.#tooltip.toggleLoading(true);
     this.#tooltip.toggleIsZoomed(true);
-    if (this.#data.shouldZoomToPie) {
+    if (this.#data.shouldZoomToShares) {
       this.#container.classList.add('lovely-chart--state-zoomed-in');
       this.#container.classList.add('lovely-chart--state-animating');
     }
 
     const { value } = label;
-    const dataPromise = this.#data.shouldZoomToPie
-      ? Promise.resolve(this.#generatePieData(labelIndex))
+    const dataPromise = this.#data.shouldZoomToShares
+      ? Promise.resolve(this.#generateCircleData(labelIndex))
       : this.#data.onZoom!(value);
     void dataPromise.then((newData) => this.#replaceData(newData, labelIndex, label));
   }
@@ -86,7 +86,7 @@ export class Zoomer {
     this.#header.toggleIsZooming(true);
     this.#tooltip.toggleLoading(true);
     this.#tooltip.toggleIsZoomed(false);
-    if (this.#data.shouldZoomToPie) {
+    if (this.#data.shouldZoomToShares) {
       this.#container.classList.remove('lovely-chart--state-zoomed-in');
       this.#container.classList.add('lovely-chart--state-animating');
     }
@@ -128,7 +128,7 @@ export class Zoomer {
     const labelMiddle = labelIndex / (this.#data.xLabels.length - 1);
     const filter: Filter = {};
     this.#data.datasets.forEach(({ key }) => filter[key] = false);
-    const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToPie ? 'day' : 'hour');
+    const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToShares ? 'day' : 'hour');
     const shouldZoomToLines = Object.keys(this.#data.datasets).length !== Object.keys(newData.datasets).length;
 
     this.#stateManager.update({
@@ -162,7 +162,7 @@ export class Zoomer {
         focusOn: NO_FOCUS,
       }, true);
 
-      const daysCount = this.#isZoomed || this.#data.shouldZoomToPie
+      const daysCount = this.#isZoomed || this.#data.shouldZoomToShares
         ? this.#data.xLabels.length
         : this.#data.xLabels.length / 24;
       const halfDayWidth = (1 / daysCount) / 2;
@@ -189,7 +189,7 @@ export class Zoomer {
           filter = {};
           this.#data.datasets.forEach(({ key }) => filter[key] = true);
         } else {
-          range = this.#data.shouldZoomToPie
+          range = this.#data.shouldZoomToShares
             ? centeredDayRange
             : newData.minimapRange
               ?? this.#buildDayRange(newData.xLabels, zoomInLabel!.value)
@@ -215,7 +215,7 @@ export class Zoomer {
 
     this.#stateAnimatingTimeout = window.setTimeout(() => {
       this.#stateAnimatingTimeout = undefined;
-      if (this.#data.shouldZoomToPie) {
+      if (this.#data.shouldZoomToShares) {
         this.#container.classList.remove('lovely-chart--state-animating');
       }
     }, this.#stateManager.hasAnimations() ? ZOOM_ANIMATING_TIMEOUT : 0);
@@ -242,15 +242,15 @@ export class Zoomer {
     };
   }
 
-  #generatePieData(labelIndex: number): LovelyChartParams {
+  #generateCircleData(labelIndex: number): LovelyChartParams {
     return {
       ...this.#overviewData,
-      type: 'pie',
-      labels: this.#overviewData.labels.slice(labelIndex - PIE_LABELS_AROUND, labelIndex + PIE_LABELS_AROUND + 1),
+      type: this.#data.zoomType,
+      labels: this.#overviewData.labels.slice(labelIndex - CIRCLE_LABELS_AROUND, labelIndex + CIRCLE_LABELS_AROUND + 1),
       datasets: this.#overviewData.datasets.map((dataset) => {
         return {
           ...dataset,
-          values: dataset.values.slice(labelIndex - PIE_LABELS_AROUND, labelIndex + PIE_LABELS_AROUND + 1),
+          values: dataset.values.slice(labelIndex - CIRCLE_LABELS_AROUND, labelIndex + CIRCLE_LABELS_AROUND + 1),
         };
       }),
     };

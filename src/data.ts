@@ -40,10 +40,12 @@ const LABEL_TYPE_TO_FORMATTER: Record<LabelType, string | undefined> = {
 export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelType): AnalyzedData {
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis,
-    hasSecondYAxis, onZoom, withMinimap, minimapRange, noCaption, zoomOutLabel, valuePrefix, valueSuffix,
-    isCurrencyPrefix, limitDate, onLimitedRangeClick,
+    hasSecondYAxis, onZoom, noZoom, zoomType, withMinimap, minimapRange, noCaption, zoomOutLabel,
+    valuePrefix, valueSuffix, isCurrencyPrefix, limitDate, onLimitedRangeClick,
   } = data;
   const isPie = data.type === 'pie';
+  const isDonut = data.type === 'donut';
+  const isCircle = isPie || isDonut;
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : undefined);
   const { datasets, labels } = prepareDatasets(data);
@@ -98,7 +100,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     }
   }
 
-  const shouldZoomToPie = !onZoom && Boolean(isPercentage);
+  const shouldZoomToShares = !onZoom && !noZoom && Boolean(isPercentage);
 
   const analyzed: AnalyzedData = {
     title,
@@ -109,7 +111,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     datasets,
     isStacked,
     isPercentage,
-    isShares: Boolean(isPercentage) || isPie,
+    isShares: Boolean(isPercentage) || isCircle,
     secondaryYAxis,
     hasSecondYAxis,
     valuePrefix,
@@ -121,7 +123,8 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     isSteps: data.type === 'step',
     isAreas: data.type === 'area',
     isPie,
-    isDonut: Boolean(data.isDonut),
+    isDonut,
+    isCircle,
     withGradient: Boolean(data.withGradient),
     yMin: totalYMin,
     yMax: totalYMax,
@@ -132,8 +135,9 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     zoomOutLabel,
     limitBegin,
     onLimitedRangeClick,
-    shouldZoomToPie,
-    isZoomable: Boolean(onZoom) || shouldZoomToPie,
+    shouldZoomToShares,
+    zoomType: zoomType || 'pie',
+    isZoomable: !noZoom && (Boolean(onZoom) || shouldZoomToShares),
   };
 
   return analyzed;

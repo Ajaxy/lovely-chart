@@ -15,7 +15,7 @@ export function preparePoints(
     values.slice(range.from, range.to + 1)
   ));
 
-  if (data.isPie && !shouldConvertToArea) {
+  if (data.isCircle && !shouldConvertToArea) {
     values = prepareSumsByX(values);
   }
 

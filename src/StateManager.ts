@@ -6,7 +6,7 @@ import {
   AXES_MAX_ROW_HEIGHT,
   GAP,
   NO_FOCUS,
-  PLOT_PIE_RADIUS_FACTOR,
+  PLOT_CIRCLE_RADIUS_FACTOR,
   PLOT_TOP_PADDING,
   TRANSITION_DEFAULT_DURATION,
   X_AXIS_HEIGHT,
@@ -111,12 +111,12 @@ export class StateManager {
   #buildTransitionConfig(): TransitionConfigItem[] {
     const transitionConfig: TransitionConfigItem[] = [];
     const datasetVisibilities = this.#data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
-    const datasetPieShifts = this.#data.datasets.map(({ key }) => `pieShift#${key} 200`);
+    const datasetCircleShifts = this.#data.datasets.map(({ key }) => `circleShift#${key} 200`);
 
     [
       ...ANIMATE_PROPS,
       ...datasetVisibilities,
-      ...datasetPieShifts,
+      ...datasetCircleShifts,
     ].forEach((transition) => {
       const [prop, duration, ...options] = transition.split(' ');
       transitionConfig.push({ prop, duration: duration ? Number(duration) : undefined, options });
@@ -187,9 +187,9 @@ function calculateState(
   const extendedLabelToIndex = Math.min(labelToIndex + 1, totalXWidth);
   const resolvedFocusOn = focusOn !== undefined ? focusOn : prevState.focusOn;
 
-  const datasetsPieShift = data.isPie
-    ? calculatePieShifts(
-      // For pie charts `focusOn` is never a plain label index
+  const datasetsCircleShift = data.isCircle
+    ? calculateCircleShifts(
+      // For circle charts `focusOn` is never a plain label index
       data, viewportSize, filter, resolvedFocusOn as Exclude<FocusOn, number> | undefined,
       extendedLabelFromIndex, extendedLabelToIndex,
     )
@@ -208,19 +208,19 @@ function calculateState(
     minimapDelta: minimapDelta !== undefined ? minimapDelta : prevState.minimapDelta,
     ...yRanges,
     ...datasetsOpacity,
-    ...datasetsPieShift,
+    ...datasetsCircleShift,
     ...range,
   };
 }
 
-// Targets (0 or 1) for the animated `pieShift#*` props: 1 for the sector
+// Targets (0 or 1) for the animated `circleShift#*` props: 1 for the sector
 // currently under the pointer. Mirrors the sector containment test used by
 // the tooltip, with angles growing from -PI/2 over the filtered totals.
-function calculatePieShifts(
+function calculateCircleShifts(
   data: AnalyzedData,
   viewportSize: Size,
   filter: Filter,
-  // A vector while the pointer is over the pie, NO_FOCUS after a clear,
+  // A vector while the pointer is over the circle, NO_FOCUS after a clear,
   // or undefined before any interaction
   pointerVector: PointerVector | typeof NO_FOCUS | undefined,
   labelFromIndex: number,
@@ -229,7 +229,7 @@ function calculatePieShifts(
   const radius = Math.max(0, Math.min(
     viewportSize.width,
     viewportSize.height - X_AXIS_HEIGHT - PLOT_TOP_PADDING,
-  )) * PLOT_PIE_RADIUS_FACTOR;
+  )) * PLOT_CIRCLE_RADIUS_FACTOR;
 
   const sums = data.datasets.map(({ key, values }) => (
     filter[key]
@@ -253,7 +253,7 @@ function calculatePieShifts(
       && pointerVector.distance <= radius,
     );
 
-    shifts[`pieShift#${key}`] = isFocused ? 1 : 0;
+    shifts[`circleShift#${key}`] = isFocused ? 1 : 0;
   });
 
   return shifts;

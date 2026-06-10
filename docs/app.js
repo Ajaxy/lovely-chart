@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
       fetchJson('./data/bars-negative.json'),
       fetchJson('./data/areas-absolute.json'),
       fetchJson('./data/areas.json'),
-      fetchJson('./data/pie.json'),
+      fetchJson('./data/donut.json'),
     ]);
 
     data.forEach((chart, i) => {
