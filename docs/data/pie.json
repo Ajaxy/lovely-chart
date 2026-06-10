@@ -3,7 +3,6 @@
   "type": "pie",
   "isDonut": true,
   "withGradient": true,
-  "labelType": "day",
   "isStacked": true,
   "isPercentage": true,
   "labels": [

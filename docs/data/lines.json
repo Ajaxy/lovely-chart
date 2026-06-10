@@ -2,7 +2,6 @@
   "title": "Lovely Lines",
   "type": "line",
   "withMinimap": true,
-  "labelType": "text",
   "labels": [
     "Week 1",
     "Week 2",

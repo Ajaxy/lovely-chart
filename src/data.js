@@ -1,5 +1,6 @@
 import { getMaxMin } from './utils.js';
 import { statsFormatDay, statsFormatDayHour, statsFormatText, statsFormatMin } from './format.js';
+import { MILISECONDS_IN_DAY } from './constants.js';
 
 const DEFAULT_COLORS = [
   '#3497ED', '#2373DB', '#9ED448', '#5FB641',
@@ -28,8 +29,9 @@ const LABEL_TYPE_TO_FORMATTER = {
   'text': undefined,
 };
 
-export function analyzeData(data) {
-  const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
+export function analyzeData(data, fallbackLabelType) {
+  const { title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
+  const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType && LABEL_TYPE_TO_FORMATTER[labelType]);
   const { datasets, labels } = prepareDatasets(data);
 
@@ -76,6 +78,7 @@ export function analyzeData(data) {
 
   const analyzed = {
     title,
+    labelType,
     labelFormatter,
     tooltipFormatter,
     xLabels,
@@ -110,6 +113,30 @@ export function analyzeData(data) {
   analyzed.isZoomable = analyzed.onZoom || analyzed.shouldZoomToPie;
 
   return analyzed;
+}
+
+function inferLabelType(labels) {
+  const [first, second] = labels;
+
+  if (typeof first === 'string') {
+    return 'text';
+  }
+
+  if (typeof first !== 'number' || typeof second !== 'number') {
+    return undefined;
+  }
+
+  const step = Math.abs(second - first);
+
+  if (step >= MILISECONDS_IN_DAY) {
+    return 'day';
+  }
+
+  if (step >= MILISECONDS_IN_DAY / 24) {
+    return 'hour';
+  }
+
+  return '5min';
 }
 
 // Accepts a `[begin, end]` tuple of 0..1 fractions or the 'full' keyword,

@@ -47,7 +47,8 @@ Parameter | Description |
 ---------|----|
 `title`| Chart headline
 `type`| Chart type. Supported types: `line`, `area`, `bar`, `pie`
-`labels`| Array of UNIX timestamps in milliseconds
+`labels`| Array of UNIX timestamps in milliseconds, or arbitrary strings for text labels
+`labelType`| Optional X-axis label kind: `day`, `hour`, `5min`, `dayHour` or `text`. When omitted, it is inferred from the first two `labels` records: strings → `text`, timestamps → `day`/`hour`/`5min` depending on the step between them.
 `datasets`| Array of params for each dataset
 `datasets[*].name`| Dataset name
 `datasets[*].color`| Dataset color

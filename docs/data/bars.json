@@ -3,7 +3,6 @@
   "type": "bar",
   "withMinimap": true,
   "isStacked": true,
-  "labelType": "day",
   "labels": [
     1523059200000,
     1523145600000,

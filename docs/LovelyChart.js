@@ -2355,8 +2355,9 @@ var LovelyChart = function(exports) {
     "dayHour": "statsFormatDayHour",
     "text": void 0
   };
-  function analyzeData(data) {
-    const { title, labelFormatter: labelFormatterRaw, labelType, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
+  function analyzeData(data, fallbackLabelType) {
+    const { title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, hideCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
+    const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
     const labelFormatter = labelFormatterRaw || labelType && LABEL_TYPE_TO_FORMATTER[labelType];
     const { datasets, labels } = prepareDatasets(data);
     const colors = {};
@@ -2397,6 +2398,7 @@ var LovelyChart = function(exports) {
     }
     const analyzed = {
       title,
+      labelType,
       labelFormatter,
       tooltipFormatter,
       xLabels,
@@ -2429,6 +2431,23 @@ var LovelyChart = function(exports) {
     analyzed.shouldZoomToPie = !analyzed.onZoom && analyzed.isPercentage;
     analyzed.isZoomable = analyzed.onZoom || analyzed.shouldZoomToPie;
     return analyzed;
+  }
+  function inferLabelType(labels) {
+    const [first, second] = labels;
+    if (typeof first === "string") {
+      return "text";
+    }
+    if (typeof first !== "number" || typeof second !== "number") {
+      return void 0;
+    }
+    const step = Math.abs(second - first);
+    if (step >= MILISECONDS_IN_DAY) {
+      return "day";
+    }
+    if (step >= MILISECONDS_IN_DAY / 24) {
+      return "hour";
+    }
+    return "5min";
   }
   function buildMinimapRange(minimapRange) {
     if (!minimapRange) {
@@ -2843,6 +2862,11 @@ var LovelyChart = function(exports) {
       } else {
         startIndex = state.labelFromIndex;
         endIndex = state.labelToIndex;
+      }
+      if (_data.labelType === "text") {
+        const startText = _data.xLabels[startIndex].text;
+        const endText = _data.xLabels[endIndex].text;
+        return startText === endText ? startText : `${startText} — ${endText}`;
       }
       return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex]) ? `${getLabelDate(_data.xLabels[startIndex])} — ${getLabelDate(_data.xLabels[endIndex])}` : getFullLabelDate(_data.xLabels[startIndex]);
     }

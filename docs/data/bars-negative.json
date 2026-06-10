@@ -2,7 +2,6 @@
   "title": "Net P&L (Stacked)",
   "type": "bar",
   "isStacked": true,
-  "labelType": "day",
   "labels": [
     1514764800000,
     1514851200000,

@@ -274,6 +274,13 @@ function create(container, originalData) {
       endIndex = state.labelToIndex;
     }
 
+    if (_data.labelType === 'text') {
+      const startText = _data.xLabels[startIndex].text;
+      const endText = _data.xLabels[endIndex].text;
+
+      return startText === endText ? startText : `${startText} — ${endText}`;
+    }
+
     return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex])
       ? (
         `${getLabelDate(_data.xLabels[startIndex])}` +
