@@ -115,6 +115,7 @@ function create(container, originalData) {
       availableHeight: _plotSize.height - X_AXIS_HEIGHT,
       xPadding: GUTTER,
       yPadding: PLOT_TOP_PADDING,
+      withColumns: _data.isBars || _data.isSteps,
     };
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
     const points = preparePoints(_data, datasets, range, visibilities, boundsAndParams);

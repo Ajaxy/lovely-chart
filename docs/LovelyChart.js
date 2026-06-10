@@ -837,7 +837,8 @@ var LovelyChart = function(exports) {
       availableWidth,
       availableHeight,
       xPadding = 0,
-      yPadding = 0
+      yPadding = 0,
+      withColumns = false
     } = params;
     let effectiveWidth = availableWidth;
     if (begin === 0) {
@@ -846,8 +847,12 @@ var LovelyChart = function(exports) {
     if (end === 1) {
       effectiveWidth -= xPadding;
     }
-    const xFactor = effectiveWidth / ((end !== begin ? end - begin : 1) * totalXWidth);
-    let xOffsetPx = begin * totalXWidth * xFactor;
+    const xUnitsCount = withColumns ? totalXWidth + 1 : totalXWidth;
+    const xFactor = effectiveWidth / ((end !== begin ? end - begin : 1) * xUnitsCount);
+    let xOffsetPx = begin * xUnitsCount * xFactor;
+    if (withColumns) {
+      xOffsetPx -= xFactor / 2;
+    }
     if (begin === 0) {
       xOffsetPx -= xPadding;
     }
@@ -858,7 +863,8 @@ var LovelyChart = function(exports) {
       return { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx };
     }
     function findClosestLabelIndex(xPx) {
-      return Math.round((xPx + xOffsetPx) / xFactor);
+      const labelIndex = Math.round((xPx + xOffsetPx) / xFactor);
+      return withColumns ? Math.max(0, Math.min(labelIndex, totalXWidth)) : labelIndex;
     }
     function copy(overrides, cons) {
       return createProjection(proxyMerge(params, overrides));
@@ -1748,7 +1754,8 @@ var LovelyChart = function(exports) {
         yMax: state.yMaxMinimap,
         availableWidth: _canvasSize.width,
         availableHeight: _canvasSize.height,
-        yPadding: 1
+        yPadding: 1,
+        withColumns: data.isBars || data.isSteps || data.isPie
       };
       const visibilities = datasets.map(({ key }) => _state[`opacity#${key}`]);
       const points = preparePoints(data, datasets, range, visibilities, boundsAndParams, true);
@@ -2766,7 +2773,8 @@ var LovelyChart = function(exports) {
         availableWidth: _plotSize.width,
         availableHeight: _plotSize.height - X_AXIS_HEIGHT,
         xPadding: GUTTER,
-        yPadding: PLOT_TOP_PADDING
+        yPadding: PLOT_TOP_PADDING,
+        withColumns: _data.isBars || _data.isSteps
       };
       const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
       const points = preparePoints(_data, datasets, range, visibilities, boundsAndParams);

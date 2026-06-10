@@ -193,6 +193,7 @@ export function createMinimap(container, data, colors, rangeCallback) {
       availableWidth: _canvasSize.width,
       availableHeight: _canvasSize.height,
       yPadding: 1,
+      withColumns: data.isBars || data.isSteps || data.isPie,
     };
     const visibilities = datasets.map(({ key }) => _state[`opacity#${key}`]);
     const points = preparePoints(data, datasets, range, visibilities, boundsAndParams, true);
