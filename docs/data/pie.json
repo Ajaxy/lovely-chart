@@ -2,7 +2,6 @@
   "title": "Lovely Donut",
   "type": "pie",
   "isDonut": true,
-  "withGradient": true,
   "isStacked": true,
   "isPercentage": true,
   "labels": [
