@@ -40,7 +40,7 @@ export function drawDatasets(
     if (datasetType === 'pie') {
       options.center = projection.getCenter();
       options.radius = getPieRadius(projection);
-      options.pointerVector = state.focusOn;
+      options.shift = (state[`pieShift#${key}`] || 0) * PLOT_PIE_SHIFT;
       options.isDonut = data.isDonut;
       options.withGradient = data.withGradient;
     }
@@ -239,15 +239,8 @@ function drawDatasetPie(context, points, projection, options) {
   const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
   const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
 
-  const { radius = 120, center: [x, y], pointerVector, isDonut, withGradient } = options;
+  const { radius = 120, center: [x, y], shift = 0, isDonut, withGradient } = options;
   const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
-
-  const shift = (
-    pointerVector &&
-    beginAngle <= pointerVector.angle &&
-    pointerVector.angle < endAngle &&
-    pointerVector.distance <= radius
-  ) ? PLOT_PIE_SHIFT : 0;
 
   const shiftAngle = (beginAngle + endAngle) / 2;
   const directionX = Math.cos(shiftAngle);

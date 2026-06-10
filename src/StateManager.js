@@ -7,6 +7,8 @@ import {
   ANIMATE_PROPS,
   TRANSITION_DEFAULT_DURATION,
   Y_AXIS_ZERO_BASED_THRESHOLD,
+  PLOT_PIE_RADIUS_FACTOR,
+  PLOT_TOP_PADDING,
 } from './constants.js';
 import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas.js';
 
@@ -59,10 +61,12 @@ export function createStateManager(data, viewportSize, callback) {
   function _buildTransitionConfig() {
     const transitionConfig = [];
     const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
+    const datasetPieShifts = data.datasets.map(({ key }) => `pieShift#${key} 200`);
 
     mergeArrays([
       ANIMATE_PROPS,
       datasetVisibilities,
+      datasetPieShifts,
     ]).forEach((transition) => {
       const [prop, duration, ...options] = transition.split(' ');
       transitionConfig.push({ prop, duration, options });
@@ -126,6 +130,14 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
     datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
   });
 
+  const extendedLabelFromIndex = Math.max(0, labelFromIndex - 1);
+  const extendedLabelToIndex = Math.min(labelToIndex + 1, totalXWidth);
+  const resolvedFocusOn = focusOn !== undefined ? focusOn : prevState.focusOn;
+
+  const datasetsPieShift = data.isPie
+    ? calculatePieShifts(data, viewportSize, filter, resolvedFocusOn, extendedLabelFromIndex, extendedLabelToIndex)
+    : null;
+
   // TODO perf
   return Object.assign(
     {
@@ -133,16 +145,53 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
       xAxisScale,
       yAxisScale,
       yAxisScaleSecond,
-      labelFromIndex: Math.max(0, labelFromIndex - 1),
-      labelToIndex: Math.min(labelToIndex + 1, totalXWidth),
+      labelFromIndex: extendedLabelFromIndex,
+      labelToIndex: extendedLabelToIndex,
       filter: Object.assign({}, filter),
-      focusOn: focusOn !== undefined ? focusOn : prevState.focusOn,
+      focusOn: resolvedFocusOn,
       minimapDelta: minimapDelta !== undefined ? minimapDelta : prevState.minimapDelta,
     },
     yRanges,
     datasetsOpacity,
+    datasetsPieShift,
     range,
   );
+}
+
+// Targets (0 or 1) for the animated `pieShift#*` props: 1 for the sector
+// currently under the pointer. Mirrors the sector containment test used by
+// the tooltip, with angles growing from -PI/2 over the filtered totals.
+function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFromIndex, labelToIndex) {
+  const radius = Math.max(0, Math.min(
+    viewportSize.width,
+    viewportSize.height - X_AXIS_HEIGHT - PLOT_TOP_PADDING,
+  )) * PLOT_PIE_RADIUS_FACTOR;
+
+  const sums = data.datasets.map(({ key, values }) => (
+    filter[key]
+      ? values.slice(labelFromIndex, labelToIndex + 1).reduce((a, x) => a + (x || 0), 0)
+      : 0
+  ));
+  const total = sums.reduce((a, x) => a + x, 0);
+
+  const shifts = {};
+  let offset = 0;
+  data.datasets.forEach(({ key }, i) => {
+    const beginAngle = offset / total * Math.PI * 2 - Math.PI / 2;
+    offset += sums[i];
+    const endAngle = offset / total * Math.PI * 2 - Math.PI / 2;
+
+    const isFocused = Boolean(
+      pointerVector &&
+      beginAngle <= pointerVector.angle &&
+      pointerVector.angle < endAngle &&
+      pointerVector.distance <= radius,
+    );
+
+    shifts[`pieShift#${key}`] = isFocused ? 1 : 0;
+  });
+
+  return shifts;
 }
 
 function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {

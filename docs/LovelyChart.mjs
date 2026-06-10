@@ -382,9 +382,11 @@ function createStateManager(data, viewportSize, callback) {
   function _buildTransitionConfig() {
     const transitionConfig = [];
     const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
+    const datasetPieShifts = data.datasets.map(({ key }) => `pieShift#${key} 200`);
     mergeArrays([
       ANIMATE_PROPS,
-      datasetVisibilities
+      datasetVisibilities,
+      datasetPieShifts
     ]).forEach((transition2) => {
       const [prop, duration, ...options] = transition2.split(" ");
       transitionConfig.push({ prop, duration, options });
@@ -429,22 +431,47 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
   data.datasets.forEach(({ key }) => {
     datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
   });
+  const extendedLabelFromIndex = Math.max(0, labelFromIndex - 1);
+  const extendedLabelToIndex = Math.min(labelToIndex + 1, totalXWidth);
+  const resolvedFocusOn = focusOn !== void 0 ? focusOn : prevState.focusOn;
+  const datasetsPieShift = data.isPie ? calculatePieShifts(data, viewportSize, filter, resolvedFocusOn, extendedLabelFromIndex, extendedLabelToIndex) : null;
   return Object.assign(
     {
       totalXWidth,
       xAxisScale,
       yAxisScale,
       yAxisScaleSecond,
-      labelFromIndex: Math.max(0, labelFromIndex - 1),
-      labelToIndex: Math.min(labelToIndex + 1, totalXWidth),
+      labelFromIndex: extendedLabelFromIndex,
+      labelToIndex: extendedLabelToIndex,
       filter: Object.assign({}, filter),
-      focusOn: focusOn !== void 0 ? focusOn : prevState.focusOn,
+      focusOn: resolvedFocusOn,
       minimapDelta: minimapDelta !== void 0 ? minimapDelta : prevState.minimapDelta
     },
     yRanges,
     datasetsOpacity,
+    datasetsPieShift,
     range
   );
+}
+function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFromIndex, labelToIndex) {
+  const radius = Math.max(0, Math.min(
+    viewportSize.width,
+    viewportSize.height - X_AXIS_HEIGHT - PLOT_TOP_PADDING
+  )) * PLOT_PIE_RADIUS_FACTOR;
+  const sums = data.datasets.map(({ key, values }) => filter[key] ? values.slice(labelFromIndex, labelToIndex + 1).reduce((a, x) => a + (x || 0), 0) : 0);
+  const total = sums.reduce((a, x) => a + x, 0);
+  const shifts = {};
+  let offset = 0;
+  data.datasets.forEach(({ key }, i) => {
+    const beginAngle = offset / total * Math.PI * 2 - Math.PI / 2;
+    offset += sums[i];
+    const endAngle = offset / total * Math.PI * 2 - Math.PI / 2;
+    const isFocused = Boolean(
+      pointerVector && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= radius
+    );
+    shifts[`pieShift#${key}`] = isFocused ? 1 : 0;
+  });
+  return shifts;
 }
 function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {
   const secondaryYAxisDataset = data.hasSecondYAxis && data.datasets.slice(-1)[0];
@@ -1340,7 +1367,7 @@ function drawDatasets(context, state, data, range, points, projection, secondary
     if (datasetType === "pie") {
       options.center = projection.getCenter();
       options.radius = getPieRadius(projection);
-      options.pointerVector = state.focusOn;
+      options.shift = (state[`pieShift#${key}`] || 0) * PLOT_PIE_SHIFT;
       options.isDonut = data.isDonut;
       options.withGradient = data.withGradient;
     }
@@ -1502,9 +1529,8 @@ function drawDatasetPie(context, points, projection, options) {
   const percent = visibleValue * percentFactor;
   const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
   const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
-  const { radius = 120, center: [x, y], pointerVector, isDonut, withGradient } = options;
+  const { radius = 120, center: [x, y], shift = 0, isDonut, withGradient } = options;
   const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
-  const shift = pointerVector && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= radius ? PLOT_PIE_SHIFT : 0;
   const shiftAngle = (beginAngle + endAngle) / 2;
   const directionX = Math.cos(shiftAngle);
   const directionY = Math.sin(shiftAngle);
