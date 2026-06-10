@@ -1351,7 +1351,7 @@ function drawDatasets(context, state, data, range, points, projection, secondary
     }
     drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
   });
-  if (state.focusOn && (data.isBars || data.isSteps)) {
+  if (state.focusOn != null && (data.isBars || data.isSteps)) {
     const [x0] = toPixels(projection, 0, 0);
     const [x1] = toPixels(projection, 1, 0);
     drawBarsMask(context, projection, {
@@ -1912,7 +1912,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     _element.appendChild(_balloon);
   }
   function _onMouseMove(e) {
-    if (e.target === _balloon || _balloon.contains(e.target) || _clickedOnLabel) {
+    if (e.target === _balloon || _balloon.contains(e.target) || _clickedOnLabel !== null) {
       return;
     }
     _isZooming = false;
@@ -1962,7 +1962,7 @@ function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
     return labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex ? null : labelIndex;
   }
   function _selectLabel(isExternal) {
-    if (!_offsetX || !_state || _isZooming) {
+    if (_offsetX == null || !_state || _isZooming) {
       return;
     }
     const labelIndex = _getLabelIndex();

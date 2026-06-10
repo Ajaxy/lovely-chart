@@ -99,7 +99,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _onMouseMove(e) {
-    if (e.target === _balloon || _balloon.contains(e.target) || _clickedOnLabel) {
+    if (e.target === _balloon || _balloon.contains(e.target) || _clickedOnLabel !== null) {
       return;
     }
 
@@ -164,7 +164,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   }
 
   function _selectLabel(isExternal) {
-    if (!_offsetX || !_state || _isZooming) {
+    if (_offsetX == null || !_state || _isZooming) {
       return;
     }
 

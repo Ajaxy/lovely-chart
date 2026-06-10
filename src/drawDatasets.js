@@ -56,7 +56,7 @@ export function drawDatasets(
     drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
   });
 
-  if (state.focusOn && (data.isBars || data.isSteps)) {
+  if (state.focusOn != null && (data.isBars || data.isSteps)) {
     const [x0] = toPixels(projection, 0, 0);
     const [x1] = toPixels(projection, 1, 0);
 
