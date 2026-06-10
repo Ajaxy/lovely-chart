@@ -743,8 +743,6 @@ function analyzeData(data, fallbackLabelType) {
     title,
     labelFormatter: labelFormatterRaw,
     tooltipFormatter,
-    isStacked,
-    isPercentage,
     secondaryYAxis,
     hasSecondYAxis,
     onZoom,
@@ -758,6 +756,9 @@ function analyzeData(data, fallbackLabelType) {
     limitDate,
     onLimitedRangeClick
   } = data;
+  const isPie = data.type === "pie";
+  const isStacked = isPie || Boolean(data.isStacked);
+  const isPercentage = isPie || Boolean(data.isPercentage);
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : void 0);
   const { datasets, labels } = prepareDatasets(data);
@@ -826,7 +827,7 @@ function analyzeData(data, fallbackLabelType) {
     isBars: data.type === "bar",
     isSteps: data.type === "step",
     isAreas: data.type === "area",
-    isPie: data.type === "pie",
+    isPie,
     isDonut: Boolean(data.isDonut),
     withGradient: Boolean(data.withGradient),
     yMin: totalYMin,
@@ -2864,6 +2865,10 @@ class Zoomer {
       }, true);
       const daysCount = this.#isZoomed || this.#data.shouldZoomToPie ? this.#data.xLabels.length : this.#data.xLabels.length / 24;
       const halfDayWidth = 1 / daysCount / 2;
+      const centeredDayRange = {
+        begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
+        end: ZOOM_RANGE_MIDDLE + halfDayWidth
+      };
       let range;
       let filter2;
       if (this.#isZoomed) {
@@ -2881,10 +2886,7 @@ class Zoomer {
           filter2 = {};
           this.#data.datasets.forEach(({ key }) => filter2[key] = true);
         } else {
-          range = this.#data.shouldZoomToPie || !newData.minimapRange ? {
-            begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
-            end: ZOOM_RANGE_MIDDLE + halfDayWidth
-          } : newData.minimapRange;
+          range = this.#data.shouldZoomToPie ? centeredDayRange : newData.minimapRange ?? this.#buildDayRange(newData.xLabels, zoomInLabel.value) ?? centeredDayRange;
           filter2 = this.#stateBeforeZoomIn.filter;
         }
       }
@@ -2906,6 +2908,23 @@ class Zoomer {
         this.#container.classList.remove("lovely-chart--state-animating");
       }
     }, this.#stateManager.hasAnimations() ? ZOOM_ANIMATING_TIMEOUT : 0);
+  }
+  // The hourly window in zoomed data may be clamped at the data edges, so the
+  // requested day is not necessarily in its middle — locate it by timestamp
+  #buildDayRange(xLabels, dayValue) {
+    const dayStart = xLabels.findIndex(({ value }) => value === dayValue);
+    if (dayStart === -1) {
+      return void 0;
+    }
+    const totalXWidth = xLabels.length - 1;
+    let dayEnd = dayStart;
+    while (dayEnd < totalXWidth && xLabels[dayEnd + 1].value < dayValue + MILLISECONDS_IN_DAY) {
+      dayEnd++;
+    }
+    return {
+      begin: Math.max(0, (dayStart - 0.5) / totalXWidth),
+      end: Math.min(1, (dayEnd + 0.5) / totalXWidth)
+    };
   }
   #generatePieData(labelIndex) {
     return {

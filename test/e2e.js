@@ -193,16 +193,20 @@ async function drag(page, x, y, dx, dy, steps = 10) {
 
   const caption2 = () => chart2.locator('.lovely-chart--header-caption').textContent();
   const rangeCaption = await caption2();
+  // The last column regresses easily: its hourly data window is clamped at the
+  // data edge, so the clicked day is not in the window's middle
   const plot2 = await chart2.locator('.lovely-chart--tooltip').boundingBox();
-  await hoverWiggle(page, plot2, 0.75, 0.6);
-  await page.mouse.click(plot2.x + plot2.width * 0.75, plot2.y + plot2.height * 0.6);
+  const lastColumnFx = (plot2.width - 5) / plot2.width;
+  await hoverWiggle(page, plot2, lastColumnFx, 0.6);
+  const clickedDay = await chart2.locator('.lovely-chart--tooltip-title').textContent();
+  await page.mouse.click(plot2.x + plot2.width * lastColumnFx, plot2.y + plot2.height * 0.6);
   await sleep(2000);
 
   const zoomOutCtl = chart2.locator('.lovely-chart--header-zoom-out-control');
   const zoomedIn = (await zoomOutCtl.count()) > 0;
   const dayCaption = await caption2();
-  check('zoom-in shows zoom-out control and day caption', zoomedIn && dayCaption !== rangeCaption,
-    JSON.stringify(dayCaption));
+  check('zoom-in shows the clicked day', zoomedIn && dayCaption.includes(clickedDay),
+    `clicked: ${JSON.stringify(clickedDay)}, caption: ${JSON.stringify(dayCaption)}`);
 
   if (zoomedIn) {
     await zoomOutCtl.first().click();

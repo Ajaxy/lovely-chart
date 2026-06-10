@@ -39,10 +39,13 @@ const LABEL_TYPE_TO_FORMATTER: Record<LabelType, string | undefined> = {
 
 export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelType): AnalyzedData {
   const {
-    title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis,
+    title, labelFormatter: labelFormatterRaw, tooltipFormatter, secondaryYAxis,
     hasSecondYAxis, onZoom, withMinimap, minimapRange, noCaption, zoomOutLabel, valuePrefix, valueSuffix,
     isCurrencyPrefix, limitDate, onLimitedRangeClick,
   } = data;
+  const isPie = data.type === 'pie';
+  const isStacked = isPie || Boolean(data.isStacked);
+  const isPercentage = isPie || Boolean(data.isPercentage);
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : undefined);
   const { datasets, labels } = prepareDatasets(data);
@@ -118,7 +121,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     isBars: data.type === 'bar',
     isSteps: data.type === 'step',
     isAreas: data.type === 'area',
-    isPie: data.type === 'pie',
+    isPie,
     isDonut: Boolean(data.isDonut),
     withGradient: Boolean(data.withGradient),
     yMin: totalYMin,

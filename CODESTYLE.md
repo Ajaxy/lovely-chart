@@ -36,6 +36,7 @@ Prefer early returns (guard clauses) over large or deeply nested conditional blo
 - Single-sentence comments have no trailing period; multi-sentence comments end each sentence with a period.
 - Code entities referenced in comments are wrapped in backticks.
 - Comments are **direct assertions about current behavior** — no bug history, change history, or contrast with a previous state. Git history is the record of what changed; comments explain what *is*.
+- A comment must state a **non-obvious constraint** the code cannot express. If the code is self-evident, omit the comment — even a "why" rationale is redundant when the reasoning is apparent from the code itself.
 
 ## Dead Code
 
