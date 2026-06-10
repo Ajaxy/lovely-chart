@@ -6,6 +6,20 @@ const DEFAULT_COLORS = [
   '#F5BD25', '#F79E39', '#E65850', '#5D5CDC',
 ];
 
+// For fewer datasets, a curated subset of `DEFAULT_COLORS` is used (indexed by dataset count).
+// Each step adds one color: lightblue, +lightgreen, +darkorange, +violet, +lightorange, +darkblue,
+// +darkgreen, +red. The original palette order is always preserved.
+const DEFAULT_COLORS_SUBSETS = [
+  [],
+  [0],
+  [0, 2],
+  [0, 2, 5],
+  [0, 2, 5, 7],
+  [0, 2, 4, 5, 7],
+  [0, 1, 2, 4, 5, 7],
+  [0, 1, 2, 3, 4, 5, 7],
+];
+
 const LABEL_TYPE_TO_FORMATTER = {
   'day': "statsFormat('day')",
   'hour': "statsFormat('hour')",
@@ -100,6 +114,7 @@ export function analyzeData(data) {
 function prepareDatasets(data) {
   const { type, labels, datasets, hasSecondYAxis } = data;
 
+  const defaultColors = getDefaultColors(datasets.length);
   let nextDefaultColor = 0;
 
   return {
@@ -111,7 +126,7 @@ function prepareDatasets(data) {
         type,
         key: `y${i}`,
         name,
-        color: color || DEFAULT_COLORS[nextDefaultColor++ % DEFAULT_COLORS.length],
+        color: color || defaultColors[nextDefaultColor++ % defaultColors.length],
         values: cloneArray(values),
         hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
         yMin,
@@ -119,6 +134,11 @@ function prepareDatasets(data) {
       };
     }),
   };
+}
+
+function getDefaultColors(datasetsCount) {
+  const subset = DEFAULT_COLORS_SUBSETS[datasetsCount];
+  return subset ? subset.map((index) => DEFAULT_COLORS[index]) : DEFAULT_COLORS;
 }
 
 function cloneArray(array) {
