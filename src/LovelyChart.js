@@ -1,15 +1,15 @@
-import { createStateManager } from './StateManager.js';
-import { createHeader } from './Header.js';
-import { createAxes } from './Axes.js';
-import { createMinimap } from './Minimap.js';
-import { createTooltip } from './Tooltip.js';
-import { createTools } from './Tools.js';
-import { createZoomer } from './Zoomer.js';
+import { StateManager } from './StateManager.js';
+import { Header } from './Header.js';
+import { Axes } from './Axes.js';
+import { Minimap } from './Minimap.js';
+import { Tooltip } from './Tooltip.js';
+import { Tools } from './Tools.js';
+import { Zoomer } from './Zoomer.js';
 import { createColors } from './skin.js';
 import { analyzeData } from './data.js';
 import { setupCanvas, clearCanvas } from './canvas.js';
 import { preparePoints } from './preparePoints.js';
-import { createProjection } from './Projection.js';
+import { Projection } from './Projection.js';
 import { drawDatasets } from './drawDatasets.js';
 import { createElement } from './minifiers.js';
 import { getFullLabelDate, getLabelDate } from './format.js';
@@ -25,82 +25,125 @@ import { getSimplificationDelta, isDataRange } from './formulas.js';
 import { debounce } from './utils.js';
 import './styles/index.scss';
 
-function create(container, originalData) {
-  let _stateManager;
+class LovelyChart {
+  #container;
 
-  let _element;
-  let _plot;
-  let _context;
-  let _plotSize;
+  #stateManager;
 
-  let _header;
-  let _axes;
-  let _minimap;
-  let _tooltip;
-  let _tools;
-  let _zoomer;
+  #element;
+  #plot;
+  #context;
+  #plotSize;
 
-  let _state;
-  let _windowWidth = window.innerWidth;
-  let _originalData = originalData;
-  let _isDestroyed = false;
+  #header;
+  #axes;
+  #minimap;
+  #tooltip;
+  #tools;
+  #zoomer;
 
-  let _themeObserver;
-  let _onWindowResize;
-  let _onWindowOrientationChange;
+  #state;
+  #windowWidth = window.innerWidth;
+  #originalData;
+  #isDestroyed = false;
 
-  const _data = analyzeData(_originalData);
-  const _colors = createColors(_data.colors);
-  const _redrawDebounced = debounce(_redraw, 500, false, true);
+  #themeObserver;
+  #onWindowResize;
+  #onWindowOrientationChange;
 
-  _setupComponents();
-  _setupGlobalListeners();
+  #data;
+  #colors;
+  #redrawDebounced = debounce(() => this.#redraw(), 500, false, true);
 
-  function _setupComponents() {
-    _setupContainer();
-    _header = createHeader(_element, _data.title, _data.zoomOutLabel, _onZoomOut);
-    _setupPlotCanvas();
-    _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
-    _axes = createAxes(_context, _data, _plotSize, _colors);
-    if (_data.withMinimap) {
-      // Triggers the initial render via the range callback.
-      _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
-    } else {
-      _stateManager.update({ range: _data.minimapRange });
+  constructor(container, originalData) {
+    this.#container = container;
+    this.#originalData = originalData;
+
+    this.#data = analyzeData(this.#originalData);
+    this.#colors = createColors(this.#data.colors);
+
+    this.#setupComponents();
+    this.#setupGlobalListeners();
+  }
+
+  update(newData) {
+    if (this.#isDestroyed) return;
+    this.#originalData = newData;
+    this.#destroyComponents();
+    const fresh = analyzeData(this.#originalData);
+    Object.keys(this.#data).forEach((k) => { delete this.#data[k]; });
+    Object.assign(this.#data, fresh);
+    Object.assign(this.#colors, createColors(this.#data.colors));
+    this.#setupComponents();
+  }
+
+  destroy() {
+    if (this.#isDestroyed) return;
+    this.#isDestroyed = true;
+
+    if (this.#themeObserver) {
+      this.#themeObserver.disconnect();
+      this.#themeObserver = null;
     }
-    _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
-    _tools = createTools(_element, _data, _onFilterChange);
-    _zoomer = _data.isZoomable && createZoomer(_data, _originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
-    // hideOnScroll(_element);
+    if (this.#onWindowResize) {
+      window.removeEventListener('resize', this.#onWindowResize);
+      this.#onWindowResize = null;
+    }
+    if (this.#onWindowOrientationChange) {
+      window.removeEventListener('orientationchange', this.#onWindowOrientationChange);
+      this.#onWindowOrientationChange = null;
+    }
+
+    this.#destroyComponents();
   }
 
-  function _setupContainer() {
-    _element = createElement();
-    _element.className = `lovely-chart--container${_data.shouldZoomToPie ? ' lovely-chart--container-type-pie' : ''}`;
-
-    container.appendChild(_element);
+  #setupComponents() {
+    this.#setupContainer();
+    this.#header = new Header(this.#element, this.#data.title, this.#data.zoomOutLabel, this.#onZoomOut);
+    this.#setupPlotCanvas();
+    this.#stateManager = new StateManager(this.#data, this.#plotSize, this.#onStateUpdate);
+    this.#axes = new Axes(this.#context, this.#data, this.#plotSize, this.#colors);
+    if (this.#data.withMinimap) {
+      // Triggers the initial render via the range callback.
+      this.#minimap = new Minimap(this.#element, this.#data, this.#colors, this.#onRangeChange);
+    } else {
+      this.#stateManager.update({ range: this.#data.minimapRange });
+    }
+    this.#tooltip = new Tooltip(this.#element, this.#data, this.#plotSize, this.#colors, this.#onZoomIn, this.#onFocus);
+    this.#tools = new Tools(this.#element, this.#data, this.#onFilterChange);
+    this.#zoomer = this.#data.isZoomable
+      ? new Zoomer(this.#data, this.#originalData, this.#colors, this.#stateManager, this.#element, this.#header, this.#minimap, this.#tooltip, this.#tools)
+      : undefined;
+    // hideOnScroll(this.#element);
   }
 
-  function _setupPlotCanvas() {
-    const { canvas, context } = setupCanvas(_element, {
-      width: _element.clientWidth,
+  #setupContainer() {
+    this.#element = createElement();
+    this.#element.className = `lovely-chart--container${this.#data.shouldZoomToPie ? ' lovely-chart--container-type-pie' : ''}`;
+
+    this.#container.appendChild(this.#element);
+  }
+
+  #setupPlotCanvas() {
+    const { canvas, context } = setupCanvas(this.#element, {
+      width: this.#element.clientWidth,
       height: PLOT_HEIGHT,
     });
 
-    _plot = canvas;
-    _context = context;
+    this.#plot = canvas;
+    this.#context = context;
 
-    _plotSize = {
-      width: _plot.offsetWidth,
-      height: _plot.offsetHeight,
+    this.#plotSize = {
+      width: this.#plot.offsetWidth,
+      height: this.#plot.offsetHeight,
     };
   }
 
-  function _onStateUpdate(state) {
-    if (_isDestroyed) return;
-    _state = state;
+  #onStateUpdate = (state) => {
+    if (this.#isDestroyed) return;
+    this.#state = state;
 
-    const { datasets } = _data;
+    const { datasets } = this.#data;
     const range = {
       from: state.labelFromIndex,
       to: state.labelToIndex,
@@ -111,162 +154,131 @@ function create(container, originalData) {
       totalXWidth: state.totalXWidth,
       yMin: state.yMinViewport,
       yMax: state.yMaxViewport,
-      availableWidth: _plotSize.width,
-      availableHeight: _plotSize.height - X_AXIS_HEIGHT,
+      availableWidth: this.#plotSize.width,
+      availableHeight: this.#plotSize.height - X_AXIS_HEIGHT,
       xPadding: GUTTER,
       yPadding: PLOT_TOP_PADDING,
-      withColumns: _data.isBars || _data.isSteps,
+      withColumns: this.#data.isBars || this.#data.isSteps,
     };
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
-    const points = preparePoints(_data, datasets, range, visibilities, boundsAndParams);
-    const projection = createProjection(boundsAndParams);
+    const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams);
+    const projection = new Projection(boundsAndParams);
 
     let secondaryPoints = null;
     let secondaryProjection = null;
-    if (_data.hasSecondYAxis) {
+    if (this.#data.hasSecondYAxis) {
       const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
       const bounds = {
         yMin: state.yMinViewportSecond,
         yMax: state.yMaxViewportSecond,
       };
-      secondaryPoints = preparePoints(_data, [secondaryDataset], range, visibilities, bounds)[0];
+      secondaryPoints = preparePoints(this.#data, [secondaryDataset], range, visibilities, bounds)[0];
       secondaryProjection = projection.copy(bounds);
     }
 
-    if (!_data.noCaption && _data.labelType !== 'text') {
-      _header.setCaption(_getCaption(state));
+    if (!this.#data.noCaption && this.#data.labelType !== 'text') {
+      this.#header.setCaption(this.#getCaption(state));
     }
 
-    clearCanvas(_plot, _context);
+    clearCanvas(this.#plot, this.#context);
 
     const totalPoints = points.reduce((a, p) => a + p.length, 0);
     const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_PLOT_FACTOR;
 
     drawDatasets(
-      _context, state, _data,
+      this.#context, state, this.#data,
       range, points, projection, secondaryPoints, secondaryProjection,
-      PLOT_LINE_WIDTH, visibilities, _colors, false, simplification,
+      PLOT_LINE_WIDTH, visibilities, this.#colors, false, simplification,
     );
-    if (!_data.isPie) {
-      _axes.drawYAxis(state, projection, secondaryProjection);
+    if (!this.#data.isPie) {
+      this.#axes.drawYAxis(state, projection, secondaryProjection);
       // TODO check isChanged
-      _axes.drawXAxis(state, projection);
+      this.#axes.drawXAxis(state, projection);
     }
-    if (_minimap) {
-      _minimap.update(state);
+    if (this.#minimap) {
+      this.#minimap.update(state);
     }
-    _tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
-  }
+    this.#tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
+  };
 
-  function _onRangeChange(range) {
-    _stateManager.update({ range });
-  }
+  #onRangeChange = (range) => {
+    this.#stateManager.update({ range });
+  };
 
-  function _onFilterChange(filter) {
-    _stateManager.update({ filter });
-  }
+  #onFilterChange = (filter) => {
+    this.#stateManager.update({ filter });
+  };
 
-  function _onFocus(focusOn) {
-    if (_data.isBars || _data.isPie || _data.isSteps) {
+  #onFocus = (focusOn) => {
+    if (this.#data.isBars || this.#data.isPie || this.#data.isSteps) {
       // TODO animate
-      _stateManager.update({ focusOn });
+      this.#stateManager.update({ focusOn });
     }
-  }
+  };
 
-  function _onZoomIn(labelIndex) {
-    _zoomer.zoomIn(_state, labelIndex);
-  }
+  #onZoomIn = (labelIndex) => {
+    this.#zoomer.zoomIn(this.#state, labelIndex);
+  };
 
-  function _onZoomOut() {
-    _zoomer.zoomOut(_state);
-  }
+  #onZoomOut = () => {
+    this.#zoomer.zoomOut(this.#state);
+  };
 
-  function _setupGlobalListeners() {
-    _themeObserver = new MutationObserver(() => {
-      if (_isDestroyed || !_stateManager) return;
-      _stateManager.update();
+  #setupGlobalListeners() {
+    this.#themeObserver = new MutationObserver(() => {
+      if (this.#isDestroyed || !this.#stateManager) return;
+      this.#stateManager.update();
     });
-    _themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    this.#themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
-    _onWindowResize = () => {
-      if (window.innerWidth !== _windowWidth) {
-        _windowWidth = window.innerWidth;
-        _redrawDebounced();
+    this.#onWindowResize = () => {
+      if (window.innerWidth !== this.#windowWidth) {
+        this.#windowWidth = window.innerWidth;
+        this.#redrawDebounced();
       }
     };
-    window.addEventListener('resize', _onWindowResize);
+    window.addEventListener('resize', this.#onWindowResize);
 
-    _onWindowOrientationChange = () => {
-      _redrawDebounced();
+    this.#onWindowOrientationChange = () => {
+      this.#redrawDebounced();
     };
-    window.addEventListener('orientationchange', _onWindowOrientationChange);
+    window.addEventListener('orientationchange', this.#onWindowOrientationChange);
   }
 
-  function _destroyComponents() {
-    if (_zoomer) _zoomer.destroy();
-    if (_tooltip) _tooltip.destroy();
-    if (_header) _header.destroy();
-    if (_stateManager) _stateManager.destroy();
+  #destroyComponents() {
+    if (this.#zoomer) this.#zoomer.destroy();
+    if (this.#tooltip) this.#tooltip.destroy();
+    if (this.#header) this.#header.destroy();
+    if (this.#stateManager) this.#stateManager.destroy();
 
-    if (_element && _element.parentNode) {
-      _element.remove();
+    if (this.#element && this.#element.parentNode) {
+      this.#element.remove();
     }
 
-    _element = null;
-    _plot = null;
-    _context = null;
-    _header = null;
-    _axes = null;
-    _minimap = null;
-    _tooltip = null;
-    _tools = null;
-    _zoomer = null;
-    _stateManager = null;
+    this.#element = null;
+    this.#plot = null;
+    this.#context = null;
+    this.#header = null;
+    this.#axes = null;
+    this.#minimap = null;
+    this.#tooltip = null;
+    this.#tools = null;
+    this.#zoomer = null;
+    this.#stateManager = null;
   }
 
-  function _redraw() {
-    if (_isDestroyed) return;
-    _destroyComponents();
-    Object.assign(_data, analyzeData(_originalData));
-    _setupComponents();
+  #redraw() {
+    if (this.#isDestroyed) return;
+    this.#destroyComponents();
+    Object.assign(this.#data, analyzeData(this.#originalData));
+    this.#setupComponents();
   }
 
-  function update(newData) {
-    if (_isDestroyed) return;
-    _originalData = newData;
-    _destroyComponents();
-    const fresh = analyzeData(_originalData);
-    Object.keys(_data).forEach((k) => { delete _data[k]; });
-    Object.assign(_data, fresh);
-    Object.assign(_colors, createColors(_data.colors));
-    _setupComponents();
-  }
-
-  function destroy() {
-    if (_isDestroyed) return;
-    _isDestroyed = true;
-
-    if (_themeObserver) {
-      _themeObserver.disconnect();
-      _themeObserver = null;
-    }
-    if (_onWindowResize) {
-      window.removeEventListener('resize', _onWindowResize);
-      _onWindowResize = null;
-    }
-    if (_onWindowOrientationChange) {
-      window.removeEventListener('orientationchange', _onWindowOrientationChange);
-      _onWindowOrientationChange = null;
-    }
-
-    _destroyComponents();
-  }
-
-  function _getCaption(state) {
+  #getCaption(state) {
     let startIndex;
     let endIndex;
 
-    if (_zoomer && _zoomer.isZoomed()) {
+    if (this.#zoomer && this.#zoomer.isZoomed()) {
       // TODO Fix label
       startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
       endIndex = state.labelToIndex === state.totalXWidth - 1 ? state.labelToIndex : state.labelToIndex - 1;
@@ -275,16 +287,18 @@ function create(container, originalData) {
       endIndex = state.labelToIndex;
     }
 
-    return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex])
+    return isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex])
       ? (
-        `${getLabelDate(_data.xLabels[startIndex])}` +
+        `${getLabelDate(this.#data.xLabels[startIndex])}` +
         ' — ' +
-        `${getLabelDate(_data.xLabels[endIndex])}`
+        `${getLabelDate(this.#data.xLabels[endIndex])}`
       )
-      : getFullLabelDate(_data.xLabels[startIndex]);
+      : getFullLabelDate(this.#data.xLabels[startIndex]);
   }
+}
 
-  return { update, destroy };
+function create(container, data) {
+  return new LovelyChart(container, data);
 }
 
 export { create };

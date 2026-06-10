@@ -5,19 +5,25 @@ function transition(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-export function createTransitionManager(onTick) {
-  const _transitions = {};
+export class TransitionManager {
+  #onTick;
 
-  let _nextFrame = null;
+  #transitions = {};
 
-  let _testStartedAt = null;
-  let _fps = null;
-  let _testingFps = null;
-  let _slowDetectedAt = null;
-  let _startedAsSlow = null;
+  #nextFrame = null;
 
-  function add(prop, from, to, duration, options) {
-    _transitions[prop] = {
+  #testStartedAt = null;
+  #fps = null;
+  #testingFps = null;
+  #slowDetectedAt = null;
+  #startedAsSlow = null;
+
+  constructor(onTick) {
+    this.#onTick = onTick;
+  }
+
+  add(prop, from, to, duration, options) {
+    this.#transitions[prop] = {
       from,
       to,
       duration,
@@ -27,30 +33,30 @@ export function createTransitionManager(onTick) {
       progress: 0,
     };
 
-    if (!_nextFrame) {
-      _resetSpeedTest();
-      _nextFrame = requestAnimationFrame(_tick);
+    if (!this.#nextFrame) {
+      this.#resetSpeedTest();
+      this.#nextFrame = requestAnimationFrame(this.#tick);
     }
   }
 
-  function remove(prop) {
-    delete _transitions[prop];
+  remove(prop) {
+    delete this.#transitions[prop];
 
-    if (!isRunning()) {
-      cancelAnimationFrame(_nextFrame);
-      _nextFrame = null;
+    if (!this.isRunning()) {
+      cancelAnimationFrame(this.#nextFrame);
+      this.#nextFrame = null;
     }
   }
 
-  function get(prop) {
-    return _transitions[prop];
+  get(prop) {
+    return this.#transitions[prop];
   }
 
-  function getState() {
+  getState() {
     const state = {};
 
-    Object.keys(_transitions).forEach((prop) => {
-      const { current, from, to, progress } = _transitions[prop];
+    Object.keys(this.#transitions).forEach((prop) => {
+      const { current, from, to, progress } = this.#transitions[prop];
       state[prop] = current;
       // TODO perf lazy
       state[`${prop}From`] = from;
@@ -61,26 +67,34 @@ export function createTransitionManager(onTick) {
     return state;
   }
 
-  function isRunning() {
-    return Boolean(Object.keys(_transitions).length);
+  isRunning() {
+    return Boolean(Object.keys(this.#transitions).length);
   }
 
-  function isFast(forceCheck) {
-    if (!forceCheck && (_startedAsSlow || _slowDetectedAt)) {
+  isFast(forceCheck) {
+    if (!forceCheck && (this.#startedAsSlow || this.#slowDetectedAt)) {
       return false;
     }
 
-    return _fps === null || _fps >= SPEED_TEST_FAST_FPS;
+    return this.#fps === null || this.#fps >= SPEED_TEST_FAST_FPS;
   }
 
-  function _tick() {
-    const isSlow = !isFast();
-    _speedTest();
+  destroy() {
+    if (this.#nextFrame) {
+      cancelAnimationFrame(this.#nextFrame);
+      this.#nextFrame = null;
+    }
+    Object.keys(this.#transitions).forEach((prop) => delete this.#transitions[prop]);
+  }
+
+  #tick = () => {
+    const isSlow = !this.isFast();
+    this.#speedTest();
 
     const state = {};
 
-    Object.keys(_transitions).forEach((prop) => {
-      const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = _transitions[prop];
+    Object.keys(this.#transitions).forEach((prop) => {
+      const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = this.#transitions[prop];
       const progress = Math.min(1, (Date.now() - startedAt) / duration);
       let current = from + (to - from) * transition(progress);
 
@@ -90,55 +104,45 @@ export function createTransitionManager(onTick) {
         current = Math.floor(current);
       }
 
-      _transitions[prop].current = current;
-      _transitions[prop].progress = progress;
+      this.#transitions[prop].current = current;
+      this.#transitions[prop].progress = progress;
       state[prop] = current;
 
       if (progress === 1) {
-        remove(prop);
+        this.remove(prop);
       }
     });
 
     if (!isSlow) {
-      onTick(state);
+      this.#onTick(state);
     }
 
-    if (isRunning()) {
-      _nextFrame = requestAnimationFrame(_tick);
+    if (this.isRunning()) {
+      this.#nextFrame = requestAnimationFrame(this.#tick);
     }
+  };
+
+  #resetSpeedTest() {
+    this.#testStartedAt = null;
+    this.#testingFps = null;
+    if (this.#slowDetectedAt && Date.now() - this.#slowDetectedAt > 5000) {
+      this.#slowDetectedAt = null;
+    }
+    this.#startedAsSlow = Boolean(this.#slowDetectedAt) || !this.isFast(true);
   }
 
-  function _resetSpeedTest() {
-    _testStartedAt = null;
-    _testingFps = null;
-    if (_slowDetectedAt && Date.now() - _slowDetectedAt > 5000) {
-      _slowDetectedAt = null;
-    }
-    _startedAsSlow = Boolean(_slowDetectedAt) || !isFast(true);
-  }
-
-  function _speedTest() {
-    if (!_testStartedAt || (Date.now() - _testStartedAt) >= SPEED_TEST_INTERVAL) {
-      if (_testingFps) {
-        _fps = _testingFps;
-        if (!_slowDetectedAt && !isFast(true)) {
-          _slowDetectedAt = Date.now();
+  #speedTest() {
+    if (!this.#testStartedAt || (Date.now() - this.#testStartedAt) >= SPEED_TEST_INTERVAL) {
+      if (this.#testingFps) {
+        this.#fps = this.#testingFps;
+        if (!this.#slowDetectedAt && !this.isFast(true)) {
+          this.#slowDetectedAt = Date.now();
         }
       }
-      _testStartedAt = Date.now();
-      _testingFps = 0;
+      this.#testStartedAt = Date.now();
+      this.#testingFps = 0;
     } else {
-      _testingFps++;
+      this.#testingFps++;
     }
   }
-
-  function destroy() {
-    if (_nextFrame) {
-      cancelAnimationFrame(_nextFrame);
-      _nextFrame = null;
-    }
-    Object.keys(_transitions).forEach((prop) => delete _transitions[prop]);
-  }
-
-  return { add, remove, get, getState, isRunning, isFast, destroy };
 }

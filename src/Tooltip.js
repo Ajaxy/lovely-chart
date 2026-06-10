@@ -5,196 +5,218 @@ import { formatInteger, getLabelDate, getLabelTime, statsFormatDayHourFull } fro
 import { getCssColor, isColorCloseToBackground } from './skin.js';
 import { throttle, throttleWithRaf } from './utils.js';
 import { addEventListener, createElement, removeEventListener } from './minifiers.js';
-import { toPixels } from './Projection.js';
 
-export function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
-  let _state;
-  let _points;
-  let _projection;
-  let _secondaryPoints;
-  let _secondaryProjection;
+export class Tooltip {
+  #container;
+  #data;
+  #plotSize;
+  #colors;
+  #onZoom;
+  #onFocus;
 
-  let _element;
-  let _canvas;
-  let _context;
-  let _balloon;
+  #state;
+  #points;
+  #projection;
+  #secondaryPoints;
+  #secondaryProjection;
 
-  let _offsetX;
-  let _offsetY;
-  let _clickedOnLabel = null;
+  #element;
+  #canvas;
+  #context;
+  #balloon;
 
-  let _isZoomed = false;
-  let _isZooming = false;
-  let _documentMoveEvent = null;
+  #offsetX;
+  #offsetY;
+  #clickedOnLabel = null;
 
-  const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
-  const _throttledUpdateContent = throttle(_updateContent, 100, true, true);
+  #isZoomed = false;
+  #isZooming = false;
+  #documentMoveEvent = null;
 
-  _setupLayout();
+  #selectLabelOnRaf = throttleWithRaf((isExternal) => this.#selectLabel(isExternal));
+  #throttledUpdateContent = throttle((title, statistics) => this.#updateContent(title, statistics), 100, true, true);
 
-  function update(state, points, projection, secondaryPoints, secondaryProjection) {
-    _state = state;
-    _points = points;
-    _projection = projection;
-    _secondaryPoints = secondaryPoints;
-    _secondaryProjection = secondaryProjection;
-    _selectLabel(true);
+  constructor(container, data, plotSize, colors, onZoom, onFocus) {
+    this.#container = container;
+    this.#data = data;
+    this.#plotSize = plotSize;
+    this.#colors = colors;
+    this.#onZoom = onZoom;
+    this.#onFocus = onFocus;
+
+    this.#setupLayout();
   }
 
-  function toggleLoading(isLoading) {
-    _balloon.classList.toggle('lovely-chart--state-loading', isLoading);
+  update(state, points, projection, secondaryPoints, secondaryProjection) {
+    this.#state = state;
+    this.#points = points;
+    this.#projection = projection;
+    this.#secondaryPoints = secondaryPoints;
+    this.#secondaryProjection = secondaryProjection;
+    this.#selectLabel(true);
+  }
+
+  toggleLoading(isLoading) {
+    this.#balloon.classList.toggle('lovely-chart--state-loading', isLoading);
 
     if (!isLoading) {
-      _clear();
+      this.#clear();
     }
   }
 
-  function toggleIsZoomed(isZoomed) {
-    if (isZoomed !== _isZoomed) {
-      _isZooming = true;
+  toggleIsZoomed(isZoomed) {
+    if (isZoomed !== this.#isZoomed) {
+      this.#isZooming = true;
     }
-    _isZoomed = isZoomed;
-    _balloon.classList.toggle('lovely-chart--state-inactive', isZoomed);
+    this.#isZoomed = isZoomed;
+    this.#balloon.classList.toggle('lovely-chart--state-inactive', isZoomed);
   }
 
-  function _setupLayout() {
-    _element = createElement();
-    _element.className = `lovely-chart--tooltip`;
+  destroy() {
+    if (this.#documentMoveEvent) {
+      removeEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
+      this.#documentMoveEvent = null;
+    }
+  }
 
-    _setupCanvas();
-    _setupBalloon();
+  #setupLayout() {
+    this.#element = createElement();
+    this.#element.className = `lovely-chart--tooltip`;
+
+    this.#setupCanvas();
+    this.#setupBalloon();
 
     if ('ontouchstart' in window) {
-      addEventListener(_element, 'touchmove', _onMouseMove);
-      addEventListener(_element, 'touchstart', _onMouseMove);
-      _documentMoveEvent = 'touchstart';
-      addEventListener(document, _documentMoveEvent, _onDocumentMove);
+      addEventListener(this.#element, 'touchmove', this.#onMouseMove);
+      addEventListener(this.#element, 'touchstart', this.#onMouseMove);
+      this.#documentMoveEvent = 'touchstart';
+      addEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
     } else {
-      addEventListener(_element, 'mousemove', _onMouseMove);
-      addEventListener(_element, 'click', _onClick);
-      _documentMoveEvent = 'mousemove';
-      addEventListener(document, _documentMoveEvent, _onDocumentMove);
+      addEventListener(this.#element, 'mousemove', this.#onMouseMove);
+      addEventListener(this.#element, 'click', this.#onClick);
+      this.#documentMoveEvent = 'mousemove';
+      addEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
     }
 
-    container.appendChild(_element);
+    this.#container.appendChild(this.#element);
   }
 
-  function _setupCanvas() {
-    const { canvas, context } = setupCanvas(_element, plotSize);
+  #setupCanvas() {
+    const { canvas, context } = setupCanvas(this.#element, this.#plotSize);
 
-    _canvas = canvas;
-    _context = context;
+    this.#canvas = canvas;
+    this.#context = context;
   }
 
-  function _setupBalloon() {
-    _balloon = createElement();
-    _balloon.className = `lovely-chart--tooltip-balloon${!data.isZoomable ? ' lovely-chart--state-inactive' : ''}`;
-    _balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
+  #setupBalloon() {
+    this.#balloon = createElement();
+    this.#balloon.className = `lovely-chart--tooltip-balloon${!this.#data.isZoomable ? ' lovely-chart--state-inactive' : ''}`;
+    this.#balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
 
-    if ('ontouchstart' in window && data.isZoomable) {
-      addEventListener(_balloon, 'click', _onBalloonClick);
+    if ('ontouchstart' in window && this.#data.isZoomable) {
+      addEventListener(this.#balloon, 'click', this.#onBalloonClick);
     }
 
-    _element.appendChild(_balloon);
+    this.#element.appendChild(this.#balloon);
   }
 
-  function _onMouseMove(e) {
-    if (e.target === _balloon || _balloon.contains(e.target) || _clickedOnLabel !== null) {
+  #onMouseMove = (e) => {
+    if (e.target === this.#balloon || this.#balloon.contains(e.target) || this.#clickedOnLabel !== null) {
       return;
     }
 
-    _isZooming = false;
+    this.#isZooming = false;
 
-    const pageOffset = _getPageOffset(_element);
-    _offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
-    _offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
+    const pageOffset = this.#getPageOffset(this.#element);
+    this.#offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
+    this.#offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
 
-    _selectLabelOnRaf();
-  }
+    this.#selectLabelOnRaf();
+  };
 
-  function _onDocumentMove(e) {
-    if (_offsetX !== null && e.target !== _element && !_element.contains(e.target)) {
-      _clear();
+  #onDocumentMove = (e) => {
+    if (this.#offsetX !== null && e.target !== this.#element && !this.#element.contains(e.target)) {
+      this.#clear();
     }
-  }
+  };
 
-  function _onClick(e) {
-    if (_isZooming) {
+  #onClick = (e) => {
+    if (this.#isZooming) {
       return;
     }
 
-    if (data.isZoomable) {
-      const oldLabelIndex = _clickedOnLabel;
+    if (this.#data.isZoomable) {
+      const oldLabelIndex = this.#clickedOnLabel;
 
-      _clickedOnLabel = null;
-      _onMouseMove(e, true);
+      this.#clickedOnLabel = null;
+      this.#onMouseMove(e, true);
 
-      const newLabelIndex = _getLabelIndex();
+      const newLabelIndex = this.#getLabelIndex();
       if (newLabelIndex !== oldLabelIndex) {
-        _clickedOnLabel = newLabelIndex;
+        this.#clickedOnLabel = newLabelIndex;
       }
 
-      onZoom(newLabelIndex);
+      this.#onZoom(newLabelIndex);
     }
-  }
+  };
 
-  function _onBalloonClick() {
-    if (_balloon.classList.contains('lovely-chart--state-inactive')) {
+  #onBalloonClick = () => {
+    if (this.#balloon.classList.contains('lovely-chart--state-inactive')) {
       return;
     }
 
-    const labelIndex = _projection.findClosestLabelIndex(_offsetX);
-    onZoom(labelIndex);
-  }
+    const labelIndex = this.#projection.findClosestLabelIndex(this.#offsetX);
+    this.#onZoom(labelIndex);
+  };
 
-  function _clear(isExternal) {
-    _offsetX = null;
-    _clickedOnLabel = null;
-    clearCanvas(_canvas, _context);
-    _hideBalloon();
+  #clear(isExternal) {
+    this.#offsetX = null;
+    this.#clickedOnLabel = null;
+    clearCanvas(this.#canvas, this.#context);
+    this.#hideBalloon();
 
-    if (!isExternal && onFocus) {
-      onFocus(null);
+    if (!isExternal && this.#onFocus) {
+      this.#onFocus(null);
     }
   }
 
-  function _getLabelIndex() {
-    const labelIndex = _projection.findClosestLabelIndex(_offsetX);
-    return labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex ? null : labelIndex;
+  #getLabelIndex() {
+    const labelIndex = this.#projection.findClosestLabelIndex(this.#offsetX);
+    return labelIndex < this.#state.labelFromIndex || labelIndex > this.#state.labelToIndex ? null : labelIndex;
   }
 
-  function _selectLabel(isExternal) {
-    if (_offsetX == null || !_state || _isZooming) {
+  #selectLabel(isExternal) {
+    if (this.#offsetX == null || !this.#state || this.#isZooming) {
       return;
     }
 
-    const labelIndex = _getLabelIndex();
+    const labelIndex = this.#getLabelIndex();
     if (labelIndex === null) {
-      _clear(isExternal);
+      this.#clear(isExternal);
       return;
     }
 
-    const pointerVector = getPointerVector();
-    const shouldShowBalloon = data.isPie ? pointerVector.distance <= getPieRadius(_projection) : true;
+    const pointerVector = this.#getPointerVector();
+    const shouldShowBalloon = this.#data.isPie ? pointerVector.distance <= getPieRadius(this.#projection) : true;
 
-    if (!isExternal && onFocus) {
-      if (data.isPie) {
-        onFocus(pointerVector);
+    if (!isExternal && this.#onFocus) {
+      if (this.#data.isPie) {
+        this.#onFocus(pointerVector);
       } else {
-        onFocus(labelIndex);
+        this.#onFocus(labelIndex);
       }
     }
 
-    function getValue(values, labelIndex) {
-      if (data.isPie) {
-        return values.slice(_state.labelFromIndex, _state.labelToIndex + 1).reduce((a, x) => a + x, 0);
+    const getValue = (values, labelIndex) => {
+      if (this.#data.isPie) {
+        return values.slice(this.#state.labelFromIndex, this.#state.labelToIndex + 1).reduce((a, x) => a + x, 0);
       }
 
       return values[labelIndex];
-    }
+    };
 
-    const [xPx] = toPixels(_projection, labelIndex, 0);
-    const statistics = data.datasets
+    const [xPx] = this.#projection.toPixels(labelIndex, 0);
+    const statistics = this.#data.datasets
       .map(({ key, name, values, hasOwnYAxis }, i) => ({
         key,
         name,
@@ -202,96 +224,98 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
         hasOwnYAxis,
         originalIndex: i,
       }))
-      .filter(({ key }) => _state.filter[key]);
+      .filter(({ key }) => this.#state.filter[key]);
 
     if (statistics.length && shouldShowBalloon) {
-      _updateBalloon(statistics, labelIndex);
+      this.#updateBalloon(statistics, labelIndex);
     } else {
-      _hideBalloon();
+      this.#hideBalloon();
     }
 
-    clearCanvas(_canvas, _context);
-    if (data.isLines || data.isAreas) {
-      if (data.isLines) {
-        _drawCircles(statistics, labelIndex);
+    clearCanvas(this.#canvas, this.#context);
+    if (this.#data.isLines || this.#data.isAreas) {
+      if (this.#data.isLines) {
+        this.#drawCircles(statistics, labelIndex);
       }
 
-      _drawTail(xPx, plotSize.height - X_AXIS_HEIGHT, getCssColor(colors, 'grid-lines'));
+      this.#drawTail(xPx, this.#plotSize.height - X_AXIS_HEIGHT, getCssColor(this.#colors, 'grid-lines'));
     }
   }
 
-  function _drawCircles(statistics, labelIndex) {
+  #drawCircles(statistics, labelIndex) {
     statistics.forEach(({ value, key, hasOwnYAxis, originalIndex }) => {
       if (value == null) return;
 
-      const pointIndex = labelIndex - _state.labelFromIndex;
-      const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[originalIndex][pointIndex];
+      const pointIndex = labelIndex - this.#state.labelFromIndex;
+      const point = hasOwnYAxis ? this.#secondaryPoints[pointIndex] : this.#points[originalIndex][pointIndex];
 
       if (!point) {
         return;
       }
 
       const [x, y] = hasOwnYAxis
-        ? toPixels(_secondaryProjection, labelIndex, point.stackValue)
-        : toPixels(_projection, labelIndex, point.stackValue);
+        ? this.#secondaryProjection.toPixels(labelIndex, point.stackValue)
+        : this.#projection.toPixels(labelIndex, point.stackValue);
 
       // TODO animate
-      _drawCircle(
+      this.#drawCircle(
         [x, y],
-        getCssColor(colors, `dataset#${key}`),
-        getCssColor(colors, 'background'),
+        getCssColor(this.#colors, `dataset#${key}`),
+        getCssColor(this.#colors, 'background'),
       );
     });
   }
 
-  function _drawCircle([xPx, yPx], strokeColor, fillColor) {
-    _context.strokeStyle = strokeColor;
-    _context.fillStyle = fillColor;
-    _context.lineWidth = 2;
+  #drawCircle([xPx, yPx], strokeColor, fillColor) {
+    this.#context.strokeStyle = strokeColor;
+    this.#context.fillStyle = fillColor;
+    this.#context.lineWidth = 2;
 
-    _context.beginPath();
-    _context.arc(xPx, yPx, 4, 0, 2 * Math.PI);
-    _context.fill();
-    _context.stroke();
+    this.#context.beginPath();
+    this.#context.arc(xPx, yPx, 4, 0, 2 * Math.PI);
+    this.#context.fill();
+    this.#context.stroke();
   }
 
-  function _drawTail(xPx, height, color) {
-    _context.strokeStyle = color;
-    _context.lineWidth = 1;
+  #drawTail(xPx, height, color) {
+    this.#context.strokeStyle = color;
+    this.#context.lineWidth = 1;
 
-    _context.beginPath();
-    _context.moveTo(xPx, 0);
-    _context.lineTo(xPx, height);
-    _context.stroke();
+    this.#context.beginPath();
+    this.#context.moveTo(xPx, 0);
+    this.#context.lineTo(xPx, height);
+    this.#context.stroke();
   }
 
-  function _getBalloonLeftOffset(labelIndex) {
-    const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
-    const { angle } = getPointerVector();
+  #getBalloonLeftOffset(labelIndex) {
+    const meanLabel = (this.#state.labelFromIndex + this.#state.labelToIndex) / 2;
+    const { angle } = this.#getPointerVector();
 
-    const shouldPlaceRight = data.isPie ? angle > Math.PI / 2 : labelIndex < meanLabel;
+    const shouldPlaceRight = this.#data.isPie ? angle > Math.PI / 2 : labelIndex < meanLabel;
 
-    const leftOffset = shouldPlaceRight ? _offsetX + BALLOON_OFFSET : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
+    const leftOffset = shouldPlaceRight
+      ? this.#offsetX + BALLOON_OFFSET
+      : this.#offsetX - (this.#balloon.offsetWidth + BALLOON_OFFSET);
 
-    return Math.min(Math.max(0, leftOffset), container.offsetWidth - _balloon.offsetWidth);
+    return Math.min(Math.max(0, leftOffset), this.#container.offsetWidth - this.#balloon.offsetWidth);
   }
 
-  function _getBalloonTopOffset() {
-    return data.isPie ? `${_offsetY}px` : 0;
+  #getBalloonTopOffset() {
+    return this.#data.isPie ? `${this.#offsetY}px` : 0;
   }
 
-  function _updateBalloon(statistics, labelIndex) {
-    _balloon.style.transform = `translate3D(${_getBalloonLeftOffset(labelIndex)}px, ${_getBalloonTopOffset()}, 0)`;
-    _balloon.classList.add('lovely-chart--state-shown');
+  #updateBalloon(statistics, labelIndex) {
+    this.#balloon.style.transform = `translate3D(${this.#getBalloonLeftOffset(labelIndex)}px, ${this.#getBalloonTopOffset()}, 0)`;
+    this.#balloon.classList.add('lovely-chart--state-shown');
 
-    if (data.isPie) {
-      _updateContent(null, statistics);
+    if (this.#data.isPie) {
+      this.#updateContent(null, statistics);
     } else {
-      _throttledUpdateContent(_getTitle(data, labelIndex), statistics);
+      this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics);
     }
   }
 
-  function _getTitle(data, labelIndex) {
+  #getTitle(data, labelIndex) {
     switch (data.tooltipFormatter) {
       case 'statsFormatDayHourFull':
         return statsFormatDayHourFull(data.xLabels[labelIndex].value);
@@ -308,7 +332,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
   // The angular offset must come from the item's position in the original
   // (dataset-order) statistics — sectors are drawn in that order, while the
   // displayed entries are sorted by value.
-  function _isPieSectorSelected(statistics, statItem, totalValue, pointerVector) {
+  #isPieSectorSelected(statistics, statItem, totalValue, pointerVector) {
     const index = statistics.indexOf(statItem);
     const { value } = statItem;
     const offset = index > 0 ? statistics.slice(0, index).reduce((a, x) => a + x.value, 0) : 0;
@@ -318,13 +342,13 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     return pointerVector &&
       beginAngle <= pointerVector.angle &&
       pointerVector.angle < endAngle &&
-      pointerVector.distance <= getPieRadius(_projection);
+      pointerVector.distance <= getPieRadius(this.#projection);
   }
 
-  function _updateTitle(title) {
-    const titleContainer = _balloon.children[0];
+  #updateTitle(title) {
+    const titleContainer = this.#balloon.children[0];
 
-    if (data.isPie) {
+    if (this.#data.isPie) {
       if (titleContainer) {
         titleContainer.style.display = 'none';
       }
@@ -346,9 +370,9 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
   }
 
-  function _insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
-    const colorHex = data.colors[key];
-    const colorClass = isColorCloseToBackground(colors, colorHex) ? '' : ` lovely-chart--color-${colorHex.slice(1)}`;
+  #insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
+    const colorHex = this.#data.colors[key];
+    const colorClass = isColorCloseToBackground(this.#colors, colorHex) ? '' : ` lovely-chart--color-${colorHex.slice(1)}`;
     const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right${colorClass}`;
     const newDataSet = createElement();
     newDataSet.className = 'lovely-chart--tooltip-dataset';
@@ -361,42 +385,42 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
 
     const valueElement = createElement('span');
     valueElement.className = className;
-    valueElement.textContent = _formatValue(value);
+    valueElement.textContent = this.#formatValue(value);
     newDataSet.appendChild(valueElement);
 
-    _renderPercentageValue(newDataSet, value, totalValue);
+    this.#renderPercentageValue(newDataSet, value, totalValue);
 
     dataSetContainer.appendChild(newDataSet);
   }
 
-  function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
+  #updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
     currentDataSet.setAttribute('data-present', 'true');
 
     const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value`);
 
     if (valueElement) {
-      valueElement.textContent = _formatValue(value);
+      valueElement.textContent = this.#formatValue(value);
     }
 
-    _renderPercentageValue(currentDataSet, value, totalValue);
+    this.#renderPercentageValue(currentDataSet, value, totalValue);
   }
 
-  function _formatValue(value) {
+  #formatValue(value) {
     const formatted = formatInteger(value);
-    const prefix = data.valuePrefix || '';
-    const suffix = data.valueSuffix || '';
-    if (data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
+    const prefix = this.#data.valuePrefix || '';
+    const suffix = this.#data.valueSuffix || '';
+    if (this.#data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
       return `-${prefix}${formatted.slice(1)}${suffix}`;
     }
     return `${prefix}${formatted}${suffix}`;
   }
 
-  function _renderPercentageValue(dataSet, value, totalValue) {
-    if (!data.isPercentage) {
+  #renderPercentageValue(dataSet, value, totalValue) {
+    if (!this.#data.isPercentage) {
       return;
     }
 
-    if (data.isPie) {
+    if (this.#data.isPie) {
       Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach(e => e.remove());
       return;
     }
@@ -414,14 +438,14 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
   }
 
-  function _updateDataSets(statistics) {
-    const dataSetContainer = _balloon.children[1];
-    if (data.isPie) {
+  #updateDataSets(statistics) {
+    const dataSetContainer = this.#balloon.children[1];
+    if (this.#data.isPie) {
       dataSetContainer.classList.add('lovely-chart--tooltip-legend-pie');
     }
 
     Array.from(dataSetContainer.children).forEach((dataSet) => {
-      if (!data.isPie && dataSetContainer.classList.contains('lovely-chart--tooltip-legend-pie')) {
+      if (!this.#data.isPie && dataSetContainer.classList.contains('lovely-chart--tooltip-legend-pie')) {
         dataSet.remove();
       } else {
         dataSet.setAttribute('data-present', 'false');
@@ -429,30 +453,32 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     });
 
     const totalValue = statistics.reduce((a, x) => a + x.value, 0);
-    const pointerVector = getPointerVector();
+    const pointerVector = this.#getPointerVector();
     const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value != null);
     const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
     const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
-    const finalStatistics = data.isPie ? limitedStatistics.filter((statItem) => _isPieSectorSelected(statistics, statItem, totalValue, pointerVector)) : limitedStatistics;
+    const finalStatistics = this.#data.isPie
+      ? limitedStatistics.filter((statItem) => this.#isPieSectorSelected(statistics, statItem, totalValue, pointerVector))
+      : limitedStatistics;
 
     finalStatistics.forEach((statItem) => {
       const currentDataSet = Array.from(dataSetContainer.children)
         .find((element) => element.dataset.name === statItem.name);
 
       if (!currentDataSet) {
-        _insertNewDataSet(dataSetContainer, statItem, totalValue);
+        this.#insertNewDataSet(dataSetContainer, statItem, totalValue);
       } else {
-        _updateDataSet(currentDataSet, statItem, totalValue);
+        this.#updateDataSet(currentDataSet, statItem, totalValue);
         dataSetContainer.appendChild(currentDataSet);
       }
     });
 
-    if ((data.isBars || data.isSteps || data.isAreas) && data.isStacked) {
-      _renderTotal(dataSetContainer, _formatValue(totalValue));
+    if ((this.#data.isBars || this.#data.isSteps || this.#data.isAreas) && this.#data.isStacked) {
+      this.#renderTotal(dataSetContainer, this.#formatValue(totalValue));
     }
 
-    if (data.secondaryYAxis) {
-      _renderSecondaryTotal(dataSetContainer, totalValue);
+    if (this.#data.secondaryYAxis) {
+      this.#renderSecondaryTotal(dataSetContainer, totalValue);
     }
 
     // Re-append total rows to keep them at the bottom after sort reordering
@@ -465,12 +491,12 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
       });
   }
 
-  function _updateContent(title, statistics) {
-    _updateTitle(title);
-    _updateDataSets(statistics);
+  #updateContent(title, statistics) {
+    this.#updateTitle(title);
+    this.#updateDataSets(statistics);
   }
 
-  function _renderTotal(dataSetContainer, totalValue) {
+  #renderTotal(dataSetContainer, totalValue) {
     const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
     const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
     if (!totalText) {
@@ -496,8 +522,8 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
   }
 
-  function _renderSecondaryTotal(dataSetContainer, totalValue) {
-    const { label, multiplier, prefix = '', suffix = '' } = data.secondaryYAxis;
+  #renderSecondaryTotal(dataSetContainer, totalValue) {
+    const { label, multiplier, prefix = '', suffix = '' } = this.#data.secondaryYAxis;
     const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
     const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
 
@@ -526,23 +552,22 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     }
   }
 
-
-  function _hideBalloon() {
-    _balloon.classList.remove('lovely-chart--state-shown');
+  #hideBalloon() {
+    this.#balloon.classList.remove('lovely-chart--state-shown');
   }
 
-  function getPointerVector() {
-    // _offsetX/Y are relative to the element, while the chart is drawn on the
+  #getPointerVector() {
+    // #offsetX/Y are relative to the element, while the chart is drawn on the
     // canvas, which sits lower within it (margin-top) — translate the pointer
     // into canvas space and measure from the projection's center, where the
     // pie is actually drawn.
-    const elementRect = _element.getBoundingClientRect();
-    const canvasRect = _canvas.getBoundingClientRect();
-    const pointerX = _offsetX - (canvasRect.left - elementRect.left);
-    const pointerY = _offsetY - (canvasRect.top - elementRect.top);
+    const elementRect = this.#element.getBoundingClientRect();
+    const canvasRect = this.#canvas.getBoundingClientRect();
+    const pointerX = this.#offsetX - (canvasRect.left - elementRect.left);
+    const pointerY = this.#offsetY - (canvasRect.top - elementRect.top);
 
-    const center = data.isPie && _projection
-      ? _projection.getCenter()
+    const center = this.#data.isPie && this.#projection
+      ? this.#projection.getCenter()
       : [canvasRect.width / 2, canvasRect.height / 2];
     const angle = Math.atan2(pointerY - center[1], pointerX - center[0]);
     const distance = Math.sqrt((pointerX - center[0]) ** 2 + (pointerY - center[1]) ** 2);
@@ -553,17 +578,7 @@ export function createTooltip(container, data, plotSize, colors, onZoom, onFocus
     };
   }
 
-  function _getPageOffset(el) {
+  #getPageOffset(el) {
     return el.getBoundingClientRect();
   }
-
-  function destroy() {
-    if (_documentMoveEvent) {
-      removeEventListener(document, _documentMoveEvent, _onDocumentMove);
-      _documentMoveEvent = null;
-    }
-  }
-
-  return { update, toggleLoading, toggleIsZoomed, destroy };
 }
-

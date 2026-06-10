@@ -3,7 +3,6 @@ import { mergeArrays } from './utils.js';
 import { getPieRadius, getPieTextShift, getPieTextSize } from './formulas.js';
 import { PLOT_BARS_WIDTH_SHIFT, PLOT_PIE_SHIFT, PIE_MINIMUM_VISIBLE_PERCENT, PIE_DONUT_INNER_RADIUS_FACTOR } from './constants.js';
 import { simplify } from './simplify.js';
-import { toPixels } from './Projection.js';
 
 export function drawDatasets(
   context, state, data,
@@ -46,8 +45,8 @@ export function drawDatasets(
     }
 
     if (datasetType === 'bar') {
-      const [x0] = toPixels(projection, 0, 0);
-      const [x1] = toPixels(projection, 1, 0);
+      const [x0] = projection.toPixels(0, 0);
+      const [x1] = projection.toPixels(1, 0);
 
       options.lineWidth = x1 - x0;
       options.focusOn = state.focusOn;
@@ -57,8 +56,8 @@ export function drawDatasets(
   });
 
   if (state.focusOn != null && (data.isBars || data.isSteps)) {
-    const [x0] = toPixels(projection, 0, 0);
-    const [x1] = toPixels(projection, 1, 0);
+    const [x0] = projection.toPixels(0, 0);
+    const [x1] = projection.toPixels(1, 0);
 
     drawBarsMask(context, projection, {
       focusOn: state.focusOn,
@@ -97,7 +96,7 @@ function drawDatasetLine(context, points, projection, options) {
       }
       continue;
     }
-    current.push(toPixels(projection, point.labelIndex, point.stackValue));
+    current.push(projection.toPixels(point.labelIndex, point.stackValue));
   }
   if (current.length) segments.push(current);
 
@@ -134,8 +133,8 @@ function drawDatasetBars(context, points, projection, options) {
     if (points[j].gap) continue;
     const { labelIndex, stackValue, stackOffset = 0 } = points[j];
 
-    const [, yFrom] = toPixels(projection, labelIndex, Math.max(stackOffset, yMin));
-    const [x, yTo] = toPixels(projection, labelIndex, stackValue);
+    const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
+    const [x, yTo] = projection.toPixels(labelIndex, stackValue);
     const rectX = x - options.lineWidth / 2;
     const rectY = yTo;
     const rectW = options.opacity === 1 ?
@@ -164,8 +163,8 @@ function drawDatasetSteps(context, points, projection, options) {
       continue;
     }
     current.push(
-      toPixels(projection, point.labelIndex - PLOT_BARS_WIDTH_SHIFT, point.stackValue),
-      toPixels(projection, point.labelIndex + PLOT_BARS_WIDTH_SHIFT, point.stackValue),
+      projection.toPixels(point.labelIndex - PLOT_BARS_WIDTH_SHIFT, point.stackValue),
+      projection.toPixels(point.labelIndex + PLOT_BARS_WIDTH_SHIFT, point.stackValue),
     );
   }
   if (current.length) segments.push(current);
@@ -189,7 +188,7 @@ function drawBarsMask(context, projection, options) {
   const [xCenter, yCenter] = projection.getCenter();
   const [width, height] = projection.getSize();
 
-  const [x] = toPixels(projection, options.focusOn, 0);
+  const [x] = projection.toPixels(options.focusOn, 0);
 
   context.fillStyle = options.color;
   context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT, height);
@@ -203,7 +202,7 @@ function drawDatasetArea(context, points, projection, options) {
 
   for (let j = 0, l = points.length; j < l; j++) {
     const { labelIndex, stackValue } = points[j];
-    pixels.push(toPixels(projection, labelIndex, stackValue));
+    pixels.push(projection.toPixels(labelIndex, stackValue));
   }
 
   if (options.simplification) {

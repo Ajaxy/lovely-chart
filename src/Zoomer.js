@@ -3,78 +3,114 @@ import { getFullLabelDate } from './format.js';
 import { ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants.js';
 import { createColors } from './skin.js';
 
-export function createZoomer(data, overviewData, colors, stateManager, container, header, minimap, tooltip, tools) {
-  let _isZoomed = false;
-  let _isDestroyed = false;
-  let _stateBeforeZoomIn;
-  let _stateBeforeZoomOut;
-  let _swapDataTimeout = null;
-  let _stateAnimatingTimeout = null;
+export class Zoomer {
+  #data;
+  #overviewData;
+  #colors;
+  #stateManager;
+  #container;
+  #header;
+  #minimap;
+  #tooltip;
+  #tools;
 
-  function zoomIn(state, labelIndex) {
-    if (_isZoomed) {
+  #isZoomed = false;
+  #isDestroyed = false;
+  #stateBeforeZoomIn;
+  #stateBeforeZoomOut;
+  #swapDataTimeout = null;
+  #stateAnimatingTimeout = null;
+
+  constructor(data, overviewData, colors, stateManager, container, header, minimap, tooltip, tools) {
+    this.#data = data;
+    this.#overviewData = overviewData;
+    this.#colors = colors;
+    this.#stateManager = stateManager;
+    this.#container = container;
+    this.#header = header;
+    this.#minimap = minimap;
+    this.#tooltip = tooltip;
+    this.#tools = tools;
+  }
+
+  zoomIn(state, labelIndex) {
+    if (this.#isZoomed) {
       return;
     }
 
-    const label = data.xLabels[labelIndex];
+    const label = this.#data.xLabels[labelIndex];
 
-    _stateBeforeZoomIn = state;
-    header.toggleIsZooming(true);
-    tooltip.toggleLoading(true);
-    tooltip.toggleIsZoomed(true);
-    if (data.shouldZoomToPie) {
-      container.classList.add('lovely-chart--state-zoomed-in');
-      container.classList.add('lovely-chart--state-animating');
+    this.#stateBeforeZoomIn = state;
+    this.#header.toggleIsZooming(true);
+    this.#tooltip.toggleLoading(true);
+    this.#tooltip.toggleIsZoomed(true);
+    if (this.#data.shouldZoomToPie) {
+      this.#container.classList.add('lovely-chart--state-zoomed-in');
+      this.#container.classList.add('lovely-chart--state-animating');
     }
 
     const { value } = label;
-    const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(labelIndex)) : data.onZoom(value);
-    dataPromise.then((newData) => _replaceData(newData, labelIndex, label));
+    const dataPromise = this.#data.shouldZoomToPie
+      ? Promise.resolve(this.#generatePieData(labelIndex))
+      : this.#data.onZoom(value);
+    dataPromise.then((newData) => this.#replaceData(newData, labelIndex, label));
   }
 
-  function zoomOut(state) {
-    if (!_isZoomed) {
+  zoomOut(state) {
+    if (!this.#isZoomed) {
       return;
     }
 
-    _stateBeforeZoomOut = state;
-    header.toggleIsZooming(true);
-    tooltip.toggleLoading(true);
-    tooltip.toggleIsZoomed(false);
-    if (data.shouldZoomToPie) {
-      container.classList.remove('lovely-chart--state-zoomed-in');
-      container.classList.add('lovely-chart--state-animating');
+    this.#stateBeforeZoomOut = state;
+    this.#header.toggleIsZooming(true);
+    this.#tooltip.toggleLoading(true);
+    this.#tooltip.toggleIsZoomed(false);
+    if (this.#data.shouldZoomToPie) {
+      this.#container.classList.remove('lovely-chart--state-zoomed-in');
+      this.#container.classList.add('lovely-chart--state-animating');
     }
 
     const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
-    _replaceData(overviewData, labelIndex);
+    this.#replaceData(this.#overviewData, labelIndex);
   }
 
-  function isZoomed() {
-    return _isZoomed;
+  isZoomed() {
+    return this.#isZoomed;
   }
 
-  function _replaceData(newRawData, labelIndex, zoomInLabel) {
-    if (_isDestroyed) return;
+  destroy() {
+    this.#isDestroyed = true;
+    if (this.#swapDataTimeout !== null) {
+      clearTimeout(this.#swapDataTimeout);
+      this.#swapDataTimeout = null;
+    }
+    if (this.#stateAnimatingTimeout !== null) {
+      clearTimeout(this.#stateAnimatingTimeout);
+      this.#stateAnimatingTimeout = null;
+    }
+  }
+
+  #replaceData(newRawData, labelIndex, zoomInLabel) {
+    if (this.#isDestroyed) return;
 
     if (!newRawData) {
-      tooltip.toggleLoading(false);
-      tooltip.toggleIsZoomed(false);
-      header.toggleIsZooming(false);
+      this.#tooltip.toggleLoading(false);
+      this.#tooltip.toggleIsZoomed(false);
+      this.#header.toggleIsZooming(false);
 
       return;
     }
 
-    tooltip.toggleLoading(false);
+    this.#tooltip.toggleLoading(false);
 
-    const labelWidth = 1 / data.xLabels.length;
-    const labelMiddle = labelIndex / (data.xLabels.length - 1);
+    const labelWidth = 1 / this.#data.xLabels.length;
+    const labelMiddle = labelIndex / (this.#data.xLabels.length - 1);
     const filter = {};
-    data.datasets.forEach(({ key }) => filter[key] = false);
-    const newData = analyzeData(newRawData, _isZoomed || data.shouldZoomToPie ? 'day' : 'hour');
-    const shouldZoomToLines = Object.keys(data.datasets).length !== Object.keys(newData.datasets).length;
+    this.#data.datasets.forEach(({ key }) => filter[key] = false);
+    const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToPie ? 'day' : 'hour');
+    const shouldZoomToLines = Object.keys(this.#data.datasets).length !== Object.keys(newData.datasets).length;
 
-    stateManager.update({
+    this.#stateManager.update({
       range: {
         begin: labelMiddle - labelWidth / 2,
         end: labelMiddle + labelWidth / 2,
@@ -82,24 +118,24 @@ export function createZoomer(data, overviewData, colors, stateManager, container
       filter,
     });
 
-    _swapDataTimeout = setTimeout(() => {
-      _swapDataTimeout = null;
-      Object.assign(data, newData);
+    this.#swapDataTimeout = setTimeout(() => {
+      this.#swapDataTimeout = null;
+      Object.assign(this.#data, newData);
 
       if (shouldZoomToLines && newRawData.colors) {
-        Object.assign(colors, createColors(newRawData.colors));
+        Object.assign(this.#colors, createColors(newRawData.colors));
       }
 
       if (shouldZoomToLines) {
-        if (minimap) {
-          minimap.toggle(_isZoomed);
+        if (this.#minimap) {
+          this.#minimap.toggle(this.#isZoomed);
         }
-        tools.redraw();
-        container.style.width = `${container.scrollWidth}px`;
-        container.style.height = `${container.scrollHeight}px`;
+        this.#tools.redraw();
+        this.#container.style.width = `${this.#container.scrollWidth}px`;
+        this.#container.style.height = `${this.#container.scrollHeight}px`;
       }
 
-      stateManager.update({
+      this.#stateManager.update({
         range: {
           begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
           end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
@@ -107,18 +143,20 @@ export function createZoomer(data, overviewData, colors, stateManager, container
         focusOn: null,
       }, true);
 
-      const daysCount = _isZoomed || data.shouldZoomToPie ? data.xLabels.length : data.xLabels.length / 24;
+      const daysCount = this.#isZoomed || this.#data.shouldZoomToPie
+        ? this.#data.xLabels.length
+        : this.#data.xLabels.length / 24;
       const halfDayWidth = (1 / daysCount) / 2;
 
       let range;
       let filter;
 
-      if (_isZoomed) {
+      if (this.#isZoomed) {
         range = {
-          begin: _stateBeforeZoomIn.begin,
-          end: _stateBeforeZoomIn.end,
+          begin: this.#stateBeforeZoomIn.begin,
+          end: this.#stateBeforeZoomIn.end,
         };
-        filter = shouldZoomToLines ? _stateBeforeZoomIn.filter : _stateBeforeZoomOut.filter;
+        filter = shouldZoomToLines ? this.#stateBeforeZoomIn.filter : this.#stateBeforeZoomOut.filter;
       } else {
         if (shouldZoomToLines) {
           range = {
@@ -126,58 +164,46 @@ export function createZoomer(data, overviewData, colors, stateManager, container
             end: 1,
           };
           filter = {};
-          data.datasets.forEach(({ key }) => filter[key] = true);
+          this.#data.datasets.forEach(({ key }) => filter[key] = true);
         } else {
-          range = data.shouldZoomToPie || !newData.minimapRange ? {
+          range = this.#data.shouldZoomToPie || !newData.minimapRange ? {
             begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
             end: ZOOM_RANGE_MIDDLE + halfDayWidth,
           } : newData.minimapRange;
-          filter = _stateBeforeZoomIn.filter;
+          filter = this.#stateBeforeZoomIn.filter;
         }
       }
 
-      stateManager.update({
+      this.#stateManager.update({
         range,
         filter,
-        minimapDelta: _isZoomed ? null : range.end - range.begin,
+        minimapDelta: this.#isZoomed ? null : range.end - range.begin,
       });
 
       if (zoomInLabel) {
-        header.zoom(getFullLabelDate(zoomInLabel));
+        this.#header.zoom(getFullLabelDate(zoomInLabel));
       }
 
-      _isZoomed = !_isZoomed;
-      header.toggleIsZooming(false);
-    }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
+      this.#isZoomed = !this.#isZoomed;
+      this.#header.toggleIsZooming(false);
+    }, this.#stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
 
-    _stateAnimatingTimeout = setTimeout(() => {
-      _stateAnimatingTimeout = null;
-      if (data.shouldZoomToPie) {
-        container.classList.remove('lovely-chart--state-animating');
+    this.#stateAnimatingTimeout = setTimeout(() => {
+      this.#stateAnimatingTimeout = null;
+      if (this.#data.shouldZoomToPie) {
+        this.#container.classList.remove('lovely-chart--state-animating');
       }
-    }, stateManager.hasAnimations() ? 1000 : 0);
+    }, this.#stateManager.hasAnimations() ? 1000 : 0);
   }
 
-  function destroy() {
-    _isDestroyed = true;
-    if (_swapDataTimeout !== null) {
-      clearTimeout(_swapDataTimeout);
-      _swapDataTimeout = null;
-    }
-    if (_stateAnimatingTimeout !== null) {
-      clearTimeout(_stateAnimatingTimeout);
-      _stateAnimatingTimeout = null;
-    }
-  }
-
-  function _generatePieData(labelIndex) {
+  #generatePieData(labelIndex) {
     return Object.assign(
       {},
-      overviewData,
+      this.#overviewData,
       {
         type: 'pie',
-        labels: overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
-        datasets: overviewData.datasets.map((dataset) => {
+        labels: this.#overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
+        datasets: this.#overviewData.datasets.map((dataset) => {
           return {
             ...dataset,
             values: dataset.values.slice(labelIndex - 3, labelIndex + 4),
@@ -186,6 +212,4 @@ export function createZoomer(data, overviewData, colors, stateManager, container
       },
     );
   }
-
-  return { zoomIn, zoomOut, isZoomed, destroy };
 }

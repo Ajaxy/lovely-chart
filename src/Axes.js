@@ -2,15 +2,29 @@ import { GUTTER, AXES_FONT_STYLE, X_AXIS_HEIGHT, X_AXIS_SHIFT_START, PLOT_TOP_PA
 import { humanize } from './format.js';
 import { getCssColor } from './skin.js';
 import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas.js';
-import { toPixels } from './Projection.js';
 
 function getAxesFont(context) {
   const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
   return `${AXES_FONT_STYLE} ${fontFamily}`;
 }
 
-export function createAxes(context, data, plotSize, colors) {
-  function drawXAxis(state, projection) {
+export class Axes {
+  #context;
+  #data;
+  #plotSize;
+  #colors;
+
+  constructor(context, data, plotSize, colors) {
+    this.#context = context;
+    this.#data = data;
+    this.#plotSize = plotSize;
+    this.#colors = colors;
+  }
+
+  drawXAxis(state, projection) {
+    const context = this.#context;
+    const plotSize = this.#plotSize;
+
     context.clearRect(0, plotSize.height - X_AXIS_HEIGHT + 1, plotSize.width, X_AXIS_HEIGHT + 1);
 
     const topOffset = plotSize.height - X_AXIS_HEIGHT / 2;
@@ -29,17 +43,17 @@ export function createAxes(context, data, plotSize, colors) {
         continue;
       }
 
-      const label = data.xLabels[i];
-      const [xPx] = toPixels(projection, i, 0);
+      const label = this.#data.xLabels[i];
+      const [xPx] = projection.toPixels(i, 0);
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
       opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width);
 
-      context.fillStyle = getCssColor(colors, 'x-axis-text', opacity);
+      context.fillStyle = getCssColor(this.#colors, 'x-axis-text', opacity);
       context.fillText(label.text, xPx, topOffset);
     }
   }
 
-  function drawYAxis(state, projection, secondaryProjection) {
+  drawYAxis(state, projection, secondaryProjection) {
     const {
       yAxisScale, yAxisScaleFrom, yAxisScaleTo, yAxisScaleProgress = 0,
       yMinViewport, yMinViewportFrom, yMinViewportTo,
@@ -47,13 +61,13 @@ export function createAxes(context, data, plotSize, colors) {
       yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
       yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
     } = state;
-    const colorKey = secondaryProjection && `dataset#${data.datasets[0].key}`;
+    const colorKey = secondaryProjection && `dataset#${this.#data.datasets[0].key}`;
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
-    if (data.isPercentage) {
-      _drawYAxisPercents(projection);
-    } else if (data.secondaryYAxis) {
-      _drawYAxisScaled(
+    if (this.#data.isPercentage) {
+      this.#drawYAxisPercents(projection);
+    } else if (this.#data.secondaryYAxis) {
+      this.#drawYAxisScaled(
         state,
         projection,
         Math.round(yAxisScaleTo || yAxisScale),
@@ -62,17 +76,17 @@ export function createAxes(context, data, plotSize, colors) {
         yAxisScaleFrom ? yAxisScaleProgress : 1,
       );
 
-      _drawSecondaryYAxis(
+      this.#drawSecondaryYAxis(
         state,
         projection,
         Math.round(yAxisScaleTo || yAxisScale),
         yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
         yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
         yAxisScaleFrom ? yAxisScaleProgress : 1,
-        data.secondaryYAxis,
+        this.#data.secondaryYAxis,
       );
     } else {
-      _drawYAxisScaled(
+      this.#drawYAxisScaled(
         state,
         projection,
         Math.round(yAxisScaleTo || yAxisScale),
@@ -84,7 +98,7 @@ export function createAxes(context, data, plotSize, colors) {
     }
 
     if (yAxisScaleProgress > 0 && isYChanging) {
-      _drawYAxisScaled(
+      this.#drawYAxisScaled(
         state,
         projection,
         Math.round(yAxisScaleFrom),
@@ -97,10 +111,10 @@ export function createAxes(context, data, plotSize, colors) {
 
     if (secondaryProjection) {
       const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
-      const secondaryColorKey = `dataset#${data.datasets[data.datasets.length - 1].key}`;
+      const secondaryColorKey = `dataset#${this.#data.datasets[this.#data.datasets.length - 1].key}`;
       const isYChanging = yMinViewportSecondFrom !== undefined || yMaxViewportSecondFrom !== undefined;
 
-      _drawYAxisScaled(
+      this.#drawYAxisScaled(
         state,
         secondaryProjection,
         Math.round(yAxisScaleSecondTo || yAxisScaleSecond),
@@ -112,7 +126,7 @@ export function createAxes(context, data, plotSize, colors) {
       );
 
       if (yAxisScaleSecondProgress > 0 && isYChanging) {
-        _drawYAxisScaled(
+        this.#drawYAxisScaled(
           state,
           secondaryProjection,
           Math.round(yAxisScaleSecondFrom),
@@ -126,7 +140,9 @@ export function createAxes(context, data, plotSize, colors) {
     }
   }
 
-  function _drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorKey = null, isSecondary = false) {
+  #drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorKey = null, isSecondary = false) {
+    const context = this.#context;
+    const plotSize = this.#plotSize;
     const step = yScaleLevelToStep(scaleLevel);
     const firstVisibleValue = Math.ceil(yMin / step) * step;
     const lastVisibleValue = Math.floor(yMax / step) * step;
@@ -140,16 +156,16 @@ export function createAxes(context, data, plotSize, colors) {
     context.beginPath();
 
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
-      const [, yPx] = toPixels(projection, 0, value);
+      const [, yPx] = projection.toPixels(0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
 
       context.fillStyle = colorKey
-        ? getCssColor(colors, colorKey, textOpacity)
-        : getCssColor(colors, 'y-axis-text', textOpacity);
+        ? getCssColor(this.#colors, colorKey, textOpacity)
+        : getCssColor(this.#colors, 'y-axis-text', textOpacity);
 
       const label = isSecondary
         ? humanize(value)
-        : _formatPrimaryAxisLabel(value);
+        : this.#formatPrimaryAxisLabel(value);
 
       if (!isSecondary) {
         context.fillText(label, GUTTER, yPx - GUTTER / 2);
@@ -158,13 +174,13 @@ export function createAxes(context, data, plotSize, colors) {
       }
 
       if (isSecondary) {
-        context.strokeStyle = getCssColor(colors, colorKey, opacity);
+        context.strokeStyle = getCssColor(this.#colors, colorKey, opacity);
 
         context.moveTo(plotSize.width - GUTTER, yPx);
         context.lineTo(plotSize.width - GUTTER * 2, yPx);
       } else {
         context.moveTo(GUTTER, yPx);
-        context.strokeStyle = getCssColor(colors, 'grid-lines', opacity);
+        context.strokeStyle = getCssColor(this.#colors, 'grid-lines', opacity);
         context.lineTo(plotSize.width - GUTTER, yPx);
       }
     }
@@ -172,7 +188,9 @@ export function createAxes(context, data, plotSize, colors) {
     context.stroke();
   }
 
-  function _drawYAxisPercents(projection) {
+  #drawYAxisPercents(projection) {
+    const context = this.#context;
+    const plotSize = this.#plotSize;
     const percentValues = [0, 0.25, 0.50, 0.75, 1];
     const [, height] = projection.getSize();
 
@@ -186,18 +204,19 @@ export function createAxes(context, data, plotSize, colors) {
     percentValues.forEach((value) => {
       const yPx = height - height * value + PLOT_TOP_PADDING;
 
-      context.fillStyle = getCssColor(colors, 'y-axis-text', 1);
+      context.fillStyle = getCssColor(this.#colors, 'y-axis-text', 1);
       context.fillText(`${value * 100}%`, GUTTER, yPx - GUTTER / 4);
 
       context.moveTo(GUTTER, yPx);
-      context.strokeStyle = getCssColor(colors, 'grid-lines', 1);
+      context.strokeStyle = getCssColor(this.#colors, 'grid-lines', 1);
       context.lineTo(plotSize.width - GUTTER, yPx);
     });
 
     context.stroke();
   }
 
-  function _drawSecondaryYAxis(state, projection, scaleLevel, yMin, yMax, opacity = 1, secondaryYAxis) {
+  #drawSecondaryYAxis(state, projection, scaleLevel, yMin, yMax, opacity = 1, secondaryYAxis) {
+    const context = this.#context;
     const { multiplier, prefix = '', suffix = '' } = secondaryYAxis;
     const step = yScaleLevelToStep(scaleLevel);
     const firstVisibleValue = Math.ceil(yMin / step) * step;
@@ -208,24 +227,22 @@ export function createAxes(context, data, plotSize, colors) {
     context.textBaseline = 'bottom';
 
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
-      const [, yPx] = toPixels(projection, 0, value);
+      const [, yPx] = projection.toPixels(0, value);
       const textOpacity = applyXEdgeOpacity(opacity, yPx);
       const secondaryValue = value * multiplier;
 
-      context.fillStyle = getCssColor(colors, 'y-axis-text', textOpacity);
-      context.fillText(`${prefix}${humanize(secondaryValue)}${suffix}`, plotSize.width - GUTTER, yPx - GUTTER / 2);
+      context.fillStyle = getCssColor(this.#colors, 'y-axis-text', textOpacity);
+      context.fillText(`${prefix}${humanize(secondaryValue)}${suffix}`, this.#plotSize.width - GUTTER, yPx - GUTTER / 2);
     }
   }
 
-  function _formatPrimaryAxisLabel(value) {
+  #formatPrimaryAxisLabel(value) {
     const formatted = String(humanize(value));
-    const prefix = data.valuePrefix || '';
-    const suffix = data.valueSuffix || '';
-    if (data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
+    const prefix = this.#data.valuePrefix || '';
+    const suffix = this.#data.valueSuffix || '';
+    if (this.#data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
       return `-${prefix}${formatted.slice(1)}${suffix}`;
     }
     return `${prefix}${formatted}${suffix}`;
   }
-
-  return { drawXAxis, drawYAxis };
 }

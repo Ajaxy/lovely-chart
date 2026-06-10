@@ -2,74 +2,79 @@ import { createElement, addEventListener } from './minifiers.js';
 import { toggleText } from './toggleText.js';
 import { throttle } from './utils.js';
 
-export function createHeader(container, title, zoomOutLabel = 'Zoom out', zoomOutCallback) {
-  let _element;
-  let _titleElement;
-  let _zoomOutElement;
-  let _captionElement;
-  let _isZooming;
-  let _zoomBindTimeout = null;
+export class Header {
+  #container;
+  #title;
+  #zoomOutLabel;
+  #zoomOutCallback;
 
-  const setCaptionThrottled = throttle(setCaption, 100, false);
+  #element;
+  #titleElement;
+  #zoomOutElement;
+  #captionElement;
+  #isZooming;
+  #zoomBindTimeout = null;
 
-  _setupLayout();
+  setCaption = throttle((caption) => this.#setCaption(caption), 100, false);
 
-  function setCaption(caption) {
-    if (_isZooming) {
+  constructor(container, title, zoomOutLabel = 'Zoom out', zoomOutCallback) {
+    this.#container = container;
+    this.#title = title;
+    this.#zoomOutLabel = zoomOutLabel;
+    this.#zoomOutCallback = zoomOutCallback;
+
+    this.#setupLayout();
+  }
+
+  zoom(caption) {
+    this.#zoomOutElement = toggleText(this.#titleElement, this.#zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
+    this.#zoomBindTimeout = setTimeout(() => {
+      this.#zoomBindTimeout = null;
+      addEventListener(this.#zoomOutElement, 'click', this.#onZoomOut);
+    }, 500);
+
+    this.#setCaption(caption);
+  }
+
+  destroy() {
+    if (this.#zoomBindTimeout !== null) {
+      clearTimeout(this.#zoomBindTimeout);
+      this.#zoomBindTimeout = null;
+    }
+  }
+
+  toggleIsZooming(isZooming) {
+    this.#isZooming = isZooming;
+  }
+
+  #setCaption(caption) {
+    if (this.#isZooming) {
       return;
     }
 
-    _captionElement.textContent = caption;
+    this.#captionElement.textContent = caption;
   }
 
-  function zoom(caption) {
-    _zoomOutElement = toggleText(_titleElement, zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
-    _zoomBindTimeout = setTimeout(() => {
-      _zoomBindTimeout = null;
-      addEventListener(_zoomOutElement, 'click', _onZoomOut);
-    }, 500);
+  #setupLayout() {
+    this.#element = createElement();
+    this.#element.className = 'lovely-chart--header';
 
-    setCaption(caption);
+    this.#titleElement = createElement();
+    this.#titleElement.className = 'lovely-chart--header-title';
+    this.#titleElement.textContent = this.#title;
+    this.#element.appendChild(this.#titleElement);
+
+    this.#captionElement = createElement();
+    this.#captionElement.className = 'lovely-chart--header-caption lovely-chart--position-right';
+    this.#element.appendChild(this.#captionElement);
+
+    this.#container.appendChild(this.#element);
   }
 
-  function destroy() {
-    if (_zoomBindTimeout !== null) {
-      clearTimeout(_zoomBindTimeout);
-      _zoomBindTimeout = null;
-    }
-  }
+  #onZoomOut = () => {
+    this.#titleElement = toggleText(this.#zoomOutElement, this.#title, 'lovely-chart--header-title', true);
+    this.#titleElement.classList.remove('lovely-chart--transition');
 
-  function toggleIsZooming(isZooming) {
-    _isZooming = isZooming;
-  }
-
-  function _setupLayout() {
-    _element = createElement();
-    _element.className = 'lovely-chart--header';
-
-    _titleElement = createElement();
-    _titleElement.className = 'lovely-chart--header-title';
-    _titleElement.textContent = title;
-    _element.appendChild(_titleElement);
-
-    _captionElement = createElement();
-    _captionElement.className = 'lovely-chart--header-caption lovely-chart--position-right';
-    _element.appendChild(_captionElement);
-
-    container.appendChild(_element);
-  }
-
-  function _onZoomOut() {
-    _titleElement = toggleText(_zoomOutElement, title, 'lovely-chart--header-title', true);
-    _titleElement.classList.remove('lovely-chart--transition');
-
-    zoomOutCallback();
-  }
-
-  return {
-    setCaption: setCaptionThrottled,
-    zoom,
-    toggleIsZooming,
-    destroy,
+    this.#zoomOutCallback();
   };
 }

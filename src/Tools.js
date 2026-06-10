@@ -2,42 +2,52 @@ import { createElement } from './minifiers.js';
 import { captureEvents } from './captureEvents.js';
 import { isColorCloseToWhite } from './skin.js';
 
-export function createTools(container, data, filterCallback) {
-  let _element;
+export class Tools {
+  #container;
+  #data;
+  #filterCallback;
 
-  _setupLayout();
-  _updateFilter();
+  #element;
 
-  function redraw() {
-    if (_element) {
-      const oldElement = _element;
+  constructor(container, data, filterCallback) {
+    this.#container = container;
+    this.#data = data;
+    this.#filterCallback = filterCallback;
+
+    this.#setupLayout();
+    this.#updateFilter();
+  }
+
+  redraw() {
+    if (this.#element) {
+      const oldElement = this.#element;
       oldElement.classList.add('lovely-chart--state-hidden');
       setTimeout(() => {
         oldElement.parentNode.removeChild(oldElement);
       }, 500);
     }
 
-    _setupLayout();
-    _element.classList.add('lovely-chart--state-transparent');
+    this.#setupLayout();
+    this.#element.classList.add('lovely-chart--state-transparent');
     requestAnimationFrame(() => {
-      _element.classList.remove('lovely-chart--state-transparent');
+      this.#element.classList.remove('lovely-chart--state-transparent');
     });
   }
 
-  function _setupLayout() {
-    _element = createElement();
-    _element.className = 'lovely-chart--tools';
+  #setupLayout() {
+    this.#element = createElement();
+    this.#element.className = 'lovely-chart--tools';
 
-    if (data.datasets.length < 2) {
-      _element.className += ' lovely-chart--state-hidden';
+    if (this.#data.datasets.length < 2) {
+      this.#element.className += ' lovely-chart--state-hidden';
     }
 
-    data.datasets.forEach(({ key, name }) => {
+    this.#data.datasets.forEach(({ key, name }) => {
       const control = createElement('a');
       control.href = '#';
       control.dataset.key = key;
-      const darkContent = isColorCloseToWhite(data.colors[key]) ? ' lovely-chart--dark-content' : '';
-      control.className = `lovely-chart--button lovely-chart--color-${data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
+      const darkContent = isColorCloseToWhite(this.#data.colors[key]) ? ' lovely-chart--dark-content' : '';
+      control.className = `lovely-chart--button lovely-chart--color-${this.#data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
 
       const check = createElement('span');
       check.className = 'lovely-chart--button-check';
@@ -52,7 +62,7 @@ export function createTools(container, data, filterCallback) {
         e.preventDefault();
 
         if (!control.dataset.clickPrevented) {
-          _updateFilter(control);
+          this.#updateFilter(control);
         }
 
         delete control.dataset.clickPrevented;
@@ -62,19 +72,19 @@ export function createTools(container, data, filterCallback) {
         onLongPress: () => {
           control.dataset.clickPrevented = 'true';
 
-          _updateFilter(control, true);
+          this.#updateFilter(control, true);
         },
       });
 
-      _element.appendChild(control);
+      this.#element.appendChild(control);
     });
 
-    container.appendChild(_element);
+    this.#container.appendChild(this.#element);
   }
 
-  function _updateFilter(button, isLongPress = false) {
-    const buttons = Array.from(_element.getElementsByTagName('a'));
-    const isSingleChecked = _element.querySelectorAll('.lovely-chart--state-checked').length === 1;
+  #updateFilter(button, isLongPress = false) {
+    const buttons = Array.from(this.#element.getElementsByTagName('a'));
+    const isSingleChecked = this.#element.querySelectorAll('.lovely-chart--state-checked').length === 1;
 
     if (button) {
       if (button.classList.contains('lovely-chart--state-checked') && isSingleChecked) {
@@ -101,10 +111,6 @@ export function createTools(container, data, filterCallback) {
       filter[input.dataset.key] = input.classList.contains('lovely-chart--state-checked');
     });
 
-    filterCallback(filter);
+    this.#filterCallback(filter);
   }
-
-  return {
-    redraw,
-  };
 }

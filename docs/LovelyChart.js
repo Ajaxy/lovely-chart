@@ -1,9 +1,12 @@
-var LovelyChart = function(exports) {
-  "use strict";
+var LovelyChart = (function (exports) {
+  'use strict';
+
   const DPR = window.devicePixelRatio || 1;
+
   const DEFAULT_RANGE = { begin: 0.8, end: 1 };
   const TRANSITION_DEFAULT_DURATION = 400;
   const LONG_PRESS_TIMEOUT = 500;
+
   const GUTTER = 10;
   const PLOT_HEIGHT = 320;
   const PLOT_TOP_PADDING = 15;
@@ -11,241 +14,305 @@ var LovelyChart = function(exports) {
   const PLOT_PIE_RADIUS_FACTOR = 0.9 / 2;
   const PLOT_PIE_SHIFT = 10;
   const PLOT_BARS_WIDTH_SHIFT = 0.5;
+
   const PIE_MINIMUM_VISIBLE_PERCENT = 0.02;
   const PIE_DONUT_INNER_RADIUS_FACTOR = 0.5;
+
   const BALLOON_OFFSET = 20;
   const MAX_TOOLTIP_ITEMS = 12;
-  const AXES_FONT_STYLE = "300 10px";
+
+  const AXES_FONT_STYLE = '300 10px';
   const AXES_MAX_COLUMN_WIDTH = 45;
   const AXES_MAX_ROW_HEIGHT = 50;
   const X_AXIS_HEIGHT = 30;
   const X_AXIS_SHIFT_START = 1;
   const Y_AXIS_ZERO_BASED_THRESHOLD = 0.1;
+
   const MINIMAP_HEIGHT = 40;
   const MINIMAP_MARGIN = 10;
   const MINIMAP_LINE_WIDTH = 1;
   const MINIMAP_EAR_WIDTH = 8;
   const MINIMAP_MAX_ANIMATED_DATASETS = 4;
+
   const ZOOM_TIMEOUT = TRANSITION_DEFAULT_DURATION;
   const ZOOM_RANGE_DELTA = 0.1;
-  const ZOOM_RANGE_MIDDLE = 0.5;
-  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const MONTHS_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  const WEEK_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const WEEK_DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1e3;
+  const ZOOM_RANGE_MIDDLE = .5;
+
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const MILISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
   const MILISECONDS_IN_WEEK = 7 * MILISECONDS_IN_DAY;
+
   const SPEED_TEST_INTERVAL = 200;
   const SPEED_TEST_FAST_FPS = 4;
-  const SIMPLIFIER_MIN_POINTS = 1e3;
+
+  const SIMPLIFIER_MIN_POINTS = 1000;
   const SIMPLIFIER_PLOT_FACTOR = 1;
   const SIMPLIFIER_MINIMAP_FACTOR = 0.5;
+
   const ANIMATE_PROPS = [
     // Viewport X-axis
-    "begin 200 fast",
-    "end 200 fast",
-    "labelFromIndex 200 fast floor",
-    "labelToIndex 200 fast ceil",
+    'begin 200 fast', 'end 200 fast', 'labelFromIndex 200 fast floor', 'labelToIndex 200 fast ceil',
+
     // X-axis labels
-    "xAxisScale 400",
+    'xAxisScale 400',
+
     // Viewport Y-axis
-    "yMinViewport",
-    "yMaxViewport",
-    "yMinViewportSecond",
-    "yMaxViewportSecond",
+    'yMinViewport', 'yMaxViewport', 'yMinViewportSecond', 'yMaxViewportSecond',
+
     // Minimap Y-axis
-    "yMinMinimap",
-    "yMaxMinimap",
-    "yMinMinimapSecond",
-    "yMaxMinimapSecond",
+    'yMinMinimap', 'yMaxMinimap', 'yMinMinimapSecond', 'yMaxMinimapSecond',
+
     // Y-axis labels
-    "yAxisScale",
-    "yAxisScaleSecond"
+    'yAxisScale', 'yAxisScaleSecond',
   ];
+
   function transition(t) {
+    // iOS-style ease-out (no overshoot)
     return 1 - Math.pow(1 - t, 3);
   }
-  function createTransitionManager(onTick) {
-    const _transitions = {};
-    let _nextFrame = null;
-    let _testStartedAt = null;
-    let _fps = null;
-    let _testingFps = null;
-    let _slowDetectedAt = null;
-    let _startedAsSlow = null;
-    function add(prop, from, to, duration, options) {
-      _transitions[prop] = {
+
+  class TransitionManager {
+    #onTick;
+
+    #transitions = {};
+
+    #nextFrame = null;
+
+    #testStartedAt = null;
+    #fps = null;
+    #testingFps = null;
+    #slowDetectedAt = null;
+    #startedAsSlow = null;
+
+    constructor(onTick) {
+      this.#onTick = onTick;
+    }
+
+    add(prop, from, to, duration, options) {
+      this.#transitions[prop] = {
         from,
         to,
         duration,
         options,
         current: from,
         startedAt: Date.now(),
-        progress: 0
+        progress: 0,
       };
-      if (!_nextFrame) {
-        _resetSpeedTest();
-        _nextFrame = requestAnimationFrame(_tick);
+
+      if (!this.#nextFrame) {
+        this.#resetSpeedTest();
+        this.#nextFrame = requestAnimationFrame(this.#tick);
       }
     }
-    function remove(prop) {
-      delete _transitions[prop];
-      if (!isRunning()) {
-        cancelAnimationFrame(_nextFrame);
-        _nextFrame = null;
+
+    remove(prop) {
+      delete this.#transitions[prop];
+
+      if (!this.isRunning()) {
+        cancelAnimationFrame(this.#nextFrame);
+        this.#nextFrame = null;
       }
     }
-    function get(prop) {
-      return _transitions[prop];
+
+    get(prop) {
+      return this.#transitions[prop];
     }
-    function getState() {
+
+    getState() {
       const state = {};
-      Object.keys(_transitions).forEach((prop) => {
-        const { current, from, to, progress } = _transitions[prop];
+
+      Object.keys(this.#transitions).forEach((prop) => {
+        const { current, from, to, progress } = this.#transitions[prop];
         state[prop] = current;
+        // TODO perf lazy
         state[`${prop}From`] = from;
         state[`${prop}To`] = to;
         state[`${prop}Progress`] = progress;
       });
+
       return state;
     }
-    function isRunning() {
-      return Boolean(Object.keys(_transitions).length);
+
+    isRunning() {
+      return Boolean(Object.keys(this.#transitions).length);
     }
-    function isFast(forceCheck) {
-      if (!forceCheck && (_startedAsSlow || _slowDetectedAt)) {
+
+    isFast(forceCheck) {
+      if (!forceCheck && (this.#startedAsSlow || this.#slowDetectedAt)) {
         return false;
       }
-      return _fps === null || _fps >= SPEED_TEST_FAST_FPS;
+
+      return this.#fps === null || this.#fps >= SPEED_TEST_FAST_FPS;
     }
-    function _tick() {
-      const isSlow = !isFast();
-      _speedTest();
+
+    destroy() {
+      if (this.#nextFrame) {
+        cancelAnimationFrame(this.#nextFrame);
+        this.#nextFrame = null;
+      }
+      Object.keys(this.#transitions).forEach((prop) => delete this.#transitions[prop]);
+    }
+
+    #tick = () => {
+      const isSlow = !this.isFast();
+      this.#speedTest();
+
       const state = {};
-      Object.keys(_transitions).forEach((prop) => {
-        const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = _transitions[prop];
+
+      Object.keys(this.#transitions).forEach((prop) => {
+        const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = this.#transitions[prop];
         const progress = Math.min(1, (Date.now() - startedAt) / duration);
         let current = from + (to - from) * transition(progress);
-        if (options.includes("ceil")) {
+
+        if (options.includes('ceil')) {
           current = Math.ceil(current);
-        } else if (options.includes("floor")) {
+        } else if (options.includes('floor')) {
           current = Math.floor(current);
         }
-        _transitions[prop].current = current;
-        _transitions[prop].progress = progress;
+
+        this.#transitions[prop].current = current;
+        this.#transitions[prop].progress = progress;
         state[prop] = current;
+
         if (progress === 1) {
-          remove(prop);
+          this.remove(prop);
         }
       });
+
       if (!isSlow) {
-        onTick(state);
+        this.#onTick(state);
       }
-      if (isRunning()) {
-        _nextFrame = requestAnimationFrame(_tick);
+
+      if (this.isRunning()) {
+        this.#nextFrame = requestAnimationFrame(this.#tick);
       }
+    };
+
+    #resetSpeedTest() {
+      this.#testStartedAt = null;
+      this.#testingFps = null;
+      if (this.#slowDetectedAt && Date.now() - this.#slowDetectedAt > 5000) {
+        this.#slowDetectedAt = null;
+      }
+      this.#startedAsSlow = Boolean(this.#slowDetectedAt) || !this.isFast(true);
     }
-    function _resetSpeedTest() {
-      _testStartedAt = null;
-      _testingFps = null;
-      if (_slowDetectedAt && Date.now() - _slowDetectedAt > 5e3) {
-        _slowDetectedAt = null;
-      }
-      _startedAsSlow = Boolean(_slowDetectedAt) || !isFast(true);
-    }
-    function _speedTest() {
-      if (!_testStartedAt || Date.now() - _testStartedAt >= SPEED_TEST_INTERVAL) {
-        if (_testingFps) {
-          _fps = _testingFps;
-          if (!_slowDetectedAt && !isFast(true)) {
-            _slowDetectedAt = Date.now();
+
+    #speedTest() {
+      if (!this.#testStartedAt || (Date.now() - this.#testStartedAt) >= SPEED_TEST_INTERVAL) {
+        if (this.#testingFps) {
+          this.#fps = this.#testingFps;
+          if (!this.#slowDetectedAt && !this.isFast(true)) {
+            this.#slowDetectedAt = Date.now();
           }
         }
-        _testStartedAt = Date.now();
-        _testingFps = 0;
+        this.#testStartedAt = Date.now();
+        this.#testingFps = 0;
       } else {
-        _testingFps++;
+        this.#testingFps++;
       }
     }
-    function destroy() {
-      if (_nextFrame) {
-        cancelAnimationFrame(_nextFrame);
-        _nextFrame = null;
-      }
-      Object.keys(_transitions).forEach((prop) => delete _transitions[prop]);
-    }
-    return { add, remove, get, getState, isRunning, isFast, destroy };
   }
+
+  // https://jsperf.com/finding-maximum-element-in-an-array
   function getMaxMin(array) {
     const length = array.length;
     let max;
     let min;
+
     for (let i = 0; i < length; i++) {
       const value = array[i];
+
       if (value == null) continue;
-      if (max === void 0 || value > max) max = value;
-      if (min === void 0 || value < min) min = value;
+      if (max === undefined || value > max) max = value;
+      if (min === undefined || value < min) min = value;
     }
+
     return { max, min };
   }
+
+  // https://jsperf.com/multi-array-concat/24
   function mergeArrays(arrays) {
     return [].concat.apply([], arrays);
   }
+
   function sumArrays(arrays) {
     const sums = [];
     const n = arrays.length;
+
     for (let i = 0, l = arrays[0].length; i < l; i++) {
       sums[i] = 0;
+
       for (let j = 0; j < n; j++) {
         sums[i] += arrays[j][i];
       }
     }
+
     return sums;
   }
+
   function proxyMerge(obj1, obj2) {
     return new Proxy({}, {
       get: (obj, prop) => {
-        if (obj[prop] !== void 0) {
+        if (obj[prop] !== undefined) {
           return obj[prop];
-        } else if (obj2[prop] !== void 0) {
+        } else if (obj2[prop] !== undefined) {
           return obj2[prop];
         } else {
           return obj1[prop];
         }
-      }
+      },
     });
   }
-  function throttle(fn, ms, shouldRunFirst = true) {
+
+  function throttle(
+    fn,
+    ms,
+    shouldRunFirst = true,
+  ) {
     let interval = null;
     let isPending;
     let args;
+
     return (..._args) => {
       isPending = true;
       args = _args;
+
       if (!interval) {
         if (shouldRunFirst) {
           isPending = false;
+          // @ts-ignore
           fn(...args);
         }
+
         interval = window.setInterval(() => {
           if (!isPending) {
             window.clearInterval(interval);
             interval = null;
             return;
           }
+
           isPending = false;
+          // @ts-ignore
           fn(...args);
         }, ms);
       }
     };
   }
+
   function throttleWithRaf(fn) {
     let waiting = false;
     let args;
-    return function(..._args) {
+
+    return function (..._args) {
       args = _args;
+
       if (!waiting) {
         waiting = true;
+
         requestAnimationFrame(() => {
           waiting = false;
           fn(...args);
@@ -253,75 +320,54 @@ var LovelyChart = function(exports) {
       }
     };
   }
+
   function debounce(fn, ms, shouldRunFirst = true, shouldRunLast = true) {
     let waitingTimeout = null;
-    return function() {
+
+    return function () {
       if (waitingTimeout) {
         clearTimeout(waitingTimeout);
         waitingTimeout = null;
       } else if (shouldRunFirst) {
         fn();
       }
+
       waitingTimeout = setTimeout(() => {
         if (shouldRunLast) {
           fn();
         }
+
         waitingTimeout = null;
       }, ms);
     };
   }
+
   function xScaleLevelToStep(scaleLevel) {
     return Math.pow(2, scaleLevel);
   }
+
   function xStepToScaleLevel(step) {
     return Math.ceil(Math.log2(step || 1));
   }
+
   const SCALE_LEVELS = [
     // Sub-unit steps for fine-grained data (e.g. portfolio P&L denominated in cents)
-    1e-4,
-    2e-4,
-    5e-4,
-    1e-3,
-    2e-3,
-    5e-3,
-    0.01,
-    0.02,
-    0.05,
-    0.1,
-    0.2,
-    0.5,
-    1,
-    2,
-    8,
-    18,
-    50,
-    100,
-    250,
-    500,
-    1e3,
-    2500,
-    5e3,
-    1e4,
-    25e3,
-    5e4,
-    1e5,
-    25e4,
-    5e5,
-    1e6,
-    25e5,
-    5e6,
-    1e7,
-    25e6,
-    5e7,
-    1e8
+    0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+    1, 2, 8, 18, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000,
+    250000, 500000, 1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000,
   ];
+
   function yScaleLevelToStep(scaleLevel) {
     return SCALE_LEVELS[scaleLevel] || SCALE_LEVELS[SCALE_LEVELS.length - 1];
   }
+
   function yStepToScaleLevel(neededStep) {
+    // `findIndex` returns 0 when the first level already fits; `0 || fallback`
+    // would incorrectly switch to the largest step, so test for -1 explicitly.
     const idx = SCALE_LEVELS.findIndex((step) => step >= neededStep);
     return idx === -1 ? SCALE_LEVELS.length - 1 : idx;
   }
+
   function applyYEdgeOpacity(opacity, xPx, plotWidth) {
     const edgeOffset = Math.min(xPx + GUTTER, plotWidth - xPx);
     if (edgeOffset <= GUTTER * 4) {
@@ -329,114 +375,173 @@ var LovelyChart = function(exports) {
     }
     return opacity;
   }
+
   function applyXEdgeOpacity(opacity, yPx) {
-    return yPx - GUTTER <= GUTTER * 2 ? Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2)) : opacity;
+    return (yPx - GUTTER <= GUTTER * 2)
+      ? Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2))
+      : opacity;
   }
+
   function getPieRadius(projection) {
     return Math.max(0, Math.min(...projection.getSize())) * PLOT_PIE_RADIUS_FACTOR;
   }
+
   function getPieTextSize(percent, radius) {
     return (radius + percent * 200) / 10;
   }
+
   function getPieTextShift(percent, radius, shift) {
     return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
   }
+
   function isDataRange(labelFrom, labelTo) {
     return Math.abs(labelTo.value - labelFrom.value) > MILISECONDS_IN_DAY;
   }
+
   function getSimplificationDelta(pointsLength) {
-    return pointsLength >= SIMPLIFIER_MIN_POINTS ? Math.min(pointsLength / 1e3, 1) : 0;
+    return pointsLength >= SIMPLIFIER_MIN_POINTS ? Math.min((pointsLength / 1000), 1) : 0;
   }
-  function createStateManager(data, viewportSize, callback) {
-    const _range = { begin: 0, end: 1 };
-    const _filter = _buildDefaultFilter();
-    const _transitionConfig = _buildTransitionConfig();
-    const _transitions = createTransitionManager(_runCallback);
-    const _runCallbackOnRaf = throttleWithRaf(_runCallback);
-    let _state = {};
-    let _isDestroyed = false;
-    function update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
-      if (_isDestroyed) return;
-      Object.assign(_range, range);
-      Object.assign(_filter, filter);
-      const prevState = _state;
-      _state = calculateState(data, viewportSize, _range, _filter, focusOn, minimapDelta, prevState);
+
+  class StateManager {
+    #data;
+    #viewportSize;
+    #callback;
+
+    #range = { begin: 0, end: 1 };
+    #filter;
+    #transitionConfig;
+    #transitions;
+    #runCallbackOnRaf;
+
+    #state = {};
+    #isDestroyed = false;
+
+    constructor(data, viewportSize, callback) {
+      this.#data = data;
+      this.#viewportSize = viewportSize;
+      this.#callback = callback;
+
+      this.#filter = this.#buildDefaultFilter();
+      this.#transitionConfig = this.#buildTransitionConfig();
+      this.#transitions = new TransitionManager(this.#runCallback);
+      this.#runCallbackOnRaf = throttleWithRaf(this.#runCallback);
+    }
+
+    update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
+      if (this.#isDestroyed) return;
+      Object.assign(this.#range, range);
+      Object.assign(this.#filter, filter);
+
+      const prevState = this.#state;
+      this.#state = calculateState(this.#data, this.#viewportSize, this.#range, this.#filter, focusOn, minimapDelta, prevState);
+
       if (!noTransition) {
-        _transitionConfig.forEach(({ prop, duration, options }) => {
-          const transition2 = _transitions.get(prop);
-          const currentTarget = transition2 ? transition2.to : prevState[prop];
-          if (currentTarget !== void 0 && currentTarget !== _state[prop]) {
-            const current = transition2 ? options.includes("fast") ? prevState[prop] : transition2.current : prevState[prop];
-            if (transition2) {
-              _transitions.remove(prop);
+        this.#transitionConfig.forEach(({ prop, duration, options }) => {
+          const transition = this.#transitions.get(prop);
+          const currentTarget = transition ? transition.to : prevState[prop];
+
+          if (currentTarget !== undefined && currentTarget !== this.#state[prop]) {
+            const current = transition
+              ? (options.includes('fast') ? prevState[prop] : transition.current)
+              : prevState[prop];
+
+            if (transition) {
+              this.#transitions.remove(prop);
             }
-            _transitions.add(prop, current, _state[prop], duration, options);
+
+            this.#transitions.add(prop, current, this.#state[prop], duration, options);
           }
         });
       }
-      if (!_transitions.isRunning() || !_transitions.isFast()) {
-        _runCallbackOnRaf();
+
+      if (!this.#transitions.isRunning() || !this.#transitions.isFast()) {
+        this.#runCallbackOnRaf();
       }
     }
-    function hasAnimations() {
-      return _transitions.isFast();
+
+    hasAnimations() {
+      return this.#transitions.isFast();
     }
-    function _buildTransitionConfig() {
+
+    destroy() {
+      this.#isDestroyed = true;
+      this.#transitions.destroy();
+    }
+
+    #buildTransitionConfig() {
       const transitionConfig = [];
-      const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
-      const datasetPieShifts = data.datasets.map(({ key }) => `pieShift#${key} 200`);
+      const datasetVisibilities = this.#data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
+      const datasetPieShifts = this.#data.datasets.map(({ key }) => `pieShift#${key} 200`);
+
       mergeArrays([
         ANIMATE_PROPS,
         datasetVisibilities,
-        datasetPieShifts
-      ]).forEach((transition2) => {
-        const [prop, duration, ...options] = transition2.split(" ");
+        datasetPieShifts,
+      ]).forEach((transition) => {
+        const [prop, duration, ...options] = transition.split(' ');
         transitionConfig.push({ prop, duration, options });
       });
+
       return transitionConfig;
     }
-    function _buildDefaultFilter() {
+
+    #buildDefaultFilter() {
       const filter = {};
-      data.datasets.forEach(({ key }) => {
+
+      this.#data.datasets.forEach(({ key }) => {
         filter[key] = true;
       });
+
       return filter;
     }
-    function _runCallback() {
-      if (_isDestroyed) return;
-      const state = _transitions.isFast() ? proxyMerge(_state, _transitions.getState()) : _state;
-      state.static = _state;
-      callback(state);
-    }
-    function destroy() {
-      _isDestroyed = true;
-      _transitions.destroy();
-    }
-    return { update, hasAnimations, destroy };
+
+    #runCallback = () => {
+      if (this.#isDestroyed) return;
+      const state = this.#transitions.isFast() ? proxyMerge(this.#state, this.#transitions.getState()) : this.#state;
+      state.static = this.#state;
+      this.#callback(state);
+    };
   }
+
   function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
     const { begin, end } = range;
     const totalXWidth = data.xLabels.length - 1;
+
     const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
     const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
+
     const xAxisScale = calculateXAxisScale(viewportSize.width, labelFromIndex, labelToIndex);
-    const yRanges = data.isStacked ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+
+    const yRanges = data.isStacked
+      ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState)
+      : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+
     const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
-    const yAxisScaleSecond = data.hasSecondYAxis && calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
+    const yAxisScaleSecond = data.hasSecondYAxis &&
+      calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond, yRanges.yMaxViewportSecond);
+
     const yStep = yScaleLevelToStep(yAxisScale);
     yRanges.yMinViewport = Math.floor(yRanges.yMinViewport / yStep) * yStep;
+
     if (yAxisScaleSecond) {
       const yStepSecond = yScaleLevelToStep(yAxisScaleSecond);
       yRanges.yMinViewportSecond = Math.floor(yRanges.yMinViewportSecond / yStepSecond) * yStepSecond;
     }
+
     const datasetsOpacity = {};
     data.datasets.forEach(({ key }) => {
       datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
     });
+
     const extendedLabelFromIndex = Math.max(0, labelFromIndex - 1);
     const extendedLabelToIndex = Math.min(labelToIndex + 1, totalXWidth);
-    const resolvedFocusOn = focusOn !== void 0 ? focusOn : prevState.focusOn;
-    const datasetsPieShift = data.isPie ? calculatePieShifts(data, viewportSize, filter, resolvedFocusOn, extendedLabelFromIndex, extendedLabelToIndex) : null;
+    const resolvedFocusOn = focusOn !== undefined ? focusOn : prevState.focusOn;
+
+    const datasetsPieShift = data.isPie
+      ? calculatePieShifts(data, viewportSize, filter, resolvedFocusOn, extendedLabelFromIndex, extendedLabelToIndex)
+      : null;
+
+    // TODO perf
     return Object.assign(
       {
         totalXWidth,
@@ -447,59 +552,86 @@ var LovelyChart = function(exports) {
         labelToIndex: extendedLabelToIndex,
         filter: Object.assign({}, filter),
         focusOn: resolvedFocusOn,
-        minimapDelta: minimapDelta !== void 0 ? minimapDelta : prevState.minimapDelta
+        minimapDelta: minimapDelta !== undefined ? minimapDelta : prevState.minimapDelta,
       },
       yRanges,
       datasetsOpacity,
       datasetsPieShift,
-      range
+      range,
     );
   }
+
+  // Targets (0 or 1) for the animated `pieShift#*` props: 1 for the sector
+  // currently under the pointer. Mirrors the sector containment test used by
+  // the tooltip, with angles growing from -PI/2 over the filtered totals.
   function calculatePieShifts(data, viewportSize, filter, pointerVector, labelFromIndex, labelToIndex) {
     const radius = Math.max(0, Math.min(
       viewportSize.width,
-      viewportSize.height - X_AXIS_HEIGHT - PLOT_TOP_PADDING
+      viewportSize.height - X_AXIS_HEIGHT - PLOT_TOP_PADDING,
     )) * PLOT_PIE_RADIUS_FACTOR;
-    const sums = data.datasets.map(({ key, values }) => filter[key] ? values.slice(labelFromIndex, labelToIndex + 1).reduce((a, x) => a + (x || 0), 0) : 0);
+
+    const sums = data.datasets.map(({ key, values }) => (
+      filter[key]
+        ? values.slice(labelFromIndex, labelToIndex + 1).reduce((a, x) => a + (x || 0), 0)
+        : 0
+    ));
     const total = sums.reduce((a, x) => a + x, 0);
+
     const shifts = {};
     let offset = 0;
     data.datasets.forEach(({ key }, i) => {
       const beginAngle = offset / total * Math.PI * 2 - Math.PI / 2;
       offset += sums[i];
       const endAngle = offset / total * Math.PI * 2 - Math.PI / 2;
+
       const isFocused = Boolean(
-        pointerVector && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= radius
+        pointerVector &&
+        beginAngle <= pointerVector.angle &&
+        pointerVector.angle < endAngle &&
+        pointerVector.distance <= radius,
       );
+
       shifts[`pieShift#${key}`] = isFocused ? 1 : 0;
     });
+
     return shifts;
   }
+
   function calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState) {
     const secondaryYAxisDataset = data.hasSecondYAxis && data.datasets.slice(-1)[0];
     const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
+
     const yRanges = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets);
+
     if (secondaryYAxisDataset) {
       const {
         yMinViewport: yMinViewportSecond,
         yMaxViewport: yMaxViewportSecond,
         yMinMinimap: yMinMinimapSecond,
-        yMaxMinimap: yMaxMinimapSecond
+        yMaxMinimap: yMaxMinimapSecond,
       } = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, [secondaryYAxisDataset]);
+
       Object.assign(yRanges, {
         yMinViewportSecond,
         yMaxViewportSecond,
         yMinMinimapSecond,
-        yMaxMinimapSecond
+        yMaxMinimapSecond,
       });
     }
+
     return yRanges;
   }
+
   function calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, datasets) {
-    const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(mergeArrays(datasets.map(({ yMax, yMin }) => [yMax, yMin])));
-    const yMinMinimap = yMinMinimapReal < 0 ? yMinMinimapReal : yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0;
+    const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
+      = getMaxMin(mergeArrays(datasets.map(({ yMax, yMin }) => [yMax, yMin])));
+    const yMinMinimap = yMinMinimapReal < 0
+      ? yMinMinimapReal
+      : (yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0);
+
     let yMinViewport;
     let yMaxViewport;
+
     if (labelFromIndex === 0 && labelToIndex === data.xLabels.length - 1) {
       yMinViewport = yMinMinimap;
       yMaxViewport = yMaxMinimap;
@@ -507,20 +639,25 @@ var LovelyChart = function(exports) {
       const filteredValues = datasets.map(({ values }) => values);
       const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
       const viewportMaxMin = getMaxMin(mergeArrays(viewportValues));
-      const yMinViewportReal = viewportMaxMin.min !== void 0 ? viewportMaxMin.min : prevState.yMinViewport;
-      yMaxViewport = viewportMaxMin.max !== void 0 ? viewportMaxMin.max : prevState.yMaxViewport;
-      yMinViewport = yMinViewportReal < 0 ? yMinViewportReal : yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0;
+      const yMinViewportReal = viewportMaxMin.min !== undefined ? viewportMaxMin.min : prevState.yMinViewport;
+      yMaxViewport = viewportMaxMin.max !== undefined ? viewportMaxMin.max : prevState.yMaxViewport;
+      yMinViewport = yMinViewportReal < 0
+        ? yMinViewportReal
+        : (yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0);
     }
+
     return {
       yMinViewport,
       yMaxViewport,
       yMinMinimap,
-      yMaxMinimap
+      yMaxMinimap,
     };
   }
+
   function calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) {
     const filteredDatasets = data.datasets.filter((d) => filter[d.key]);
     const filteredValues = filteredDatasets.map(({ values }) => values);
+
     const length = filteredValues[0] ? filteredValues[0].length : 0;
     const posSums = new Array(length).fill(0);
     const negSums = new Array(length).fill(0);
@@ -528,219 +665,285 @@ var LovelyChart = function(exports) {
       for (let j = 0; j < length; j++) {
         const v = filteredValues[i][j];
         if (v == null) continue;
-        if (v >= 0) posSums[j] += v;
-        else negSums[j] += v;
+        if (v >= 0) posSums[j] += v; else negSums[j] += v;
       }
     }
+
     const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(posSums);
     const { min: yMinMinimap = prevState.yMinMinimap } = getMaxMin(negSums);
     const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(posSums.slice(labelFromIndex, labelToIndex + 1));
     const { min: yMinViewport = prevState.yMinViewport } = getMaxMin(negSums.slice(labelFromIndex, labelToIndex + 1));
+
     return {
       yMinViewport,
       yMaxViewport,
       yMinMinimap,
-      yMaxMinimap
+      yMaxMinimap,
     };
   }
+
   function calculateXAxisScale(plotWidth, labelFromIndex, labelToIndex) {
     const viewportLabelsCount = labelToIndex - labelFromIndex;
     const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
+
     return xStepToScaleLevel(viewportLabelsCount / maxColumns);
   }
+
   function calculateYAxisScale(plotHeight, yMin, yMax) {
     const availableHeight = plotHeight - X_AXIS_HEIGHT;
     const viewportLabelsCount = yMax - yMin;
     const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);
+
     return yStepToScaleLevel(viewportLabelsCount / maxRows);
   }
-  const createElement = (tagName = "div") => {
+
+  const createElement = (tagName = 'div') => {
     return document.createElement(tagName);
   };
+
   function addEventListener(element, event, cb) {
     element.addEventListener(event, cb);
   }
+
   function removeEventListener(element, event, cb) {
     element.removeEventListener(event, cb);
   }
-  function toggleText(element, newText, className = "", inverse = false) {
+
+  function toggleText(element, newText, className = '', inverse = false) {
     const container = element.parentNode;
-    container.classList.add("lovely-chart--transition-container");
+    container.classList.add('lovely-chart--transition-container');
+
     const newElement = createElement(element.tagName);
-    newElement.className = `${className} lovely-chart--transition lovely-chart--position-${inverse ? "top" : "bottom"} lovely-chart--state-hidden`;
+    newElement.className = `${className} lovely-chart--transition lovely-chart--position-${inverse ? 'top' : 'bottom'} lovely-chart--state-hidden`;
     newElement.textContent = newText;
-    const selector = className.length ? `.${className.split(" ").join(".")}` : "";
+
+    const selector = className.length ? `.${className.split(' ').join('.')}` : '';
     const oldElements = container.querySelectorAll(`${selector}.lovely-chart--state-hidden`);
-    oldElements.forEach((e) => e.remove());
-    element.classList.add("lovely-chart--transition");
-    element.classList.remove("lovely-chart--position-bottom", "lovely-chart--position-top");
-    element.classList.add(inverse ? "lovely-chart--position-bottom" : "lovely-chart--position-top");
+    oldElements.forEach(e => e.remove());
+
+    element.classList.add('lovely-chart--transition');
+    element.classList.remove('lovely-chart--position-bottom', 'lovely-chart--position-top');
+    element.classList.add(inverse ? 'lovely-chart--position-bottom' : 'lovely-chart--position-top');
     container.insertBefore(newElement, element.nextSibling);
+
     toggleElementIn(newElement);
     toggleElementOut(element);
+
     return newElement;
   }
+
   function toggleElementIn(element) {
-    element.classList.remove("lovely-chart--state-animated");
-    element.classList.add("lovely-chart--state-animated");
-    element.classList.remove("lovely-chart--state-hidden");
+    // Remove and add `animated` class to re-trigger animation
+    element.classList.remove('lovely-chart--state-animated');
+    element.classList.add('lovely-chart--state-animated');
+    element.classList.remove('lovely-chart--state-hidden');
   }
+
   function toggleElementOut(element) {
-    element.classList.remove("lovely-chart--state-animated");
-    element.classList.add("lovely-chart--state-animated");
-    element.classList.add("lovely-chart--state-hidden");
+    // Remove and add `animated` class to re-trigger animation
+    element.classList.remove('lovely-chart--state-animated');
+    element.classList.add('lovely-chart--state-animated');
+    element.classList.add('lovely-chart--state-hidden');
   }
-  function createHeader(container, title, zoomOutLabel = "Zoom out", zoomOutCallback) {
-    let _element;
-    let _titleElement;
-    let _zoomOutElement;
-    let _captionElement;
-    let _isZooming;
-    let _zoomBindTimeout = null;
-    const setCaptionThrottled = throttle(setCaption, 100, false);
-    _setupLayout();
-    function setCaption(caption) {
-      if (_isZooming) {
+
+  class Header {
+    #container;
+    #title;
+    #zoomOutLabel;
+    #zoomOutCallback;
+
+    #element;
+    #titleElement;
+    #zoomOutElement;
+    #captionElement;
+    #isZooming;
+    #zoomBindTimeout = null;
+
+    setCaption = throttle((caption) => this.#setCaption(caption), 100, false);
+
+    constructor(container, title, zoomOutLabel = 'Zoom out', zoomOutCallback) {
+      this.#container = container;
+      this.#title = title;
+      this.#zoomOutLabel = zoomOutLabel;
+      this.#zoomOutCallback = zoomOutCallback;
+
+      this.#setupLayout();
+    }
+
+    zoom(caption) {
+      this.#zoomOutElement = toggleText(this.#titleElement, this.#zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control');
+      this.#zoomBindTimeout = setTimeout(() => {
+        this.#zoomBindTimeout = null;
+        addEventListener(this.#zoomOutElement, 'click', this.#onZoomOut);
+      }, 500);
+
+      this.#setCaption(caption);
+    }
+
+    destroy() {
+      if (this.#zoomBindTimeout !== null) {
+        clearTimeout(this.#zoomBindTimeout);
+        this.#zoomBindTimeout = null;
+      }
+    }
+
+    toggleIsZooming(isZooming) {
+      this.#isZooming = isZooming;
+    }
+
+    #setCaption(caption) {
+      if (this.#isZooming) {
         return;
       }
-      _captionElement.textContent = caption;
+
+      this.#captionElement.textContent = caption;
     }
-    function zoom(caption) {
-      _zoomOutElement = toggleText(_titleElement, zoomOutLabel, "lovely-chart--header-title lovely-chart--header-zoom-out-control");
-      _zoomBindTimeout = setTimeout(() => {
-        _zoomBindTimeout = null;
-        addEventListener(_zoomOutElement, "click", _onZoomOut);
-      }, 500);
-      setCaption(caption);
+
+    #setupLayout() {
+      this.#element = createElement();
+      this.#element.className = 'lovely-chart--header';
+
+      this.#titleElement = createElement();
+      this.#titleElement.className = 'lovely-chart--header-title';
+      this.#titleElement.textContent = this.#title;
+      this.#element.appendChild(this.#titleElement);
+
+      this.#captionElement = createElement();
+      this.#captionElement.className = 'lovely-chart--header-caption lovely-chart--position-right';
+      this.#element.appendChild(this.#captionElement);
+
+      this.#container.appendChild(this.#element);
     }
-    function destroy() {
-      if (_zoomBindTimeout !== null) {
-        clearTimeout(_zoomBindTimeout);
-        _zoomBindTimeout = null;
-      }
-    }
-    function toggleIsZooming(isZooming) {
-      _isZooming = isZooming;
-    }
-    function _setupLayout() {
-      _element = createElement();
-      _element.className = "lovely-chart--header";
-      _titleElement = createElement();
-      _titleElement.className = "lovely-chart--header-title";
-      _titleElement.textContent = title;
-      _element.appendChild(_titleElement);
-      _captionElement = createElement();
-      _captionElement.className = "lovely-chart--header-caption lovely-chart--position-right";
-      _element.appendChild(_captionElement);
-      container.appendChild(_element);
-    }
-    function _onZoomOut() {
-      _titleElement = toggleText(_zoomOutElement, title, "lovely-chart--header-title", true);
-      _titleElement.classList.remove("lovely-chart--transition");
-      zoomOutCallback();
-    }
-    return {
-      setCaption: setCaptionThrottled,
-      zoom,
-      toggleIsZooming,
-      destroy
+
+    #onZoomOut = () => {
+      this.#titleElement = toggleText(this.#zoomOutElement, this.#title, 'lovely-chart--header-title', true);
+      this.#titleElement.classList.remove('lovely-chart--transition');
+
+      this.#zoomOutCallback();
     };
   }
+
   function statsFormatDayHour(labels) {
     return labels.map((value) => {
       const date = new Date(value);
-      const hours = String(date.getHours()).padStart(2, "0");
+      const hours = String(date.getHours()).padStart(2, '0');
       return {
         value,
-        text: `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`
+        text: `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`,
       };
     });
   }
+
   function statsFormatDayHourFull(value) {
     const date = new Date(value);
-    const hours = String(date.getHours()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, '0');
     return `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`;
   }
+
   function statsFormatDay(labels) {
     return labels.map((value) => {
       const date = new Date(value);
       const day = date.getDate();
       const month = MONTHS[date.getMonth()];
-      return {
+
+      return ({
         value,
-        text: `${day} ${month}`
-      };
+        text: `${day} ${month}`,
+      });
     });
   }
+
   function statsFormatMin(labels) {
     return labels.map((value) => ({
       value,
-      text: new Date(value).toString().match(/(\d+:\d+):/)[1]
+      text: new Date(value).toString().match(/(\d+:\d+):/)[1],
     }));
   }
+
   function statsFormatWeek(labels) {
     return labels.map((value) => {
       const date = new Date(value);
       const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
+
       return {
         value,
-        text: `Week ${Math.floor((value - yearStart) / MILISECONDS_IN_WEEK) + 1}`
+        text: `Week ${Math.floor((value - yearStart) / MILISECONDS_IN_WEEK) + 1}`,
       };
     });
   }
+
   function statsFormatMonth(labels) {
     return labels.map((value) => ({
       value,
-      text: MONTHS_FULL[new Date(value).getUTCMonth()]
+      text: MONTHS_FULL[new Date(value).getUTCMonth()],
     }));
   }
+
   function statsFormatYear(labels) {
     return labels.map((value) => ({
       value,
-      text: String(new Date(value).getUTCFullYear())
+      text: String(new Date(value).getUTCFullYear()),
     }));
   }
+
   function statsFormatText(labels) {
     return labels.map((value, i) => {
-      return {
+      return ({
         value: i,
-        text: value
-      };
+        text: value,
+      });
     });
   }
+
   function humanize(value, decimals = 1) {
     const abs = Math.abs(value);
-    const sign = value < 0 ? "-" : "";
+    const sign = value < 0 ? '-' : '';
+
     if (abs >= 1e6) {
-      return sign + keepThreeDigits(abs / 1e6, decimals) + "M";
+      return sign + keepThreeDigits(abs / 1e6, decimals) + 'M';
     } else if (abs >= 1e3) {
-      return sign + keepThreeDigits(abs / 1e3, decimals) + "K";
+      return sign + keepThreeDigits(abs / 1e3, decimals) + 'K';
     }
+
+    // Delegate to formatInteger: gives thousand separators, decimal trimming
+    // and incidentally strips IEEE-754 noise via toFixed rounding.
     return formatInteger(value);
   }
+
+  // TODO perf
   function keepThreeDigits(value, decimals) {
-    return value.toFixed(decimals).replace(/(\d{3,})\.\d+/, "$1").replace(/\.0+$/, "");
+    return value
+      .toFixed(decimals)
+      .replace(/(\d{3,})\.\d+/, '$1')
+      .replace(/\.0+$/, '');
   }
+
   function formatInteger(n) {
     if (!Number.isInteger(n)) {
       const abs = Math.abs(n);
-      const decimals = abs > 0 && abs < 1 ? Math.max(2, -Math.floor(Math.log10(abs)) + 1) : 2;
-      const [intPart, decPart] = n.toFixed(decimals).split(".");
-      const trimmed = decPart.replace(/0+$/, "");
-      return trimmed ? addThousandSeparators(intPart) + "." + trimmed : addThousandSeparators(intPart);
+      const decimals = (abs > 0 && abs < 1)
+        ? Math.max(2, -Math.floor(Math.log10(abs)) + 1)
+        : 2;
+      const [intPart, decPart] = n.toFixed(decimals).split('.');
+      const trimmed = decPart.replace(/0+$/, '');
+      return trimmed ? addThousandSeparators(intPart) + '.' + trimmed : addThousandSeparators(intPart);
     }
     return addThousandSeparators(String(n));
   }
+
   function addThousandSeparators(s) {
-    return s.replace(/\d(?=(\d{3})+$)/g, "$& ");
+    return s.replace(/\d(?=(\d{3})+$)/g, '$& ');
   }
+
   function getFullLabelDate(label, { isShort = false } = {}) {
     return getLabelDate(label, { isShort, displayWeekDay: true });
   }
+
   function getLabelDate(label, { isShort = false, displayWeekDay = false, displayYear = true, displayHours = false } = {}) {
     const { value } = label;
     const date = new Date(value);
     const weekDaysArray = isShort ? WEEK_DAYS_SHORT : WEEK_DAYS;
+
     let string = `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
     if (displayWeekDay) {
       string = `${weekDaysArray[date.getUTCDay()]}, ` + string;
@@ -749,417 +952,451 @@ var LovelyChart = function(exports) {
       string += ` ${date.getUTCFullYear()}`;
     }
     if (displayHours) {
-      string += `, ${("0" + date.getUTCHours()).slice(-2)}:${("0" + date.getUTCMinutes()).slice(-2)}`;
+      string += `, ${('0' + date.getUTCHours()).slice(-2)}:${('0' + date.getUTCMinutes()).slice(-2)}`;
     }
+
     return string;
   }
+
   function getLabelTime(label) {
     return new Date(label.value).toString().match(/(\d+:\d+):/)[1];
   }
+
   function detectSkin() {
-    return document.documentElement.classList.contains("theme-dark") ? "skin-night" : "skin-day";
+    return document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
   }
+
   let skin = detectSkin();
+
   const COLORS = {
-    "skin-day": {
-      "background": "#FFFFFF",
-      "text-color": "#222222",
-      "minimap-mask": "#E2EEF9/0.6",
-      "minimap-slider": "#C0D1E1",
-      "grid-lines": "#182D3B/0.1",
-      "zoom-out-text": "#108BE3",
-      "tooltip-background": "#FFFFFF",
-      "tooltip-arrow": "#D2D5D7",
-      "mask": "#FFFFFF/0.5",
-      "x-axis-text": "#252529/0.6",
-      "y-axis-text": "#252529/0.6"
+    'skin-day': {
+      'background': '#FFFFFF',
+      'text-color': '#222222',
+      'minimap-mask': '#E2EEF9/0.6',
+      'minimap-slider': '#C0D1E1',
+      'grid-lines': '#182D3B/0.1',
+      'zoom-out-text': '#108BE3',
+      'tooltip-background': '#FFFFFF',
+      'tooltip-arrow': '#D2D5D7',
+      'mask': '#FFFFFF/0.5',
+      'x-axis-text': '#252529/0.6',
+      'y-axis-text': '#252529/0.6',
     },
-    "skin-night": {
-      "background": "#242F3E",
-      "text-color": "#FFFFFF",
-      "minimap-mask": "#304259/0.6",
-      "minimap-slider": "#56626D",
-      "grid-lines": "#FFFFFF/0.1",
-      "zoom-out-text": "#48AAF0",
-      "tooltip-background": "#1c2533",
-      "tooltip-arrow": "#D2D5D7",
-      "mask": "#242F3E/0.5",
-      "x-axis-text": "#A3B1C2/0.6",
-      "y-axis-text": "#A3B1C2/0.6"
-    }
+    'skin-night': {
+      'background': '#242F3E',
+      'text-color': '#FFFFFF',
+      'minimap-mask': '#304259/0.6',
+      'minimap-slider': '#56626D',
+      'grid-lines': '#FFFFFF/0.1',
+      'zoom-out-text': '#48AAF0',
+      'tooltip-background': '#1c2533',
+      'tooltip-arrow': '#D2D5D7',
+      'mask': '#242F3E/0.5',
+      'x-axis-text': '#A3B1C2/0.6',
+      'y-axis-text': '#A3B1C2/0.6',
+    },
   };
+
+  // Prefer Constructable Stylesheets so a strict `style-src` CSP without
+  // `'unsafe-inline'` does not block us; fall back to an injected <style> on
+  // browsers that do not support them or where construction throws.
   let styleSheet;
-  if (typeof CSSStyleSheet === "function") {
+  if (typeof CSSStyleSheet === 'function') {
     try {
       styleSheet = new CSSStyleSheet();
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, styleSheet];
     } catch (e) {
-      styleSheet = void 0;
+      styleSheet = undefined;
     }
   }
   if (!styleSheet) {
-    const styleElement = document.createElement("style");
-    styleElement.type = "text/css";
-    styleElement.appendChild(document.createTextNode(""));
+    const styleElement = document.createElement('style');
+    styleElement.type = 'text/css';
+    styleElement.appendChild(document.createTextNode(''));
     document.head.appendChild(styleElement);
     styleSheet = styleElement.sheet;
   }
+
   new MutationObserver(() => {
     skin = detectSkin();
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
   function createColors(datasetColors) {
     const colors = {};
     const baseClass = `.lovely-chart--color`;
-    ["skin-day", "skin-night"].forEach((skin2) => {
-      colors[skin2] = {};
-      Object.keys(COLORS[skin2]).forEach((prop) => {
-        colors[skin2][prop] = hexToChannels(COLORS[skin2][prop]);
+
+    ['skin-day', 'skin-night'].forEach((skin) => {
+      colors[skin] = {};
+
+      Object.keys(COLORS[skin]).forEach((prop) => {
+        colors[skin][prop] = hexToChannels(COLORS[skin][prop]);
       });
+
       Object.keys(datasetColors).forEach((key) => {
-        colors[skin2][`dataset#${key}`] = hexToChannels(datasetColors[key]);
+        colors[skin][`dataset#${key}`] = hexToChannels(datasetColors[key]);
+
         addCssRule(styleSheet, `.lovely-chart--tooltip-dataset-value${baseClass}-${datasetColors[key].slice(1)}`, `color: ${datasetColors[key]}`);
         addCssRule(styleSheet, `.lovely-chart--button${baseClass}-${datasetColors[key].slice(1)}`, `border-color: ${datasetColors[key]}; color: ${datasetColors[key]}`);
+
         const checkedBtnSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${datasetColors[key].slice(1)}`;
         addCssRule(styleSheet, checkedBtnSelector, `background-color: ${datasetColors[key]}`);
       });
     });
+
     return colors;
   }
+
   function getCssColor(colors, key, opacity) {
     return buildCssColor(colors[skin][key], opacity);
   }
+
   function hexToChannels(hexWithAlpha) {
-    const [hex, alpha] = hexWithAlpha.replace("#", "").split("/");
+    const [hex, alpha] = hexWithAlpha.replace('#', '').split('/');
+
     return [
       parseInt(hex.slice(0, 2), 16),
       parseInt(hex.slice(2, 4), 16),
       parseInt(hex.slice(4, 6), 16),
-      alpha ? parseFloat(alpha) : 1
+      alpha ? parseFloat(alpha) : 1,
     ];
   }
+
   function buildCssColor([r, g, b, a = 1], opacity = 1) {
     return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
   }
+
   function isColorCloseToBackground(colors, hex) {
-    const bg = colors[skin]["tooltip-background"];
+    const bg = colors[skin]['tooltip-background'];
     const fg = hexToChannels(hex);
     return colorDistance(bg, fg) < 70;
   }
+
   function isColorCloseToWhite(hex) {
     return colorDistance(hexToChannels(hex), [255, 255, 255]) < 70;
   }
+
   function colorDistance([r1, g1, b1], [r2, g2, b2]) {
     return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
   }
+
   function addCssRule(sheet, selector, rule) {
     sheet.insertRule(`${selector} { ${rule} }`, sheet.cssRules.length);
   }
-  function createProjection(params) {
-    const {
-      begin,
-      end,
-      totalXWidth,
-      yMin,
-      yMax,
-      availableWidth,
-      availableHeight,
-      xPadding = 0,
-      yPadding = 0,
-      withColumns = false
-    } = params;
-    const xUnitsCount = withColumns ? totalXWidth + 1 : totalXWidth;
-    const xRatio = end !== begin ? end - begin : 1;
-    const baseXFactor = availableWidth / (xRatio * xUnitsCount);
-    const leftPadding = Math.max(0, xPadding - begin * xUnitsCount * baseXFactor);
-    const rightPadding = Math.max(0, xPadding - (1 - end) * xUnitsCount * baseXFactor);
-    const effectiveWidth = availableWidth - leftPadding - rightPadding;
-    const xFactor = effectiveWidth / (xRatio * xUnitsCount);
-    let xOffsetPx = begin * xUnitsCount * xFactor - leftPadding;
-    if (withColumns) {
-      xOffsetPx -= xFactor / 2;
-    }
-    const effectiveHeight = availableHeight - yPadding;
-    const yFactor = effectiveHeight / (yMax - yMin);
-    const yOffsetPx = yMin * yFactor;
-    function getState() {
-      return { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx };
-    }
-    function findClosestLabelIndex(xPx) {
-      const labelIndex = Math.round((xPx + xOffsetPx) / xFactor);
-      return withColumns ? Math.max(0, Math.min(labelIndex, totalXWidth)) : labelIndex;
-    }
-    function copy(overrides, cons) {
-      return createProjection(proxyMerge(params, overrides));
-    }
-    function getCenter() {
-      return [
-        availableWidth / 2,
-        availableHeight - effectiveHeight / 2
-      ];
-    }
-    function getSize() {
-      return [availableWidth, effectiveHeight];
-    }
-    function getParams() {
-      return params;
-    }
-    return {
-      findClosestLabelIndex,
-      copy,
-      getCenter,
-      getSize,
-      getParams,
-      getState
-    };
-  }
-  function toPixels(projection, labelIndex, value) {
-    const { xFactor, xOffsetPx, availableHeight, yFactor, yOffsetPx } = projection.getState();
-    return [
-      labelIndex * xFactor - xOffsetPx,
-      availableHeight - (value * yFactor - yOffsetPx)
-    ];
-  }
+
   function getAxesFont(context) {
-    const fontFamily = getComputedStyle(context.canvas).fontFamily || "sans-serif";
+    const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
     return `${AXES_FONT_STYLE} ${fontFamily}`;
   }
-  function createAxes(context, data, plotSize, colors) {
-    function drawXAxis(state, projection) {
+
+  class Axes {
+    #context;
+    #data;
+    #plotSize;
+    #colors;
+
+    constructor(context, data, plotSize, colors) {
+      this.#context = context;
+      this.#data = data;
+      this.#plotSize = plotSize;
+      this.#colors = colors;
+    }
+
+    drawXAxis(state, projection) {
+      const context = this.#context;
+      const plotSize = this.#plotSize;
+
       context.clearRect(0, plotSize.height - X_AXIS_HEIGHT + 1, plotSize.width, X_AXIS_HEIGHT + 1);
+
       const topOffset = plotSize.height - X_AXIS_HEIGHT / 2;
       const scaleLevel = Math.floor(state.xAxisScale);
       const step = xScaleLevelToStep(scaleLevel);
       const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
+
       context.font = getAxesFont(context);
-      context.textAlign = "center";
-      context.textBaseline = "middle";
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+
       for (let i = state.labelFromIndex; i <= state.labelToIndex; i++) {
         const shiftedI = i - X_AXIS_SHIFT_START;
+
         if (shiftedI % step !== 0) {
           continue;
         }
-        const label = data.xLabels[i];
-        const [xPx] = toPixels(projection, i, 0);
+
+        const label = this.#data.xLabels[i];
+        const [xPx] = projection.toPixels(i, 0);
         let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
         opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width);
-        context.fillStyle = getCssColor(colors, "x-axis-text", opacity);
+
+        context.fillStyle = getCssColor(this.#colors, 'x-axis-text', opacity);
         context.fillText(label.text, xPx, topOffset);
       }
     }
-    function drawYAxis(state, projection, secondaryProjection) {
+
+    drawYAxis(state, projection, secondaryProjection) {
       const {
-        yAxisScale,
-        yAxisScaleFrom,
-        yAxisScaleTo,
-        yAxisScaleProgress = 0,
-        yMinViewport,
-        yMinViewportFrom,
-        yMinViewportTo,
-        yMaxViewport,
-        yMaxViewportFrom,
-        yMaxViewportTo,
-        yMinViewportSecond,
-        yMinViewportSecondFrom,
-        yMinViewportSecondTo,
-        yMaxViewportSecond,
-        yMaxViewportSecondFrom,
-        yMaxViewportSecondTo
+        yAxisScale, yAxisScaleFrom, yAxisScaleTo, yAxisScaleProgress = 0,
+        yMinViewport, yMinViewportFrom, yMinViewportTo,
+        yMaxViewport, yMaxViewportFrom, yMaxViewportTo,
+        yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
+        yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
       } = state;
-      const colorKey = secondaryProjection && `dataset#${data.datasets[0].key}`;
-      const isYChanging = yMinViewportFrom !== void 0 || yMaxViewportFrom !== void 0;
-      if (data.isPercentage) {
-        _drawYAxisPercents(projection);
-      } else if (data.secondaryYAxis) {
-        _drawYAxisScaled(
+      const colorKey = secondaryProjection && `dataset#${this.#data.datasets[0].key}`;
+      const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
+
+      if (this.#data.isPercentage) {
+        this.#drawYAxisPercents(projection);
+      } else if (this.#data.secondaryYAxis) {
+        this.#drawYAxisScaled(
           state,
           projection,
           Math.round(yAxisScaleTo || yAxisScale),
-          yMinViewportTo !== void 0 ? yMinViewportTo : yMinViewport,
-          yMaxViewportTo !== void 0 ? yMaxViewportTo : yMaxViewport,
-          yAxisScaleFrom ? yAxisScaleProgress : 1
-        );
-        _drawSecondaryYAxis(
-          state,
-          projection,
-          Math.round(yAxisScaleTo || yAxisScale),
-          yMinViewportTo !== void 0 ? yMinViewportTo : yMinViewport,
-          yMaxViewportTo !== void 0 ? yMaxViewportTo : yMaxViewport,
+          yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
+          yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
           yAxisScaleFrom ? yAxisScaleProgress : 1,
-          data.secondaryYAxis
+        );
+
+        this.#drawSecondaryYAxis(
+          state,
+          projection,
+          Math.round(yAxisScaleTo || yAxisScale),
+          yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
+          yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
+          yAxisScaleFrom ? yAxisScaleProgress : 1,
+          this.#data.secondaryYAxis,
         );
       } else {
-        _drawYAxisScaled(
+        this.#drawYAxisScaled(
           state,
           projection,
           Math.round(yAxisScaleTo || yAxisScale),
-          yMinViewportTo !== void 0 ? yMinViewportTo : yMinViewport,
-          yMaxViewportTo !== void 0 ? yMaxViewportTo : yMaxViewport,
+          yMinViewportTo !== undefined ? yMinViewportTo : yMinViewport,
+          yMaxViewportTo !== undefined ? yMaxViewportTo : yMaxViewport,
           yAxisScaleFrom ? yAxisScaleProgress : 1,
-          colorKey
+          colorKey,
         );
       }
+
       if (yAxisScaleProgress > 0 && isYChanging) {
-        _drawYAxisScaled(
+        this.#drawYAxisScaled(
           state,
           projection,
           Math.round(yAxisScaleFrom),
-          yMinViewportFrom !== void 0 ? yMinViewportFrom : yMinViewport,
-          yMaxViewportFrom !== void 0 ? yMaxViewportFrom : yMaxViewport,
+          yMinViewportFrom !== undefined ? yMinViewportFrom : yMinViewport,
+          yMaxViewportFrom !== undefined ? yMaxViewportFrom : yMaxViewport,
           1 - yAxisScaleProgress,
-          colorKey
+          colorKey,
         );
       }
+
       if (secondaryProjection) {
         const { yAxisScaleSecond, yAxisScaleSecondFrom, yAxisScaleSecondTo, yAxisScaleSecondProgress = 0 } = state;
-        const secondaryColorKey = `dataset#${data.datasets[data.datasets.length - 1].key}`;
-        const isYChanging2 = yMinViewportSecondFrom !== void 0 || yMaxViewportSecondFrom !== void 0;
-        _drawYAxisScaled(
+        const secondaryColorKey = `dataset#${this.#data.datasets[this.#data.datasets.length - 1].key}`;
+        const isYChanging = yMinViewportSecondFrom !== undefined || yMaxViewportSecondFrom !== undefined;
+
+        this.#drawYAxisScaled(
           state,
           secondaryProjection,
           Math.round(yAxisScaleSecondTo || yAxisScaleSecond),
-          yMinViewportSecondTo !== void 0 ? yMinViewportSecondTo : yMinViewportSecond,
-          yMaxViewportSecondTo !== void 0 ? yMaxViewportSecondTo : yMaxViewportSecond,
+          yMinViewportSecondTo !== undefined ? yMinViewportSecondTo : yMinViewportSecond,
+          yMaxViewportSecondTo !== undefined ? yMaxViewportSecondTo : yMaxViewportSecond,
           yAxisScaleSecondFrom ? yAxisScaleSecondProgress : 1,
           secondaryColorKey,
-          true
+          true,
         );
-        if (yAxisScaleSecondProgress > 0 && isYChanging2) {
-          _drawYAxisScaled(
+
+        if (yAxisScaleSecondProgress > 0 && isYChanging) {
+          this.#drawYAxisScaled(
             state,
             secondaryProjection,
             Math.round(yAxisScaleSecondFrom),
-            yMinViewportSecondFrom !== void 0 ? yMinViewportSecondFrom : yMinViewportSecond,
-            yMaxViewportSecondFrom !== void 0 ? yMaxViewportSecondFrom : yMaxViewportSecond,
+            yMinViewportSecondFrom !== undefined ? yMinViewportSecondFrom : yMinViewportSecond,
+            yMaxViewportSecondFrom !== undefined ? yMaxViewportSecondFrom : yMaxViewportSecond,
             1 - yAxisScaleSecondProgress,
             secondaryColorKey,
-            true
+            true,
           );
         }
       }
     }
-    function _drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorKey = null, isSecondary = false) {
+
+    #drawYAxisScaled(state, projection, scaleLevel, yMin, yMax, opacity = 1, colorKey = null, isSecondary = false) {
+      const context = this.#context;
+      const plotSize = this.#plotSize;
       const step = yScaleLevelToStep(scaleLevel);
       const firstVisibleValue = Math.ceil(yMin / step) * step;
       const lastVisibleValue = Math.floor(yMax / step) * step;
+
       context.font = getAxesFont(context);
-      context.textAlign = isSecondary ? "right" : "left";
-      context.textBaseline = "bottom";
+      context.textAlign = isSecondary ? 'right' : 'left';
+      context.textBaseline = 'bottom';
+
       context.lineWidth = 1;
+
       context.beginPath();
+
       for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
-        const [, yPx] = toPixels(projection, 0, value);
+        const [, yPx] = projection.toPixels(0, value);
         const textOpacity = applyXEdgeOpacity(opacity, yPx);
-        context.fillStyle = colorKey ? getCssColor(colors, colorKey, textOpacity) : getCssColor(colors, "y-axis-text", textOpacity);
-        const label = isSecondary ? humanize(value) : _formatPrimaryAxisLabel(value);
+
+        context.fillStyle = colorKey
+          ? getCssColor(this.#colors, colorKey, textOpacity)
+          : getCssColor(this.#colors, 'y-axis-text', textOpacity);
+
+        const label = isSecondary
+          ? humanize(value)
+          : this.#formatPrimaryAxisLabel(value);
+
         if (!isSecondary) {
           context.fillText(label, GUTTER, yPx - GUTTER / 2);
         } else {
           context.fillText(label, plotSize.width - GUTTER, yPx - GUTTER / 2);
         }
+
         if (isSecondary) {
-          context.strokeStyle = getCssColor(colors, colorKey, opacity);
+          context.strokeStyle = getCssColor(this.#colors, colorKey, opacity);
+
           context.moveTo(plotSize.width - GUTTER, yPx);
           context.lineTo(plotSize.width - GUTTER * 2, yPx);
         } else {
           context.moveTo(GUTTER, yPx);
-          context.strokeStyle = getCssColor(colors, "grid-lines", opacity);
+          context.strokeStyle = getCssColor(this.#colors, 'grid-lines', opacity);
           context.lineTo(plotSize.width - GUTTER, yPx);
         }
       }
+
       context.stroke();
     }
-    function _drawYAxisPercents(projection) {
-      const percentValues = [0, 0.25, 0.5, 0.75, 1];
+
+    #drawYAxisPercents(projection) {
+      const context = this.#context;
+      const plotSize = this.#plotSize;
+      const percentValues = [0, 0.25, 0.50, 0.75, 1];
       const [, height] = projection.getSize();
+
       context.font = getAxesFont(context);
-      context.textAlign = "left";
-      context.textBaseline = "bottom";
+      context.textAlign = 'left';
+      context.textBaseline = 'bottom';
       context.lineWidth = 1;
+
       context.beginPath();
+
       percentValues.forEach((value) => {
         const yPx = height - height * value + PLOT_TOP_PADDING;
-        context.fillStyle = getCssColor(colors, "y-axis-text", 1);
+
+        context.fillStyle = getCssColor(this.#colors, 'y-axis-text', 1);
         context.fillText(`${value * 100}%`, GUTTER, yPx - GUTTER / 4);
+
         context.moveTo(GUTTER, yPx);
-        context.strokeStyle = getCssColor(colors, "grid-lines", 1);
+        context.strokeStyle = getCssColor(this.#colors, 'grid-lines', 1);
         context.lineTo(plotSize.width - GUTTER, yPx);
       });
+
       context.stroke();
     }
-    function _drawSecondaryYAxis(state, projection, scaleLevel, yMin, yMax, opacity = 1, secondaryYAxis) {
-      const { multiplier, prefix = "", suffix = "" } = secondaryYAxis;
+
+    #drawSecondaryYAxis(state, projection, scaleLevel, yMin, yMax, opacity = 1, secondaryYAxis) {
+      const context = this.#context;
+      const { multiplier, prefix = '', suffix = '' } = secondaryYAxis;
       const step = yScaleLevelToStep(scaleLevel);
       const firstVisibleValue = Math.ceil(yMin / step) * step;
       const lastVisibleValue = Math.floor(yMax / step) * step;
+
       context.font = getAxesFont(context);
-      context.textAlign = "right";
-      context.textBaseline = "bottom";
+      context.textAlign = 'right';
+      context.textBaseline = 'bottom';
+
       for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
-        const [, yPx] = toPixels(projection, 0, value);
+        const [, yPx] = projection.toPixels(0, value);
         const textOpacity = applyXEdgeOpacity(opacity, yPx);
         const secondaryValue = value * multiplier;
-        context.fillStyle = getCssColor(colors, "y-axis-text", textOpacity);
-        context.fillText(`${prefix}${humanize(secondaryValue)}${suffix}`, plotSize.width - GUTTER, yPx - GUTTER / 2);
+
+        context.fillStyle = getCssColor(this.#colors, 'y-axis-text', textOpacity);
+        context.fillText(`${prefix}${humanize(secondaryValue)}${suffix}`, this.#plotSize.width - GUTTER, yPx - GUTTER / 2);
       }
     }
-    function _formatPrimaryAxisLabel(value) {
+
+    #formatPrimaryAxisLabel(value) {
       const formatted = String(humanize(value));
-      const prefix = data.valuePrefix || "";
-      const suffix = data.valueSuffix || "";
-      if (data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
+      const prefix = this.#data.valuePrefix || '';
+      const suffix = this.#data.valueSuffix || '';
+      if (this.#data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
         return `-${prefix}${formatted.slice(1)}${suffix}`;
       }
       return `${prefix}${formatted}${suffix}`;
     }
-    return { drawXAxis, drawYAxis };
   }
+
   function setupCanvas(container, { width, height }) {
-    const canvas = createElement("canvas");
+    const canvas = createElement('canvas');
+
     canvas.width = width * DPR;
     canvas.height = height * DPR;
-    canvas.style.width = "100%";
+    canvas.style.width = '100%';
     canvas.style.height = `${height}px`;
-    const context = canvas.getContext("2d");
+
+    const context = canvas.getContext('2d');
     context.scale(DPR, DPR);
+
     container.appendChild(canvas);
+
     return { canvas, context };
   }
+
   function clearCanvas(canvas, context) {
     context.clearRect(0, 0, canvas.width, canvas.height);
   }
+
   function preparePoints(data, datasets, range, visibilities, bounds, pieToArea) {
-    let values = datasets.map(({ values: values2 }) => values2.slice(range.from, range.to + 1));
+    let values = datasets.map(({ values }) => (
+      values.slice(range.from, range.to + 1)
+    ));
+
     if (data.isPie && !pieToArea) {
       values = prepareSumsByX(values);
     }
-    const points = values.map((datasetValues, i) => datasetValues.map((value, j) => {
-      const isGap = value == null;
-      let visibleValue = isGap ? 0 : value;
-      if (data.isStacked && !isGap) {
-        visibleValue *= visibilities[i];
-      }
-      return {
-        labelIndex: range.from + j,
-        value,
-        visibleValue,
-        stackOffset: 0,
-        stackValue: visibleValue,
-        gap: isGap
-      };
-    }));
+
+    const points = values.map((datasetValues, i) => (
+      datasetValues.map((value, j) => {
+        const isGap = value == null;
+        let visibleValue = isGap ? 0 : value;
+
+        if (data.isStacked && !isGap) {
+          visibleValue *= visibilities[i];
+        }
+
+        return {
+          labelIndex: range.from + j,
+          value,
+          visibleValue,
+          stackOffset: 0,
+          stackValue: visibleValue,
+          gap: isGap,
+        };
+      })
+    ));
+
     if (data.isPercentage) {
       preparePercentage(points, bounds);
     }
+
     if (data.isStacked) {
       prepareStacked(points);
     }
+
     return points;
   }
+
   function getSumsByY(points) {
-    return sumArrays(points.map((datasetPoints) => datasetPoints.map(({ visibleValue }) => visibleValue)));
+    return sumArrays(points.map((datasetPoints) => (
+      datasetPoints.map(({ visibleValue }) => visibleValue)
+    )));
   }
+
+  // TODO perf cache for [0..1], use in state
   function preparePercentage(points, bounds) {
     const sumsByY = getSumsByY(points);
+
     points.forEach((datasetPoints) => {
       datasetPoints.forEach((point, j) => {
         point.percent = point.visibleValue / sumsByY[j];
@@ -1167,20 +1404,24 @@ var LovelyChart = function(exports) {
       });
     });
   }
+
   function prepareStacked(points) {
     const posAccum = [];
     const negAccum = [];
+
     points.forEach((datasetPoints) => {
       datasetPoints.forEach((point, j) => {
-        if (posAccum[j] === void 0) {
+        if (posAccum[j] === undefined) {
           posAccum[j] = 0;
           negAccum[j] = 0;
         }
+
         if (point.gap) {
           point.stackOffset = posAccum[j];
           point.stackValue = posAccum[j];
           return;
         }
+
         if (point.visibleValue >= 0) {
           point.stackOffset = posAccum[j];
           posAccum[j] += point.visibleValue;
@@ -1193,24 +1434,129 @@ var LovelyChart = function(exports) {
       });
     });
   }
+
   function prepareSumsByX(values) {
-    return values.map((datasetValues) => [datasetValues.reduce((sum, value) => sum + value, 0)]);
+    return values.map((datasetValues) => (
+      [datasetValues.reduce((sum, value) => sum + value, 0)]
+    ));
   }
+
+  class Projection {
+    #params;
+
+    #totalXWidth;
+    #withColumns;
+    #availableWidth;
+    #availableHeight;
+    #effectiveHeight;
+
+    #xFactor;
+    #xOffsetPx;
+    #yFactor;
+    #yOffsetPx;
+
+    constructor(params) {
+      const {
+        begin,
+        end,
+        totalXWidth,
+        yMin,
+        yMax,
+        availableWidth,
+        availableHeight,
+        xPadding = 0,
+        yPadding = 0,
+        withColumns = false,
+      } = params;
+
+      this.#params = params;
+      this.#totalXWidth = totalXWidth;
+      this.#withColumns = withColumns;
+      this.#availableWidth = availableWidth;
+      this.#availableHeight = availableHeight;
+
+      // In column mode (bars, steps) every label owns a full-width column, so the
+      // X scale spans one extra unit and label positions shift to column centers —
+      // otherwise the first and last columns are cut in half at the plot edges.
+      const xUnitsCount = withColumns ? totalXWidth + 1 : totalXWidth;
+      const xRatio = end !== begin ? end - begin : 1;
+
+      // The chart bleeds beyond the container edge while panning, but keeps an
+      // edge margin when scrolled all the way to the begin/end. The margin fades
+      // in over the last `xPadding` of scroll distance — applying it only at
+      // exactly 0/1 made the layout jump when the minimap hit a boundary.
+      const baseXFactor = availableWidth / (xRatio * xUnitsCount);
+      const leftPadding = Math.max(0, xPadding - begin * xUnitsCount * baseXFactor);
+      const rightPadding = Math.max(0, xPadding - (1 - end) * xUnitsCount * baseXFactor);
+      const effectiveWidth = availableWidth - leftPadding - rightPadding;
+
+      this.#xFactor = effectiveWidth / (xRatio * xUnitsCount);
+      this.#xOffsetPx = (begin * xUnitsCount) * this.#xFactor - leftPadding;
+      if (withColumns) {
+        this.#xOffsetPx -= this.#xFactor / 2;
+      }
+
+      this.#effectiveHeight = availableHeight - yPadding;
+      this.#yFactor = this.#effectiveHeight / (yMax - yMin);
+      this.#yOffsetPx = yMin * this.#yFactor;
+    }
+
+    toPixels(labelIndex, value) {
+      return [
+        labelIndex * this.#xFactor - this.#xOffsetPx,
+        this.#availableHeight - (value * this.#yFactor - this.#yOffsetPx),
+      ];
+    }
+
+    findClosestLabelIndex(xPx) {
+      const labelIndex = Math.round((xPx + this.#xOffsetPx) / this.#xFactor);
+      // In column mode the gutters and the very edge pixels round outside the
+      // lateral columns — keep them within the outermost ones.
+      return this.#withColumns ? Math.max(0, Math.min(labelIndex, this.#totalXWidth)) : labelIndex;
+    }
+
+    copy(overrides) {
+      return new Projection(proxyMerge(this.#params, overrides));
+    }
+
+    getCenter() {
+      return [
+        this.#availableWidth / 2,
+        this.#availableHeight - this.#effectiveHeight / 2,
+      ];
+    }
+
+    getSize() {
+      return [this.#availableWidth, this.#effectiveHeight];
+    }
+
+    getParams() {
+      return this.#params;
+    }
+  }
+
   const simplify = (() => {
-    function simplify2(points, indexes, fixedPoints) {
+    function simplify(points, indexes, fixedPoints) {
       if (points.length < 6) {
-        return function() {
+        return function () {
           return {
-            points,
-            indexes,
-            removed: []
+            points: points,
+            indexes: indexes,
+            removed: [],
           };
         };
       }
+
       let worker = precalculate(points, fixedPoints);
-      return function(delta) {
-        let result = [], resultIndexes = [], removed = [];
-        let delta2 = delta * delta, markers = worker(delta2);
+
+      return function (delta) {
+        let result = [],
+          resultIndexes = [],
+          removed = [];
+
+        let delta2 = delta * delta,
+          markers = worker(delta2);
+
         for (let i = 0, l = points.length; i < l; i++) {
           if (markers[i] >= delta2 || i == 0 || i == l - 1) {
             result.push(points[i]);
@@ -1222,30 +1568,53 @@ var LovelyChart = function(exports) {
         return {
           points: result,
           indexes: resultIndexes,
-          removed
+          removed: removed,
         };
       };
     }
-    let E1 = 1 / Math.pow(2, 22), MAXLIMIT = 1e5;
+
+    let E1 = 1.0 / Math.pow(2, 22), // максимальная дельта
+      MAXLIMIT = 100000;
+
     function precalculate(points, fixedPoints) {
-      let len = points.length, distances = [], queue = [], maximumDelta;
+
+      let len = points.length,
+        distances = [],
+        queue = [],
+        maximumDelta;
       for (let i = 0, l = points.length; i < l; ++i) {
         distances[i] = 0;
       }
+
       if (!fixedPoints) {
         fixedPoints = [];
       }
+
+      //инициализируем дерево срединным значением
+      //чтобы не попадает в ситуации когда начало линии близко к концу(те полигон)
+      //и правильные расчеты сложны
       let subdivisionTree = 0;
+
       for (let i = 0, l = fixedPoints.length; i < l; ++i) {
         distances[fixedPoints[i]] = MAXLIMIT;
       }
+
+
       function worker(params) {
-        let start = params.start, end = params.end, record = params.record, currentLimit = params.currentLimit, usedDistance = 0;
+
+        let start = params.start,
+          end = params.end,
+          record = params.record,
+          currentLimit = params.currentLimit,
+          usedDistance = 0;
+
         if (!record) {
-          let usedIndex = -1, vector = [
-            points[end][0] - points[start][0],
-            points[end][1] - points[start][1]
-          ];
+          //let deltaShifts = getDeltaShifts(points);
+          let usedIndex = -1,
+            vector = [
+              points[end][0] - points[start][0],
+              points[end][1] - points[start][1],
+            ];
           for (let i = 0, l = fixedPoints.length; i < l; ++i) {
             let fixId = fixedPoints[i];
             if (fixId > start) {
@@ -1260,77 +1629,97 @@ var LovelyChart = function(exports) {
           }
           if (usedIndex < 0) {
             if (Math.abs(vector[0]) > E1 || Math.abs(vector[1]) > E1) {
-              let vectorLength = vector[0] * vector[0] + vector[1] * vector[1], vectorLength_1 = 1 / vectorLength;
+              let vectorLength = vector[0] * vector[0] + vector[1] * vector[1],
+                vectorLength_1 = +1.0 / vectorLength;
+
               for (let i = start + 1; i < end; ++i) {
                 let segmentDistance = pointToSegmentDistanceSquare(points[i], points[start], points[end], vector, vectorLength_1);
+
                 if (segmentDistance > usedDistance) {
                   usedIndex = i;
                   usedDistance = segmentDistance;
                 }
               }
+
             } else {
+              //фиксируем на среднинной точке
               usedIndex = Math.round((start + end) * 0.5);
               usedDistance = currentLimit;
             }
             distances[usedIndex] = usedDistance;
           }
           record = {
-            start,
-            end,
+            start: start,
+            end: end,
             index: usedIndex,
-            distance: usedDistance
+            distance: usedDistance,
           };
         }
+
         if (record.index && record.distance > maximumDelta) {
           if (record.index - start >= 2) {
             queue.push({
-              start,
+              start: start,
               end: record.index,
               record: record.left,
               currentLimit: record.distance,
               parent: record,
-              parentProperty: "left"
+              parentProperty: 'left',
             });
           }
           if (end - record.index >= 2) {
             queue.push({
               start: record.index,
-              end,
+              end: end,
               record: record.right,
               currentLimit: record.distance,
               parent: record,
-              parentProperty: "right"
+              parentProperty: 'right',
             });
           }
         }
+
         return record;
       }
+
       function tick() {
-        let request = queue.pop(), result = worker(request);
+        let request = queue.pop(),
+          result = worker(request);
+
         if (request.parent && request.parentProperty) {
           request.parent[request.parentProperty] = result;
         }
+
         return result;
       }
-      return function(delta) {
+
+      return function (delta) {
         maximumDelta = delta;
         queue.push({
           start: 0,
           end: len - 1,
           record: subdivisionTree,
-          currentLimit: MAXLIMIT
+          currentLimit: MAXLIMIT,
         });
         subdivisionTree = tick();
+
         while (queue.length) {
           tick();
         }
+
         return distances;
       };
+
     }
+
     function pointToSegmentDistanceSquare(p, v1, v2, dv, dvlen_1) {
+
       let t;
-      let vx = +v1[0], vy = +v1[1];
-      t = +((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * dvlen_1;
+      let vx = +v1[0],
+        vy = +v1[1];
+
+      t = +((p[0] - vx) * dv[0] + (p[1] - vy) * dv[1]) * (dvlen_1);
+
       if (t > 1) {
         vx = +v2[0];
         vy = +v2[1];
@@ -1338,75 +1727,97 @@ var LovelyChart = function(exports) {
         vx += +dv[0] * t;
         vy += +dv[1] * t;
       }
-      let a = +p[0] - vx, b = +p[1] - vy;
+
+      let a = +p[0] - vx,
+        b = +p[1] - vy;
+
       return +a * a + b * b;
     }
-    return simplify2;
+
+    return simplify;
   })();
-  function drawDatasets(context, state, data, range, points, projection, secondaryPoints, secondaryProjection, lineWidth, visibilities, colors, pieToBar, simplification) {
+
+  function drawDatasets(
+    context, state, data,
+    range, points, projection, secondaryPoints, secondaryProjection,
+    lineWidth, visibilities, colors, pieToBar, simplification,
+  ) {
     data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
       if (!visibilities[i]) {
         return;
       }
+
       const options = {
         color: getCssColor(colors, `dataset#${key}`),
         lineWidth,
         opacity: data.isStacked ? 1 : visibilities[i],
-        simplification
+        simplification,
       };
-      const datasetType = type === "pie" && pieToBar ? "bar" : type;
+
+      const datasetType = type === 'pie' && pieToBar ? 'bar' : type;
       let datasetPoints = hasOwnYAxis ? secondaryPoints : points[i];
       let datasetProjection = hasOwnYAxis ? secondaryProjection : projection;
-      if (datasetType === "area") {
+
+      if (datasetType === 'area') {
         const bottomLine = [
           { labelIndex: range.from, stackValue: 0 },
-          { labelIndex: range.to, stackValue: 0 }
+          { labelIndex: range.to, stackValue: 0 },
         ];
         const lowerBoundary = points[i - 1] || bottomLine;
         const upperBoundary = points[i].slice().reverse();
+
         datasetPoints = mergeArrays([lowerBoundary, upperBoundary]);
       }
-      if (datasetType === "pie") {
+
+      if (datasetType === 'pie') {
         options.center = projection.getCenter();
         options.radius = getPieRadius(projection);
         options.shift = (state[`pieShift#${key}`] || 0) * PLOT_PIE_SHIFT;
         options.isDonut = data.isDonut;
         options.withGradient = data.withGradient;
       }
-      if (datasetType === "bar") {
-        const [x0] = toPixels(projection, 0, 0);
-        const [x1] = toPixels(projection, 1, 0);
+
+      if (datasetType === 'bar') {
+        const [x0] = projection.toPixels(0, 0);
+        const [x1] = projection.toPixels(1, 0);
+
         options.lineWidth = x1 - x0;
         options.focusOn = state.focusOn;
       }
+
       drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
     });
+
     if (state.focusOn != null && (data.isBars || data.isSteps)) {
-      const [x0] = toPixels(projection, 0, 0);
-      const [x1] = toPixels(projection, 1, 0);
+      const [x0] = projection.toPixels(0, 0);
+      const [x1] = projection.toPixels(1, 0);
+
       drawBarsMask(context, projection, {
         focusOn: state.focusOn,
-        color: getCssColor(colors, "mask"),
-        lineWidth: data.isSteps ? x1 - x0 + lineWidth : x1 - x0
+        color: getCssColor(colors, 'mask'),
+        lineWidth: data.isSteps ? x1 - x0 + lineWidth : x1 - x0,
       });
     }
   }
+
   function drawDataset(type, ...args) {
     switch (type) {
-      case "line":
+      case 'line':
         return drawDatasetLine(...args);
-      case "bar":
+      case 'bar':
         return drawDatasetBars(...args);
-      case "step":
+      case 'step':
         return drawDatasetSteps(...args);
-      case "area":
+      case 'area':
         return drawDatasetArea(...args);
-      case "pie":
+      case 'pie':
         return drawDatasetPie(...args);
     }
   }
+
   function drawDatasetLine(context, points, projection, options) {
     context.beginPath();
+
     const segments = [];
     let current = [];
     for (let j = 0, l = points.length; j < l; j++) {
@@ -1418,9 +1829,10 @@ var LovelyChart = function(exports) {
         }
         continue;
       }
-      current.push(toPixels(projection, point.labelIndex, point.stackValue));
+      current.push(projection.toPixels(point.labelIndex, point.stackValue));
     }
     if (current.length) segments.push(current);
+
     segments.forEach((segment) => {
       let pixels = segment;
       if (options.simplification) {
@@ -1431,35 +1843,47 @@ var LovelyChart = function(exports) {
         else context.lineTo(x, y);
       });
     });
+
     context.save();
     context.strokeStyle = options.color;
     context.lineWidth = options.lineWidth;
     context.globalAlpha = options.opacity;
-    context.lineJoin = "bevel";
-    context.lineCap = "butt";
+    context.lineJoin = 'bevel';
+    context.lineCap = 'butt';
     context.stroke();
     context.restore();
   }
+
+  // TODO try areas
   function drawDatasetBars(context, points, projection, options) {
     const { yMin } = projection.getParams();
+
     context.save();
     context.globalAlpha = options.opacity;
     context.fillStyle = options.color;
+
     for (let j = 0, l = points.length; j < l; j++) {
       if (points[j].gap) continue;
       const { labelIndex, stackValue, stackOffset = 0 } = points[j];
-      const [, yFrom] = toPixels(projection, labelIndex, Math.max(stackOffset, yMin));
-      const [x, yTo] = toPixels(projection, labelIndex, stackValue);
+
+      const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
+      const [x, yTo] = projection.toPixels(labelIndex, stackValue);
       const rectX = x - options.lineWidth / 2;
       const rectY = yTo;
-      const rectW = options.opacity === 1 ? options.lineWidth + PLOT_BARS_WIDTH_SHIFT : options.lineWidth + PLOT_BARS_WIDTH_SHIFT * options.opacity;
+      const rectW = options.opacity === 1 ?
+        options.lineWidth + PLOT_BARS_WIDTH_SHIFT :
+        options.lineWidth + PLOT_BARS_WIDTH_SHIFT * options.opacity;
       const rectH = yFrom - yTo;
+
       context.fillRect(rectX, rectY, rectW, rectH);
     }
+
     context.restore();
   }
+
   function drawDatasetSteps(context, points, projection, options) {
     context.beginPath();
+
     const segments = [];
     let current = [];
     for (let j = 0, l = points.length; j < l; j++) {
@@ -1472,17 +1896,19 @@ var LovelyChart = function(exports) {
         continue;
       }
       current.push(
-        toPixels(projection, point.labelIndex - PLOT_BARS_WIDTH_SHIFT, point.stackValue),
-        toPixels(projection, point.labelIndex + PLOT_BARS_WIDTH_SHIFT, point.stackValue)
+        projection.toPixels(point.labelIndex - PLOT_BARS_WIDTH_SHIFT, point.stackValue),
+        projection.toPixels(point.labelIndex + PLOT_BARS_WIDTH_SHIFT, point.stackValue),
       );
     }
     if (current.length) segments.push(current);
+
     segments.forEach((segment) => {
       segment.forEach(([x, y], k) => {
         if (k === 0) context.moveTo(x, y);
         else context.lineTo(x, y);
       });
     });
+
     context.save();
     context.strokeStyle = options.color;
     context.lineWidth = options.lineWidth;
@@ -1490,57 +1916,78 @@ var LovelyChart = function(exports) {
     context.stroke();
     context.restore();
   }
+
   function drawBarsMask(context, projection, options) {
     const [xCenter, yCenter] = projection.getCenter();
     const [width, height] = projection.getSize();
-    const [x] = toPixels(projection, options.focusOn, 0);
+
+    const [x] = projection.toPixels(options.focusOn, 0);
+
     context.fillStyle = options.color;
     context.fillRect(xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT, height);
     context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
   }
+
   function drawDatasetArea(context, points, projection, options) {
     context.beginPath();
+
     let pixels = [];
+
     for (let j = 0, l = points.length; j < l; j++) {
       const { labelIndex, stackValue } = points[j];
-      pixels.push(toPixels(projection, labelIndex, stackValue));
+      pixels.push(projection.toPixels(labelIndex, stackValue));
     }
+
     if (options.simplification) {
       const simplifierFn = simplify(pixels);
       pixels = simplifierFn(options.simplification).points;
     }
+
     pixels.forEach(([x, y]) => {
       context.lineTo(x, y);
     });
+
     context.save();
     context.fillStyle = options.color;
     context.lineWidth = options.lineWidth;
     context.globalAlpha = options.opacity;
-    context.lineJoin = "bevel";
-    context.lineCap = "butt";
+    context.lineJoin = 'bevel';
+    context.lineCap = 'butt';
     context.fill();
     context.restore();
   }
+
   function drawDatasetPie(context, points, projection, options) {
     const { visibleValue, stackValue, stackOffset = 0 } = points[0];
+
     if (!visibleValue) {
       return;
     }
+
     const { yMin, yMax } = projection.getParams();
     const percentFactor = 1 / (yMax - yMin);
     const percent = visibleValue * percentFactor;
+
     const beginAngle = stackOffset * percentFactor * Math.PI * 2 - Math.PI / 2;
     const endAngle = stackValue * percentFactor * Math.PI * 2 - Math.PI / 2;
+
     const { radius = 120, center: [x, y], shift = 0, isDonut, withGradient } = options;
     const innerRadius = isDonut ? radius * PIE_DONUT_INNER_RADIUS_FACTOR : 0;
+
     const shiftAngle = (beginAngle + endAngle) / 2;
     const directionX = Math.cos(shiftAngle);
     const directionY = Math.sin(shiftAngle);
     const shiftX = directionX * shift;
     const shiftY = directionY * shift;
+
     context.save();
+
     context.beginPath();
-    context.fillStyle = withGradient ? buildPieGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color) : options.color;
+    // `withGradient` adds slight concentric shading for depth: lighter at the
+    // inner edge (center for a plain pie), darker toward the outer edge.
+    context.fillStyle = withGradient
+      ? buildPieGradient(context, x + shiftX, y + shiftY, innerRadius, radius, options.color)
+      : options.color;
     if (isDonut) {
       context.arc(x + shiftX, y + shiftY, radius, beginAngle, endAngle);
       context.arc(x + shiftX, y + shiftY, innerRadius, endAngle, beginAngle, true);
@@ -1551,21 +1998,22 @@ var LovelyChart = function(exports) {
       context.lineTo(x + shiftX, y + shiftY);
     }
     context.fill();
+
     if (percent >= PIE_MINIMUM_VISIBLE_PERCENT) {
-      const fontFamily = getComputedStyle(context.canvas).fontFamily || "sans-serif";
+      const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
       context.font = `700 ${getPieTextSize(percent, radius)}px ${fontFamily}`;
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.fillStyle = "white";
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillStyle = 'white';
       const textShift = isDonut ? (radius + innerRadius) / 2 : getPieTextShift(percent, radius);
       context.fillText(
-        `${Math.round(percent * 100)}%`,
-        x + directionX * textShift + shiftX,
-        y + directionY * textShift + shiftY
+        `${Math.round(percent * 100)}%`, x + directionX * textShift + shiftX, y + directionY * textShift + shiftY,
       );
     }
+
     context.restore();
   }
+
   function buildPieGradient(context, cx, cy, innerRadius, radius, color) {
     const channels = parseRgba(color);
     const gradient = context.createRadialGradient(cx, cy, innerRadius, cx, cy, radius);
@@ -1573,199 +2021,278 @@ var LovelyChart = function(exports) {
     gradient.addColorStop(1, shadeColor(channels, -0.1));
     return gradient;
   }
+
   function parseRgba(color) {
     const channels = color.match(/[\d.]+/g);
     return channels ? channels.map(Number) : [0, 0, 0, 1];
   }
+
+  // `amount` > 0 mixes toward white (highlight), < 0 toward black (shadow).
   function shadeColor([r, g, b, a = 1], amount) {
     const target = amount >= 0 ? 255 : 0;
     const t = Math.abs(amount);
     const mix = (channel) => Math.round(channel + (target - channel) * t);
     return `rgba(${mix(r)}, ${mix(g)}, ${mix(b)}, ${a})`;
   }
+
   function captureEvents(element, options) {
     let captureEvent = null;
     let longPressTimeout = null;
+
     function onCapture(e) {
       captureEvent = e;
-      if (e.type === "mousedown") {
-        addEventListener(document, "mousemove", onMove);
-        addEventListener(document, "mouseup", onRelease);
-      } else if (e.type === "touchstart") {
-        addEventListener(document, "touchmove", onMove);
-        addEventListener(document, "touchend", onRelease);
-        addEventListener(document, "touchcancel", onRelease);
-        if (e.pageX === void 0) {
+
+      if (e.type === 'mousedown') {
+        addEventListener(document, 'mousemove', onMove);
+        addEventListener(document, 'mouseup', onRelease);
+      } else if (e.type === 'touchstart') {
+        addEventListener(document, 'touchmove', onMove);
+        addEventListener(document, 'touchend', onRelease);
+        addEventListener(document, 'touchcancel', onRelease);
+
+        // https://stackoverflow.com/questions/11287877/how-can-i-get-e-offsetx-on-mobile-ipad
+        // Android does not have this value, and iOS has it but as read-only.
+        if (e.pageX === undefined) {
           e.pageX = e.touches[0].pageX;
         }
       }
+
       if (options.draggingCursor) {
         document.documentElement.classList.add(`cursor-${options.draggingCursor}`);
       }
+
       options.onCapture && options.onCapture(e);
+
       if (options.onLongPress) {
         longPressTimeout = setTimeout(() => options.onLongPress(), LONG_PRESS_TIMEOUT);
       }
     }
+
     function onRelease(e) {
       if (captureEvent) {
         if (longPressTimeout) {
           clearTimeout(longPressTimeout);
           longPressTimeout = null;
         }
+
         if (options.draggingCursor) {
           document.documentElement.classList.remove(`cursor-${options.draggingCursor}`);
         }
-        removeEventListener(document, "mouseup", onRelease);
-        removeEventListener(document, "mousemove", onMove);
-        removeEventListener(document, "touchcancel", onRelease);
-        removeEventListener(document, "touchend", onRelease);
-        removeEventListener(document, "touchmove", onMove);
+
+        removeEventListener(document, 'mouseup', onRelease);
+        removeEventListener(document, 'mousemove', onMove);
+        removeEventListener(document, 'touchcancel', onRelease);
+        removeEventListener(document, 'touchend', onRelease);
+        removeEventListener(document, 'touchmove', onMove);
+
         captureEvent = null;
+
         options.onRelease && options.onRelease(e);
       }
     }
+
     function onMove(e) {
       if (captureEvent) {
         if (longPressTimeout) {
           clearTimeout(longPressTimeout);
           longPressTimeout = null;
         }
-        if (e.type === "touchmove" && e.pageX === void 0) {
+
+        if (e.type === 'touchmove' && e.pageX === undefined) {
           e.pageX = e.touches[0].pageX;
         }
+
         options.onDrag && options.onDrag(e, captureEvent, {
-          dragOffsetX: e.pageX - captureEvent.pageX
+          dragOffsetX: e.pageX - captureEvent.pageX,
         });
       }
     }
-    addEventListener(element, "mousedown", onCapture);
-    addEventListener(element, "touchstart", onCapture);
+
+    addEventListener(element, 'mousedown', onCapture);
+    addEventListener(element, 'touchstart', onCapture);
   }
-  function createMinimap(container, data, colors, rangeCallback) {
-    let _element;
-    let _canvas;
-    let _context;
-    let _canvasSize;
-    let _ruler;
-    let _slider;
-    let _limitMask;
-    let _capturedOffset;
-    let _range = {};
-    let _state;
-    const _limitBegin = data.limitBegin;
-    const _updateRulerOnRaf = throttleWithRaf(_updateRuler);
-    _setupLayout();
-    _updateRange(data.minimapRange || DEFAULT_RANGE);
-    function update(newState) {
+
+  class Minimap {
+    #container;
+    #data;
+    #colors;
+    #rangeCallback;
+
+    #element;
+    #canvas;
+    #context;
+    #canvasSize;
+    #ruler;
+    #slider;
+    #limitMask;
+
+    #capturedOffset;
+    #range = {};
+    #state;
+
+    #limitBegin;
+
+    #updateRulerOnRaf = throttleWithRaf(() => this.#updateRuler());
+
+    constructor(container, data, colors, rangeCallback) {
+      this.#container = container;
+      this.#data = data;
+      this.#colors = colors;
+      this.#rangeCallback = rangeCallback;
+
+      this.#limitBegin = data.limitBegin;
+
+      this.#setupLayout();
+      this.#updateRange(data.minimapRange || DEFAULT_RANGE);
+    }
+
+    update(newState) {
       const { begin, end } = newState;
-      if (!_capturedOffset) {
-        _updateRange({ begin, end }, true);
+      if (!this.#capturedOffset) {
+        this.#updateRange({ begin, end }, true);
       }
-      if (data.datasets.length >= MINIMAP_MAX_ANIMATED_DATASETS) {
+
+      if (this.#data.datasets.length >= MINIMAP_MAX_ANIMATED_DATASETS) {
         newState = newState.static;
       }
-      if (!_isStateChanged(newState)) {
+
+      if (!this.#isStateChanged(newState)) {
         return;
       }
-      _state = proxyMerge(newState, { focusOn: null });
-      clearCanvas(_canvas, _context);
-      _drawDatasets(_state);
+
+      this.#state = proxyMerge(newState, { focusOn: null });
+      clearCanvas(this.#canvas, this.#context);
+
+      this.#drawDatasets(this.#state);
     }
-    function toggle(shouldShow) {
-      _element.classList.toggle("lovely-chart--state-hidden", !shouldShow);
+
+    toggle(shouldShow) {
+      this.#element.classList.toggle('lovely-chart--state-hidden', !shouldShow);
+
       requestAnimationFrame(() => {
-        _element.classList.toggle("lovely-chart--state-transparent", !shouldShow);
+        this.#element.classList.toggle('lovely-chart--state-transparent', !shouldShow);
       });
     }
-    function _setupLayout() {
-      _element = createElement();
-      _element.className = "lovely-chart--minimap";
-      _element.style.height = `${MINIMAP_HEIGHT}px`;
-      _setupCanvas();
-      _setupRuler();
-      _setupLimitMask();
-      container.appendChild(_element);
-      _canvasSize = {
-        width: _canvas.offsetWidth,
-        height: _canvas.offsetHeight
+
+    #setupLayout() {
+      this.#element = createElement();
+
+      this.#element.className = 'lovely-chart--minimap';
+      this.#element.style.height = `${MINIMAP_HEIGHT}px`;
+
+      this.#setupCanvas();
+      this.#setupRuler();
+      this.#setupLimitMask();
+
+      this.#container.appendChild(this.#element);
+
+      this.#canvasSize = {
+        width: this.#canvas.offsetWidth,
+        height: this.#canvas.offsetHeight,
       };
     }
-    function _getSize() {
+
+    #getSize() {
       return {
-        width: container.offsetWidth - MINIMAP_MARGIN * 2,
-        height: MINIMAP_HEIGHT
+        width: this.#container.offsetWidth - MINIMAP_MARGIN * 2,
+        height: MINIMAP_HEIGHT,
       };
     }
-    function _setupCanvas() {
-      const { canvas, context } = setupCanvas(_element, _getSize());
-      _canvas = canvas;
-      _context = context;
+
+    #setupCanvas() {
+      const { canvas, context } = setupCanvas(this.#element, this.#getSize());
+
+      this.#canvas = canvas;
+      this.#context = context;
     }
-    function _setupRuler() {
-      _ruler = createElement();
-      _ruler.className = "lovely-chart--minimap-ruler";
-      _ruler.innerHTML = '<div class="lovely-chart--minimap-mask"></div><div class="lovely-chart--minimap-slider"><div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div><div class="lovely-chart--minimap-slider-inner"></div><div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div></div><div class="lovely-chart--minimap-mask"></div>';
-      _slider = _ruler.children[1];
+
+    #setupRuler() {
+      this.#ruler = createElement();
+      this.#ruler.className = 'lovely-chart--minimap-ruler';
+      this.#ruler.innerHTML =
+        '<div class="lovely-chart--minimap-mask"></div>' +
+        '<div class="lovely-chart--minimap-slider">' +
+        '<div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div>' +
+        '<div class="lovely-chart--minimap-slider-inner"></div>' +
+        '<div class="lovely-chart--minimap-slider-handle"><span class="lovely-chart--minimap-slider-handle-pin"></span></div>' +
+        '</div>' +
+        '<div class="lovely-chart--minimap-mask"></div>';
+
+      this.#slider = this.#ruler.children[1];
+
       captureEvents(
-        _slider.children[1],
+        this.#slider.children[1],
         {
-          onCapture: _onDragCapture,
-          onDrag: _onSliderDrag,
-          onRelease: _onDragRelease,
-          draggingCursor: "grabbing"
-        }
+          onCapture: this.#onDragCapture,
+          onDrag: this.#onSliderDrag,
+          onRelease: this.#onDragRelease,
+          draggingCursor: 'grabbing',
+        },
       );
+
       captureEvents(
-        _slider.children[0],
+        this.#slider.children[0],
         {
-          onCapture: _onDragCapture,
-          onDrag: _onLeftEarDrag,
-          onRelease: _onDragRelease,
-          draggingCursor: "ew-resize"
-        }
+          onCapture: this.#onDragCapture,
+          onDrag: this.#onLeftEarDrag,
+          onRelease: this.#onDragRelease,
+          draggingCursor: 'ew-resize',
+        },
       );
+
       captureEvents(
-        _slider.children[2],
+        this.#slider.children[2],
         {
-          onCapture: _onDragCapture,
-          onDrag: _onRightEarDrag,
-          onRelease: _onDragRelease,
-          draggingCursor: "ew-resize"
-        }
+          onCapture: this.#onDragCapture,
+          onDrag: this.#onRightEarDrag,
+          onRelease: this.#onDragRelease,
+          draggingCursor: 'ew-resize',
+        },
       );
-      _element.appendChild(_ruler);
+
+      this.#element.appendChild(this.#ruler);
     }
-    function _setupLimitMask() {
-      if (_limitBegin == null) return;
-      _limitMask = createElement();
-      _limitMask.className = "lovely-chart--minimap-limit-mask";
-      _limitMask.style.width = `${_limitBegin * 100}%`;
-      _limitMask.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.5265 10.2173V7.54299C16.5265 5.08532 14.4958 3.08585 11.9997 3.08585C9.50365 3.08585 7.47293 5.08532 7.47293 7.54299V10.2173C6.2992 10.2173 5.36524 11.2011 5.42629 12.3733L5.60706 15.844C5.6879 17.3962 5.72833 18.1723 6.00269 18.7852C6.39058 19.6518 7.10506 20.33 7.9906 20.6723C8.61698 20.9144 9.39412 20.9144 10.9484 20.9144H13.051C14.6053 20.9144 15.3825 20.9144 16.0088 20.6723C16.8944 20.33 17.6089 19.6518 17.9967 18.7852C18.2711 18.1723 18.3115 17.3962 18.3924 15.844L18.5731 12.3733C18.6342 11.2011 17.7002 10.2173 16.5265 10.2173ZM11.9997 4.8687C10.5023 4.8687 9.28364 6.06857 9.28364 7.54299V10.2173H14.7158V7.54299C14.7158 6.06857 13.4972 4.8687 11.9997 4.8687Z" fill="currentColor"/></svg>';
-      if (data.onLimitedRangeClick) {
-        _limitMask.classList.add("lovely-chart--state-interactive");
-        _limitMask.addEventListener("click", data.onLimitedRangeClick);
+
+    #setupLimitMask() {
+      if (this.#limitBegin == null) return;
+
+      this.#limitMask = createElement();
+      this.#limitMask.className = 'lovely-chart--minimap-limit-mask';
+      this.#limitMask.style.width = `${this.#limitBegin * 100}%`;
+      this.#limitMask.innerHTML =
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+        '<path fill-rule="evenodd" clip-rule="evenodd" d="M16.5265 10.2173V7.54299C16.5265 5.08532 14.4958 3.08585 11.9997 3.08585C9.50365 3.08585 7.47293 5.08532 7.47293 7.54299V10.2173C6.2992 10.2173 5.36524 11.2011 5.42629 12.3733L5.60706 15.844C5.6879 17.3962 5.72833 18.1723 6.00269 18.7852C6.39058 19.6518 7.10506 20.33 7.9906 20.6723C8.61698 20.9144 9.39412 20.9144 10.9484 20.9144H13.051C14.6053 20.9144 15.3825 20.9144 16.0088 20.6723C16.8944 20.33 17.6089 19.6518 17.9967 18.7852C18.2711 18.1723 18.3115 17.3962 18.3924 15.844L18.5731 12.3733C18.6342 11.2011 17.7002 10.2173 16.5265 10.2173ZM11.9997 4.8687C10.5023 4.8687 9.28364 6.06857 9.28364 7.54299V10.2173H14.7158V7.54299C14.7158 6.06857 13.4972 4.8687 11.9997 4.8687Z" fill="currentColor"/>' +
+        '</svg>';
+      if (this.#data.onLimitedRangeClick) {
+        this.#limitMask.classList.add('lovely-chart--state-interactive');
+        this.#limitMask.addEventListener('click', this.#data.onLimitedRangeClick);
       }
-      _element.appendChild(_limitMask);
+      this.#element.appendChild(this.#limitMask);
     }
-    function _isStateChanged(newState) {
-      if (!_state) {
+
+    #isStateChanged(newState) {
+      if (!this.#state) {
         return true;
       }
-      const { datasets } = data;
-      if (datasets.some(({ key }) => _state[`opacity#${key}`] !== newState[`opacity#${key}`])) {
+
+      const { datasets } = this.#data;
+
+      if (datasets.some(({ key }) => this.#state[`opacity#${key}`] !== newState[`opacity#${key}`])) {
         return true;
       }
-      if (_state.yMaxMinimap !== newState.yMaxMinimap) {
+
+      if (this.#state.yMaxMinimap !== newState.yMaxMinimap) {
         return true;
       }
+
       return false;
     }
-    function _drawDatasets(state = {}) {
-      const { datasets } = data;
+
+    #drawDatasets(state = {}) {
+      const { datasets } = this.#data;
       const range = {
         from: 0,
-        to: state.totalXWidth
+        to: state.totalXWidth,
       };
       const boundsAndParams = {
         begin: 0,
@@ -1773,356 +2300,473 @@ var LovelyChart = function(exports) {
         totalXWidth: state.totalXWidth,
         yMin: state.yMinMinimap,
         yMax: state.yMaxMinimap,
-        availableWidth: _canvasSize.width,
-        availableHeight: _canvasSize.height,
+        availableWidth: this.#canvasSize.width,
+        availableHeight: this.#canvasSize.height,
         yPadding: 1,
-        withColumns: data.isBars || data.isSteps || data.isPie
+        withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isPie,
       };
-      const visibilities = datasets.map(({ key }) => _state[`opacity#${key}`]);
-      const points = preparePoints(data, datasets, range, visibilities, boundsAndParams, true);
-      const projection = createProjection(boundsAndParams);
+      const visibilities = datasets.map(({ key }) => this.#state[`opacity#${key}`]);
+      const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams, true);
+      const projection = new Projection(boundsAndParams);
+
       let secondaryPoints = null;
       let secondaryProjection = null;
-      if (data.hasSecondYAxis) {
+      if (this.#data.hasSecondYAxis) {
         const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
         const bounds = { yMin: state.yMinMinimapSecond, yMax: state.yMaxMinimapSecond };
-        secondaryPoints = preparePoints(data, [secondaryDataset], range, visibilities, bounds)[0];
+        secondaryPoints = preparePoints(this.#data, [secondaryDataset], range, visibilities, bounds)[0];
         secondaryProjection = projection.copy(bounds);
       }
+
       const totalPoints = points.reduce((a, p) => a + p.length, 0);
       const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_MINIMAP_FACTOR;
+
       drawDatasets(
-        _context,
-        state,
-        data,
-        range,
-        points,
-        projection,
-        secondaryPoints,
-        secondaryProjection,
-        MINIMAP_LINE_WIDTH,
-        visibilities,
-        colors,
-        true,
-        simplification
+        this.#context, state, this.#data,
+        range, points, projection, secondaryPoints, secondaryProjection,
+        MINIMAP_LINE_WIDTH, visibilities, this.#colors, true, simplification,
       );
     }
-    function _onDragCapture(e) {
+
+    #onDragCapture = (e) => {
       e.preventDefault();
-      _capturedOffset = e.target.offsetLeft;
-    }
-    function _onDragRelease() {
-      _capturedOffset = null;
-    }
-    function _onSliderDrag(moveEvent, captureEvent, { dragOffsetX }) {
-      const limitX = _limitBegin != null ? _limitBegin * _canvasSize.width : 0;
+      this.#capturedOffset = e.target.offsetLeft;
+    };
+
+    #onDragRelease = () => {
+      this.#capturedOffset = null;
+    };
+
+    #onSliderDrag = (moveEvent, captureEvent, { dragOffsetX }) => {
+      const limitX = this.#limitBegin != null ? this.#limitBegin * this.#canvasSize.width : 0;
       const minX1 = limitX;
-      const maxX1 = _canvasSize.width - _slider.offsetWidth;
-      const newX1 = Math.max(minX1, Math.min(_capturedOffset + dragOffsetX - MINIMAP_EAR_WIDTH, maxX1));
-      const newX2 = newX1 + _slider.offsetWidth;
-      const begin = newX1 / _canvasSize.width;
-      const end = newX2 / _canvasSize.width;
-      _updateRange({ begin, end });
-    }
-    function _onLeftEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-      const limitX = _limitBegin != null ? _limitBegin * _canvasSize.width : 0;
+      const maxX1 = this.#canvasSize.width - this.#slider.offsetWidth;
+
+      const newX1 = Math.max(minX1, Math.min(this.#capturedOffset + dragOffsetX - MINIMAP_EAR_WIDTH, maxX1));
+      const newX2 = newX1 + this.#slider.offsetWidth;
+      const begin = newX1 / this.#canvasSize.width;
+      const end = newX2 / this.#canvasSize.width;
+
+      this.#updateRange({ begin, end });
+    };
+
+    #onLeftEarDrag = (moveEvent, captureEvent, { dragOffsetX }) => {
+      const limitX = this.#limitBegin != null ? this.#limitBegin * this.#canvasSize.width : 0;
       const minX1 = limitX;
-      const maxX1 = _slider.offsetLeft + _slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
-      const newX1 = Math.min(maxX1, Math.max(minX1, _capturedOffset + dragOffsetX));
-      const begin = newX1 / _canvasSize.width;
-      _updateRange({ begin });
-    }
-    function _onRightEarDrag(moveEvent, captureEvent, { dragOffsetX }) {
-      const minX2 = _slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
-      const maxX2 = _canvasSize.width;
-      const newX2 = Math.max(minX2, Math.min(_capturedOffset + MINIMAP_EAR_WIDTH + dragOffsetX, maxX2));
-      const end = newX2 / _canvasSize.width;
-      _updateRange({ end });
-    }
-    function _updateRange(range, isExternal) {
-      let nextRange = Object.assign({}, _range, range);
-      if (_state && _state.minimapDelta && !isExternal) {
-        nextRange = _adjustDiscreteRange(nextRange);
+      const maxX1 = this.#slider.offsetLeft + this.#slider.offsetWidth - MINIMAP_EAR_WIDTH * 2;
+
+      const newX1 = Math.min(maxX1, Math.max(minX1, this.#capturedOffset + dragOffsetX));
+      const begin = newX1 / this.#canvasSize.width;
+
+      this.#updateRange({ begin });
+    };
+
+    #onRightEarDrag = (moveEvent, captureEvent, { dragOffsetX }) => {
+      const minX2 = this.#slider.offsetLeft + MINIMAP_EAR_WIDTH * 2;
+      const maxX2 = this.#canvasSize.width;
+
+      const newX2 = Math.max(minX2, Math.min(this.#capturedOffset + MINIMAP_EAR_WIDTH + dragOffsetX, maxX2));
+      const end = newX2 / this.#canvasSize.width;
+
+      this.#updateRange({ end });
+    };
+
+    #updateRange(range, isExternal) {
+      let nextRange = Object.assign({}, this.#range, range);
+
+      if (this.#state && this.#state.minimapDelta && !isExternal) {
+        nextRange = this.#adjustDiscreteRange(nextRange);
       }
-      if (_limitBegin != null && nextRange.begin < _limitBegin) {
-        nextRange.begin = _limitBegin;
+
+      if (this.#limitBegin != null && nextRange.begin < this.#limitBegin) {
+        nextRange.begin = this.#limitBegin;
       }
-      if (nextRange.begin === _range.begin && nextRange.end === _range.end) {
+
+      if (nextRange.begin === this.#range.begin && nextRange.end === this.#range.end) {
         return;
       }
-      _range = nextRange;
-      _updateRulerOnRaf();
+
+      this.#range = nextRange;
+      this.#updateRulerOnRaf();
+
       if (!isExternal) {
-        rangeCallback(_range);
+        this.#rangeCallback(this.#range);
       }
     }
-    function _adjustDiscreteRange(nextRange) {
-      const begin = Math.round(nextRange.begin / _state.minimapDelta) * _state.minimapDelta;
-      const end = Math.round(nextRange.end / _state.minimapDelta) * _state.minimapDelta;
+
+    #adjustDiscreteRange(nextRange) {
+      // TODO sometimes beginChange and endChange are different for slider drag because of pixels division
+      const begin = Math.round(nextRange.begin / this.#state.minimapDelta) * this.#state.minimapDelta;
+      const end = Math.round(nextRange.end / this.#state.minimapDelta) * this.#state.minimapDelta;
+
       return { begin, end };
     }
-    function _updateRuler() {
-      const { begin, end } = _range;
-      _ruler.children[0].style.width = `${begin * 100}%`;
-      _ruler.children[1].style.width = `${(end - begin) * 100}%`;
-      _ruler.children[2].style.width = `${(1 - end) * 100}%`;
+
+    #updateRuler() {
+      const { begin, end } = this.#range;
+
+      this.#ruler.children[0].style.width = `${begin * 100}%`;
+      this.#ruler.children[1].style.width = `${(end - begin) * 100}%`;
+      this.#ruler.children[2].style.width = `${(1 - end) * 100}%`;
     }
-    return { update, toggle };
   }
-  function createTooltip(container, data, plotSize, colors, onZoom, onFocus) {
-    let _state;
-    let _points;
-    let _projection;
-    let _secondaryPoints;
-    let _secondaryProjection;
-    let _element;
-    let _canvas;
-    let _context;
-    let _balloon;
-    let _offsetX;
-    let _offsetY;
-    let _clickedOnLabel = null;
-    let _isZoomed = false;
-    let _isZooming = false;
-    let _documentMoveEvent = null;
-    const _selectLabelOnRaf = throttleWithRaf(_selectLabel);
-    const _throttledUpdateContent = throttle(_updateContent, 100, true);
-    _setupLayout();
-    function update(state, points, projection, secondaryPoints, secondaryProjection) {
-      _state = state;
-      _points = points;
-      _projection = projection;
-      _secondaryPoints = secondaryPoints;
-      _secondaryProjection = secondaryProjection;
-      _selectLabel(true);
+
+  class Tooltip {
+    #container;
+    #data;
+    #plotSize;
+    #colors;
+    #onZoom;
+    #onFocus;
+
+    #state;
+    #points;
+    #projection;
+    #secondaryPoints;
+    #secondaryProjection;
+
+    #element;
+    #canvas;
+    #context;
+    #balloon;
+
+    #offsetX;
+    #offsetY;
+    #clickedOnLabel = null;
+
+    #isZoomed = false;
+    #isZooming = false;
+    #documentMoveEvent = null;
+
+    #selectLabelOnRaf = throttleWithRaf((isExternal) => this.#selectLabel(isExternal));
+    #throttledUpdateContent = throttle((title, statistics) => this.#updateContent(title, statistics), 100, true);
+
+    constructor(container, data, plotSize, colors, onZoom, onFocus) {
+      this.#container = container;
+      this.#data = data;
+      this.#plotSize = plotSize;
+      this.#colors = colors;
+      this.#onZoom = onZoom;
+      this.#onFocus = onFocus;
+
+      this.#setupLayout();
     }
-    function toggleLoading(isLoading) {
-      _balloon.classList.toggle("lovely-chart--state-loading", isLoading);
+
+    update(state, points, projection, secondaryPoints, secondaryProjection) {
+      this.#state = state;
+      this.#points = points;
+      this.#projection = projection;
+      this.#secondaryPoints = secondaryPoints;
+      this.#secondaryProjection = secondaryProjection;
+      this.#selectLabel(true);
+    }
+
+    toggleLoading(isLoading) {
+      this.#balloon.classList.toggle('lovely-chart--state-loading', isLoading);
+
       if (!isLoading) {
-        _clear();
+        this.#clear();
       }
     }
-    function toggleIsZoomed(isZoomed) {
-      if (isZoomed !== _isZoomed) {
-        _isZooming = true;
+
+    toggleIsZoomed(isZoomed) {
+      if (isZoomed !== this.#isZoomed) {
+        this.#isZooming = true;
       }
-      _isZoomed = isZoomed;
-      _balloon.classList.toggle("lovely-chart--state-inactive", isZoomed);
+      this.#isZoomed = isZoomed;
+      this.#balloon.classList.toggle('lovely-chart--state-inactive', isZoomed);
     }
-    function _setupLayout() {
-      _element = createElement();
-      _element.className = `lovely-chart--tooltip`;
-      _setupCanvas();
-      _setupBalloon();
-      if ("ontouchstart" in window) {
-        addEventListener(_element, "touchmove", _onMouseMove);
-        addEventListener(_element, "touchstart", _onMouseMove);
-        _documentMoveEvent = "touchstart";
-        addEventListener(document, _documentMoveEvent, _onDocumentMove);
+
+    destroy() {
+      if (this.#documentMoveEvent) {
+        removeEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
+        this.#documentMoveEvent = null;
+      }
+    }
+
+    #setupLayout() {
+      this.#element = createElement();
+      this.#element.className = `lovely-chart--tooltip`;
+
+      this.#setupCanvas();
+      this.#setupBalloon();
+
+      if ('ontouchstart' in window) {
+        addEventListener(this.#element, 'touchmove', this.#onMouseMove);
+        addEventListener(this.#element, 'touchstart', this.#onMouseMove);
+        this.#documentMoveEvent = 'touchstart';
+        addEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
       } else {
-        addEventListener(_element, "mousemove", _onMouseMove);
-        addEventListener(_element, "click", _onClick);
-        _documentMoveEvent = "mousemove";
-        addEventListener(document, _documentMoveEvent, _onDocumentMove);
+        addEventListener(this.#element, 'mousemove', this.#onMouseMove);
+        addEventListener(this.#element, 'click', this.#onClick);
+        this.#documentMoveEvent = 'mousemove';
+        addEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
       }
-      container.appendChild(_element);
+
+      this.#container.appendChild(this.#element);
     }
-    function _setupCanvas() {
-      const { canvas, context } = setupCanvas(_element, plotSize);
-      _canvas = canvas;
-      _context = context;
+
+    #setupCanvas() {
+      const { canvas, context } = setupCanvas(this.#element, this.#plotSize);
+
+      this.#canvas = canvas;
+      this.#context = context;
     }
-    function _setupBalloon() {
-      _balloon = createElement();
-      _balloon.className = `lovely-chart--tooltip-balloon${!data.isZoomable ? " lovely-chart--state-inactive" : ""}`;
-      _balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
-      if ("ontouchstart" in window && data.isZoomable) {
-        addEventListener(_balloon, "click", _onBalloonClick);
+
+    #setupBalloon() {
+      this.#balloon = createElement();
+      this.#balloon.className = `lovely-chart--tooltip-balloon${!this.#data.isZoomable ? ' lovely-chart--state-inactive' : ''}`;
+      this.#balloon.innerHTML = '<div class="lovely-chart--tooltip-title"></div><div class="lovely-chart--tooltip-legend"></div><div class="lovely-chart--spinner"></div>';
+
+      if ('ontouchstart' in window && this.#data.isZoomable) {
+        addEventListener(this.#balloon, 'click', this.#onBalloonClick);
       }
-      _element.appendChild(_balloon);
+
+      this.#element.appendChild(this.#balloon);
     }
-    function _onMouseMove(e) {
-      if (e.target === _balloon || _balloon.contains(e.target) || _clickedOnLabel !== null) {
+
+    #onMouseMove = (e) => {
+      if (e.target === this.#balloon || this.#balloon.contains(e.target) || this.#clickedOnLabel !== null) {
         return;
       }
-      _isZooming = false;
-      const pageOffset = _getPageOffset(_element);
-      _offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
-      _offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
-      _selectLabelOnRaf();
-    }
-    function _onDocumentMove(e) {
-      if (_offsetX !== null && e.target !== _element && !_element.contains(e.target)) {
-        _clear();
+
+      this.#isZooming = false;
+
+      const pageOffset = this.#getPageOffset(this.#element);
+      this.#offsetX = (e.touches ? e.touches[0].clientX : e.clientX) - pageOffset.left;
+      this.#offsetY = (e.touches ? e.touches[0].clientY : e.clientY) - pageOffset.top;
+
+      this.#selectLabelOnRaf();
+    };
+
+    #onDocumentMove = (e) => {
+      if (this.#offsetX !== null && e.target !== this.#element && !this.#element.contains(e.target)) {
+        this.#clear();
       }
-    }
-    function _onClick(e) {
-      if (_isZooming) {
+    };
+
+    #onClick = (e) => {
+      if (this.#isZooming) {
         return;
       }
-      if (data.isZoomable) {
-        const oldLabelIndex = _clickedOnLabel;
-        _clickedOnLabel = null;
-        _onMouseMove(e);
-        const newLabelIndex = _getLabelIndex();
+
+      if (this.#data.isZoomable) {
+        const oldLabelIndex = this.#clickedOnLabel;
+
+        this.#clickedOnLabel = null;
+        this.#onMouseMove(e, true);
+
+        const newLabelIndex = this.#getLabelIndex();
         if (newLabelIndex !== oldLabelIndex) {
-          _clickedOnLabel = newLabelIndex;
+          this.#clickedOnLabel = newLabelIndex;
         }
-        onZoom(newLabelIndex);
+
+        this.#onZoom(newLabelIndex);
       }
-    }
-    function _onBalloonClick() {
-      if (_balloon.classList.contains("lovely-chart--state-inactive")) {
+    };
+
+    #onBalloonClick = () => {
+      if (this.#balloon.classList.contains('lovely-chart--state-inactive')) {
         return;
       }
-      const labelIndex = _projection.findClosestLabelIndex(_offsetX);
-      onZoom(labelIndex);
-    }
-    function _clear(isExternal) {
-      _offsetX = null;
-      _clickedOnLabel = null;
-      clearCanvas(_canvas, _context);
-      _hideBalloon();
-      if (!isExternal && onFocus) {
-        onFocus(null);
+
+      const labelIndex = this.#projection.findClosestLabelIndex(this.#offsetX);
+      this.#onZoom(labelIndex);
+    };
+
+    #clear(isExternal) {
+      this.#offsetX = null;
+      this.#clickedOnLabel = null;
+      clearCanvas(this.#canvas, this.#context);
+      this.#hideBalloon();
+
+      if (!isExternal && this.#onFocus) {
+        this.#onFocus(null);
       }
     }
-    function _getLabelIndex() {
-      const labelIndex = _projection.findClosestLabelIndex(_offsetX);
-      return labelIndex < _state.labelFromIndex || labelIndex > _state.labelToIndex ? null : labelIndex;
+
+    #getLabelIndex() {
+      const labelIndex = this.#projection.findClosestLabelIndex(this.#offsetX);
+      return labelIndex < this.#state.labelFromIndex || labelIndex > this.#state.labelToIndex ? null : labelIndex;
     }
-    function _selectLabel(isExternal) {
-      if (_offsetX == null || !_state || _isZooming) {
+
+    #selectLabel(isExternal) {
+      if (this.#offsetX == null || !this.#state || this.#isZooming) {
         return;
       }
-      const labelIndex = _getLabelIndex();
+
+      const labelIndex = this.#getLabelIndex();
       if (labelIndex === null) {
-        _clear(isExternal);
+        this.#clear(isExternal);
         return;
       }
-      const pointerVector = getPointerVector();
-      const shouldShowBalloon = data.isPie ? pointerVector.distance <= getPieRadius(_projection) : true;
-      if (!isExternal && onFocus) {
-        if (data.isPie) {
-          onFocus(pointerVector);
+
+      const pointerVector = this.#getPointerVector();
+      const shouldShowBalloon = this.#data.isPie ? pointerVector.distance <= getPieRadius(this.#projection) : true;
+
+      if (!isExternal && this.#onFocus) {
+        if (this.#data.isPie) {
+          this.#onFocus(pointerVector);
         } else {
-          onFocus(labelIndex);
+          this.#onFocus(labelIndex);
         }
       }
-      function getValue(values, labelIndex2) {
-        if (data.isPie) {
-          return values.slice(_state.labelFromIndex, _state.labelToIndex + 1).reduce((a, x) => a + x, 0);
+
+      const getValue = (values, labelIndex) => {
+        if (this.#data.isPie) {
+          return values.slice(this.#state.labelFromIndex, this.#state.labelToIndex + 1).reduce((a, x) => a + x, 0);
         }
-        return values[labelIndex2];
-      }
-      const [xPx] = toPixels(_projection, labelIndex, 0);
-      const statistics = data.datasets.map(({ key, name, values, hasOwnYAxis }, i) => ({
-        key,
-        name,
-        value: getValue(values, labelIndex),
-        hasOwnYAxis,
-        originalIndex: i
-      })).filter(({ key }) => _state.filter[key]);
+
+        return values[labelIndex];
+      };
+
+      const [xPx] = this.#projection.toPixels(labelIndex, 0);
+      const statistics = this.#data.datasets
+        .map(({ key, name, values, hasOwnYAxis }, i) => ({
+          key,
+          name,
+          value: getValue(values, labelIndex),
+          hasOwnYAxis,
+          originalIndex: i,
+        }))
+        .filter(({ key }) => this.#state.filter[key]);
+
       if (statistics.length && shouldShowBalloon) {
-        _updateBalloon(statistics, labelIndex);
+        this.#updateBalloon(statistics, labelIndex);
       } else {
-        _hideBalloon();
+        this.#hideBalloon();
       }
-      clearCanvas(_canvas, _context);
-      if (data.isLines || data.isAreas) {
-        if (data.isLines) {
-          _drawCircles(statistics, labelIndex);
+
+      clearCanvas(this.#canvas, this.#context);
+      if (this.#data.isLines || this.#data.isAreas) {
+        if (this.#data.isLines) {
+          this.#drawCircles(statistics, labelIndex);
         }
-        _drawTail(xPx, plotSize.height - X_AXIS_HEIGHT, getCssColor(colors, "grid-lines"));
+
+        this.#drawTail(xPx, this.#plotSize.height - X_AXIS_HEIGHT, getCssColor(this.#colors, 'grid-lines'));
       }
     }
-    function _drawCircles(statistics, labelIndex) {
+
+    #drawCircles(statistics, labelIndex) {
       statistics.forEach(({ value, key, hasOwnYAxis, originalIndex }) => {
         if (value == null) return;
-        const pointIndex = labelIndex - _state.labelFromIndex;
-        const point = hasOwnYAxis ? _secondaryPoints[pointIndex] : _points[originalIndex][pointIndex];
+
+        const pointIndex = labelIndex - this.#state.labelFromIndex;
+        const point = hasOwnYAxis ? this.#secondaryPoints[pointIndex] : this.#points[originalIndex][pointIndex];
+
         if (!point) {
           return;
         }
-        const [x, y] = hasOwnYAxis ? toPixels(_secondaryProjection, labelIndex, point.stackValue) : toPixels(_projection, labelIndex, point.stackValue);
-        _drawCircle(
+
+        const [x, y] = hasOwnYAxis
+          ? this.#secondaryProjection.toPixels(labelIndex, point.stackValue)
+          : this.#projection.toPixels(labelIndex, point.stackValue);
+
+        // TODO animate
+        this.#drawCircle(
           [x, y],
-          getCssColor(colors, `dataset#${key}`),
-          getCssColor(colors, "background")
+          getCssColor(this.#colors, `dataset#${key}`),
+          getCssColor(this.#colors, 'background'),
         );
       });
     }
-    function _drawCircle([xPx, yPx], strokeColor, fillColor) {
-      _context.strokeStyle = strokeColor;
-      _context.fillStyle = fillColor;
-      _context.lineWidth = 2;
-      _context.beginPath();
-      _context.arc(xPx, yPx, 4, 0, 2 * Math.PI);
-      _context.fill();
-      _context.stroke();
+
+    #drawCircle([xPx, yPx], strokeColor, fillColor) {
+      this.#context.strokeStyle = strokeColor;
+      this.#context.fillStyle = fillColor;
+      this.#context.lineWidth = 2;
+
+      this.#context.beginPath();
+      this.#context.arc(xPx, yPx, 4, 0, 2 * Math.PI);
+      this.#context.fill();
+      this.#context.stroke();
     }
-    function _drawTail(xPx, height, color) {
-      _context.strokeStyle = color;
-      _context.lineWidth = 1;
-      _context.beginPath();
-      _context.moveTo(xPx, 0);
-      _context.lineTo(xPx, height);
-      _context.stroke();
+
+    #drawTail(xPx, height, color) {
+      this.#context.strokeStyle = color;
+      this.#context.lineWidth = 1;
+
+      this.#context.beginPath();
+      this.#context.moveTo(xPx, 0);
+      this.#context.lineTo(xPx, height);
+      this.#context.stroke();
     }
-    function _getBalloonLeftOffset(labelIndex) {
-      const meanLabel = (_state.labelFromIndex + _state.labelToIndex) / 2;
-      const { angle } = getPointerVector();
-      const shouldPlaceRight = data.isPie ? angle > Math.PI / 2 : labelIndex < meanLabel;
-      const leftOffset = shouldPlaceRight ? _offsetX + BALLOON_OFFSET : _offsetX - (_balloon.offsetWidth + BALLOON_OFFSET);
-      return Math.min(Math.max(0, leftOffset), container.offsetWidth - _balloon.offsetWidth);
+
+    #getBalloonLeftOffset(labelIndex) {
+      const meanLabel = (this.#state.labelFromIndex + this.#state.labelToIndex) / 2;
+      const { angle } = this.#getPointerVector();
+
+      const shouldPlaceRight = this.#data.isPie ? angle > Math.PI / 2 : labelIndex < meanLabel;
+
+      const leftOffset = shouldPlaceRight
+        ? this.#offsetX + BALLOON_OFFSET
+        : this.#offsetX - (this.#balloon.offsetWidth + BALLOON_OFFSET);
+
+      return Math.min(Math.max(0, leftOffset), this.#container.offsetWidth - this.#balloon.offsetWidth);
     }
-    function _getBalloonTopOffset() {
-      return data.isPie ? `${_offsetY}px` : 0;
+
+    #getBalloonTopOffset() {
+      return this.#data.isPie ? `${this.#offsetY}px` : 0;
     }
-    function _updateBalloon(statistics, labelIndex) {
-      _balloon.style.transform = `translate3D(${_getBalloonLeftOffset(labelIndex)}px, ${_getBalloonTopOffset()}, 0)`;
-      _balloon.classList.add("lovely-chart--state-shown");
-      if (data.isPie) {
-        _updateContent(null, statistics);
+
+    #updateBalloon(statistics, labelIndex) {
+      this.#balloon.style.transform = `translate3D(${this.#getBalloonLeftOffset(labelIndex)}px, ${this.#getBalloonTopOffset()}, 0)`;
+      this.#balloon.classList.add('lovely-chart--state-shown');
+
+      if (this.#data.isPie) {
+        this.#updateContent(null, statistics);
       } else {
-        _throttledUpdateContent(_getTitle(data, labelIndex), statistics);
+        this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics);
       }
     }
-    function _getTitle(data2, labelIndex) {
-      switch (data2.tooltipFormatter) {
-        case "statsFormatDayHourFull":
-          return statsFormatDayHourFull(data2.xLabels[labelIndex].value);
-        case "statsTooltipFormat('day')":
-          return getLabelDate(data2.xLabels[labelIndex]);
-        case "statsTooltipFormat('hour')":
-        case "statsTooltipFormat('5min')":
-          return getLabelTime(data2.xLabels[labelIndex]);
+
+    #getTitle(data, labelIndex) {
+      switch (data.tooltipFormatter) {
+        case 'statsFormatDayHourFull':
+          return statsFormatDayHourFull(data.xLabels[labelIndex].value);
+        case 'statsTooltipFormat(\'day\')':
+          return getLabelDate(data.xLabels[labelIndex]);
+        case 'statsTooltipFormat(\'hour\')':
+        case 'statsTooltipFormat(\'5min\')':
+          return getLabelTime(data.xLabels[labelIndex]);
         default:
-          return data2.xLabels[labelIndex].text;
+          return data.xLabels[labelIndex].text;
       }
     }
-    function _isPieSectorSelected(statistics, statItem, totalValue, pointerVector) {
+
+    // The angular offset must come from the item's position in the original
+    // (dataset-order) statistics — sectors are drawn in that order, while the
+    // displayed entries are sorted by value.
+    #isPieSectorSelected(statistics, statItem, totalValue, pointerVector) {
       const index = statistics.indexOf(statItem);
       const { value } = statItem;
       const offset = index > 0 ? statistics.slice(0, index).reduce((a, x) => a + x.value, 0) : 0;
       const beginAngle = offset / totalValue * Math.PI * 2 - Math.PI / 2;
       const endAngle = (offset + value) / totalValue * Math.PI * 2 - Math.PI / 2;
-      return pointerVector && beginAngle <= pointerVector.angle && pointerVector.angle < endAngle && pointerVector.distance <= getPieRadius(_projection);
+
+      return pointerVector &&
+        beginAngle <= pointerVector.angle &&
+        pointerVector.angle < endAngle &&
+        pointerVector.distance <= getPieRadius(this.#projection);
     }
-    function _updateTitle(title) {
-      const titleContainer = _balloon.children[0];
-      if (data.isPie) {
+
+    #updateTitle(title) {
+      const titleContainer = this.#balloon.children[0];
+
+      if (this.#data.isPie) {
         if (titleContainer) {
-          titleContainer.style.display = "none";
+          titleContainer.style.display = 'none';
         }
       } else {
-        if (titleContainer.style.display === "none") {
-          titleContainer.style.display = "";
+        if (titleContainer.style.display === 'none') {
+          titleContainer.style.display = '';
         }
-        const currentTitle = titleContainer.querySelector(":not(.lovely-chart--state-hidden)");
+        const currentTitle = titleContainer.querySelector(':not(.lovely-chart--state-hidden)');
+
         if (!titleContainer.textContent || !currentTitle) {
-          titleContainer.textContent = "";
-          const newTitle = createElement("span");
+          titleContainer.textContent = '';
+
+          const newTitle = createElement('span');
           newTitle.textContent = title;
           titleContainer.appendChild(newTitle);
         } else {
@@ -2130,271 +2774,341 @@ var LovelyChart = function(exports) {
         }
       }
     }
-    function _insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
-      const colorHex = data.colors[key];
-      const colorClass = isColorCloseToBackground(colors, colorHex) ? "" : ` lovely-chart--color-${colorHex.slice(1)}`;
+
+    #insertNewDataSet(dataSetContainer, { name, key, value }, totalValue) {
+      const colorHex = this.#data.colors[key];
+      const colorClass = isColorCloseToBackground(this.#colors, colorHex) ? '' : ` lovely-chart--color-${colorHex.slice(1)}`;
       const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right${colorClass}`;
       const newDataSet = createElement();
-      newDataSet.className = "lovely-chart--tooltip-dataset";
-      newDataSet.setAttribute("data-present", "true");
-      newDataSet.setAttribute("data-name", name);
-      const titleElement = createElement("span");
-      titleElement.className = "lovely-chart--dataset-title";
+      newDataSet.className = 'lovely-chart--tooltip-dataset';
+      newDataSet.setAttribute('data-present', 'true');
+      newDataSet.setAttribute('data-name', name);
+      const titleElement = createElement('span');
+      titleElement.className = 'lovely-chart--dataset-title';
       titleElement.textContent = name;
       newDataSet.appendChild(titleElement);
-      const valueElement = createElement("span");
+
+      const valueElement = createElement('span');
       valueElement.className = className;
-      valueElement.textContent = _formatValue(value);
+      valueElement.textContent = this.#formatValue(value);
       newDataSet.appendChild(valueElement);
-      _renderPercentageValue(newDataSet, value, totalValue);
+
+      this.#renderPercentageValue(newDataSet, value, totalValue);
+
       dataSetContainer.appendChild(newDataSet);
     }
-    function _updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
-      currentDataSet.setAttribute("data-present", "true");
+
+    #updateDataSet(currentDataSet, { key, value } = {}, totalValue) {
+      currentDataSet.setAttribute('data-present', 'true');
+
       const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value`);
+
       if (valueElement) {
-        valueElement.textContent = _formatValue(value);
+        valueElement.textContent = this.#formatValue(value);
       }
-      _renderPercentageValue(currentDataSet, value, totalValue);
+
+      this.#renderPercentageValue(currentDataSet, value, totalValue);
     }
-    function _formatValue(value) {
+
+    #formatValue(value) {
       const formatted = formatInteger(value);
-      const prefix = data.valuePrefix || "";
-      const suffix = data.valueSuffix || "";
-      if (data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
+      const prefix = this.#data.valuePrefix || '';
+      const suffix = this.#data.valueSuffix || '';
+      if (this.#data.prefixIsCurrency && prefix && formatted.charCodeAt(0) === 45) {
         return `-${prefix}${formatted.slice(1)}${suffix}`;
       }
       return `${prefix}${formatted}${suffix}`;
     }
-    function _renderPercentageValue(dataSet, value, totalValue) {
-      if (!data.isPercentage) {
+
+    #renderPercentageValue(dataSet, value, totalValue) {
+      if (!this.#data.isPercentage) {
         return;
       }
-      if (data.isPie) {
-        Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach((e) => e.remove());
+
+      if (this.#data.isPie) {
+        Array.from(dataSet.querySelectorAll(`.lovely-chart--percentage-title`)).forEach(e => e.remove());
         return;
       }
+
       const percentageValue = totalValue ? Math.round(value / totalValue * 100) : 0;
       const percentageElement = dataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
+
       if (!percentageElement) {
-        const newPercentageTitle = createElement("span");
-        newPercentageTitle.className = "lovely-chart--percentage-title lovely-chart--position-left";
+        const newPercentageTitle = createElement('span');
+        newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
         newPercentageTitle.textContent = `${percentageValue}%`;
         dataSet.prepend(newPercentageTitle);
       } else {
         percentageElement.textContent = `${percentageValue}%`;
       }
     }
-    function _updateDataSets(statistics) {
-      const dataSetContainer = _balloon.children[1];
-      if (data.isPie) {
-        dataSetContainer.classList.add("lovely-chart--tooltip-legend-pie");
+
+    #updateDataSets(statistics) {
+      const dataSetContainer = this.#balloon.children[1];
+      if (this.#data.isPie) {
+        dataSetContainer.classList.add('lovely-chart--tooltip-legend-pie');
       }
+
       Array.from(dataSetContainer.children).forEach((dataSet) => {
-        if (!data.isPie && dataSetContainer.classList.contains("lovely-chart--tooltip-legend-pie")) {
+        if (!this.#data.isPie && dataSetContainer.classList.contains('lovely-chart--tooltip-legend-pie')) {
           dataSet.remove();
         } else {
-          dataSet.setAttribute("data-present", "false");
+          dataSet.setAttribute('data-present', 'false');
         }
       });
+
       const totalValue = statistics.reduce((a, x) => a + x.value, 0);
-      const pointerVector = getPointerVector();
+      const pointerVector = this.#getPointerVector();
       const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value != null);
       const sortedStatistics = filteredStatistics.sort((a, b) => b.value - a.value);
       const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
-      const finalStatistics = data.isPie ? limitedStatistics.filter((statItem) => _isPieSectorSelected(statistics, statItem, totalValue, pointerVector)) : limitedStatistics;
+      const finalStatistics = this.#data.isPie
+        ? limitedStatistics.filter((statItem) => this.#isPieSectorSelected(statistics, statItem, totalValue, pointerVector))
+        : limitedStatistics;
+
       finalStatistics.forEach((statItem) => {
-        const currentDataSet = Array.from(dataSetContainer.children).find((element) => element.dataset.name === statItem.name);
+        const currentDataSet = Array.from(dataSetContainer.children)
+          .find((element) => element.dataset.name === statItem.name);
+
         if (!currentDataSet) {
-          _insertNewDataSet(dataSetContainer, statItem, totalValue);
+          this.#insertNewDataSet(dataSetContainer, statItem, totalValue);
         } else {
-          _updateDataSet(currentDataSet, statItem, totalValue);
+          this.#updateDataSet(currentDataSet, statItem, totalValue);
           dataSetContainer.appendChild(currentDataSet);
         }
       });
-      if ((data.isBars || data.isSteps || data.isAreas) && data.isStacked) {
-        _renderTotal(dataSetContainer, _formatValue(totalValue));
+
+      if ((this.#data.isBars || this.#data.isSteps || this.#data.isAreas) && this.#data.isStacked) {
+        this.#renderTotal(dataSetContainer, this.#formatValue(totalValue));
       }
-      if (data.secondaryYAxis) {
-        _renderSecondaryTotal(dataSetContainer, totalValue);
+
+      if (this.#data.secondaryYAxis) {
+        this.#renderSecondaryTotal(dataSetContainer, totalValue);
       }
-      Array.from(dataSetContainer.querySelectorAll('[data-total="true"]')).forEach((el) => dataSetContainer.appendChild(el));
-      Array.from(dataSetContainer.querySelectorAll('[data-present="false"]')).forEach((dataSet) => {
-        dataSet.remove();
-      });
+
+      // Re-append total rows to keep them at the bottom after sort reordering
+      Array.from(dataSetContainer.querySelectorAll('[data-total="true"]'))
+        .forEach((el) => dataSetContainer.appendChild(el));
+
+      Array.from(dataSetContainer.querySelectorAll('[data-present="false"]'))
+        .forEach((dataSet) => {
+          dataSet.remove();
+        });
     }
-    function _updateContent(title, statistics) {
-      _updateTitle(title);
-      _updateDataSets(statistics);
+
+    #updateContent(title, statistics) {
+      this.#updateTitle(title);
+      this.#updateDataSets(statistics);
     }
-    function _renderTotal(dataSetContainer, totalValue) {
+
+    #renderTotal(dataSetContainer, totalValue) {
       const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
       const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
       if (!totalText) {
         const newTotalText = createElement();
-        newTotalText.className = "lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total";
-        newTotalText.setAttribute("data-present", "true");
-        newTotalText.setAttribute("data-total", "true");
-        const titleElement = createElement("span");
-        titleElement.textContent = "Total";
+        newTotalText.className = 'lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total';
+        newTotalText.setAttribute('data-present', 'true');
+        newTotalText.setAttribute('data-total', 'true');
+        const titleElement = createElement('span');
+        titleElement.textContent = 'Total';
         newTotalText.appendChild(titleElement);
-        const valueElement = createElement("span");
+
+        const valueElement = createElement('span');
         valueElement.className = className;
         valueElement.textContent = totalValue;
         newTotalText.appendChild(valueElement);
+
         dataSetContainer.appendChild(newTotalText);
       } else {
-        totalText.setAttribute("data-present", "true");
+        totalText.setAttribute('data-present', 'true');
+
         const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
         valueElement.textContent = totalValue;
       }
     }
-    function _renderSecondaryTotal(dataSetContainer, totalValue) {
-      const { label, multiplier, prefix = "", suffix = "" } = data.secondaryYAxis;
+
+    #renderSecondaryTotal(dataSetContainer, totalValue) {
+      const { label, multiplier, prefix = '', suffix = '' } = this.#data.secondaryYAxis;
       const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
       const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
+
       const secondaryValue = (totalValue * multiplier).toFixed(2);
+
       if (!totalText) {
         const newTotalText = createElement();
-        newTotalText.className = "lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total";
-        newTotalText.setAttribute("data-present", "true");
-        newTotalText.setAttribute("data-total", "true");
-        const titleElement = createElement("span");
+        newTotalText.className = 'lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total';
+        newTotalText.setAttribute('data-present', 'true');
+        newTotalText.setAttribute('data-total', 'true');
+        const titleElement = createElement('span');
         titleElement.textContent = label;
         newTotalText.appendChild(titleElement);
-        const valueElement = createElement("span");
+
+        const valueElement = createElement('span');
         valueElement.className = className;
         valueElement.textContent = `${prefix}${secondaryValue}${suffix}`;
         newTotalText.appendChild(valueElement);
+
         dataSetContainer.appendChild(newTotalText);
       } else {
-        totalText.setAttribute("data-present", "true");
+        totalText.setAttribute('data-present', 'true');
+
         const valueElement = totalText.querySelector(`.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`);
         valueElement.textContent = `${prefix}${secondaryValue}${suffix}`;
       }
     }
-    function _hideBalloon() {
-      _balloon.classList.remove("lovely-chart--state-shown");
+
+    #hideBalloon() {
+      this.#balloon.classList.remove('lovely-chart--state-shown');
     }
-    function getPointerVector() {
-      const elementRect = _element.getBoundingClientRect();
-      const canvasRect = _canvas.getBoundingClientRect();
-      const pointerX = _offsetX - (canvasRect.left - elementRect.left);
-      const pointerY = _offsetY - (canvasRect.top - elementRect.top);
-      const center = data.isPie && _projection ? _projection.getCenter() : [canvasRect.width / 2, canvasRect.height / 2];
+
+    #getPointerVector() {
+      // #offsetX/Y are relative to the element, while the chart is drawn on the
+      // canvas, which sits lower within it (margin-top) — translate the pointer
+      // into canvas space and measure from the projection's center, where the
+      // pie is actually drawn.
+      const elementRect = this.#element.getBoundingClientRect();
+      const canvasRect = this.#canvas.getBoundingClientRect();
+      const pointerX = this.#offsetX - (canvasRect.left - elementRect.left);
+      const pointerY = this.#offsetY - (canvasRect.top - elementRect.top);
+
+      const center = this.#data.isPie && this.#projection
+        ? this.#projection.getCenter()
+        : [canvasRect.width / 2, canvasRect.height / 2];
       const angle = Math.atan2(pointerY - center[1], pointerX - center[0]);
       const distance = Math.sqrt((pointerX - center[0]) ** 2 + (pointerY - center[1]) ** 2);
+
       return {
         angle: angle >= -Math.PI / 2 ? angle : 2 * Math.PI + angle,
-        distance
+        distance,
       };
     }
-    function _getPageOffset(el) {
+
+    #getPageOffset(el) {
       return el.getBoundingClientRect();
     }
-    function destroy() {
-      if (_documentMoveEvent) {
-        removeEventListener(document, _documentMoveEvent, _onDocumentMove);
-        _documentMoveEvent = null;
-      }
-    }
-    return { update, toggleLoading, toggleIsZoomed, destroy };
   }
-  function createTools(container, data, filterCallback) {
-    let _element;
-    _setupLayout();
-    _updateFilter();
-    function redraw() {
-      if (_element) {
-        const oldElement = _element;
-        oldElement.classList.add("lovely-chart--state-hidden");
+
+  class Tools {
+    #container;
+    #data;
+    #filterCallback;
+
+    #element;
+
+    constructor(container, data, filterCallback) {
+      this.#container = container;
+      this.#data = data;
+      this.#filterCallback = filterCallback;
+
+      this.#setupLayout();
+      this.#updateFilter();
+    }
+
+    redraw() {
+      if (this.#element) {
+        const oldElement = this.#element;
+        oldElement.classList.add('lovely-chart--state-hidden');
         setTimeout(() => {
           oldElement.parentNode.removeChild(oldElement);
         }, 500);
       }
-      _setupLayout();
-      _element.classList.add("lovely-chart--state-transparent");
+
+      this.#setupLayout();
+      this.#element.classList.add('lovely-chart--state-transparent');
       requestAnimationFrame(() => {
-        _element.classList.remove("lovely-chart--state-transparent");
+        this.#element.classList.remove('lovely-chart--state-transparent');
       });
     }
-    function _setupLayout() {
-      _element = createElement();
-      _element.className = "lovely-chart--tools";
-      if (data.datasets.length < 2) {
-        _element.className += " lovely-chart--state-hidden";
+
+    #setupLayout() {
+      this.#element = createElement();
+      this.#element.className = 'lovely-chart--tools';
+
+      if (this.#data.datasets.length < 2) {
+        this.#element.className += ' lovely-chart--state-hidden';
       }
-      data.datasets.forEach(({ key, name }) => {
-        const control = createElement("a");
-        control.href = "#";
+
+      this.#data.datasets.forEach(({ key, name }) => {
+        const control = createElement('a');
+        control.href = '#';
         control.dataset.key = key;
-        const darkContent = isColorCloseToWhite(data.colors[key]) ? " lovely-chart--dark-content" : "";
-        control.className = `lovely-chart--button lovely-chart--color-${data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
-        const check = createElement("span");
-        check.className = "lovely-chart--button-check";
+        const darkContent = isColorCloseToWhite(this.#data.colors[key]) ? ' lovely-chart--dark-content' : '';
+        control.className = `lovely-chart--button lovely-chart--color-${this.#data.colors[key].slice(1)} lovely-chart--state-checked${darkContent}`;
+
+        const check = createElement('span');
+        check.className = 'lovely-chart--button-check';
         control.appendChild(check);
-        const label = createElement("span");
-        label.className = "lovely-chart--button-label";
+
+        const label = createElement('span');
+        label.className = 'lovely-chart--button-label';
         label.textContent = name;
         control.appendChild(label);
-        control.addEventListener("click", (e) => {
+
+        control.addEventListener('click', (e) => {
           e.preventDefault();
+
           if (!control.dataset.clickPrevented) {
-            _updateFilter(control);
+            this.#updateFilter(control);
           }
+
           delete control.dataset.clickPrevented;
         });
+
         captureEvents(control, {
           onLongPress: () => {
-            control.dataset.clickPrevented = "true";
-            _updateFilter(control, true);
-          }
+            control.dataset.clickPrevented = 'true';
+
+            this.#updateFilter(control, true);
+          },
         });
-        _element.appendChild(control);
+
+        this.#element.appendChild(control);
       });
-      container.appendChild(_element);
+
+      this.#container.appendChild(this.#element);
     }
-    function _updateFilter(button, isLongPress = false) {
-      const buttons = Array.from(_element.getElementsByTagName("a"));
-      const isSingleChecked = _element.querySelectorAll(".lovely-chart--state-checked").length === 1;
+
+    #updateFilter(button, isLongPress = false) {
+      const buttons = Array.from(this.#element.getElementsByTagName('a'));
+      const isSingleChecked = this.#element.querySelectorAll('.lovely-chart--state-checked').length === 1;
+
       if (button) {
-        if (button.classList.contains("lovely-chart--state-checked") && isSingleChecked) {
+        if (button.classList.contains('lovely-chart--state-checked') && isSingleChecked) {
           if (isLongPress) {
-            buttons.forEach((b) => b.classList.add("lovely-chart--state-checked"));
-            button.classList.remove("lovely-chart--state-checked");
+            buttons.forEach((b) => b.classList.add('lovely-chart--state-checked'));
+            button.classList.remove('lovely-chart--state-checked');
           } else {
-            button.classList.remove("lovely-chart--state-shake");
+            button.classList.remove('lovely-chart--state-shake');
             requestAnimationFrame(() => {
-              button.classList.add("lovely-chart--state-shake");
+              button.classList.add('lovely-chart--state-shake');
             });
           }
         } else if (isLongPress) {
-          buttons.forEach((b) => b.classList.remove("lovely-chart--state-checked"));
-          button.classList.add("lovely-chart--state-checked");
+          buttons.forEach((b) => b.classList.remove('lovely-chart--state-checked'));
+          button.classList.add('lovely-chart--state-checked');
         } else {
-          button.classList.toggle("lovely-chart--state-checked");
+          button.classList.toggle('lovely-chart--state-checked');
         }
       }
+
       const filter = {};
+
       buttons.forEach((input) => {
-        filter[input.dataset.key] = input.classList.contains("lovely-chart--state-checked");
+        filter[input.dataset.key] = input.classList.contains('lovely-chart--state-checked');
       });
-      filterCallback(filter);
+
+      this.#filterCallback(filter);
     }
-    return {
-      redraw
-    };
   }
+
   const DEFAULT_COLORS = [
-    "#3497ED",
-    "#2373DB",
-    "#9ED448",
-    "#5FB641",
-    "#F5BD25",
-    "#F79E39",
-    "#E65850",
-    "#5D5CDC"
+    '#3497ED', '#2373DB', '#9ED448', '#5FB641',
+    '#F5BD25', '#F79E39', '#E65850', '#5D5CDC',
   ];
+
+  // For fewer datasets, a curated subset of `DEFAULT_COLORS` is used (indexed by dataset count).
+  // Each step adds one color: lightblue, +lightgreen, +darkorange, +violet, +lightorange, +darkblue,
+  // +darkgreen, +red. The original palette order is always preserved.
   const DEFAULT_COLORS_SUBSETS = [
     [],
     [0],
@@ -2403,60 +3117,67 @@ var LovelyChart = function(exports) {
     [0, 2, 5, 7],
     [0, 2, 4, 5, 7],
     [0, 1, 2, 4, 5, 7],
-    [0, 1, 2, 3, 4, 5, 7]
+    [0, 1, 2, 3, 4, 5, 7],
   ];
+
   const LABEL_TYPE_TO_FORMATTER = {
-    "year": "statsFormatYear",
-    "month": "statsFormatMonth",
-    "week": "statsFormatWeek",
-    "day": "statsFormat('day')",
-    "hour": "statsFormat('hour')",
-    "5min": "statsFormat('5min')",
-    "dayHour": "statsFormatDayHour",
-    "text": void 0
+    'year': 'statsFormatYear',
+    'month': 'statsFormatMonth',
+    'week': 'statsFormatWeek',
+    'day': "statsFormat('day')",
+    'hour': "statsFormat('hour')",
+    '5min': "statsFormat('5min')",
+    'dayHour': 'statsFormatDayHour',
+    'text': undefined,
   };
+
   function analyzeData(data, fallbackLabelType) {
     const { title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis, hasSecondYAxis, onZoom, withMinimap, minimapRange, noCaption, zoomOutLabel, valuePrefix, valueSuffix, prefixIsCurrency, limitDate, onLimitedRangeClick } = data;
     const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
-    const labelFormatter = labelFormatterRaw || labelType && LABEL_TYPE_TO_FORMATTER[labelType];
+    const labelFormatter = labelFormatterRaw || (labelType && LABEL_TYPE_TO_FORMATTER[labelType]);
     const { datasets, labels } = prepareDatasets(data);
+
     const colors = {};
     let totalYMin = Infinity;
     let totalYMax = -Infinity;
     datasets.forEach(({ key, color, yMin, yMax }) => {
       colors[key] = color;
+
       if (yMin < totalYMin) {
         totalYMin = yMin;
       }
+
       if (yMax > totalYMax) {
         totalYMax = yMax;
       }
     });
+
     let xLabels;
     switch (labelFormatter) {
-      case "statsFormatYear":
+      case 'statsFormatYear':
         xLabels = statsFormatYear(labels);
         break;
-      case "statsFormatMonth":
+      case 'statsFormatMonth':
         xLabels = statsFormatMonth(labels);
         break;
-      case "statsFormatWeek":
+      case 'statsFormatWeek':
         xLabels = statsFormatWeek(labels);
         break;
-      case "statsFormatDayHour":
+      case 'statsFormatDayHour':
         xLabels = statsFormatDayHour(labels);
         break;
-      case "statsFormat('day')":
+      case 'statsFormat(\'day\')':
         xLabels = statsFormatDay(labels);
         break;
-      case "statsFormat('hour')":
-      case "statsFormat('5min')":
+      case 'statsFormat(\'hour\')':
+      case 'statsFormat(\'5min\')':
         xLabels = statsFormatMin(labels);
         break;
       default:
         xLabels = statsFormatText(labels);
         break;
     }
+
     let limitBegin = null;
     if (limitDate != null) {
       const totalXWidth = labels.length - 1;
@@ -2465,6 +3186,7 @@ var LovelyChart = function(exports) {
         limitBegin = idx / totalXWidth;
       }
     }
+
     const analyzed = {
       title,
       labelType,
@@ -2480,11 +3202,11 @@ var LovelyChart = function(exports) {
       valueSuffix,
       prefixIsCurrency,
       onZoom,
-      isLines: data.type === "line",
-      isBars: data.type === "bar",
-      isSteps: data.type === "step",
-      isAreas: data.type === "area",
-      isPie: data.type === "pie",
+      isLines: data.type === 'line',
+      isBars: data.type === 'bar',
+      isSteps: data.type === 'step',
+      isAreas: data.type === 'area',
+      isPie: data.type === 'pie',
       isDonut: Boolean(data.isDonut),
       withGradient: Boolean(data.withGradient),
       yMin: totalYMin,
@@ -2495,59 +3217,84 @@ var LovelyChart = function(exports) {
       noCaption,
       zoomOutLabel,
       limitBegin,
-      onLimitedRangeClick
+      onLimitedRangeClick,
     };
+
     analyzed.shouldZoomToPie = !analyzed.onZoom && analyzed.isPercentage;
     analyzed.isZoomable = analyzed.onZoom || analyzed.shouldZoomToPie;
+
     return analyzed;
   }
+
   function inferLabelType(labels) {
     const [first, second] = labels;
-    if (typeof first === "string") {
-      return "text";
+
+    if (typeof first === 'string') {
+      return 'text';
     }
-    if (typeof first !== "number") {
-      return void 0;
+
+    if (typeof first !== 'number') {
+      return undefined;
     }
-    if (typeof second !== "number") {
-      return "day";
+
+    // A single timestamp has no step to infer granularity from
+    if (typeof second !== 'number') {
+      return 'day';
     }
+
     const step = Math.abs(second - first);
+
+    // Calendar steps are irregular: a year step is 365–366 days,
+    // a month step is 28–31 days, so the bounds are inclusive of the minimums.
     if (step >= 365 * MILISECONDS_IN_DAY) {
-      return "year";
+      return 'year';
     }
+
     if (step >= 28 * MILISECONDS_IN_DAY) {
-      return "month";
+      return 'month';
     }
+
     if (step >= 7 * MILISECONDS_IN_DAY) {
-      return "week";
+      return 'week';
     }
+
     if (step >= MILISECONDS_IN_DAY) {
-      return "day";
+      return 'day';
     }
+
     if (step >= MILISECONDS_IN_DAY / 24) {
-      return "hour";
+      return 'hour';
     }
-    return "5min";
+
+    return '5min';
   }
+
+  // Accepts a `[begin, end]` tuple of 0..1 fractions or the 'full' keyword,
+  // normalized to the `{ begin, end }` shape used internally.
   function buildMinimapRange(minimapRange) {
     if (!minimapRange) {
-      return void 0;
+      return undefined;
     }
-    if (minimapRange === "full") {
+
+    if (minimapRange === 'full') {
       return { begin: 0, end: 1 };
     }
+
     const [begin, end] = minimapRange;
     return { begin, end };
   }
+
   function prepareDatasets(data) {
     const { type, labels, datasets, hasSecondYAxis } = data;
+
     const defaultColors = getDefaultColors(datasets.length);
     let nextDefaultColor = 0;
+
     return {
       labels: cloneArray(labels),
       datasets: datasets.map(({ name, color, values }, i) => {
         const { min: yMin, max: yMax } = getMaxMin(values);
+
         return {
           type,
           key: `y${i}`,
@@ -2556,239 +3303,354 @@ var LovelyChart = function(exports) {
           values: cloneArray(values),
           hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
           yMin,
-          yMax
+          yMax,
         };
-      })
+      }),
     };
   }
+
   function getDefaultColors(datasetsCount) {
     const subset = DEFAULT_COLORS_SUBSETS[datasetsCount];
     return subset ? subset.map((index) => DEFAULT_COLORS[index]) : DEFAULT_COLORS;
   }
+
   function cloneArray(array) {
     return array.slice(0);
   }
-  function createZoomer(data, overviewData, colors, stateManager, container, header, minimap, tooltip, tools) {
-    let _isZoomed = false;
-    let _isDestroyed = false;
-    let _stateBeforeZoomIn;
-    let _stateBeforeZoomOut;
-    let _swapDataTimeout = null;
-    let _stateAnimatingTimeout = null;
-    function zoomIn(state, labelIndex) {
-      if (_isZoomed) {
+
+  class Zoomer {
+    #data;
+    #overviewData;
+    #colors;
+    #stateManager;
+    #container;
+    #header;
+    #minimap;
+    #tooltip;
+    #tools;
+
+    #isZoomed = false;
+    #isDestroyed = false;
+    #stateBeforeZoomIn;
+    #stateBeforeZoomOut;
+    #swapDataTimeout = null;
+    #stateAnimatingTimeout = null;
+
+    constructor(data, overviewData, colors, stateManager, container, header, minimap, tooltip, tools) {
+      this.#data = data;
+      this.#overviewData = overviewData;
+      this.#colors = colors;
+      this.#stateManager = stateManager;
+      this.#container = container;
+      this.#header = header;
+      this.#minimap = minimap;
+      this.#tooltip = tooltip;
+      this.#tools = tools;
+    }
+
+    zoomIn(state, labelIndex) {
+      if (this.#isZoomed) {
         return;
       }
-      const label = data.xLabels[labelIndex];
-      _stateBeforeZoomIn = state;
-      header.toggleIsZooming(true);
-      tooltip.toggleLoading(true);
-      tooltip.toggleIsZoomed(true);
-      if (data.shouldZoomToPie) {
-        container.classList.add("lovely-chart--state-zoomed-in");
-        container.classList.add("lovely-chart--state-animating");
+
+      const label = this.#data.xLabels[labelIndex];
+
+      this.#stateBeforeZoomIn = state;
+      this.#header.toggleIsZooming(true);
+      this.#tooltip.toggleLoading(true);
+      this.#tooltip.toggleIsZoomed(true);
+      if (this.#data.shouldZoomToPie) {
+        this.#container.classList.add('lovely-chart--state-zoomed-in');
+        this.#container.classList.add('lovely-chart--state-animating');
       }
+
       const { value } = label;
-      const dataPromise = data.shouldZoomToPie ? Promise.resolve(_generatePieData(labelIndex)) : data.onZoom(value);
-      dataPromise.then((newData) => _replaceData(newData, labelIndex, label));
+      const dataPromise = this.#data.shouldZoomToPie
+        ? Promise.resolve(this.#generatePieData(labelIndex))
+        : this.#data.onZoom(value);
+      dataPromise.then((newData) => this.#replaceData(newData, labelIndex, label));
     }
-    function zoomOut(state) {
-      if (!_isZoomed) {
+
+    zoomOut(state) {
+      if (!this.#isZoomed) {
         return;
       }
-      _stateBeforeZoomOut = state;
-      header.toggleIsZooming(true);
-      tooltip.toggleLoading(true);
-      tooltip.toggleIsZoomed(false);
-      if (data.shouldZoomToPie) {
-        container.classList.remove("lovely-chart--state-zoomed-in");
-        container.classList.add("lovely-chart--state-animating");
+
+      this.#stateBeforeZoomOut = state;
+      this.#header.toggleIsZooming(true);
+      this.#tooltip.toggleLoading(true);
+      this.#tooltip.toggleIsZoomed(false);
+      if (this.#data.shouldZoomToPie) {
+        this.#container.classList.remove('lovely-chart--state-zoomed-in');
+        this.#container.classList.add('lovely-chart--state-animating');
       }
+
       const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
-      _replaceData(overviewData, labelIndex);
+      this.#replaceData(this.#overviewData, labelIndex);
     }
-    function isZoomed() {
-      return _isZoomed;
+
+    isZoomed() {
+      return this.#isZoomed;
     }
-    function _replaceData(newRawData, labelIndex, zoomInLabel) {
-      if (_isDestroyed) return;
+
+    destroy() {
+      this.#isDestroyed = true;
+      if (this.#swapDataTimeout !== null) {
+        clearTimeout(this.#swapDataTimeout);
+        this.#swapDataTimeout = null;
+      }
+      if (this.#stateAnimatingTimeout !== null) {
+        clearTimeout(this.#stateAnimatingTimeout);
+        this.#stateAnimatingTimeout = null;
+      }
+    }
+
+    #replaceData(newRawData, labelIndex, zoomInLabel) {
+      if (this.#isDestroyed) return;
+
       if (!newRawData) {
-        tooltip.toggleLoading(false);
-        tooltip.toggleIsZoomed(false);
-        header.toggleIsZooming(false);
+        this.#tooltip.toggleLoading(false);
+        this.#tooltip.toggleIsZoomed(false);
+        this.#header.toggleIsZooming(false);
+
         return;
       }
-      tooltip.toggleLoading(false);
-      const labelWidth = 1 / data.xLabels.length;
-      const labelMiddle = labelIndex / (data.xLabels.length - 1);
+
+      this.#tooltip.toggleLoading(false);
+
+      const labelWidth = 1 / this.#data.xLabels.length;
+      const labelMiddle = labelIndex / (this.#data.xLabels.length - 1);
       const filter = {};
-      data.datasets.forEach(({ key }) => filter[key] = false);
-      const newData = analyzeData(newRawData, _isZoomed || data.shouldZoomToPie ? "day" : "hour");
-      const shouldZoomToLines = Object.keys(data.datasets).length !== Object.keys(newData.datasets).length;
-      stateManager.update({
+      this.#data.datasets.forEach(({ key }) => filter[key] = false);
+      const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToPie ? 'day' : 'hour');
+      const shouldZoomToLines = Object.keys(this.#data.datasets).length !== Object.keys(newData.datasets).length;
+
+      this.#stateManager.update({
         range: {
           begin: labelMiddle - labelWidth / 2,
-          end: labelMiddle + labelWidth / 2
+          end: labelMiddle + labelWidth / 2,
         },
-        filter
+        filter,
       });
-      _swapDataTimeout = setTimeout(() => {
-        _swapDataTimeout = null;
-        Object.assign(data, newData);
+
+      this.#swapDataTimeout = setTimeout(() => {
+        this.#swapDataTimeout = null;
+        Object.assign(this.#data, newData);
+
         if (shouldZoomToLines && newRawData.colors) {
-          Object.assign(colors, createColors(newRawData.colors));
+          Object.assign(this.#colors, createColors(newRawData.colors));
         }
+
         if (shouldZoomToLines) {
-          if (minimap) {
-            minimap.toggle(_isZoomed);
+          if (this.#minimap) {
+            this.#minimap.toggle(this.#isZoomed);
           }
-          tools.redraw();
-          container.style.width = `${container.scrollWidth}px`;
-          container.style.height = `${container.scrollHeight}px`;
+          this.#tools.redraw();
+          this.#container.style.width = `${this.#container.scrollWidth}px`;
+          this.#container.style.height = `${this.#container.scrollHeight}px`;
         }
-        stateManager.update({
+
+        this.#stateManager.update({
           range: {
             begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
-            end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA
+            end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
           },
-          focusOn: null
+          focusOn: null,
         }, true);
-        const daysCount = _isZoomed || data.shouldZoomToPie ? data.xLabels.length : data.xLabels.length / 24;
-        const halfDayWidth = 1 / daysCount / 2;
+
+        const daysCount = this.#isZoomed || this.#data.shouldZoomToPie
+          ? this.#data.xLabels.length
+          : this.#data.xLabels.length / 24;
+        const halfDayWidth = (1 / daysCount) / 2;
+
         let range;
-        let filter2;
-        if (_isZoomed) {
+        let filter;
+
+        if (this.#isZoomed) {
           range = {
-            begin: _stateBeforeZoomIn.begin,
-            end: _stateBeforeZoomIn.end
+            begin: this.#stateBeforeZoomIn.begin,
+            end: this.#stateBeforeZoomIn.end,
           };
-          filter2 = shouldZoomToLines ? _stateBeforeZoomIn.filter : _stateBeforeZoomOut.filter;
+          filter = shouldZoomToLines ? this.#stateBeforeZoomIn.filter : this.#stateBeforeZoomOut.filter;
         } else {
           if (shouldZoomToLines) {
             range = {
               begin: 0,
-              end: 1
+              end: 1,
             };
-            filter2 = {};
-            data.datasets.forEach(({ key }) => filter2[key] = true);
+            filter = {};
+            this.#data.datasets.forEach(({ key }) => filter[key] = true);
           } else {
-            range = data.shouldZoomToPie || !newData.minimapRange ? {
+            range = this.#data.shouldZoomToPie || !newData.minimapRange ? {
               begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
-              end: ZOOM_RANGE_MIDDLE + halfDayWidth
+              end: ZOOM_RANGE_MIDDLE + halfDayWidth,
             } : newData.minimapRange;
-            filter2 = _stateBeforeZoomIn.filter;
+            filter = this.#stateBeforeZoomIn.filter;
           }
         }
-        stateManager.update({
+
+        this.#stateManager.update({
           range,
-          filter: filter2,
-          minimapDelta: _isZoomed ? null : range.end - range.begin
+          filter,
+          minimapDelta: this.#isZoomed ? null : range.end - range.begin,
         });
+
         if (zoomInLabel) {
-          header.zoom(getFullLabelDate(zoomInLabel));
+          this.#header.zoom(getFullLabelDate(zoomInLabel));
         }
-        _isZoomed = !_isZoomed;
-        header.toggleIsZooming(false);
-      }, stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
-      _stateAnimatingTimeout = setTimeout(() => {
-        _stateAnimatingTimeout = null;
-        if (data.shouldZoomToPie) {
-          container.classList.remove("lovely-chart--state-animating");
+
+        this.#isZoomed = !this.#isZoomed;
+        this.#header.toggleIsZooming(false);
+      }, this.#stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
+
+      this.#stateAnimatingTimeout = setTimeout(() => {
+        this.#stateAnimatingTimeout = null;
+        if (this.#data.shouldZoomToPie) {
+          this.#container.classList.remove('lovely-chart--state-animating');
         }
-      }, stateManager.hasAnimations() ? 1e3 : 0);
+      }, this.#stateManager.hasAnimations() ? 1000 : 0);
     }
-    function destroy() {
-      _isDestroyed = true;
-      if (_swapDataTimeout !== null) {
-        clearTimeout(_swapDataTimeout);
-        _swapDataTimeout = null;
-      }
-      if (_stateAnimatingTimeout !== null) {
-        clearTimeout(_stateAnimatingTimeout);
-        _stateAnimatingTimeout = null;
-      }
-    }
-    function _generatePieData(labelIndex) {
+
+    #generatePieData(labelIndex) {
       return Object.assign(
         {},
-        overviewData,
+        this.#overviewData,
         {
-          type: "pie",
-          labels: overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
-          datasets: overviewData.datasets.map((dataset) => {
+          type: 'pie',
+          labels: this.#overviewData.labels.slice(labelIndex - 3, labelIndex + 4),
+          datasets: this.#overviewData.datasets.map((dataset) => {
             return {
               ...dataset,
-              values: dataset.values.slice(labelIndex - 3, labelIndex + 4)
+              values: dataset.values.slice(labelIndex - 3, labelIndex + 4),
             };
-          })
-        }
+          }),
+        },
       );
     }
-    return { zoomIn, zoomOut, isZoomed, destroy };
   }
-  function create(container, originalData) {
-    let _stateManager;
-    let _element;
-    let _plot;
-    let _context;
-    let _plotSize;
-    let _header;
-    let _axes;
-    let _minimap;
-    let _tooltip;
-    let _tools;
-    let _zoomer;
-    let _state;
-    let _windowWidth = window.innerWidth;
-    let _originalData = originalData;
-    let _isDestroyed = false;
-    let _themeObserver;
-    let _onWindowResize;
-    let _onWindowOrientationChange;
-    const _data = analyzeData(_originalData);
-    const _colors = createColors(_data.colors);
-    const _redrawDebounced = debounce(_redraw, 500, false, true);
-    _setupComponents();
-    _setupGlobalListeners();
-    function _setupComponents() {
-      _setupContainer();
-      _header = createHeader(_element, _data.title, _data.zoomOutLabel, _onZoomOut);
-      _setupPlotCanvas();
-      _stateManager = createStateManager(_data, _plotSize, _onStateUpdate);
-      _axes = createAxes(_context, _data, _plotSize, _colors);
-      if (_data.withMinimap) {
-        _minimap = createMinimap(_element, _data, _colors, _onRangeChange);
-      } else {
-        _stateManager.update({ range: _data.minimapRange });
+
+  class LovelyChart {
+    #container;
+
+    #stateManager;
+
+    #element;
+    #plot;
+    #context;
+    #plotSize;
+
+    #header;
+    #axes;
+    #minimap;
+    #tooltip;
+    #tools;
+    #zoomer;
+
+    #state;
+    #windowWidth = window.innerWidth;
+    #originalData;
+    #isDestroyed = false;
+
+    #themeObserver;
+    #onWindowResize;
+    #onWindowOrientationChange;
+
+    #data;
+    #colors;
+    #redrawDebounced = debounce(() => this.#redraw(), 500, false, true);
+
+    constructor(container, originalData) {
+      this.#container = container;
+      this.#originalData = originalData;
+
+      this.#data = analyzeData(this.#originalData);
+      this.#colors = createColors(this.#data.colors);
+
+      this.#setupComponents();
+      this.#setupGlobalListeners();
+    }
+
+    update(newData) {
+      if (this.#isDestroyed) return;
+      this.#originalData = newData;
+      this.#destroyComponents();
+      const fresh = analyzeData(this.#originalData);
+      Object.keys(this.#data).forEach((k) => { delete this.#data[k]; });
+      Object.assign(this.#data, fresh);
+      Object.assign(this.#colors, createColors(this.#data.colors));
+      this.#setupComponents();
+    }
+
+    destroy() {
+      if (this.#isDestroyed) return;
+      this.#isDestroyed = true;
+
+      if (this.#themeObserver) {
+        this.#themeObserver.disconnect();
+        this.#themeObserver = null;
       }
-      _tooltip = createTooltip(_element, _data, _plotSize, _colors, _onZoomIn, _onFocus);
-      _tools = createTools(_element, _data, _onFilterChange);
-      _zoomer = _data.isZoomable && createZoomer(_data, _originalData, _colors, _stateManager, _element, _header, _minimap, _tooltip, _tools);
+      if (this.#onWindowResize) {
+        window.removeEventListener('resize', this.#onWindowResize);
+        this.#onWindowResize = null;
+      }
+      if (this.#onWindowOrientationChange) {
+        window.removeEventListener('orientationchange', this.#onWindowOrientationChange);
+        this.#onWindowOrientationChange = null;
+      }
+
+      this.#destroyComponents();
     }
-    function _setupContainer() {
-      _element = createElement();
-      _element.className = `lovely-chart--container${_data.shouldZoomToPie ? " lovely-chart--container-type-pie" : ""}`;
-      container.appendChild(_element);
+
+    #setupComponents() {
+      this.#setupContainer();
+      this.#header = new Header(this.#element, this.#data.title, this.#data.zoomOutLabel, this.#onZoomOut);
+      this.#setupPlotCanvas();
+      this.#stateManager = new StateManager(this.#data, this.#plotSize, this.#onStateUpdate);
+      this.#axes = new Axes(this.#context, this.#data, this.#plotSize, this.#colors);
+      if (this.#data.withMinimap) {
+        // Triggers the initial render via the range callback.
+        this.#minimap = new Minimap(this.#element, this.#data, this.#colors, this.#onRangeChange);
+      } else {
+        this.#stateManager.update({ range: this.#data.minimapRange });
+      }
+      this.#tooltip = new Tooltip(this.#element, this.#data, this.#plotSize, this.#colors, this.#onZoomIn, this.#onFocus);
+      this.#tools = new Tools(this.#element, this.#data, this.#onFilterChange);
+      this.#zoomer = this.#data.isZoomable
+        ? new Zoomer(this.#data, this.#originalData, this.#colors, this.#stateManager, this.#element, this.#header, this.#minimap, this.#tooltip, this.#tools)
+        : undefined;
+      // hideOnScroll(this.#element);
     }
-    function _setupPlotCanvas() {
-      const { canvas, context } = setupCanvas(_element, {
-        width: _element.clientWidth,
-        height: PLOT_HEIGHT
+
+    #setupContainer() {
+      this.#element = createElement();
+      this.#element.className = `lovely-chart--container${this.#data.shouldZoomToPie ? ' lovely-chart--container-type-pie' : ''}`;
+
+      this.#container.appendChild(this.#element);
+    }
+
+    #setupPlotCanvas() {
+      const { canvas, context } = setupCanvas(this.#element, {
+        width: this.#element.clientWidth,
+        height: PLOT_HEIGHT,
       });
-      _plot = canvas;
-      _context = context;
-      _plotSize = {
-        width: _plot.offsetWidth,
-        height: _plot.offsetHeight
+
+      this.#plot = canvas;
+      this.#context = context;
+
+      this.#plotSize = {
+        width: this.#plot.offsetWidth,
+        height: this.#plot.offsetHeight,
       };
     }
-    function _onStateUpdate(state) {
-      if (_isDestroyed) return;
-      _state = state;
-      const { datasets } = _data;
+
+    #onStateUpdate = (state) => {
+      if (this.#isDestroyed) return;
+      this.#state = state;
+
+      const { datasets } = this.#data;
       const range = {
         from: state.labelFromIndex,
-        to: state.labelToIndex
+        to: state.labelToIndex,
       };
       const boundsAndParams = {
         begin: state.begin,
@@ -2796,162 +3658,159 @@ var LovelyChart = function(exports) {
         totalXWidth: state.totalXWidth,
         yMin: state.yMinViewport,
         yMax: state.yMaxViewport,
-        availableWidth: _plotSize.width,
-        availableHeight: _plotSize.height - X_AXIS_HEIGHT,
+        availableWidth: this.#plotSize.width,
+        availableHeight: this.#plotSize.height - X_AXIS_HEIGHT,
         xPadding: GUTTER,
         yPadding: PLOT_TOP_PADDING,
-        withColumns: _data.isBars || _data.isSteps
+        withColumns: this.#data.isBars || this.#data.isSteps,
       };
       const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
-      const points = preparePoints(_data, datasets, range, visibilities, boundsAndParams);
-      const projection = createProjection(boundsAndParams);
+      const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams);
+      const projection = new Projection(boundsAndParams);
+
       let secondaryPoints = null;
       let secondaryProjection = null;
-      if (_data.hasSecondYAxis) {
+      if (this.#data.hasSecondYAxis) {
         const secondaryDataset = datasets.find((d) => d.hasOwnYAxis);
         const bounds = {
           yMin: state.yMinViewportSecond,
-          yMax: state.yMaxViewportSecond
+          yMax: state.yMaxViewportSecond,
         };
-        secondaryPoints = preparePoints(_data, [secondaryDataset], range, visibilities, bounds)[0];
+        secondaryPoints = preparePoints(this.#data, [secondaryDataset], range, visibilities, bounds)[0];
         secondaryProjection = projection.copy(bounds);
       }
-      if (!_data.noCaption && _data.labelType !== "text") {
-        _header.setCaption(_getCaption(state));
+
+      if (!this.#data.noCaption && this.#data.labelType !== 'text') {
+        this.#header.setCaption(this.#getCaption(state));
       }
-      clearCanvas(_plot, _context);
+
+      clearCanvas(this.#plot, this.#context);
+
       const totalPoints = points.reduce((a, p) => a + p.length, 0);
       const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_PLOT_FACTOR;
+
       drawDatasets(
-        _context,
-        state,
-        _data,
-        range,
-        points,
-        projection,
-        secondaryPoints,
-        secondaryProjection,
-        PLOT_LINE_WIDTH,
-        visibilities,
-        _colors,
-        false,
-        simplification
+        this.#context, state, this.#data,
+        range, points, projection, secondaryPoints, secondaryProjection,
+        PLOT_LINE_WIDTH, visibilities, this.#colors, false, simplification,
       );
-      if (!_data.isPie) {
-        _axes.drawYAxis(state, projection, secondaryProjection);
-        _axes.drawXAxis(state, projection);
+      if (!this.#data.isPie) {
+        this.#axes.drawYAxis(state, projection, secondaryProjection);
+        // TODO check isChanged
+        this.#axes.drawXAxis(state, projection);
       }
-      if (_minimap) {
-        _minimap.update(state);
+      if (this.#minimap) {
+        this.#minimap.update(state);
       }
-      _tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
-    }
-    function _onRangeChange(range) {
-      _stateManager.update({ range });
-    }
-    function _onFilterChange(filter) {
-      _stateManager.update({ filter });
-    }
-    function _onFocus(focusOn) {
-      if (_data.isBars || _data.isPie || _data.isSteps) {
-        _stateManager.update({ focusOn });
+      this.#tooltip.update(state, points, projection, secondaryPoints, secondaryProjection);
+    };
+
+    #onRangeChange = (range) => {
+      this.#stateManager.update({ range });
+    };
+
+    #onFilterChange = (filter) => {
+      this.#stateManager.update({ filter });
+    };
+
+    #onFocus = (focusOn) => {
+      if (this.#data.isBars || this.#data.isPie || this.#data.isSteps) {
+        // TODO animate
+        this.#stateManager.update({ focusOn });
       }
-    }
-    function _onZoomIn(labelIndex) {
-      _zoomer.zoomIn(_state, labelIndex);
-    }
-    function _onZoomOut() {
-      _zoomer.zoomOut(_state);
-    }
-    function _setupGlobalListeners() {
-      _themeObserver = new MutationObserver(() => {
-        if (_isDestroyed || !_stateManager) return;
-        _stateManager.update();
+    };
+
+    #onZoomIn = (labelIndex) => {
+      this.#zoomer.zoomIn(this.#state, labelIndex);
+    };
+
+    #onZoomOut = () => {
+      this.#zoomer.zoomOut(this.#state);
+    };
+
+    #setupGlobalListeners() {
+      this.#themeObserver = new MutationObserver(() => {
+        if (this.#isDestroyed || !this.#stateManager) return;
+        this.#stateManager.update();
       });
-      _themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-      _onWindowResize = () => {
-        if (window.innerWidth !== _windowWidth) {
-          _windowWidth = window.innerWidth;
-          _redrawDebounced();
+      this.#themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+      this.#onWindowResize = () => {
+        if (window.innerWidth !== this.#windowWidth) {
+          this.#windowWidth = window.innerWidth;
+          this.#redrawDebounced();
         }
       };
-      window.addEventListener("resize", _onWindowResize);
-      _onWindowOrientationChange = () => {
-        _redrawDebounced();
+      window.addEventListener('resize', this.#onWindowResize);
+
+      this.#onWindowOrientationChange = () => {
+        this.#redrawDebounced();
       };
-      window.addEventListener("orientationchange", _onWindowOrientationChange);
+      window.addEventListener('orientationchange', this.#onWindowOrientationChange);
     }
-    function _destroyComponents() {
-      if (_zoomer) _zoomer.destroy();
-      if (_tooltip) _tooltip.destroy();
-      if (_header) _header.destroy();
-      if (_stateManager) _stateManager.destroy();
-      if (_element && _element.parentNode) {
-        _element.remove();
+
+    #destroyComponents() {
+      if (this.#zoomer) this.#zoomer.destroy();
+      if (this.#tooltip) this.#tooltip.destroy();
+      if (this.#header) this.#header.destroy();
+      if (this.#stateManager) this.#stateManager.destroy();
+
+      if (this.#element && this.#element.parentNode) {
+        this.#element.remove();
       }
-      _element = null;
-      _plot = null;
-      _context = null;
-      _header = null;
-      _axes = null;
-      _minimap = null;
-      _tooltip = null;
-      _tools = null;
-      _zoomer = null;
-      _stateManager = null;
+
+      this.#element = null;
+      this.#plot = null;
+      this.#context = null;
+      this.#header = null;
+      this.#axes = null;
+      this.#minimap = null;
+      this.#tooltip = null;
+      this.#tools = null;
+      this.#zoomer = null;
+      this.#stateManager = null;
     }
-    function _redraw() {
-      if (_isDestroyed) return;
-      _destroyComponents();
-      Object.assign(_data, analyzeData(_originalData));
-      _setupComponents();
+
+    #redraw() {
+      if (this.#isDestroyed) return;
+      this.#destroyComponents();
+      Object.assign(this.#data, analyzeData(this.#originalData));
+      this.#setupComponents();
     }
-    function update(newData) {
-      if (_isDestroyed) return;
-      _originalData = newData;
-      _destroyComponents();
-      const fresh = analyzeData(_originalData);
-      Object.keys(_data).forEach((k) => {
-        delete _data[k];
-      });
-      Object.assign(_data, fresh);
-      Object.assign(_colors, createColors(_data.colors));
-      _setupComponents();
-    }
-    function destroy() {
-      if (_isDestroyed) return;
-      _isDestroyed = true;
-      if (_themeObserver) {
-        _themeObserver.disconnect();
-        _themeObserver = null;
-      }
-      if (_onWindowResize) {
-        window.removeEventListener("resize", _onWindowResize);
-        _onWindowResize = null;
-      }
-      if (_onWindowOrientationChange) {
-        window.removeEventListener("orientationchange", _onWindowOrientationChange);
-        _onWindowOrientationChange = null;
-      }
-      _destroyComponents();
-    }
-    function _getCaption(state) {
+
+    #getCaption(state) {
       let startIndex;
       let endIndex;
-      if (_zoomer && _zoomer.isZoomed()) {
+
+      if (this.#zoomer && this.#zoomer.isZoomed()) {
+        // TODO Fix label
         startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
         endIndex = state.labelToIndex === state.totalXWidth - 1 ? state.labelToIndex : state.labelToIndex - 1;
       } else {
         startIndex = state.labelFromIndex;
         endIndex = state.labelToIndex;
       }
-      return isDataRange(_data.xLabels[startIndex], _data.xLabels[endIndex]) ? `${getLabelDate(_data.xLabels[startIndex])} — ${getLabelDate(_data.xLabels[endIndex])}` : getFullLabelDate(_data.xLabels[startIndex]);
+
+      return isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex])
+        ? (
+          `${getLabelDate(this.#data.xLabels[startIndex])}` +
+          ' — ' +
+          `${getLabelDate(this.#data.xLabels[endIndex])}`
+        )
+        : getFullLabelDate(this.#data.xLabels[startIndex]);
     }
-    return { update, destroy };
   }
-  const LovelyChart2 = { create };
+
+  function create(container, data) {
+    return new LovelyChart(container, data);
+  }
+  const LovelyChart$1 = { create };
+
   exports.create = create;
-  exports.default = LovelyChart2;
-  Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: "Module" } });
+  exports.default = LovelyChart$1;
+
+  Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: 'Module' } });
+
   return exports;
-}({});
+
+})({});

@@ -1,4 +1,4 @@
-import { createTransitionManager } from './TransitionManager.js';
+import { TransitionManager } from './TransitionManager.js';
 import { throttleWithRaf, getMaxMin, mergeArrays, proxyMerge } from './utils.js';
 import {
   AXES_MAX_COLUMN_WIDTH,
@@ -12,56 +12,76 @@ import {
 } from './constants.js';
 import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas.js';
 
-export function createStateManager(data, viewportSize, callback) {
-  const _range = { begin: 0, end: 1 };
-  const _filter = _buildDefaultFilter();
-  const _transitionConfig = _buildTransitionConfig();
-  const _transitions = createTransitionManager(_runCallback);
-  const _runCallbackOnRaf = throttleWithRaf(_runCallback);
+export class StateManager {
+  #data;
+  #viewportSize;
+  #callback;
 
-  let _state = {};
-  let _isDestroyed = false;
+  #range = { begin: 0, end: 1 };
+  #filter;
+  #transitionConfig;
+  #transitions;
+  #runCallbackOnRaf;
 
-  function update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
-    if (_isDestroyed) return;
-    Object.assign(_range, range);
-    Object.assign(_filter, filter);
+  #state = {};
+  #isDestroyed = false;
 
-    const prevState = _state;
-    _state = calculateState(data, viewportSize, _range, _filter, focusOn, minimapDelta, prevState);
+  constructor(data, viewportSize, callback) {
+    this.#data = data;
+    this.#viewportSize = viewportSize;
+    this.#callback = callback;
+
+    this.#filter = this.#buildDefaultFilter();
+    this.#transitionConfig = this.#buildTransitionConfig();
+    this.#transitions = new TransitionManager(this.#runCallback);
+    this.#runCallbackOnRaf = throttleWithRaf(this.#runCallback);
+  }
+
+  update({ range = {}, filter = {}, focusOn, minimapDelta } = {}, noTransition) {
+    if (this.#isDestroyed) return;
+    Object.assign(this.#range, range);
+    Object.assign(this.#filter, filter);
+
+    const prevState = this.#state;
+    this.#state = calculateState(this.#data, this.#viewportSize, this.#range, this.#filter, focusOn, minimapDelta, prevState);
 
     if (!noTransition) {
-      _transitionConfig.forEach(({ prop, duration, options }) => {
-        const transition = _transitions.get(prop);
+      this.#transitionConfig.forEach(({ prop, duration, options }) => {
+        const transition = this.#transitions.get(prop);
         const currentTarget = transition ? transition.to : prevState[prop];
 
-        if (currentTarget !== undefined && currentTarget !== _state[prop]) {
+        if (currentTarget !== undefined && currentTarget !== this.#state[prop]) {
           const current = transition
             ? (options.includes('fast') ? prevState[prop] : transition.current)
             : prevState[prop];
 
           if (transition) {
-            _transitions.remove(prop);
+            this.#transitions.remove(prop);
           }
 
-          _transitions.add(prop, current, _state[prop], duration, options);
+          this.#transitions.add(prop, current, this.#state[prop], duration, options);
         }
       });
     }
 
-    if (!_transitions.isRunning() || !_transitions.isFast()) {
-      _runCallbackOnRaf();
+    if (!this.#transitions.isRunning() || !this.#transitions.isFast()) {
+      this.#runCallbackOnRaf();
     }
   }
 
-  function hasAnimations() {
-    return _transitions.isFast();
+  hasAnimations() {
+    return this.#transitions.isFast();
   }
 
-  function _buildTransitionConfig() {
+  destroy() {
+    this.#isDestroyed = true;
+    this.#transitions.destroy();
+  }
+
+  #buildTransitionConfig() {
     const transitionConfig = [];
-    const datasetVisibilities = data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
-    const datasetPieShifts = data.datasets.map(({ key }) => `pieShift#${key} 200`);
+    const datasetVisibilities = this.#data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
+    const datasetPieShifts = this.#data.datasets.map(({ key }) => `pieShift#${key} 200`);
 
     mergeArrays([
       ANIMATE_PROPS,
@@ -75,29 +95,22 @@ export function createStateManager(data, viewportSize, callback) {
     return transitionConfig;
   }
 
-  function _buildDefaultFilter() {
+  #buildDefaultFilter() {
     const filter = {};
 
-    data.datasets.forEach(({ key }) => {
+    this.#data.datasets.forEach(({ key }) => {
       filter[key] = true;
     });
 
     return filter;
   }
 
-  function _runCallback() {
-    if (_isDestroyed) return;
-    const state = _transitions.isFast() ? proxyMerge(_state, _transitions.getState()) : _state;
-    state.static = _state;
-    callback(state);
-  }
-
-  function destroy() {
-    _isDestroyed = true;
-    _transitions.destroy();
-  }
-
-  return { update, hasAnimations, destroy };
+  #runCallback = () => {
+    if (this.#isDestroyed) return;
+    const state = this.#transitions.isFast() ? proxyMerge(this.#state, this.#transitions.getState()) : this.#state;
+    state.static = this.#state;
+    this.#callback(state);
+  };
 }
 
 function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
