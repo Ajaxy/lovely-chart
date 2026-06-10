@@ -9,6 +9,11 @@ export default {
       fileName: (format) => (format === 'es' ? 'LovelyChart.mjs' : 'LovelyChart.js'),
       cssFileName: 'LovelyChart',
     },
+    rollupOptions: {
+      // Entry exposes only the named `create` export; keep the global/namespace
+      // flat (`LovelyChart.create`) instead of emitting a `.default` wrapper.
+      output: { exports: 'named' },
+    },
     minify: false,
   },
 };
