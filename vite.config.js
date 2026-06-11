@@ -4,7 +4,7 @@ export default {
     // (default 'modules' target includes Safari 14, which lacks them).
     target: 'esnext',
     lib: {
-      entry: 'src/LovelyChart.ts',
+      entry: 'src/index.ts',
       name: 'LovelyChart',
       formats: ['es'],
       fileName: () => 'LovelyChart.js',

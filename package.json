@@ -4,8 +4,12 @@
   "description": "",
   "type": "module",
   "main": "./dist/LovelyChart.js",
+  "types": "./dist/LovelyChart.d.ts",
   "exports": {
-    ".": "./dist/LovelyChart.js",
+    ".": {
+      "types": "./dist/LovelyChart.d.ts",
+      "default": "./dist/LovelyChart.js"
+    },
     "./LovelyChart.css": "./dist/LovelyChart.css",
     "./package.json": "./package.json"
   },
@@ -13,12 +17,12 @@
     "dist/*"
   ],
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "npm run typecheck && npm run lint && npm run build && node test/e2e.js",
     "prepublishOnly": "npm run build",
-    "demo": "npm run build && cp -R ./dist/* docs/",
+    "demo": "npm run build && cp ./dist/LovelyChart.js ./dist/LovelyChart.css docs/",
     "prepare": "(husky || true) && npm run build"
   },
   "lint-staged": {

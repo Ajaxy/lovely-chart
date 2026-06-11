@@ -28,7 +28,9 @@ import { Tooltip } from './Tooltip';
 import { debounce } from './utils';
 import { Zoomer } from './Zoomer';
 
-import './styles/index.scss';
+export type {
+  ChartType, LabelType, LovelyChartDatasetParams, LovelyChartParams, SecondaryYAxisConfig,
+} from './types';
 
 const REDRAW_DEBOUNCE_MS = 500;
 
