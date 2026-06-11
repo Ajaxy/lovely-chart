@@ -19,7 +19,7 @@ export class Header {
   #isZooming?: boolean;
   #zoomBindTimeout?: number;
 
-  readonly setCaption = throttle((caption: string) => this.#setCaption(caption), CAPTION_THROTTLE_MS, false);
+  readonly setCaption = throttle((caption: string) => this.#setCaption(caption), CAPTION_THROTTLE_MS);
 
   constructor(container: HTMLElement, title: string, zoomOutLabel = 'Zoom out', zoomOutCallback: () => void) {
     this.#container = container;

@@ -1360,7 +1360,7 @@ class Header {
   #captionElement;
   #isZooming;
   #zoomBindTimeout;
-  setCaption = throttle((caption) => this.#setCaption(caption), CAPTION_THROTTLE_MS, false);
+  setCaption = throttle((caption) => this.#setCaption(caption), CAPTION_THROTTLE_MS);
   constructor(container, title, zoomOutLabel = "Zoom out", zoomOutCallback) {
     this.#container = container;
     this.#title = title;
