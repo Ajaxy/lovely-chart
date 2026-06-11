@@ -34,7 +34,7 @@ export type {
 
 const REDRAW_DEBOUNCE_MS = 500;
 
-class LovelyChart {
+export default class LovelyChart {
   readonly #container: HTMLElement;
 
   #stateManager?: StateManager;
@@ -304,9 +304,7 @@ class LovelyChart {
   }
 }
 
-export function create(
-  container: HTMLElement,
-  data: LovelyChartParams,
-): { update: (newData: LovelyChartParams) => void; destroy: () => void } {
-  return new LovelyChart(container, data);
-}
+// The mapped type strips the `#private` brand of the class, so the handle stays
+// structural and consumers can type their own stubs with it
+/** The structural shape of a chart instance, satisfiable by consumer stubs. */
+export type LovelyChartInstance = Pick<LovelyChart, 'update' | 'destroy'>;

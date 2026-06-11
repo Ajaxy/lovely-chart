@@ -3195,8 +3195,5 @@ class LovelyChart {
     return getFullLabelDate(this.#data.xLabels[middleIndex]);
   }
 }
-function create(container, data) {
-  return new LovelyChart(container, data);
-}
 
-export { create };
+export { LovelyChart as default };

@@ -1,4 +1,4 @@
-import * as LovelyChart from './LovelyChart.js';
+import LovelyChart from './LovelyChart.js';
 
 function fetchJson(path) {
   return fetch(path).then((response) => response.json());
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chart.onLimitedRangeClick = () => alert('Data before September 2025 is not available');
       }
 
-      LovelyChart.create(container, chart);
+      new LovelyChart(container, chart);
     });
   })();
 

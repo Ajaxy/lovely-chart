@@ -18,10 +18,10 @@ https://ajaxy.github.io/lovely-chart
 ## Usage
 
 ```js
-import * as LovelyChart from 'lovely-chart';
+import LovelyChart from 'lovely-chart';
 import 'lovely-chart/LovelyChart.css';
 
-const chart = LovelyChart.create(element, {
+const chart = new LovelyChart(element, {
   title: 'Online Users',
   type: 'line',
   labels: [1735689600000, 1735776000000, /* … */],
@@ -40,12 +40,12 @@ chart.update(newData);
 chart.destroy();
 ```
 
-#### Arguments for `LovelyChart.create`
+#### Constructor arguments
 - `element` — DOM node in which the chart is rendered. The chart layout resizes automatically to occupy the entire available width.
 - `data` — Parameters for a chart.
 
-#### Returned instance
-`create` returns an object with the following methods:
+#### Instance methods
+The created instance exposes the following methods (the `LovelyChartInstance` type describes this shape structurally, e.g. for test stubs):
 
 Method | Description |
 ---------|----|

@@ -49,7 +49,7 @@ export interface LovelyChartDatasetParams {
   values: (number | null)[];
 }
 
-/** Raw data accepted by `LovelyChart.create()` and `onZoom` callbacks. */
+/** Raw data accepted by the `LovelyChart` constructor and `onZoom` callbacks. */
 export interface LovelyChartParams {
   type: ChartType;
   labels: (number | string)[];

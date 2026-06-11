@@ -4,3 +4,4 @@
 import './styles/index.scss';
 
 export * from './LovelyChart';
+export { default } from './LovelyChart';
