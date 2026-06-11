@@ -123,7 +123,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
 
   // --- Rendering ---
   const count = await charts.count();
-  check('all demo charts created', count === 7, `got ${count}`);
+  check('all demo charts created', count === 8, `got ${count}`);
 
   for (let i = 0; i < count; i++) {
     const painted = await paintedPixels(page, i);
@@ -236,7 +236,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await sleep(1200);
   const countAfterResize = await page.locator('.lovely-chart--container').count();
   const paintedAfterResize = await paintedPixels(page, 0);
-  check('resize redraw keeps all charts alive', countAfterResize === 7 && paintedAfterResize > 1000,
+  check('resize redraw keeps all charts alive', countAfterResize === 8 && paintedAfterResize > 1000,
     `charts: ${countAfterResize}, painted: ${paintedAfterResize}px`);
 
   // --- Console hygiene ---

@@ -6,7 +6,7 @@
 
 **LovelyChart** is a tiny, dependency-free library to work with beautiful interactive charts.
 
-It draws line, area, bar, pie and donut charts with smooth animated transitions, a draggable minimap for range selection, tooltips, dataset toggling, drill-down zooming and a built-in day/night theme. Everything is touch-friendly and fast enough for low-end mobile devices, at just a few kilobytes over the wire.
+It draws line, area, bar, step, pie and donut charts with smooth animated transitions, a draggable minimap for range selection, tooltips, dataset toggling, drill-down zooming and a built-in day/night theme. Everything is touch-friendly and fast enough for low-end mobile devices, at just a few kilobytes over the wire.
 
 🏆 A [Telegram Chart Contest](https://contest.dev/chart-js) award winning library.
 
@@ -56,7 +56,7 @@ Method | Description |
 Parameter | Description |
 ---------|----|
 `title`| Chart headline
-`type`| Chart type. Supported types: `line`, `area`, `bar`, `pie`, `donut`
+`type`| Chart type. Supported types: `line`, `area`, `bar`, `step`, `pie`, `donut`
 `labels`| Array of UNIX timestamps in milliseconds, or arbitrary strings for text labels
 `labelType`| Optional X-axis label kind: `year`, `month`, `week`, `day`, `hour`, `5min`, `dayHour` or `text`. When omitted, it is inferred from the first two `labels` records: strings → `text`, timestamps → `year`/`month`/`week`/`day`/`hour`/`5min` depending on the step between them. `year` labels render as `2026`, `month` as `January`, `week` as `Week 1` (week of the year). Charts with `text` labels show no header caption.
 `datasets`| Array of params for each dataset
