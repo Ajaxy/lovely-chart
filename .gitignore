@@ -1,5 +1,8 @@
 node_modules
 dist
+# Built by `npm run demo`; the published demo is deployed from CI
+/docs/LovelyChart.js
+/docs/LovelyChart.css
 .cache
 .editorconfig
 

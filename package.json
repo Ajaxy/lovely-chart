@@ -21,6 +21,7 @@
     "*.scss"
   ],
   "scripts": {
+    "dev": "npm run demo && vite docs",
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
