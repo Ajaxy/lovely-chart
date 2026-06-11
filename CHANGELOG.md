@@ -27,6 +27,10 @@
 - The `step` chart type is documented and demonstrated on the demo page.
 - A single modern ESM build replaces the previous bundle formats.
 
+### Changed
+
+- Importing the library no longer touches the DOM or `window`: theme detection, style injection and the theme observer attach on the first chart creation. The import is side-effect free (tree-shaking friendly) and safe in window-less environments such as SSR.
+
 ### Fixed
 
 - Crashes and `NaN` rendering states on single-label charts.

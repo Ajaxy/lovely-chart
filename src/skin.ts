@@ -6,7 +6,8 @@ function detectSkin() {
   return document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
 }
 
-let skin = detectSkin();
+let skin: 'skin-day' | 'skin-night' | undefined;
+let styleSheet: CSSStyleSheet | null | undefined;
 
 const COLORS = {
   'skin-day': {
@@ -37,31 +38,42 @@ const COLORS = {
   },
 } satisfies Record<string, Record<string, string>>;
 
-// Prefer Constructable Stylesheets so a strict `style-src` CSP without
-// `'unsafe-inline'` does not block us; fall back to an injected <style> on
-// browsers that do not support them or where construction throws
-let styleSheet: CSSStyleSheet | null | undefined;
-if (typeof CSSStyleSheet === 'function') {
-  try {
-    styleSheet = new CSSStyleSheet();
-    document.adoptedStyleSheets = [...document.adoptedStyleSheets, styleSheet];
-  } catch {
-    styleSheet = undefined;
+// All DOM access happens lazily on the first chart creation, so merely importing
+// the library has no side effects and is safe in window-less environments
+function ensureInited() {
+  if (skin) {
+    return;
   }
-}
-if (!styleSheet) {
-  const styleElement = document.createElement('style');
-  styleElement.type = 'text/css';
-  styleElement.appendChild(document.createTextNode(''));
-  document.head.appendChild(styleElement);
-  styleSheet = styleElement.sheet;
-}
 
-new MutationObserver(() => {
   skin = detectSkin();
-}).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+  // Prefer Constructable Stylesheets so a strict `style-src` CSP without
+  // `'unsafe-inline'` does not block us; fall back to an injected <style> on
+  // browsers that do not support them or where construction throws
+  if (typeof CSSStyleSheet === 'function') {
+    try {
+      styleSheet = new CSSStyleSheet();
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, styleSheet];
+    } catch {
+      styleSheet = undefined;
+    }
+  }
+  if (!styleSheet) {
+    const styleElement = document.createElement('style');
+    styleElement.type = 'text/css';
+    styleElement.appendChild(document.createTextNode(''));
+    document.head.appendChild(styleElement);
+    styleSheet = styleElement.sheet;
+  }
+
+  new MutationObserver(() => {
+    skin = detectSkin();
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+}
 
 export function createColors(datasetColors: Record<string, string>): ChartColors {
+  ensureInited();
+
   const colors: ChartColors = {};
   const baseClass = `.lovely-chart--color`;
 
@@ -96,7 +108,7 @@ export function createColors(datasetColors: Record<string, string>): ChartColors
 }
 
 export function getCssColor(colors: ChartColors, key: string, opacity?: number): string {
-  return buildCssColor(colors[skin][key], opacity);
+  return buildCssColor(colors[skin!][key], opacity);
 }
 
 function hexToChannels(hexWithAlpha: string): ColorChannels {
@@ -115,7 +127,7 @@ function buildCssColor([r, g, b, a = 1]: ColorChannels, opacity = 1): string {
 }
 
 export function isColorCloseToBackground(colors: ChartColors, hex: string): boolean {
-  const background = colors[skin]['tooltip-background'];
+  const background = colors[skin!]['tooltip-background'];
   const foreground = hexToChannels(hex);
   return getColorDistance(background, foreground) < COLOR_CLOSENESS_THRESHOLD;
 }

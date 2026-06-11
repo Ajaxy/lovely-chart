@@ -1,4 +1,5 @@
-export const DPR = window.devicePixelRatio ?? 1;
+// Guarded so that merely importing the library does not touch `window` (e.g. in SSR)
+export const DPR = typeof window !== 'undefined' ? window.devicePixelRatio ?? 1 : 1;
 
 export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
 export const NO_FOCUS = Symbol('NO_FOCUS');
