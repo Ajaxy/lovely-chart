@@ -12,6 +12,8 @@ It draws line, area, bar, step, pie and donut charts with smooth animated transi
 
 🏆 A [Telegram Chart Contest](https://contest.dev/chart-js) award winning library.
 
+<img alt="LovelyChart demo" src="https://raw.githubusercontent.com/Ajaxy/lovely-chart/master/docs/preview.png" width="840"/>
+
 ## Demo
 
 https://ajaxy.github.io/lovely-chart
@@ -76,3 +78,7 @@ Parameter | Description |
 `onZoom`| Optional function which returns `Promise` with data for the zoomed chart (new `data` object)
 `noZoom`| `true` to disable zooming. Default `false`.
 `zoomType`| Chart type shown when a percentage chart is zoomed into a single label: `pie` or `donut`. Default `pie`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and [CHANGELOG.md](CHANGELOG.md) for release notes.
