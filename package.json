@@ -1,7 +1,7 @@
 {
   "name": "lovely-chart",
   "version": "1.4.1",
-  "description": "",
+  "description": "A tiny, dependency-free library for beautiful interactive charts: line, area, bar, step, pie and donut, with smooth animations, a draggable minimap and drill-down zooming",
   "type": "module",
   "main": "./dist/LovelyChart.js",
   "types": "./dist/LovelyChart.d.ts",
@@ -15,6 +15,10 @@
   },
   "files": [
     "dist/*"
+  ],
+  "sideEffects": [
+    "*.css",
+    "*.scss"
   ],
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
@@ -55,7 +59,17 @@
   "keywords": [
     "chart",
     "graph",
-    "plot"
+    "plot",
+    "canvas",
+    "typescript",
+    "lightweight",
+    "interactive",
+    "line",
+    "area",
+    "bar",
+    "pie",
+    "donut",
+    "telegram"
   ],
   "author": "Alexander Zinchuk",
   "license": "MIT",
