@@ -2871,13 +2871,6 @@ class Zoomer {
         this.#container.style.width = `${this.#container.scrollWidth}px`;
         this.#container.style.height = `${this.#container.scrollHeight}px`;
       }
-      this.#stateManager.update({
-        range: {
-          begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
-          end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA
-        },
-        focusOn: NO_FOCUS
-      }, true);
       const daysCount = this.#isZoomed || this.#data.shouldZoomToShares ? this.#data.xLabels.length : this.#data.xLabels.length / 24;
       const halfDayWidth = 1 / daysCount / 2;
       const centeredDayRange = {
@@ -2905,6 +2898,13 @@ class Zoomer {
           filter2 = this.#stateBeforeZoomIn.filter;
         }
       }
+      this.#stateManager.update({
+        range: this.#data.shouldZoomToShares ? range : {
+          begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
+          end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA
+        },
+        focusOn: NO_FOCUS
+      }, true);
       this.#stateManager.update({
         range,
         filter: filter2,
@@ -3184,17 +3184,15 @@ class LovelyChart {
     Object.assign(this.#data, analyzeData(this.#originalData));
     this.#setupComponents();
   }
-  #getCaption(state) {
-    let startIndex;
-    let endIndex;
-    if (this.#zoomer?.isZoomed()) {
-      startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
-      endIndex = state.labelToIndex === state.lastLabelIndex ? state.labelToIndex : state.labelToIndex - 1;
-    } else {
-      startIndex = state.labelFromIndex;
-      endIndex = state.labelToIndex;
+  #getCaption(renderedState) {
+    const state = renderedState.static ?? renderedState;
+    const startIndex = Math.max(0, Math.ceil(state.lastLabelIndex * state.begin));
+    const endIndex = Math.min(Math.floor(state.lastLabelIndex * state.end), state.lastLabelIndex);
+    if (isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex])) {
+      return `${getLabelDate(this.#data.xLabels[startIndex])} — ${getLabelDate(this.#data.xLabels[endIndex])}`;
     }
-    return isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex]) ? `${getLabelDate(this.#data.xLabels[startIndex])} — ${getLabelDate(this.#data.xLabels[endIndex])}` : getFullLabelDate(this.#data.xLabels[startIndex]);
+    const middleIndex = Math.round(state.lastLabelIndex * (state.begin + state.end) / 2);
+    return getFullLabelDate(this.#data.xLabels[middleIndex]);
   }
 }
 function create(container, data) {

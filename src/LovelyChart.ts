@@ -280,23 +280,25 @@ class LovelyChart {
     this.#setupComponents();
   }
 
-  #getCaption(state: ChartState): string {
-    let startIndex;
-    let endIndex;
+  #getCaption(renderedState: ChartState): string {
+    // The rendered state carries animated in-between values which would make the
+    // caption flicker through transient ranges while zooming, so the caption
+    // reflects the transition target instead
+    const state = renderedState.static ?? renderedState;
 
-    if (this.#zoomer?.isZoomed()) {
-      // Un-extend the ±1 label padding of the state indexes; at the edges the
-      // extension was clamped, so the values are kept as is
-      startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
-      endIndex = state.labelToIndex === state.lastLabelIndex ? state.labelToIndex : state.labelToIndex - 1;
-    } else {
-      startIndex = state.labelFromIndex;
-      endIndex = state.labelToIndex;
+    // The state label indexes are extended by one label per side for edge drawing,
+    // so the visible window is derived from the range fractions instead
+    const startIndex = Math.max(0, Math.ceil(state.lastLabelIndex * state.begin));
+    const endIndex = Math.min(Math.floor(state.lastLabelIndex * state.end), state.lastLabelIndex);
+
+    if (isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex])) {
+      return `${getLabelDate(this.#data.xLabels[startIndex])} — ${getLabelDate(this.#data.xLabels[endIndex])}`;
     }
 
-    return isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex])
-      ? `${getLabelDate(this.#data.xLabels[startIndex])} — ${getLabelDate(this.#data.xLabels[endIndex])}`
-      : getFullLabelDate(this.#data.xLabels[startIndex]);
+    // A sub-day window is named by its middle label — `startIndex` may belong to
+    // the previous day when the window straddles midnight
+    const middleIndex = Math.round(state.lastLabelIndex * (state.begin + state.end) / 2);
+    return getFullLabelDate(this.#data.xLabels[middleIndex]);
   }
 }
 

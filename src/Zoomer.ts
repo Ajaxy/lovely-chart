@@ -155,14 +155,6 @@ export class Zoomer {
         this.#container.style.height = `${this.#container.scrollHeight}px`;
       }
 
-      this.#stateManager.update({
-        range: {
-          begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
-          end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
-        },
-        focusOn: NO_FOCUS,
-      }, true);
-
       const daysCount = this.#isZoomed || this.#data.shouldZoomToShares
         ? this.#data.xLabels.length
         : this.#data.xLabels.length / 24;
@@ -200,6 +192,17 @@ export class Zoomer {
           filter = this.#stateBeforeZoomIn!.filter;
         }
       }
+
+      // For shares zoom the range is applied directly: animating it from the
+      // placeholder would draw the circle from wrong label windows (and thus wrong
+      // slice proportions) during the CSS transition
+      this.#stateManager.update({
+        range: this.#data.shouldZoomToShares ? range : {
+          begin: ZOOM_RANGE_MIDDLE - ZOOM_RANGE_DELTA,
+          end: ZOOM_RANGE_MIDDLE + ZOOM_RANGE_DELTA,
+        },
+        focusOn: NO_FOCUS,
+      }, true);
 
       this.#stateManager.update({
         range,
