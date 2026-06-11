@@ -18,6 +18,8 @@ It draws line, area, bar, step, pie and donut charts with smooth animated transi
 
 https://ajaxy.github.io/lovely-chart
 
+Or open the project instantly on [StackBlitz](https://stackblitz.com/github/Ajaxy/lovely-chart).
+
 ## Usage
 
 ```js
