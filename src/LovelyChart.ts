@@ -222,8 +222,8 @@ class LovelyChart {
     }
   };
 
-  readonly #onZoomIn = (labelIndex: number | undefined) => {
-    this.#zoomer!.zoomIn(this.#state!, labelIndex!);
+  readonly #onZoomIn = (labelIndex: number) => {
+    this.#zoomer!.zoomIn(this.#state!, labelIndex);
   };
 
   readonly #onZoomOut = () => {

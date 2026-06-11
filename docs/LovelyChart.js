@@ -2426,14 +2426,18 @@ class Tooltip {
     if (newLabelIndex !== oldLabelIndex) {
       this.#clickedOnLabel = newLabelIndex;
     }
-    this.#onZoom(newLabelIndex);
+    if (newLabelIndex !== void 0) {
+      this.#onZoom(newLabelIndex);
+    }
   };
   #onBalloonClick = () => {
     if (this.#balloon.classList.contains("lovely-chart--state-inactive")) {
       return;
     }
-    const labelIndex = this.#projection.findClosestLabelIndex(this.#offsetX);
-    this.#onZoom(labelIndex);
+    const labelIndex = this.#getLabelIndex();
+    if (labelIndex !== void 0) {
+      this.#onZoom(labelIndex);
+    }
   };
   #clear(isExternal) {
     this.#offsetX = void 0;
@@ -2446,7 +2450,7 @@ class Tooltip {
   }
   #getLabelIndex() {
     const labelIndex = this.#projection.findClosestLabelIndex(this.#offsetX);
-    return labelIndex < this.#state.labelFromIndex || labelIndex > this.#state.labelToIndex ? void 0 : labelIndex;
+    return Number.isNaN(labelIndex) || labelIndex < this.#state.labelFromIndex || labelIndex > this.#state.labelToIndex ? void 0 : labelIndex;
   }
   #selectLabel(isExternal) {
     if (this.#offsetX === void 0 || !this.#state || this.#isZooming) {
@@ -2897,7 +2901,7 @@ class Zoomer {
           filter2 = {};
           this.#data.datasets.forEach(({ key }) => filter2[key] = true);
         } else {
-          range = this.#data.shouldZoomToShares ? centeredDayRange : newData.minimapRange ?? this.#buildDayRange(newData.xLabels, zoomInLabel.value) ?? centeredDayRange;
+          range = this.#data.shouldZoomToShares ? this.#buildDayRange(newData.xLabels, zoomInLabel.value) ?? centeredDayRange : newData.minimapRange ?? this.#buildDayRange(newData.xLabels, zoomInLabel.value) ?? centeredDayRange;
           filter2 = this.#stateBeforeZoomIn.filter;
         }
       }

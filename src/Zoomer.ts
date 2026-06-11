@@ -190,8 +190,10 @@ export class Zoomer {
           filter = {};
           this.#data.datasets.forEach(({ key }) => filter[key] = true);
         } else {
+          // The clicked day is not necessarily in the window middle — at the data
+          // edges the window is clamped, so the day is located by timestamp
           range = this.#data.shouldZoomToShares
-            ? centeredDayRange
+            ? this.#buildDayRange(newData.xLabels, zoomInLabel!.value) ?? centeredDayRange
             : newData.minimapRange
               ?? this.#buildDayRange(newData.xLabels, zoomInLabel!.value)
               ?? centeredDayRange;

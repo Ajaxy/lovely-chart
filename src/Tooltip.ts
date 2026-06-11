@@ -20,7 +20,7 @@ export class Tooltip {
   readonly #data: AnalyzedData;
   readonly #plotSize: Size;
   readonly #colors: ChartColors;
-  readonly #onZoom: (labelIndex: number | undefined) => void;
+  readonly #onZoom: (labelIndex: number) => void;
   readonly #onFocus: ((focusOn: FocusOn) => void) | undefined;
 
   #state?: ChartState;
@@ -54,7 +54,7 @@ export class Tooltip {
     data: AnalyzedData,
     plotSize: Size,
     colors: ChartColors,
-    onZoom: (labelIndex: number | undefined) => void,
+    onZoom: (labelIndex: number) => void,
     onFocus?: (focusOn: FocusOn) => void,
   ) {
     this.#container = container;
@@ -184,7 +184,9 @@ export class Tooltip {
       this.#clickedOnLabel = newLabelIndex;
     }
 
-    this.#onZoom(newLabelIndex);
+    if (newLabelIndex !== undefined) {
+      this.#onZoom(newLabelIndex);
+    }
   };
 
   readonly #onBalloonClick = () => {
@@ -192,8 +194,10 @@ export class Tooltip {
       return;
     }
 
-    const labelIndex = this.#projection!.findClosestLabelIndex(this.#offsetX!);
-    this.#onZoom(labelIndex);
+    const labelIndex = this.#getLabelIndex();
+    if (labelIndex !== undefined) {
+      this.#onZoom(labelIndex);
+    }
   };
 
   #clear(isExternal?: boolean) {
@@ -209,7 +213,11 @@ export class Tooltip {
 
   #getLabelIndex(): number | undefined {
     const labelIndex = this.#projection!.findClosestLabelIndex(this.#offsetX!);
-    return labelIndex < this.#state!.labelFromIndex || labelIndex > this.#state!.labelToIndex ? undefined : labelIndex;
+    // `NaN` (e.g. from an `#offsetX` cleared mid-interaction) fails both comparisons
+    return Number.isNaN(labelIndex) || labelIndex < this.#state!.labelFromIndex
+      || labelIndex > this.#state!.labelToIndex
+      ? undefined
+      : labelIndex;
   }
 
   #selectLabel(isExternal?: boolean) {
