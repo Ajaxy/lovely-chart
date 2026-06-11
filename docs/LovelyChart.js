@@ -260,6 +260,9 @@ function getCircleTextSize(percent, radius) {
 function getCircleTextShift(percent, radius) {
   return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
 }
+function getLabelFraction(labelIndex, lastLabelIndex) {
+  return lastLabelIndex > 0 ? labelIndex / lastLabelIndex : 0.5;
+}
 function isDataRange(labelFrom, labelTo) {
   return Math.abs(labelTo.value - labelFrom.value) > MILLISECONDS_IN_DAY;
 }
@@ -805,10 +808,9 @@ function analyzeData(data, fallbackLabelType) {
   }
   let limitBegin;
   if (limitDate !== void 0) {
-    const totalXWidth = labels.length - 1;
     const index = labels.findIndex((label) => label >= limitDate);
     if (index > 0) {
-      limitBegin = index / totalXWidth;
+      limitBegin = getLabelFraction(index, labels.length - 1);
     }
   }
   const shouldZoomToShares = !onZoom && !noZoom && Boolean(isPercentage);
@@ -1542,7 +1544,7 @@ function prepareSumsByX(values) {
 
 class Projection {
   #params;
-  #totalXWidth;
+  #lastLabelIndex;
   #withColumns;
   #availableWidth;
   #availableHeight;
@@ -1555,7 +1557,7 @@ class Projection {
     const {
       begin,
       end,
-      totalXWidth,
+      lastLabelIndex,
       yMin,
       yMax,
       availableWidth,
@@ -1565,11 +1567,11 @@ class Projection {
       withColumns = false
     } = params;
     this.#params = params;
-    this.#totalXWidth = totalXWidth;
+    this.#lastLabelIndex = lastLabelIndex;
     this.#withColumns = withColumns;
     this.#availableWidth = availableWidth;
     this.#availableHeight = availableHeight;
-    const xUnitsCount = withColumns ? totalXWidth + 1 : totalXWidth;
+    const xUnitsCount = withColumns ? lastLabelIndex + 1 : lastLabelIndex;
     const xRatio = end !== begin ? end - begin : 1;
     const baseXFactor = availableWidth / (xRatio * xUnitsCount);
     const leftPadding = Math.max(0, xPadding - begin * xUnitsCount * baseXFactor);
@@ -1592,7 +1594,7 @@ class Projection {
   }
   findClosestLabelIndex(xPx) {
     const labelIndex = Math.round((xPx + this.#xOffsetPx) / this.#xFactor);
-    return this.#withColumns ? Math.max(0, Math.min(labelIndex, this.#totalXWidth)) : labelIndex;
+    return this.#withColumns ? Math.max(0, Math.min(labelIndex, this.#lastLabelIndex)) : labelIndex;
   }
   copy(overrides) {
     return new Projection(mergeProxied(this.#params, overrides));
@@ -1748,12 +1750,12 @@ class Minimap {
     const { datasets } = this.#data;
     const range = {
       from: 0,
-      to: state.totalXWidth
+      to: state.lastLabelIndex
     };
     const boundsAndParams = {
       begin: 0,
       end: 1,
-      totalXWidth: state.totalXWidth,
+      lastLabelIndex: state.lastLabelIndex,
       yMin: state.yMinMinimap,
       yMax: state.yMaxMinimap,
       availableWidth: this.#canvasSize.width,
@@ -2058,9 +2060,9 @@ class StateManager {
 }
 function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta, prevState) {
   const { begin, end } = range;
-  const totalXWidth = data.xLabels.length - 1;
-  const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
-  const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
+  const lastLabelIndex = data.xLabels.length - 1;
+  const labelFromIndex = Math.max(0, Math.ceil(lastLabelIndex * begin));
+  const labelToIndex = Math.min(Math.floor(lastLabelIndex * end), lastLabelIndex);
   const xAxisScale = calculateXAxisScale(viewportSize.width, labelFromIndex, labelToIndex);
   const yRanges = data.isStacked || data.isShares ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState) : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
   const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
@@ -2076,7 +2078,7 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
     datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
   });
   const extendedLabelFromIndex = Math.max(0, labelFromIndex - 1);
-  const extendedLabelToIndex = Math.min(labelToIndex + 1, totalXWidth);
+  const extendedLabelToIndex = Math.min(labelToIndex + 1, lastLabelIndex);
   const resolvedFocusOn = focusOn !== void 0 ? focusOn : prevState.focusOn;
   const datasetsCircleShift = data.isCircle ? calculateCircleShifts(
     // For circle charts `focusOn` is never a plain label index
@@ -2088,7 +2090,7 @@ function calculateState(data, viewportSize, range, filter, focusOn, minimapDelta
     extendedLabelToIndex
   ) : void 0;
   return {
-    totalXWidth,
+    lastLabelIndex,
     xAxisScale,
     yAxisScale,
     yAxisScaleSecond,
@@ -2841,7 +2843,7 @@ class Zoomer {
     }
     this.#tooltip.toggleLoading(false);
     const labelWidth = 1 / this.#data.xLabels.length;
-    const labelMiddle = labelIndex / (this.#data.xLabels.length - 1);
+    const labelMiddle = getLabelFraction(labelIndex, this.#data.xLabels.length - 1);
     const filter = {};
     this.#data.datasets.forEach(({ key }) => filter[key] = false);
     const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToShares ? "day" : "hour");
@@ -2925,25 +2927,27 @@ class Zoomer {
     if (dayStart === -1) {
       return void 0;
     }
-    const totalXWidth = xLabels.length - 1;
+    const lastLabelIndex = xLabels.length - 1;
     let dayEnd = dayStart;
-    while (dayEnd < totalXWidth && xLabels[dayEnd + 1].value < dayValue + MILLISECONDS_IN_DAY) {
+    while (dayEnd < lastLabelIndex && xLabels[dayEnd + 1].value < dayValue + MILLISECONDS_IN_DAY) {
       dayEnd++;
     }
     return {
-      begin: Math.max(0, (dayStart - 0.5) / totalXWidth),
-      end: Math.min(1, (dayEnd + 0.5) / totalXWidth)
+      begin: Math.max(0, (dayStart - 0.5) / lastLabelIndex),
+      end: Math.min(1, (dayEnd + 0.5) / lastLabelIndex)
     };
   }
   #generateCircleData(labelIndex) {
+    const from = Math.max(0, labelIndex - CIRCLE_LABELS_AROUND);
+    const to = labelIndex + CIRCLE_LABELS_AROUND + 1;
     return {
       ...this.#overviewData,
       type: this.#data.zoomType,
-      labels: this.#overviewData.labels.slice(labelIndex - CIRCLE_LABELS_AROUND, labelIndex + CIRCLE_LABELS_AROUND + 1),
+      labels: this.#overviewData.labels.slice(from, to),
       datasets: this.#overviewData.datasets.map((dataset) => {
         return {
           ...dataset,
-          values: dataset.values.slice(labelIndex - CIRCLE_LABELS_AROUND, labelIndex + CIRCLE_LABELS_AROUND + 1)
+          values: dataset.values.slice(from, to)
         };
       })
     };
@@ -3065,14 +3069,14 @@ class LovelyChart {
     const boundsAndParams = {
       begin: state.begin,
       end: state.end,
-      totalXWidth: state.totalXWidth,
+      lastLabelIndex: state.lastLabelIndex,
       yMin: state.yMinViewport,
       yMax: state.yMaxViewport,
       availableWidth: this.#plotSize.width,
       availableHeight: this.#plotSize.height - X_AXIS_HEIGHT,
       xPadding: GUTTER,
       yPadding: PLOT_TOP_PADDING,
-      withColumns: this.#data.isBars || this.#data.isSteps
+      withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isCircle
     };
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`]);
     const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams);
@@ -3181,7 +3185,7 @@ class LovelyChart {
     let endIndex;
     if (this.#zoomer?.isZoomed()) {
       startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
-      endIndex = state.labelToIndex === state.totalXWidth - 1 ? state.labelToIndex : state.labelToIndex - 1;
+      endIndex = state.labelToIndex === state.lastLabelIndex ? state.labelToIndex : state.labelToIndex - 1;
     } else {
       startIndex = state.labelFromIndex;
       endIndex = state.labelToIndex;

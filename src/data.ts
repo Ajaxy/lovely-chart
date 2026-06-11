@@ -5,6 +5,7 @@ import {
   formatDay, formatDayHour, formatMin, formatMonth,
   formatText, formatWeek, formatYear,
 } from './format';
+import { getLabelFraction } from './formulas';
 import { getMaxMin } from './utils';
 
 const DEFAULT_COLORS = [
@@ -93,10 +94,9 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
 
   let limitBegin: number | undefined;
   if (limitDate !== undefined) {
-    const totalXWidth = labels.length - 1;
     const index = labels.findIndex((label) => (label as number) >= limitDate);
     if (index > 0) {
-      limitBegin = index / totalXWidth;
+      limitBegin = getLabelFraction(index, labels.length - 1);
     }
   }
 

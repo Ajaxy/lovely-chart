@@ -204,12 +204,12 @@ export class Minimap {
     const { datasets } = this.#data;
     const range = {
       from: 0,
-      to: state.totalXWidth,
+      to: state.lastLabelIndex,
     };
     const boundsAndParams: ProjectionParams = {
       begin: 0,
       end: 1,
-      totalXWidth: state.totalXWidth,
+      lastLabelIndex: state.lastLabelIndex,
       yMin: state.yMinMinimap,
       yMax: state.yMaxMinimap,
       availableWidth: this.#canvasSize.width,

@@ -159,14 +159,14 @@ class LovelyChart {
     const boundsAndParams: ProjectionParams = {
       begin: state.begin,
       end: state.end,
-      totalXWidth: state.totalXWidth,
+      lastLabelIndex: state.lastLabelIndex,
       yMin: state.yMinViewport,
       yMax: state.yMaxViewport,
       availableWidth: this.#plotSize!.width,
       availableHeight: this.#plotSize!.height - X_AXIS_HEIGHT,
       xPadding: GUTTER,
       yPadding: PLOT_TOP_PADDING,
-      withColumns: this.#data.isBars || this.#data.isSteps,
+      withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isCircle,
     };
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`] as number);
     const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams);
@@ -285,9 +285,10 @@ class LovelyChart {
     let endIndex;
 
     if (this.#zoomer?.isZoomed()) {
-      // TODO Fix label
+      // Un-extend the ±1 label padding of the state indexes; at the edges the
+      // extension was clamped, so the values are kept as is
       startIndex = state.labelFromIndex === 0 ? 0 : state.labelFromIndex + 1;
-      endIndex = state.labelToIndex === state.totalXWidth - 1 ? state.labelToIndex : state.labelToIndex - 1;
+      endIndex = state.labelToIndex === state.lastLabelIndex ? state.labelToIndex : state.labelToIndex - 1;
     } else {
       startIndex = state.labelFromIndex;
       endIndex = state.labelToIndex;

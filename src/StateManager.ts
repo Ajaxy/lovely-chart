@@ -155,10 +155,10 @@ function calculateState(
   prevState: ChartState,
 ): ChartState {
   const { begin, end } = range;
-  const totalXWidth = data.xLabels.length - 1;
+  const lastLabelIndex = data.xLabels.length - 1;
 
-  const labelFromIndex = Math.max(0, Math.ceil(totalXWidth * begin));
-  const labelToIndex = Math.min(Math.floor(totalXWidth * end), totalXWidth);
+  const labelFromIndex = Math.max(0, Math.ceil(lastLabelIndex * begin));
+  const labelToIndex = Math.min(Math.floor(lastLabelIndex * end), lastLabelIndex);
 
   const xAxisScale = calculateXAxisScale(viewportSize.width, labelFromIndex, labelToIndex);
 
@@ -184,7 +184,7 @@ function calculateState(
   });
 
   const extendedLabelFromIndex = Math.max(0, labelFromIndex - 1);
-  const extendedLabelToIndex = Math.min(labelToIndex + 1, totalXWidth);
+  const extendedLabelToIndex = Math.min(labelToIndex + 1, lastLabelIndex);
   const resolvedFocusOn = focusOn !== undefined ? focusOn : prevState.focusOn;
 
   const datasetsCircleShift = data.isCircle
@@ -197,7 +197,7 @@ function calculateState(
 
   // TODO perf
   return {
-    totalXWidth,
+    lastLabelIndex,
     xAxisScale,
     yAxisScale,
     yAxisScaleSecond,

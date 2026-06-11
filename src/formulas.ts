@@ -55,6 +55,11 @@ export function getCircleTextShift(percent: number, radius: number): number {
   return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
 }
 
+export function getLabelFraction(labelIndex: number, lastLabelIndex: number): number {
+  // A single label has no X-span — it sits at the plot middle
+  return lastLabelIndex > 0 ? labelIndex / lastLabelIndex : 0.5;
+}
+
 export function isDataRange(labelFrom: XLabel, labelTo: XLabel): boolean {
   return Math.abs(labelTo.value - labelFrom.value) > MILLISECONDS_IN_DAY;
 }

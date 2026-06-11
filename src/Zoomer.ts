@@ -8,6 +8,7 @@ import type { AnalyzedData, ChartColors, ChartState, Filter, LovelyChartParams, 
 import { MILLISECONDS_IN_DAY, NO_FOCUS, ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants';
 import { analyzeData } from './data';
 import { getFullLabelDate } from './format';
+import { getLabelFraction } from './formulas';
 import { createColors } from './skin';
 
 const ZOOM_ANIMATING_TIMEOUT = 1_000;
@@ -125,7 +126,7 @@ export class Zoomer {
     this.#tooltip.toggleLoading(false);
 
     const labelWidth = 1 / this.#data.xLabels.length;
-    const labelMiddle = labelIndex / (this.#data.xLabels.length - 1);
+    const labelMiddle = getLabelFraction(labelIndex, this.#data.xLabels.length - 1);
     const filter: Filter = {};
     this.#data.datasets.forEach(({ key }) => filter[key] = false);
     const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToShares ? 'day' : 'hour');
@@ -229,28 +230,32 @@ export class Zoomer {
       return undefined;
     }
 
-    const totalXWidth = xLabels.length - 1;
+    const lastLabelIndex = xLabels.length - 1;
     let dayEnd = dayStart;
-    while (dayEnd < totalXWidth && xLabels[dayEnd + 1].value < dayValue + MILLISECONDS_IN_DAY) {
+    while (dayEnd < lastLabelIndex && xLabels[dayEnd + 1].value < dayValue + MILLISECONDS_IN_DAY) {
       dayEnd++;
     }
 
     // Half-label margins keep the day's lateral columns fully selected
     return {
-      begin: Math.max(0, (dayStart - 0.5) / totalXWidth),
-      end: Math.min(1, (dayEnd + 0.5) / totalXWidth),
+      begin: Math.max(0, (dayStart - 0.5) / lastLabelIndex),
+      end: Math.min(1, (dayEnd + 0.5) / lastLabelIndex),
     };
   }
 
   #generateCircleData(labelIndex: number): LovelyChartParams {
+    // A negative `slice` start would wrap around to the array end near the left data edge
+    const from = Math.max(0, labelIndex - CIRCLE_LABELS_AROUND);
+    const to = labelIndex + CIRCLE_LABELS_AROUND + 1;
+
     return {
       ...this.#overviewData,
       type: this.#data.zoomType,
-      labels: this.#overviewData.labels.slice(labelIndex - CIRCLE_LABELS_AROUND, labelIndex + CIRCLE_LABELS_AROUND + 1),
+      labels: this.#overviewData.labels.slice(from, to),
       datasets: this.#overviewData.datasets.map((dataset) => {
         return {
           ...dataset,
-          values: dataset.values.slice(labelIndex - CIRCLE_LABELS_AROUND, labelIndex + CIRCLE_LABELS_AROUND + 1),
+          values: dataset.values.slice(from, to),
         };
       }),
     };

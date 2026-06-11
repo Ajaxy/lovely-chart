@@ -130,7 +130,7 @@ export interface AnalyzedData {
 export interface ChartState {
   begin: number;
   end: number;
-  totalXWidth: number;
+  lastLabelIndex: number;
   labelFromIndex: number;
   labelToIndex: number;
   xAxisScale: number;
@@ -176,7 +176,7 @@ export interface DrawPoint {
 export interface ProjectionParams {
   begin: number;
   end: number;
-  totalXWidth: number;
+  lastLabelIndex: number;
   yMin: number;
   yMax: number;
   availableWidth: number;

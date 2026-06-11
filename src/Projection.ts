@@ -5,7 +5,7 @@ import { mergeProxied } from './utils';
 export class Projection {
   readonly #params: ProjectionParams;
 
-  readonly #totalXWidth: number;
+  readonly #lastLabelIndex: number;
   readonly #withColumns: boolean;
   readonly #availableWidth: number;
   readonly #availableHeight: number;
@@ -20,7 +20,7 @@ export class Projection {
     const {
       begin,
       end,
-      totalXWidth,
+      lastLabelIndex,
       yMin,
       yMax,
       availableWidth,
@@ -31,7 +31,7 @@ export class Projection {
     } = params;
 
     this.#params = params;
-    this.#totalXWidth = totalXWidth;
+    this.#lastLabelIndex = lastLabelIndex;
     this.#withColumns = withColumns;
     this.#availableWidth = availableWidth;
     this.#availableHeight = availableHeight;
@@ -39,7 +39,7 @@ export class Projection {
     // In column mode (bars, steps) every label owns a full-width column, so the
     // X scale spans one extra unit and label positions shift to column centers —
     // otherwise the first and last columns are cut in half at the plot edges
-    const xUnitsCount = withColumns ? totalXWidth + 1 : totalXWidth;
+    const xUnitsCount = withColumns ? lastLabelIndex + 1 : lastLabelIndex;
     const xRatio = end !== begin ? end - begin : 1;
 
     // The chart bleeds beyond the container edge while panning, but keeps an
@@ -73,7 +73,7 @@ export class Projection {
     const labelIndex = Math.round((xPx + this.#xOffsetPx) / this.#xFactor);
     // In column mode the gutters and the very edge pixels round outside the
     // lateral columns — keep them within the outermost ones
-    return this.#withColumns ? Math.max(0, Math.min(labelIndex, this.#totalXWidth)) : labelIndex;
+    return this.#withColumns ? Math.max(0, Math.min(labelIndex, this.#lastLabelIndex)) : labelIndex;
   }
 
   copy(overrides: Partial<ProjectionParams>): Projection {
