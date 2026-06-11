@@ -1,16 +1,32 @@
 html {
-  font: 300 13px '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
+  font: 300 14px -apple-system, BlinkMacSystemFont, 'HelveticaNeue', Helvetica, Arial, sans-serif;
   margin: 0;
   padding: 10px 0 50px 0;
   color: #222222;
   background: white;
-  /* transition: background-color 300ms ease-out; */
+   transition: background-color 300ms ease;
   text-align: center;
 }
 
 html.theme-dark {
   color: white;
   background: #242F3E;
+}
+
+b {
+  font-weight: bold;
+}
+
+a {
+  color: #108BE3;
+  text-decoration: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+
+  transition: color 200ms ease;
+}
+
+a:hover, a:active, a:visited {
+  color: rgba(16, 139, 227, 0.71);
 }
 
 #container {
@@ -26,7 +42,7 @@ html.theme-dark {
 }
 
 #description p {
-  margin: 5px 0;
+  margin: 16px 0;
 }
 
 .tools {
@@ -40,15 +56,3 @@ html.theme-dark {
   display: inline-flex;
   margin: 0 10px;
 }
-
-.tools a {
-  font-size: 14px;
-  color: #108BE3;
-  text-decoration: none;
-  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
-}
-
-.tools a:hover, .tools a:active, .tools a:visited {
-  color: rgba(16, 139, 227, 0.71);
-}
-

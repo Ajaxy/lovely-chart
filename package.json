@@ -18,7 +18,7 @@
     "lint": "eslint .",
     "test": "npm run typecheck && npm run lint && npm run build && node test/e2e.js",
     "prepublishOnly": "npm run build",
-    "examples": "npm run build && cp -R ./dist/* docs/",
+    "demo": "npm run build && cp -R ./dist/* docs/",
     "prepare": "(husky || true) && npm run build"
   },
   "lint-staged": {

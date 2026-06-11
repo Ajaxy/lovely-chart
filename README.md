@@ -13,7 +13,7 @@ It draws line, area, bar, step, pie and donut charts with smooth animated transi
 
 ## Demo
 
-https://ajaxy.github.io/lovely-chart/
+https://ajaxy.github.io/lovely-chart
 
 ## Usage
 
