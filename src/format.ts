@@ -1,6 +1,8 @@
 import type { XLabel } from './types';
 
-import { MILLISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT } from './constants';
+import {
+  MILLISECONDS_IN_DAY, MILLISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT,
+} from './constants';
 
 export function formatDayHour(labels: number[]): XLabel[] {
   return labels.map((value) => {
@@ -40,15 +42,19 @@ export function formatMin(labels: number[]): XLabel[] {
 }
 
 export function formatWeek(labels: number[]): XLabel[] {
-  return labels.map((value) => {
-    const date = new Date(value);
-    const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
+  return labels.map((value) => ({
+    value,
+    text: `Week ${getIsoWeek(value)}`,
+  }));
+}
 
-    return {
-      value,
-      text: `Week ${Math.floor((value - yearStart) / MILLISECONDS_IN_WEEK) + 1}`,
-    };
-  });
+// ISO 8601: weeks start on Monday and week 1 is the one holding the year's first Thursday
+function getIsoWeek(value: number): number {
+  const date = new Date(value);
+  const thursday = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+    + (4 - (date.getUTCDay() || 7)) * MILLISECONDS_IN_DAY;
+  const yearStart = Date.UTC(new Date(thursday).getUTCFullYear(), 0, 1);
+  return Math.floor((thursday - yearStart) / MILLISECONDS_IN_WEEK) + 1;
 }
 
 export function formatMonth(labels: number[]): XLabel[] {
