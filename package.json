@@ -1,6 +1,6 @@
 {
   "name": "lovely-chart",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A tiny, dependency-free library for beautiful interactive charts: line, area, bar, step, pie and donut, with smooth animations, a draggable minimap and drill-down zooming",
   "type": "module",
   "main": "./dist/LovelyChart.js",
