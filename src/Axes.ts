@@ -29,6 +29,11 @@ export class Axes {
     const scaleLevel = Math.floor(state.xAxisScale);
     const step = xScaleLevelToStep(scaleLevel);
     const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
+    // Off-screen pixels beyond each boundary; zero when pinned to the edge
+    const innerWidth = plotSize.width - GUTTER * 2;
+    const visibleFraction = state.end - state.begin;
+    const hiddenStartPx = state.begin / visibleFraction * innerWidth;
+    const hiddenEndPx = (1 - state.end) / visibleFraction * innerWidth;
 
     context.font = getAxesFont(context);
     context.textAlign = 'center';
@@ -44,7 +49,7 @@ export class Axes {
       const label = this.#data.xLabels[i];
       const [xPx] = projection.toPixels(i, 0);
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
-      opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width);
+      opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width, hiddenStartPx, hiddenEndPx);
 
       context.fillStyle = getCssColor(this.#colors, 'x-axis-text', opacity);
       context.fillText(label.text, xPx, topOffset);

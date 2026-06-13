@@ -3,6 +3,9 @@ import type { XLabel } from './types';
 
 import { GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, SIMPLIFIER_MIN_POINTS } from './constants';
 
+const EDGE_FADE_DISTANCE = GUTTER * 4;
+const EDGE_PIN_DISTANCE = GUTTER * 2;
+
 export function xScaleLevelToStep(scaleLevel: number): number {
   return Math.pow(2, scaleLevel);
 }
@@ -29,12 +32,28 @@ export function yStepToScaleLevel(neededStep: number): number {
   return idx === -1 ? SCALE_LEVELS.length - 1 : idx;
 }
 
-export function applyYEdgeOpacity(opacity: number, xPx: number, plotWidth: number): number {
-  const edgeOffset = Math.min(xPx + GUTTER, plotWidth - xPx);
-  if (edgeOffset <= GUTTER * 4) {
-    opacity = Math.min(1, opacity, edgeOffset / (GUTTER * 4));
+export function applyYEdgeOpacity(
+  opacity: number,
+  xPx: number,
+  plotWidth: number,
+  hiddenStartPx: number,
+  hiddenEndPx: number,
+): number {
+  const startOpacity = fadeTowardEdge(opacity, xPx + GUTTER, hiddenStartPx);
+  const endOpacity = fadeTowardEdge(opacity, plotWidth - xPx, hiddenEndPx);
+  return Math.min(opacity, startOpacity, endOpacity);
+}
+
+// Lift the edge fade as the boundary nears its pinned keypoint, easing out over a span
+// shorter than the fade zone so the boundary label still decays to zero as it scrolls off
+function fadeTowardEdge(opacity: number, offset: number, hiddenPx: number): number {
+  if (offset > EDGE_FADE_DISTANCE) {
+    return opacity;
   }
-  return opacity;
+
+  const faded = Math.min(opacity, offset / EDGE_FADE_DISTANCE);
+  const suppression = Math.max(0, 1 - hiddenPx / EDGE_PIN_DISTANCE);
+  return faded + (opacity - faded) * suppression;
 }
 
 export function applyXEdgeOpacity(opacity: number, yPx: number): number {
