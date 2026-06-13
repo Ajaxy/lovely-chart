@@ -116,31 +116,35 @@ function addThousandSeparators(s: string): string {
 
 interface LabelDateOptions {
   isShort?: boolean;
-  displayWeekDay?: boolean;
-  displayYear?: boolean;
-  displayHours?: boolean;
+  withWeekDay?: boolean;
+  withYear?: boolean;
+  omitCurrentYear?: boolean;
+  withHours?: boolean;
 }
 
 export function getFullLabelDate(label: XLabel, { isShort = false }: LabelDateOptions = {}): string {
-  return getLabelDate(label, { isShort, displayWeekDay: true });
+  return getLabelDate(label, { isShort, withWeekDay: true, withYear: true, omitCurrentYear: true });
 }
 
 export function getLabelDate(
   label: XLabel,
-  { isShort = false, displayWeekDay = false, displayYear = true, displayHours = false }: LabelDateOptions = {},
+  {
+    isShort = false, withWeekDay = false, withYear = false, omitCurrentYear = false, withHours = false,
+  }: LabelDateOptions = {},
 ): string {
   const { value } = label;
   const date = new Date(value);
   const weekDaysArray = isShort ? WEEK_DAYS_SHORT : WEEK_DAYS;
+  const year = date.getUTCFullYear();
 
   let string = `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
-  if (displayWeekDay) {
+  if (withWeekDay) {
     string = `${weekDaysArray[date.getUTCDay()]}, ` + string;
   }
-  if (displayYear) {
-    string += ` ${date.getUTCFullYear()}`;
+  if (withYear && !(omitCurrentYear && year === new Date().getUTCFullYear())) {
+    string += ` ${year}`;
   }
-  if (displayHours) {
+  if (withHours) {
     const hours = String(date.getUTCHours()).padStart(2, '0');
     const minutes = String(date.getUTCMinutes()).padStart(2, '0');
     string += `, ${hours}:${minutes}`;

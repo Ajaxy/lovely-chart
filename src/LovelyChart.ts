@@ -294,7 +294,9 @@ export default class LovelyChart {
     const endIndex = Math.min(Math.floor(state.lastLabelIndex * state.end), state.lastLabelIndex);
 
     if (isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex])) {
-      return `${getLabelDate(this.#data.xLabels[startIndex])} — ${getLabelDate(this.#data.xLabels[endIndex])}`;
+      const start = getLabelDate(this.#data.xLabels[startIndex], { withYear: true, omitCurrentYear: true });
+      const end = getLabelDate(this.#data.xLabels[endIndex], { withYear: true, omitCurrentYear: true });
+      return `${start} — ${end}`;
     }
 
     // A sub-day window is named by its middle label — `startIndex` may belong to
