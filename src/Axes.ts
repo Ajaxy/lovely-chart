@@ -3,7 +3,7 @@ import type { AnalyzedData, ChartColors, ChartState, SecondaryYAxisConfig, Size 
 
 import { AXES_FONT_STYLE, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants';
 import { humanize } from './format';
-import { applyXEdgeOpacity, applyYEdgeOpacity, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
+import { applyXEdgeOpacity, applyYEdgeOpacity, getEdgePin, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
 import { getCssColor } from './skin';
 
 export class Axes {
@@ -29,11 +29,11 @@ export class Axes {
     const scaleLevel = Math.floor(state.xAxisScale);
     const step = xScaleLevelToStep(scaleLevel);
     const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
-    // Off-screen pixels beyond each boundary; zero when pinned to the edge
+    // Per-edge pin: 1 when the range is flush to a data boundary, easing off as it scrolls in
     const innerWidth = plotSize.width - GUTTER * 2;
     const visibleFraction = state.end - state.begin;
-    const hiddenStartPx = state.begin / visibleFraction * innerWidth;
-    const hiddenEndPx = (1 - state.end) / visibleFraction * innerWidth;
+    const startPin = getEdgePin(state.begin / visibleFraction * innerWidth);
+    const endPin = getEdgePin((1 - state.end) / visibleFraction * innerWidth);
 
     context.font = getAxesFont(context);
     context.textAlign = 'center';
@@ -49,10 +49,16 @@ export class Axes {
       const label = this.#data.xLabels[i];
       const [xPx] = projection.toPixels(i, 0);
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
-      opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width, hiddenStartPx, hiddenEndPx);
+      opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width, startPin, endPin);
+
+      let drawX = xPx;
+      if (startPin > 0 || endPin > 0) {
+        const halfWidth = context.measureText(label.text).width / 2;
+        drawX = shiftIntoView(xPx, halfWidth, plotSize.width, startPin, endPin);
+      }
 
       context.fillStyle = getCssColor(this.#colors, 'x-axis-text', opacity);
-      context.fillText(label.text, xPx, topOffset);
+      context.fillText(label.text, drawX, topOffset);
     }
   }
 
@@ -267,6 +273,23 @@ export class Axes {
     }
     return `${prefix}${formatted}${suffix}`;
   }
+}
+
+// Nudge a centered label inward so a pinned edge never clips it, scaled by the edge's pin
+function shiftIntoView(
+  xPx: number, halfWidth: number, plotWidth: number, startPin: number, endPin: number,
+): number {
+  const leftCross = halfWidth - xPx;
+  if (leftCross > 0) {
+    return xPx + leftCross * startPin;
+  }
+
+  const rightCross = xPx + halfWidth - plotWidth;
+  if (rightCross > 0) {
+    return xPx - rightCross * endPin;
+  }
+
+  return xPx;
 }
 
 function getAxesFont(context: CanvasRenderingContext2D): string {

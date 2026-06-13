@@ -32,28 +32,32 @@ export function yStepToScaleLevel(neededStep: number): number {
   return idx === -1 ? SCALE_LEVELS.length - 1 : idx;
 }
 
+// 1 when the edge is flush with its data boundary, easing to 0 as `hiddenPx` scrolls past
+export function getEdgePin(hiddenPx: number): number {
+  return Math.max(0, 1 - hiddenPx / EDGE_PIN_DISTANCE);
+}
+
 export function applyYEdgeOpacity(
   opacity: number,
   xPx: number,
   plotWidth: number,
-  hiddenStartPx: number,
-  hiddenEndPx: number,
+  startPin: number,
+  endPin: number,
 ): number {
-  const startOpacity = fadeTowardEdge(opacity, xPx + GUTTER, hiddenStartPx);
-  const endOpacity = fadeTowardEdge(opacity, plotWidth - xPx, hiddenEndPx);
+  const startOpacity = fadeTowardEdge(opacity, xPx + GUTTER, startPin);
+  const endOpacity = fadeTowardEdge(opacity, plotWidth - xPx, endPin);
   return Math.min(opacity, startOpacity, endOpacity);
 }
 
-// Lift the edge fade as the boundary nears its pinned keypoint, easing out over a span
-// shorter than the fade zone so the boundary label still decays to zero as it scrolls off
-function fadeTowardEdge(opacity: number, offset: number, hiddenPx: number): number {
+// Lift the edge fade by the pin factor so the boundary label recovers to full opacity,
+// easing out over a span shorter than the fade zone so it still decays as it scrolls off
+function fadeTowardEdge(opacity: number, offset: number, pin: number): number {
   if (offset > EDGE_FADE_DISTANCE) {
     return opacity;
   }
 
   const faded = Math.min(opacity, offset / EDGE_FADE_DISTANCE);
-  const suppression = Math.max(0, 1 - hiddenPx / EDGE_PIN_DISTANCE);
-  return faded + (opacity - faded) * suppression;
+  return faded + (opacity - faded) * pin;
 }
 
 export function applyXEdgeOpacity(opacity: number, yPx: number): number {
