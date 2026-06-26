@@ -40,7 +40,7 @@ const LABEL_TYPE_TO_FORMATTER: Record<LabelType, string | undefined> = {
 
 export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelType): AnalyzedData {
   const {
-    title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis,
+    title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage, secondaryYAxis,
     hasSecondYAxis, onZoom, noZoom, zoomType, withMinimap, minimapRange, noCaption, zoomOutLabel,
     valuePrefix, valueSuffix, isCurrencyPrefix, limitDate, onLimitedRangeClick,
   } = data;
@@ -72,16 +72,16 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
       xLabels = formatYear(labels as number[]);
       break;
     case 'statsFormatMonth':
-      xLabels = formatMonth(labels as number[]);
+      xLabels = formatMonth(labels as number[], dateLocale);
       break;
     case 'statsFormatWeek':
       xLabels = formatWeek(labels as number[]);
       break;
     case 'statsFormatDayHour':
-      xLabels = formatDayHour(labels as number[]);
+      xLabels = formatDayHour(labels as number[], dateLocale);
       break;
     case 'statsFormat(\'day\')':
-      xLabels = formatDay(labels as number[]);
+      xLabels = formatDay(labels as number[], dateLocale);
       break;
     case 'statsFormat(\'hour\')':
     case 'statsFormat(\'5min\')':
@@ -107,6 +107,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     labelType,
     labelFormatter,
     tooltipFormatter,
+    dateLocale,
     xLabels,
     datasets,
     isStacked,

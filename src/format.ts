@@ -1,31 +1,34 @@
-import type { XLabel } from './types';
+import type { DateLocale, XLabel } from './types';
 
 import {
   MILLISECONDS_IN_DAY, MILLISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT,
 } from './constants';
 
-export function formatDayHour(labels: number[]): XLabel[] {
+export function formatDayHour(labels: number[], dateLocale?: DateLocale): XLabel[] {
+  const months = dateLocale?.months ?? MONTHS;
   return labels.map((value) => {
     const date = new Date(value);
     const hours = String(date.getHours()).padStart(2, '0');
     return {
       value,
-      text: `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`,
+      text: `${date.getDate()} ${months[date.getMonth()]} ${hours}:00`,
     };
   });
 }
 
-export function formatDayHourFull(value: number): string {
+export function formatDayHourFull(value: number, dateLocale?: DateLocale): string {
+  const months = dateLocale?.months ?? MONTHS;
   const date = new Date(value);
   const hours = String(date.getHours()).padStart(2, '0');
-  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${hours}:00`;
+  return `${date.getDate()} ${months[date.getMonth()]} ${hours}:00`;
 }
 
-export function formatDay(labels: number[]): XLabel[] {
+export function formatDay(labels: number[], dateLocale?: DateLocale): XLabel[] {
+  const months = dateLocale?.months ?? MONTHS;
   return labels.map((value) => {
     const date = new Date(value);
     const day = date.getDate();
-    const month = MONTHS[date.getMonth()];
+    const month = months[date.getMonth()];
 
     return ({
       value,
@@ -57,10 +60,11 @@ function getIsoWeek(value: number): number {
   return Math.floor((thursday - yearStart) / MILLISECONDS_IN_WEEK) + 1;
 }
 
-export function formatMonth(labels: number[]): XLabel[] {
+export function formatMonth(labels: number[], dateLocale?: DateLocale): XLabel[] {
+  const monthsFull = dateLocale?.monthsFull ?? MONTHS_FULL;
   return labels.map((value) => ({
     value,
-    text: MONTHS_FULL[new Date(value).getUTCMonth()],
+    text: monthsFull[new Date(value).getUTCMonth()],
   }));
 }
 
@@ -128,8 +132,10 @@ interface LabelDateOptions {
   withHours?: boolean;
 }
 
-export function getFullLabelDate(label: XLabel, { isShort = false }: LabelDateOptions = {}): string {
-  return getLabelDate(label, { isShort, withWeekDay: true, withYear: true, omitCurrentYear: true });
+export function getFullLabelDate(
+  label: XLabel, { isShort = false }: LabelDateOptions = {}, dateLocale?: DateLocale,
+): string {
+  return getLabelDate(label, { isShort, withWeekDay: true, withYear: true, omitCurrentYear: true }, dateLocale);
 }
 
 export function getLabelDate(
@@ -137,13 +143,17 @@ export function getLabelDate(
   {
     isShort = false, withWeekDay = false, withYear = false, omitCurrentYear = false, withHours = false,
   }: LabelDateOptions = {},
+  dateLocale?: DateLocale,
 ): string {
   const { value } = label;
   const date = new Date(value);
-  const weekDaysArray = isShort ? WEEK_DAYS_SHORT : WEEK_DAYS;
+  const months = dateLocale?.months ?? MONTHS;
+  const weekDaysArray = isShort
+    ? (dateLocale?.weekDaysShort ?? WEEK_DAYS_SHORT)
+    : (dateLocale?.weekDays ?? WEEK_DAYS);
   const year = date.getUTCFullYear();
 
-  let string = `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
+  let string = `${date.getUTCDate()} ${months[date.getUTCMonth()]}`;
   if (withWeekDay) {
     string = `${weekDaysArray[date.getUTCDay()]}, ` + string;
   }

@@ -49,6 +49,14 @@ export interface LovelyChartDatasetParams {
   values: (number | null)[];
 }
 
+/** Localized date strings for axis, tooltip and caption labels. Each is optional and falls back to English. */
+export interface DateLocale {
+  months?: readonly string[]; // short month names, 12 entries (Jan..Dec)
+  monthsFull?: readonly string[]; // full month names, 12 entries (January..December)
+  weekDays?: readonly string[]; // full weekday names, 7 entries starting Sunday
+  weekDaysShort?: readonly string[]; // short weekday names, 7 entries starting Sunday
+}
+
 /** Raw data accepted by the `LovelyChart` constructor and `onZoom` callbacks. */
 export interface LovelyChartParams {
   type: ChartType;
@@ -59,6 +67,7 @@ export interface LovelyChartParams {
   labelType?: LabelType;
   labelFormatter?: string;
   tooltipFormatter?: string;
+  dateLocale?: DateLocale;
   isStacked?: boolean;
   isPercentage?: boolean;
   withGradient?: boolean;
@@ -94,6 +103,7 @@ export interface AnalyzedData {
   labelType?: LabelType;
   labelFormatter?: string;
   tooltipFormatter?: string;
+  dateLocale?: DateLocale;
   xLabels: XLabel[];
   datasets: AnalyzedDataset[];
   isStacked?: boolean;
