@@ -55,7 +55,7 @@ export class Zoomer {
     this.#tools = tools;
   }
 
-  zoomIn(state: ChartState, labelIndex: number, instant = false) {
+  zoomIn(state: ChartState, labelIndex: number, isInstant = false) {
     if (this.#isZoomed) {
       return;
     }
@@ -68,12 +68,12 @@ export class Zoomer {
     this.#tooltip.toggleIsZoomed(true);
     if (this.#data.shouldZoomToShares) {
       this.#container.classList.add('lovely-chart--state-zoomed-in');
-      // Cancel CSS animation for 'instant' display
-      if (!instant) {
+      // Cancel CSS animation for `isInstant` display
+      if (!isInstant) {
         this.#container.classList.add('lovely-chart--state-animating');
       }
     }
-    if (instant) {
+    if (isInstant) {
       // Hide the freshly-rendered overview until the zoomed view is drawn so it
       // never paints (matters for async `onZoom`, where the swap lands a frame later)
       this.#container.style.visibility = 'hidden';
@@ -86,8 +86,8 @@ export class Zoomer {
     // The custom `onZoom` function may return a rejected promise instead of resolving,
     // which would leave the entire container invisible, so restore it in that case
     void dataPromise.then(
-      (newData) => this.#replaceData(newData, labelIndex, label, instant),
-      () => this.#replaceData(undefined, labelIndex, label, instant),
+      (newData) => this.#replaceData(newData, labelIndex, label, isInstant),
+      () => this.#replaceData(undefined, labelIndex, label, isInstant),
     );
   }
 
@@ -126,7 +126,7 @@ export class Zoomer {
   }
 
   #replaceData(
-    newRawData: LovelyChartParams | undefined, labelIndex: number, zoomInLabel?: XLabel, instant = false,
+    newRawData: LovelyChartParams | undefined, labelIndex: number, zoomInLabel?: XLabel, isInstant = false,
   ) {
     if (this.#isDestroyed) return;
 
@@ -135,7 +135,7 @@ export class Zoomer {
       this.#tooltip.toggleIsZoomed(false);
       this.#header.toggleIsZooming(false);
       // Reveal the overview fallback so the chart is not stuck hidden
-      if (instant) {
+      if (isInstant) {
         this.#container.style.visibility = '';
       }
 
@@ -147,7 +147,7 @@ export class Zoomer {
     const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToShares ? 'day' : 'hour');
     const shouldZoomToLines = Object.keys(this.#data.datasets).length !== Object.keys(newData.datasets).length;
 
-    if (instant) {
+    if (isInstant) {
       this.#applyZoomData(newData, newRawData, shouldZoomToLines, zoomInLabel, true);
       this.#container.style.visibility = '';
 
@@ -185,7 +185,7 @@ export class Zoomer {
     newRawData: LovelyChartParams,
     shouldZoomToLines: boolean,
     zoomInLabel: XLabel | undefined,
-    instant: boolean,
+    isInstant: boolean,
   ) {
     Object.assign(this.#data, newData);
 
@@ -238,7 +238,7 @@ export class Zoomer {
       }
     }
 
-    if (instant) {
+    if (isInstant) {
       this.#stateManager.update({
         range,
         filter,
