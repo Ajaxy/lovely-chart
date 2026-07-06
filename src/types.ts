@@ -51,10 +51,10 @@ export interface LovelyChartDatasetParams {
 
 /** Localized date strings for axis, tooltip and caption labels. Each is optional and falls back to English. */
 export interface DateLocale {
-  months?: readonly string[]; // short month names, 12 entries (Jan..Dec)
-  monthsFull?: readonly string[]; // full month names, 12 entries (January..December)
-  weekDays?: readonly string[]; // full weekday names, 7 entries starting Sunday
-  weekDaysShort?: readonly string[]; // short weekday names, 7 entries starting Sunday
+  months?: readonly string[]; // Short month names, 12 entries (Jan..Dec)
+  monthsFull?: readonly string[]; // Full month names, 12 entries (January..December)
+  weekDays?: readonly string[]; // Full weekday names, 7 entries starting Sunday
+  weekDaysShort?: readonly string[]; // Short weekday names, 7 entries starting Sunday
 }
 
 /** Raw data accepted by the `LovelyChart` constructor and `onZoom` callbacks. */
