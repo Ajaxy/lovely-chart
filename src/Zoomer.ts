@@ -266,7 +266,7 @@ export class Zoomer {
     }
 
     if (zoomInLabel) {
-      this.#header.zoom(getFullLabelDate(zoomInLabel));
+      this.#header.zoom(getFullLabelDate(zoomInLabel, {}, this.#data.dateLocale));
     }
 
     this.#isZoomed = !this.#isZoomed;
