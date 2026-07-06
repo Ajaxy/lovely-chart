@@ -55,6 +55,7 @@ export default class LovelyChart {
   #windowWidth = window.innerWidth;
   #originalData: LovelyChartParams;
   #isDestroyed = false;
+  #initialZoomPending = false;
 
   #themeObserver?: MutationObserver;
   #onWindowResize?: () => void;
@@ -70,6 +71,7 @@ export default class LovelyChart {
 
     this.#data = analyzeData(this.#originalData);
     this.#colors = createColors(this.#data.colors);
+    this.#initialZoomPending = this.#data.initialZoomIndex !== undefined;
 
     this.#setupComponents();
     this.#setupGlobalListeners();
@@ -77,6 +79,7 @@ export default class LovelyChart {
 
   update(newData: LovelyChartParams) {
     if (this.#isDestroyed) return;
+    this.#initialZoomPending = false;
     this.#originalData = newData;
     this.#destroyComponents();
     const fresh = analyzeData(this.#originalData);
@@ -207,6 +210,13 @@ export default class LovelyChart {
     }
     this.#minimap?.update(state);
     this.#tooltip!.update(state, points, projection, secondaryPoints, secondaryProjection);
+
+    // The state callback is rAF-deferred, so this is the earliest point where both
+    // `this.#state` and `this.#zoomer` exist — the start-zoom fires here, not in setup
+    if (this.#initialZoomPending && this.#zoomer && this.#data.initialZoomIndex !== undefined) {
+      this.#initialZoomPending = false;
+      this.#zoomer.zoomIn(state, this.#data.initialZoomIndex, true);
+    }
   };
 
   readonly #onRangeChange = (range: Range) => {

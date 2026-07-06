@@ -55,7 +55,7 @@ export class Zoomer {
     this.#tools = tools;
   }
 
-  zoomIn(state: ChartState, labelIndex: number) {
+  zoomIn(state: ChartState, labelIndex: number, isInstant = false) {
     if (this.#isZoomed) {
       return;
     }
@@ -68,14 +68,27 @@ export class Zoomer {
     this.#tooltip.toggleIsZoomed(true);
     if (this.#data.shouldZoomToShares) {
       this.#container.classList.add('lovely-chart--state-zoomed-in');
-      this.#container.classList.add('lovely-chart--state-animating');
+      // Cancel CSS animation for `isInstant` display
+      if (!isInstant) {
+        this.#container.classList.add('lovely-chart--state-animating');
+      }
+    }
+    if (isInstant) {
+      // Hide the freshly-rendered overview until the zoomed view is drawn so it
+      // never paints (matters for async `onZoom`, where the swap lands a frame later)
+      this.#container.style.visibility = 'hidden';
     }
 
     const { value } = label;
     const dataPromise = this.#data.shouldZoomToShares
       ? Promise.resolve(this.#generateCircleData(labelIndex))
       : this.#data.onZoom!(value);
-    void dataPromise.then((newData) => this.#replaceData(newData, labelIndex, label));
+    // The custom `onZoom` function may return a rejected promise instead of resolving,
+    // which would leave the entire container invisible, so restore it in that case
+    void dataPromise.then(
+      (newData) => this.#replaceData(newData, labelIndex, label, isInstant),
+      () => this.#replaceData(undefined, labelIndex, label, isInstant),
+    );
   }
 
   zoomOut(state: ChartState) {
@@ -112,25 +125,39 @@ export class Zoomer {
     }
   }
 
-  #replaceData(newRawData: LovelyChartParams | undefined, labelIndex: number, zoomInLabel?: XLabel) {
+  #replaceData(
+    newRawData: LovelyChartParams | undefined, labelIndex: number, zoomInLabel?: XLabel, isInstant = false,
+  ) {
     if (this.#isDestroyed) return;
 
     if (!newRawData) {
       this.#tooltip.toggleLoading(false);
       this.#tooltip.toggleIsZoomed(false);
       this.#header.toggleIsZooming(false);
+      // Reveal the overview fallback so the chart is not stuck hidden
+      if (isInstant) {
+        this.#container.style.visibility = '';
+      }
 
       return;
     }
 
     this.#tooltip.toggleLoading(false);
 
+    const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToShares ? 'day' : 'hour');
+    const shouldZoomToLines = Object.keys(this.#data.datasets).length !== Object.keys(newData.datasets).length;
+
+    if (isInstant) {
+      this.#applyZoomData(newData, newRawData, shouldZoomToLines, zoomInLabel, true);
+      this.#container.style.visibility = '';
+
+      return;
+    }
+
     const labelWidth = 1 / this.#data.xLabels.length;
     const labelMiddle = getLabelFraction(labelIndex, this.#data.xLabels.length - 1);
     const filter: Filter = {};
     this.#data.datasets.forEach(({ key }) => filter[key] = false);
-    const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToShares ? 'day' : 'hour');
-    const shouldZoomToLines = Object.keys(this.#data.datasets).length !== Object.keys(newData.datasets).length;
 
     this.#stateManager.update({
       range: {
@@ -142,57 +169,83 @@ export class Zoomer {
 
     this.#swapDataTimeout = window.setTimeout(() => {
       this.#swapDataTimeout = undefined;
-      Object.assign(this.#data, newData);
+      this.#applyZoomData(newData, newRawData, shouldZoomToLines, zoomInLabel, false);
+    }, this.#stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
 
-      if (shouldZoomToLines && newRawData.colors) {
-        Object.assign(this.#colors, createColors(newRawData.colors));
+    this.#stateAnimatingTimeout = window.setTimeout(() => {
+      this.#stateAnimatingTimeout = undefined;
+      if (this.#data.shouldZoomToShares) {
+        this.#container.classList.remove('lovely-chart--state-animating');
       }
+    }, this.#stateManager.hasAnimations() ? ZOOM_ANIMATING_TIMEOUT : 0);
+  }
 
-      if (shouldZoomToLines) {
-        this.#minimap?.toggle(this.#isZoomed);
-        this.#tools.redraw();
-        this.#container.style.width = `${this.#container.scrollWidth}px`;
-        this.#container.style.height = `${this.#container.scrollHeight}px`;
-      }
+  #applyZoomData(
+    newData: AnalyzedData,
+    newRawData: LovelyChartParams,
+    shouldZoomToLines: boolean,
+    zoomInLabel: XLabel | undefined,
+    isInstant: boolean,
+  ) {
+    Object.assign(this.#data, newData);
 
-      const daysCount = this.#isZoomed || this.#data.shouldZoomToShares
-        ? this.#data.xLabels.length
-        : this.#data.xLabels.length / 24;
-      const halfDayWidth = (1 / daysCount) / 2;
-      const centeredDayRange = {
-        begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
-        end: ZOOM_RANGE_MIDDLE + halfDayWidth,
+    if (shouldZoomToLines && newRawData.colors) {
+      Object.assign(this.#colors, createColors(newRawData.colors));
+    }
+
+    if (shouldZoomToLines) {
+      this.#minimap?.toggle(this.#isZoomed);
+      this.#tools.redraw();
+      this.#container.style.width = `${this.#container.scrollWidth}px`;
+      this.#container.style.height = `${this.#container.scrollHeight}px`;
+    }
+
+    const daysCount = this.#isZoomed || this.#data.shouldZoomToShares
+      ? this.#data.xLabels.length
+      : this.#data.xLabels.length / 24;
+    const halfDayWidth = (1 / daysCount) / 2;
+    const centeredDayRange = {
+      begin: ZOOM_RANGE_MIDDLE - halfDayWidth,
+      end: ZOOM_RANGE_MIDDLE + halfDayWidth,
+    };
+
+    let range: Range;
+    let filter: Filter;
+
+    if (this.#isZoomed) {
+      range = {
+        begin: this.#stateBeforeZoomIn!.begin,
+        end: this.#stateBeforeZoomIn!.end,
       };
-
-      let range: Range;
-      let filter: Filter;
-
-      if (this.#isZoomed) {
+      filter = shouldZoomToLines ? this.#stateBeforeZoomIn!.filter : this.#stateBeforeZoomOut!.filter;
+    } else {
+      if (shouldZoomToLines) {
         range = {
-          begin: this.#stateBeforeZoomIn!.begin,
-          end: this.#stateBeforeZoomIn!.end,
+          begin: 0,
+          end: 1,
         };
-        filter = shouldZoomToLines ? this.#stateBeforeZoomIn!.filter : this.#stateBeforeZoomOut!.filter;
+        filter = {};
+        this.#data.datasets.forEach(({ key }) => filter[key] = true);
       } else {
-        if (shouldZoomToLines) {
-          range = {
-            begin: 0,
-            end: 1,
-          };
-          filter = {};
-          this.#data.datasets.forEach(({ key }) => filter[key] = true);
-        } else {
-          // The clicked day is not necessarily in the window middle — at the data
-          // edges the window is clamped, so the day is located by timestamp
-          range = this.#data.shouldZoomToShares
-            ? this.#buildDayRange(newData.xLabels, zoomInLabel!.value) ?? centeredDayRange
-            : newData.minimapRange
-              ?? this.#buildDayRange(newData.xLabels, zoomInLabel!.value)
-              ?? centeredDayRange;
-          filter = this.#stateBeforeZoomIn!.filter;
-        }
+        // The clicked day is not necessarily in the window middle — at the data
+        // edges the window is clamped, so the day is located by timestamp
+        range = this.#data.shouldZoomToShares
+          ? this.#buildDayRange(newData.xLabels, zoomInLabel!.value) ?? centeredDayRange
+          : newData.minimapRange
+            ?? this.#buildDayRange(newData.xLabels, zoomInLabel!.value)
+            ?? centeredDayRange;
+        filter = this.#stateBeforeZoomIn!.filter;
       }
+    }
 
+    if (isInstant) {
+      this.#stateManager.update({
+        range,
+        filter,
+        focusOn: NO_FOCUS,
+        minimapDelta: this.#isZoomed ? 0 : range.end - range.begin,
+      }, true);
+    } else {
       // For shares zoom the range is applied directly: animating it from the
       // placeholder would draw the circle from wrong label windows (and thus wrong
       // slice proportions) during the CSS transition
@@ -210,21 +263,14 @@ export class Zoomer {
         // 0 disables discrete range snapping (when zooming back out)
         minimapDelta: this.#isZoomed ? 0 : range.end - range.begin,
       });
+    }
 
-      if (zoomInLabel) {
-        this.#header.zoom(getFullLabelDate(zoomInLabel, {}, this.#data.dateLocale));
-      }
+    if (zoomInLabel) {
+      this.#header.zoom(getFullLabelDate(zoomInLabel, {}, this.#data.dateLocale));
+    }
 
-      this.#isZoomed = !this.#isZoomed;
-      this.#header.toggleIsZooming(false);
-    }, this.#stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
-
-    this.#stateAnimatingTimeout = window.setTimeout(() => {
-      this.#stateAnimatingTimeout = undefined;
-      if (this.#data.shouldZoomToShares) {
-        this.#container.classList.remove('lovely-chart--state-animating');
-      }
-    }, this.#stateManager.hasAnimations() ? ZOOM_ANIMATING_TIMEOUT : 0);
+    this.#isZoomed = !this.#isZoomed;
+    this.#header.toggleIsZooming(false);
   }
 
   // The hourly window in zoomed data may be clamped at the data edges, so the

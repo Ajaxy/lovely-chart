@@ -41,6 +41,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       new LovelyChart(container, chart);
     });
+
+    new LovelyChart(container, { ...data[5], title: 'Lovely Shares — Start Zoomed', initialZoom: 'last' });
+    new LovelyChart(container, { ...data[2], title: 'Lovely Bars — Start Zoomed', initialZoom: 'last' });
   })();
 
   document.getElementById('skin-switcher').addEventListener('click', (e) => {

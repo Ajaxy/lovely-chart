@@ -76,6 +76,7 @@ export interface LovelyChartParams {
   onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
   noZoom?: boolean;
   zoomType?: 'pie' | 'donut';
+  initialZoom?: number | 'last';
   withMinimap?: boolean;
   minimapRange?: [number, number] | 'full';
   noCaption?: boolean;
@@ -135,6 +136,7 @@ export interface AnalyzedData {
   shouldZoomToShares: boolean;
   zoomType: 'pie' | 'donut';
   isZoomable: boolean;
+  initialZoomIndex?: number;
 }
 
 export interface ChartState {
