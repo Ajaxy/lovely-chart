@@ -355,9 +355,9 @@ export class Tooltip {
   #getTitle(data: AnalyzedData, labelIndex: number): string {
     switch (data.tooltipFormatter) {
       case 'statsFormatDayHourFull':
-        return formatDayHourFull(data.xLabels[labelIndex].value);
+        return formatDayHourFull(data.xLabels[labelIndex].value, data.dateLocale);
       case 'statsTooltipFormat(\'day\')':
-        return getLabelDate(data.xLabels[labelIndex], { withYear: true });
+        return getLabelDate(data.xLabels[labelIndex], { withYear: true }, data.dateLocale);
       case 'statsTooltipFormat(\'hour\')':
       case 'statsTooltipFormat(\'5min\')':
         return getLabelTime(data.xLabels[labelIndex]);
