@@ -123,7 +123,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
 
   // --- Rendering ---
   const count = await charts.count();
-  check('all demo charts created', count === 8, `got ${count}`);
+  check('all demo charts created', count === 10, `got ${count}`);
 
   for (let i = 0; i < count; i++) {
     const painted = await paintedPixels(page, i);
@@ -226,6 +226,41 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const pieText = (await pieBalloon.textContent()).trim();
   check('pie sector hover shows tooltip', pieShown && pieText.length > 0, JSON.stringify(pieText.slice(0, 40)));
 
+  // --- Start-zoomed init (chart 8: shares, opened already as a pie, no morph) ---
+  const startZoomed = charts.nth(8);
+  await startZoomed.scrollIntoViewIfNeeded();
+  const startedZoomed = await startZoomed.evaluate((el) =>
+    el.classList.contains('lovely-chart--state-zoomed-in'));
+  const startZoomOut = startZoomed.locator('.lovely-chart--header-zoom-out-control');
+  const hasZoomOut = (await startZoomOut.count()) > 0;
+  check('start-zoomed shares opens already zoomed', startedZoomed && hasZoomOut,
+    `zoomed-in: ${startedZoomed}, zoom-out control: ${hasZoomOut}`);
+
+  if (hasZoomOut) {
+    await startZoomOut.first().click();
+    await sleep(2000);
+    const stillZoomed = await startZoomed.evaluate((el) =>
+      el.classList.contains('lovely-chart--state-zoomed-in'));
+    check('start-zoomed zoom-out returns to overview', !stillZoomed, `still zoomed: ${stillZoomed}`);
+  }
+
+  // --- Start-zoomed init (chart 9: async onZoom, opened already on the zoomed day) ---
+  const startZoomedAsync = charts.nth(9);
+  await startZoomedAsync.scrollIntoViewIfNeeded();
+  const asyncZoomOut = startZoomedAsync.locator('.lovely-chart--header-zoom-out-control');
+  const asyncHasZoomOut = (await asyncZoomOut.count()) > 0;
+  const asyncCaption = await startZoomedAsync.locator('.lovely-chart--header-caption').textContent();
+  // A zoomed day caption is a single date; the overview caption is a "start — end" range
+  check('start-zoomed onZoom opens already zoomed', asyncHasZoomOut && !asyncCaption.includes('—'),
+    `zoom-out: ${asyncHasZoomOut}, caption: ${JSON.stringify(asyncCaption)}`);
+
+  if (asyncHasZoomOut) {
+    await asyncZoomOut.first().click();
+    await sleep(2000);
+    const backCaption = await startZoomedAsync.locator('.lovely-chart--header-caption').textContent();
+    check('start-zoomed onZoom zoom-out returns to overview', backCaption.includes('—'), JSON.stringify(backCaption));
+  }
+
   // --- Theme switch (MutationObserver -> state update path) ---
   await page.locator('#skin-switcher').click();
   await sleep(800);
@@ -236,7 +271,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await sleep(1200);
   const countAfterResize = await page.locator('.lovely-chart--container').count();
   const paintedAfterResize = await paintedPixels(page, 0);
-  check('resize redraw keeps all charts alive', countAfterResize === 8 && paintedAfterResize > 1000,
+  check('resize redraw keeps all charts alive', countAfterResize === 10 && paintedAfterResize > 1000,
     `charts: ${countAfterResize}, painted: ${paintedAfterResize}px`);
 
   // --- Console hygiene ---

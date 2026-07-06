@@ -80,6 +80,7 @@ Parameter | Description |
 `onZoom`| Optional function which returns `Promise` with data for the zoomed chart (new `data` object)
 `noZoom`| `true` to disable zooming. Default `false`.
 `zoomType`| Chart type shown when a percentage chart is zoomed into a single label: `pie` or `donut`. Default `pie`.
+`initialZoom`| Open the chart already zoomed on a point, with no overview shown and no transition morph: a label index, or `'last'` for the last point. Works for both shares (pie/donut) and custom `onZoom` charts. Zoom-out afterwards behaves normally. Ignored when the chart is not zoomable. Out-of-range indexes are clamped.
 
 ## Contributing
 

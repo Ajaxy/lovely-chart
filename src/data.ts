@@ -42,7 +42,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, isStacked, isPercentage, secondaryYAxis,
     hasSecondYAxis, onZoom, noZoom, zoomType, withMinimap, minimapRange, noCaption, zoomOutLabel,
-    valuePrefix, valueSuffix, isCurrencyPrefix, limitDate, onLimitedRangeClick,
+    valuePrefix, valueSuffix, isCurrencyPrefix, limitDate, onLimitedRangeClick, initialZoom,
   } = data;
   const isPie = data.type === 'pie';
   const isDonut = data.type === 'donut';
@@ -101,6 +101,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
   }
 
   const shouldZoomToShares = !onZoom && !noZoom && Boolean(isPercentage);
+  const isZoomable = !noZoom && (Boolean(onZoom) || shouldZoomToShares);
 
   const analyzed: AnalyzedData = {
     title,
@@ -137,7 +138,8 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     onLimitedRangeClick,
     shouldZoomToShares,
     zoomType: zoomType || 'pie',
-    isZoomable: !noZoom && (Boolean(onZoom) || shouldZoomToShares),
+    isZoomable,
+    initialZoomIndex: resolveInitialZoomIndex(initialZoom, isZoomable, xLabels.length),
   };
 
   return analyzed;
@@ -199,6 +201,28 @@ function buildMinimapRange(minimapRange?: [number, number] | 'full'): Range | un
 
   const [begin, end] = minimapRange;
   return { begin, end };
+}
+
+// Resolves the `initialZoom` param to a clamped label index, or `undefined` when not
+// applicable (non-zoomable chart or empty series); out-of-range indexes are clamped
+function resolveInitialZoomIndex(
+  initialZoom: number | 'last' | undefined,
+  isZoomable: boolean,
+  labelsCount: number,
+): number | undefined {
+  if (initialZoom === undefined || !isZoomable || labelsCount === 0) {
+    return undefined;
+  }
+
+  if (initialZoom === 'last') {
+    return labelsCount - 1;
+  }
+
+  if (typeof initialZoom !== 'number') {
+    return undefined;
+  }
+
+  return Math.max(0, Math.min(Math.round(initialZoom), labelsCount - 1));
 }
 
 function prepareDatasets(data: LovelyChartParams): { labels: (number | string)[]; datasets: AnalyzedDataset[] } {
