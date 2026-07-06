@@ -55,7 +55,6 @@ export class Zoomer {
     this.#tools = tools;
   }
 
-  // `instant` opens directly in the final zoomed view, with no overview morph
   zoomIn(state: ChartState, labelIndex: number, instant = false) {
     if (this.#isZoomed) {
       return;
@@ -69,7 +68,7 @@ export class Zoomer {
     this.#tooltip.toggleIsZoomed(true);
     if (this.#data.shouldZoomToShares) {
       this.#container.classList.add('lovely-chart--state-zoomed-in');
-      // `state-animating` drives the CSS circle morph — skipped for the instant view
+      // Cancel CSS animation for 'instant' display
       if (!instant) {
         this.#container.classList.add('lovely-chart--state-animating');
       }
@@ -84,8 +83,8 @@ export class Zoomer {
     const dataPromise = this.#data.shouldZoomToShares
       ? Promise.resolve(this.#generateCircleData(labelIndex))
       : this.#data.onZoom!(value);
-    // A rejected `onZoom` is treated like resolved-`undefined`: abort the zoom and
-    // (in the instant path) reveal the container instead of leaving it hidden forever
+    // The custom `onZoom` function may return a rejected promise instead of resolving,
+    // which would leave the entire container invisible, so restore it in that case
     void dataPromise.then(
       (newData) => this.#replaceData(newData, labelIndex, label, instant),
       () => this.#replaceData(undefined, labelIndex, label, instant),
@@ -149,7 +148,6 @@ export class Zoomer {
     const shouldZoomToLines = Object.keys(this.#data.datasets).length !== Object.keys(newData.datasets).length;
 
     if (instant) {
-      // Jump to the zoomed view in place (no collapse morph), then reveal it
       this.#applyZoomData(newData, newRawData, shouldZoomToLines, zoomInLabel, true);
       this.#container.style.visibility = '';
 
@@ -182,9 +180,6 @@ export class Zoomer {
     }, this.#stateManager.hasAnimations() ? ZOOM_ANIMATING_TIMEOUT : 0);
   }
 
-  // Swaps in the zoomed dataset and applies the final range/filter. Shared by the
-  // click-driven morph (`instant=false`, called after the collapse timeout) and the
-  // start-zoomed path (`instant=true`, jumps with no transition).
   #applyZoomData(
     newData: AnalyzedData,
     newRawData: LovelyChartParams,
@@ -244,7 +239,6 @@ export class Zoomer {
     }
 
     if (instant) {
-      // Jump straight to the final zoomed range/filter with no transition
       this.#stateManager.update({
         range,
         filter,

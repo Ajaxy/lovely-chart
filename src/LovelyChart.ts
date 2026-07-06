@@ -55,8 +55,6 @@ export default class LovelyChart {
   #windowWidth = window.innerWidth;
   #originalData: LovelyChartParams;
   #isDestroyed = false;
-  // One-shot: the start-zoomed view fires once at construction, never again on
-  // `update()`/resize rebuilds (which would re-jump into zoom unexpectedly)
   #initialZoomPending = false;
 
   #themeObserver?: MutationObserver;
@@ -81,8 +79,6 @@ export default class LovelyChart {
 
   update(newData: LovelyChartParams) {
     if (this.#isDestroyed) return;
-    // An explicit data update never (re)triggers the start-zoom — even if the
-    // construction-time zoom has not fired its rAF callback yet
     this.#initialZoomPending = false;
     this.#originalData = newData;
     this.#destroyComponents();
@@ -215,9 +211,8 @@ export default class LovelyChart {
     this.#minimap?.update(state);
     this.#tooltip!.update(state, points, projection, secondaryPoints, secondaryProjection);
 
-    // Start-zoomed: fire once after the first render has set `this.#state` (the
-    // state callback is always rAF-deferred, so setup has completed and the zoomer
-    // exists by now). Jump straight into the requested point with no overview morph.
+    // The state callback is rAF-deferred, so this is the earliest point where both
+    // `this.#state` and `this.#zoomer` exist — the start-zoom fires here, not in setup
     if (this.#initialZoomPending && this.#zoomer && this.#data.initialZoomIndex !== undefined) {
       this.#initialZoomPending = false;
       this.#zoomer.zoomIn(state, this.#data.initialZoomIndex, true);
