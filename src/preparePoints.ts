@@ -56,7 +56,8 @@ function preparePercentage(points: Point[][], bounds: { yMax?: number }) {
 
   points.forEach((datasetPoints) => {
     datasetPoints.forEach((point, j) => {
-      point.percent = point.visibleValue / sumsByY[j];
+      // Guard against an all-zero point: `0 / 0` is `NaN`, which corrupts the stacked-area path
+      point.percent = sumsByY[j] ? point.visibleValue / sumsByY[j] : 0;
       point.visibleValue = point.percent * bounds.yMax!;
     });
   });
