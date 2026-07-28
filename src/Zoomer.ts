@@ -265,12 +265,13 @@ export class Zoomer {
       });
     }
 
+    this.#isZoomed = !this.#isZoomed;
+    // Cleared before `zoom()`, which sets the caption and is otherwise ignored while zooming
+    this.#header.toggleIsZooming(false);
+
     if (zoomInLabel) {
       this.#header.zoom(getFullLabelDate(zoomInLabel, {}, this.#data.dateLocale));
     }
-
-    this.#isZoomed = !this.#isZoomed;
-    this.#header.toggleIsZooming(false);
   }
 
   // The hourly window in zoomed data may be clamped at the data edges, so the

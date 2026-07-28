@@ -29,6 +29,11 @@ const MIME = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const SPANISH_DATE_LOCALE = {
+  months: 'ene,feb,mar,abr,may,jun,jul,ago,sep,oct,nov,dic'.split(','),
+  weekDays: 'domingo,lunes,martes,miércoles,jueves,viernes,sábado'.split(','),
+};
+
 function startServer() {
   const server = http.createServer((req, res) => {
     const urlPath = decodeURIComponent(req.url.split('?')[0]);
@@ -260,6 +265,40 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     const backCaption = await startZoomedAsync.locator('.lovely-chart--header-caption').textContent();
     check('start-zoomed onZoom zoom-out returns to overview', backCaption.includes('—'), JSON.stringify(backCaption));
   }
+
+  // --- Localized captions (own chart, so the demo page stays English) ---
+  const localizedCaption = await page.evaluate(async (locale) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const data = await fetch('./data/areas.json').then((response) => response.json());
+    const element = document.createElement('div');
+    document.body.appendChild(element);
+
+    const chart = new LovelyChart(element, { ...data, initialZoom: 'last', dateLocale: locale });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const caption = element.querySelector('.lovely-chart--header-caption').textContent;
+
+    chart.destroy();
+    element.remove();
+    return caption;
+  }, SPANISH_DATE_LOCALE);
+  check('caption honours dateLocale',
+    SPANISH_DATE_LOCALE.weekDays.some((day) => localizedCaption.startsWith(day)),
+    JSON.stringify(localizedCaption));
+
+  // --- RTL layout (header sides swap, nothing overlaps) ---
+  await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
+  await sleep(300);
+  const rtlHeader = await charts.nth(0).evaluate((el) => {
+    const box = (selector) => el.querySelector(selector).getBoundingClientRect();
+    const title = box('.lovely-chart--header-title');
+    const caption = box('.lovely-chart--header-caption');
+    return { titleLeft: title.left, captionRight: caption.right };
+  });
+  check('rtl header puts the title on the trailing side',
+    rtlHeader.titleLeft >= rtlHeader.captionRight,
+    `title left: ${Math.round(rtlHeader.titleLeft)}, caption right: ${Math.round(rtlHeader.captionRight)}`);
+  await page.evaluate(() => document.documentElement.removeAttribute('dir'));
+  await sleep(300);
 
   // --- Theme switch (MutationObserver -> state update path) ---
   await page.locator('#skin-switcher').click();

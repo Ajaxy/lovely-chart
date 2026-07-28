@@ -4,7 +4,8 @@
 
   display: inline-block;
 
-  margin: 0 6px 8px 0;
+  margin-block: 0 8px;
+  margin-inline: 0 6px;
   padding: 7px 7px;
   border: 1px solid #E6ECF0;
   border-color: var(--text-color);
@@ -34,6 +35,10 @@
       color: #ffffff;
     }
 
+    [dir='rtl'] & .lovely-chart--button-label {
+      transform: translateX(-6px);
+    }
+
     &.lovely-chart--dark-content .lovely-chart--button-label {
       color: #222222;
     }
@@ -51,7 +56,7 @@
 .lovely-chart--button-check {
   position: absolute;
   top: 7px;
-  left: 7px;
+  inset-inline-start: 7px;
 
   display: inline-block;
 

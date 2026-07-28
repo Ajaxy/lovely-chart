@@ -52,7 +52,7 @@
   .lovely-chart--spinner {
     position: absolute;
     top: 7px;
-    right: 8px;
+    inset-inline-end: 8px;
     display: none;
   }
 }
@@ -68,7 +68,7 @@
 
     position: absolute;
     top: 0;
-    right: 0;
+    inset-inline-end: 0;
 
     display: block;
 
@@ -80,6 +80,10 @@
     background-position: center;
     background-size: 75%;
   }
+
+  [dir='rtl'] &::after {
+    transform: scaleX(-1);
+  }
 }
 
 .lovely-chart--tooltip-dataset {
@@ -89,8 +93,12 @@
 
   .lovely-chart--tooltip-dataset-value {
     float: right;
-    margin-left: 12px;
+    margin-inline-start: 12px;
     font-weight: bold;
+  }
+
+  [dir='rtl'] & .lovely-chart--tooltip-dataset-value {
+    float: left;
   }
 
   &.lovely-chart--tooltip-dataset-total {
@@ -103,13 +111,13 @@
   display: inline-block;
 
   width: 35px;
-  margin-right: 5px;
+  margin-inline-end: 5px;
 
   font-weight: bold;
-  text-align: right;
+  text-align: end;
 
   &.lovely-chart--transition ~ .lovely-chart--dataset-title {
-    padding-left: 30px;
+    padding-inline-start: 30px;
   }
 }
 

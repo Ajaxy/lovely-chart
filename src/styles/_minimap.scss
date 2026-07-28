@@ -1,6 +1,8 @@
 .lovely-chart--minimap {
   position: relative;
 
+  // The ruler overlays the plot canvas, which always runs left-to-right
+  direction: ltr;
   overflow: hidden;
 
   margin: 0 10px 16px 10px;

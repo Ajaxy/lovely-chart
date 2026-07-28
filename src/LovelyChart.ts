@@ -303,16 +303,19 @@ export default class LovelyChart {
     const startIndex = Math.max(0, Math.ceil(state.lastLabelIndex * state.begin));
     const endIndex = Math.min(Math.floor(state.lastLabelIndex * state.end), state.lastLabelIndex);
 
+    const { dateLocale } = this.#data;
+
     if (isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex])) {
-      const start = getLabelDate(this.#data.xLabels[startIndex], { withYear: true, omitCurrentYear: true });
-      const end = getLabelDate(this.#data.xLabels[endIndex], { withYear: true, omitCurrentYear: true });
+      const options = { withYear: true, omitCurrentYear: true };
+      const start = getLabelDate(this.#data.xLabels[startIndex], options, dateLocale);
+      const end = getLabelDate(this.#data.xLabels[endIndex], options, dateLocale);
       return `${start} — ${end}`;
     }
 
     // A sub-day window is named by its middle label — `startIndex` may belong to
     // the previous day when the window straddles midnight
     const middleIndex = Math.round(state.lastLabelIndex * (state.begin + state.end) / 2);
-    return getFullLabelDate(this.#data.xLabels[middleIndex]);
+    return getFullLabelDate(this.#data.xLabels[middleIndex], {}, dateLocale);
   }
 }
 
