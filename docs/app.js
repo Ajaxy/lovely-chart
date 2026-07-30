@@ -92,6 +92,23 @@ document.addEventListener('DOMContentLoaded', () => {
       withMinimap: true,
       initialZoom: 'last',
     });
+
+    // Not pre-zoomed: the drill-down is reached by clicking, as a user would
+    new LovelyChart(container, {
+      type: 'bar',
+      isStacked: true,
+      title: 'Lovely Bars — Zoom to Shares (click to drill in)',
+      zoomToShares: true,
+      circleLabelsAround: 4,
+      zoomType: 'donut',
+      labels: [0, 1, 2, 3, 4].map((m) => Date.UTC(2029, m, 1)),
+      labelType: 'month',
+      datasets: [
+        { name: 'Alpha', color: '#3497ED', values: [500, 400, 300, 400, 500] },
+        { name: 'Beta', color: '#9ED448', values: [500, 600, 700, 600, 500] },
+      ],
+      withMinimap: true,
+    });
   })();
 
   document.getElementById('skin-switcher').addEventListener('click', (e) => {

@@ -35,6 +35,7 @@ export class Minimap {
   #limitMask?: HTMLElement;
 
   #capturedOffset?: number;
+  #capturedCanvasLeft?: number;
   #range: Range = {} as Range;
   #state?: ChartState;
 
@@ -243,11 +244,29 @@ export class Minimap {
   readonly #onDragCapture = (e: CaptureEvent) => {
     e.preventDefault();
     this.#capturedOffset = (e.target as HTMLElement).offsetLeft;
+    // Read once per drag: a discrete drag maps the pointer onto the label grid
+    this.#capturedCanvasLeft = this.#canvas.getBoundingClientRect().left + window.scrollX;
   };
 
   readonly #onDragRelease = () => {
     this.#capturedOffset = undefined;
+    this.#capturedCanvasLeft = undefined;
   };
+
+  /**
+   * Labels the pointer has crossed since the drag began. A discrete range moves
+   * whole labels at a time, so stepping it by the pointer's own label — rather
+   * than by how far the slider has travelled — changes the range exactly when
+   * the pointer crosses a label boundary, wherever the slider was grabbed.
+   */
+  #labelsDragged(moveEvent: CaptureEvent, captureEvent: CaptureEvent, delta: number): number {
+    const labelWidth = delta * this.#canvasSize.width;
+    const toLabel = (event: CaptureEvent) => (
+      Math.floor(((event.pageX ?? 0) - this.#capturedCanvasLeft!) / labelWidth)
+    );
+
+    return toLabel(moveEvent) - toLabel(captureEvent);
+  }
 
   readonly #onSliderDrag = (
     moveEvent: CaptureEvent, captureEvent: CaptureEvent, { dragOffsetX }: { dragOffsetX: number },
@@ -256,7 +275,12 @@ export class Minimap {
     const minX1 = limitX;
     const maxX1 = this.#canvasSize.width - this.#slider.offsetWidth;
 
-    const newX1 = Math.max(minX1, Math.min(this.#capturedOffset! + dragOffsetX - MINIMAP_EAR_WIDTH, maxX1));
+    const delta = this.#state?.minimapDelta;
+    const draggedX = delta
+      ? this.#labelsDragged(moveEvent, captureEvent, delta) * delta * this.#canvasSize.width
+      : dragOffsetX;
+
+    const newX1 = Math.max(minX1, Math.min(this.#capturedOffset! + draggedX - MINIMAP_EAR_WIDTH, maxX1));
     const newX2 = newX1 + this.#slider.offsetWidth;
     const begin = newX1 / this.#canvasSize.width;
     const end = newX2 / this.#canvasSize.width;

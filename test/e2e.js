@@ -14,7 +14,7 @@ import path from 'node:path';
 import { chromium } from 'playwright-core';
 
 // Demo charts rendered by docs/app.js
-const EXPECTED_CHARTS = 13;
+const EXPECTED_CHARTS = 14;
 
 const ROOT = path.join(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
@@ -359,6 +359,62 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('zoom selects exactly its own column',
     edgeCaption === 'May 2029' && Math.abs(startsAt - 4) < 0.12 && spans > 0.75 && spans < 1.05,
     `${JSON.stringify(edgeCaption)}, starts at column ${startsAt.toFixed(2)}, spans ${spans.toFixed(2)}`);
+
+  // --- Discrete dragging follows the pointer, not the slider (chart 13) ---
+  // A discrete range moves whole labels, so it must step when the pointer
+  // crosses a label boundary. Stepping by how far the slider has travelled
+  // instead makes the range change at the same distance whatever part of the
+  // slider was grabbed, so a grab near one edge changes it while the pointer is
+  // still inside the label it started in.
+  const clickZoom = charts.nth(13);
+  await clickZoom.scrollIntoViewIfNeeded();
+
+  const dragFromPointer = async (grabFraction) => {
+    const plotBox = await clickZoom.locator('.lovely-chart--tooltip').boundingBox();
+    await page.mouse.move(plotBox.x + plotBox.width * 0.5, plotBox.y + plotBox.height * 0.6);
+    await sleep(250);
+    await page.mouse.click(plotBox.x + plotBox.width * 0.5, plotBox.y + plotBox.height * 0.6);
+    await sleep(2200);
+
+    const caption = async () => (await clickZoom.locator('.lovely-chart--header-caption').textContent()).trim();
+    const canvasBox = await clickZoom.locator('.lovely-chart--minimap canvas').boundingBox();
+    const bodyBox = await clickZoom.locator('.lovely-chart--minimap-slider-inner').boundingBox();
+    const labelWidth = canvasBox.width / 5;
+    const labelAt = (x) => Math.floor((x - canvasBox.x) / labelWidth);
+    const startX = bodyBox.x + bodyBox.width * grabFraction;
+    const startY = bodyBox.y + bodyBox.height / 2;
+    const before = await caption();
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    let labelWhenChanged;
+    for (let travelled = 0.05; travelled <= 1.4; travelled += 0.05) {
+      const x = startX - labelWidth * travelled;
+      await page.mouse.move(x, startY, { steps: 2 });
+      await sleep(80);
+      if ((await caption()) !== before) {
+        labelWhenChanged = labelAt(x);
+        break;
+      }
+    }
+    await page.mouse.up();
+    await sleep(300);
+    const zoomOut = clickZoom.locator('.lovely-chart--header-zoom-out-control');
+    if (await zoomOut.count()) {
+      await zoomOut.first().click();
+      await sleep(2000);
+    }
+
+    return { start: labelAt(startX), changed: labelWhenChanged };
+  };
+
+  const grabbedNearLeft = await dragFromPointer(0.25);
+  const grabbedNearRight = await dragFromPointer(0.75);
+  check('discrete drag steps when the pointer crosses a label',
+    grabbedNearLeft.changed === grabbedNearLeft.start - 1
+    && grabbedNearRight.changed === grabbedNearRight.start - 1,
+    `near left: label ${grabbedNearLeft.start} -> changed at ${grabbedNearLeft.changed}; `
+    + `near right: label ${grabbedNearRight.start} -> changed at ${grabbedNearRight.changed}`);
 
   check('month chart captions its zoom by month, not day',
     monthZoomCaption.trim() === 'March 2029', JSON.stringify(monthZoomCaption));
