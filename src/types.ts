@@ -76,6 +76,19 @@ export interface LovelyChartParams {
   onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
   noZoom?: boolean;
   zoomType?: 'pie' | 'donut';
+  /**
+   * Opt a non-percentage chart into zoom-to-shares, so clicking a label drills
+   * into a pie/donut of that label's shares. Percentage charts get this
+   * implicitly; a stacked chart of absolute values needs the flag, since making
+   * it `isPercentage` would discard the values the overview exists to show.
+   * Ignored when `onZoom` is supplied.
+   */
+  zoomToShares?: boolean;
+  /**
+   * How many labels either side of the clicked one the zoomed pie/donut covers.
+   * Defaults to 3, which suits daily data; use 0 to drill into a single label.
+   */
+  circleLabelsAround?: number;
   initialZoom?: number | 'last';
   withMinimap?: boolean;
   minimapRange?: [number, number] | 'full';
@@ -134,6 +147,7 @@ export interface AnalyzedData {
   limitBegin: number | undefined;
   onLimitedRangeClick?: () => void;
   shouldZoomToShares: boolean;
+  circleLabelsAround?: number;
   zoomType: 'pie' | 'donut';
   isZoomable: boolean;
   initialZoomIndex?: number;

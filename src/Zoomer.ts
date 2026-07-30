@@ -296,9 +296,10 @@ export class Zoomer {
   }
 
   #generateCircleData(labelIndex: number): LovelyChartParams {
+    const around = this.#data.circleLabelsAround ?? CIRCLE_LABELS_AROUND;
     // A negative `slice` start would wrap around to the array end near the left data edge
-    const from = Math.max(0, labelIndex - CIRCLE_LABELS_AROUND);
-    const to = labelIndex + CIRCLE_LABELS_AROUND + 1;
+    const from = Math.max(0, labelIndex - around);
+    const to = labelIndex + around + 1;
 
     return {
       ...this.#overviewData,

@@ -24,6 +24,8 @@
 - `LovelyChartInstance` — a structural type of the chart handle, satisfiable by test stubs.
 - `noZoom` parameter to disable zooming.
 - `zoomType` parameter (`'pie' | 'donut'`) — the chart type a percentage chart zooms into.
+- `zoomToShares` parameter — opts a non-percentage chart into zoom-to-shares, so a stacked chart of absolute values can drill into a label's shares without being converted to percentages.
+- `circleLabelsAround` parameter — how many labels either side of the clicked one the zoomed pie/donut covers (default `3`).
 - The `step` chart type is documented and demonstrated on the demo page.
 - A single modern ESM build replaces the previous bundle formats.
 

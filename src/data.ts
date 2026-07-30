@@ -41,7 +41,8 @@ const LABEL_TYPE_TO_FORMATTER: Record<LabelType, string | undefined> = {
 export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelType): AnalyzedData {
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage, secondaryYAxis,
-    hasSecondYAxis, onZoom, noZoom, zoomType, withMinimap, minimapRange, noCaption, zoomOutLabel,
+    hasSecondYAxis, onZoom, noZoom, zoomType, zoomToShares, circleLabelsAround,
+    withMinimap, minimapRange, noCaption, zoomOutLabel,
     valuePrefix, valueSuffix, isCurrencyPrefix, limitDate, onLimitedRangeClick, initialZoom,
   } = data;
   const isPie = data.type === 'pie';
@@ -100,7 +101,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     }
   }
 
-  const shouldZoomToShares = !onZoom && !noZoom && Boolean(isPercentage);
+  const shouldZoomToShares = !onZoom && !noZoom && Boolean(isPercentage || zoomToShares);
   const isZoomable = !noZoom && (Boolean(onZoom) || shouldZoomToShares);
 
   const analyzed: AnalyzedData = {
@@ -138,6 +139,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     limitBegin,
     onLimitedRangeClick,
     shouldZoomToShares,
+    circleLabelsAround,
     zoomType: zoomType || 'pie',
     isZoomable,
     initialZoomIndex: resolveInitialZoomIndex(initialZoom, isZoomable, xLabels.length),

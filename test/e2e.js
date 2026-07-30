@@ -13,6 +13,9 @@ import http from 'node:http';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 
+// Demo charts rendered by docs/app.js
+const EXPECTED_CHARTS = 11;
+
 const ROOT = path.join(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 const DOCS = path.join(ROOT, 'docs');
@@ -128,7 +131,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
 
   // --- Rendering ---
   const count = await charts.count();
-  check('all demo charts created', count === 10, `got ${count}`);
+  check('all demo charts created', count === EXPECTED_CHARTS, `got ${count}`);
 
   for (let i = 0; i < count; i++) {
     const painted = await paintedPixels(page, i);
@@ -249,6 +252,26 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     check('start-zoomed zoom-out returns to overview', !stillZoomed, `still zoomed: ${stillZoomed}`);
   }
 
+  // --- Zoom to shares on an absolute stacked bar chart (chart 10) ---
+  // `bars.json` has no `isPercentage`, so this only zooms because of `zoomToShares`.
+  const shareBars = charts.nth(10);
+  await shareBars.scrollIntoViewIfNeeded();
+  const isCircle = await shareBars.evaluate((el) =>
+    Boolean(el.querySelector('.lovely-chart--container-type-circle'))
+    || el.classList.contains('lovely-chart--container-type-circle'));
+  const shareZoomOut = shareBars.locator('.lovely-chart--header-zoom-out-control');
+  const shareHasZoomOut = (await shareZoomOut.count()) > 0;
+  check('zoomToShares opens shares on a non-percentage chart', isCircle && shareHasZoomOut,
+    `circle container: ${isCircle}, zoom-out control: ${shareHasZoomOut}`);
+
+  if (shareHasZoomOut) {
+    await shareZoomOut.first().click();
+    await sleep(2000);
+    const stillCircle = await shareBars.evaluate((el) =>
+      el.classList.contains('lovely-chart--state-zoomed-in'));
+    check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
+  }
+
   // --- Start-zoomed init (chart 9: async onZoom, opened already on the zoomed day) ---
   const startZoomedAsync = charts.nth(9);
   await startZoomedAsync.scrollIntoViewIfNeeded();
@@ -310,7 +333,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await sleep(1200);
   const countAfterResize = await page.locator('.lovely-chart--container').count();
   const paintedAfterResize = await paintedPixels(page, 0);
-  check('resize redraw keeps all charts alive', countAfterResize === 10 && paintedAfterResize > 1000,
+  check('resize redraw keeps all charts alive', countAfterResize === EXPECTED_CHARTS && paintedAfterResize > 1000,
     `charts: ${countAfterResize}, painted: ${paintedAfterResize}px`);
 
   // --- Console hygiene ---

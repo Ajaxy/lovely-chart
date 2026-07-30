@@ -81,6 +81,8 @@ Parameter | Description |
 `onZoom`| Optional function which returns `Promise` with data for the zoomed chart (new `data` object)
 `noZoom`| `true` to disable zooming. Default `false`.
 `zoomType`| Chart type shown when a percentage chart is zoomed into a single label: `pie` or `donut`. Default `pie`.
+`zoomToShares`| `true` to opt a non-percentage chart into zoom-to-shares, so clicking a label drills into a `zoomType` chart of that label's shares. Percentage charts do this implicitly; a stacked chart of absolute values needs the flag, since switching it to `isPercentage` would discard the values the overview exists to show. Ignored when `onZoom` is supplied. Default `false`.
+`circleLabelsAround`| How many labels either side of the clicked one the zoomed pie/donut covers. Default `3`, which suits daily data; use `0` to drill into a single label.
 `initialZoom`| Open the chart already zoomed on a point, with no overview shown and no transition morph: a label index, or `'last'` for the last point. Works for both shares (pie/donut) and custom `onZoom` charts. Zoom-out afterwards behaves normally. Ignored when the chart is not zoomable. Out-of-range indexes are clamped.
 
 ## Contributing
