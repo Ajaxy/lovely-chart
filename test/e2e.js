@@ -14,7 +14,7 @@ import path from 'node:path';
 import { chromium } from 'playwright-core';
 
 // Demo charts rendered by docs/app.js
-const EXPECTED_CHARTS = 14;
+const EXPECTED_CHARTS = 15;
 
 const ROOT = path.join(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');

@@ -26,9 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
       fetchJson('./data/areas.json'),
       fetchJson('./data/donut.json'),
       fetchJson('./data/steps.json'),
+      fetchJson('./data/bars-monthly.json'),
     ]);
 
-    data.forEach((chart, i) => {
+    data.slice(0, 8).forEach((chart, i) => {
       if (i === 2) {
         chart.onZoom = (date) => fetchDayData('data/zoom_bars', date);
       }
@@ -109,6 +110,11 @@ document.addEventListener('DOMContentLoaded', () => {
       ],
       withMinimap: true,
     });
+
+    // Monthly stacked bars of absolute values, drilling into a single month's
+    // composition — `zoomToShares` keeps the bar heights the overview is for,
+    // and `circleLabelsAround` lets the zoomed minimap reach every month
+    new LovelyChart(container, data[8]);
   })();
 
   document.getElementById('skin-switcher').addEventListener('click', (e) => {
