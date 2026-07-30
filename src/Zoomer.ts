@@ -188,6 +188,7 @@ export class Zoomer {
     isInstant: boolean,
   ) {
     Object.assign(this.#data, newData);
+    this.#stateManager.refreshTransitionConfig();
 
     if (shouldZoomToLines && newRawData.colors) {
       Object.assign(this.#colors, createColors(newRawData.colors));
@@ -230,9 +231,9 @@ export class Zoomer {
         // The clicked day is not necessarily in the window middle — at the data
         // edges the window is clamped, so the day is located by timestamp
         range = this.#data.shouldZoomToShares
-          ? this.#buildDayRange(newData.xLabels, zoomInLabel!.value) ?? centeredDayRange
+          ? this.#buildDayRange(newData, zoomInLabel!.value) ?? centeredDayRange
           : newData.minimapRange
-            ?? this.#buildDayRange(newData.xLabels, zoomInLabel!.value)
+            ?? this.#buildDayRange(newData, zoomInLabel!.value)
             ?? centeredDayRange;
         filter = this.#stateBeforeZoomIn!.filter;
       }
@@ -276,7 +277,8 @@ export class Zoomer {
 
   // The hourly window in zoomed data may be clamped at the data edges, so the
   // requested day is not necessarily in its middle — locate it by timestamp
-  #buildDayRange(xLabels: XLabel[], dayValue: number): Range | undefined {
+  #buildDayRange(data: AnalyzedData, dayValue: number): Range | undefined {
+    const { xLabels } = data;
     const dayStart = xLabels.findIndex(({ value }) => value === dayValue);
     if (dayStart === -1) {
       return undefined;
@@ -286,6 +288,23 @@ export class Zoomer {
     let dayEnd = dayStart;
     while (dayEnd < lastLabelIndex && xLabels[dayEnd + 1].value < dayValue + MILLISECONDS_IN_DAY) {
       dayEnd++;
+    }
+
+    // Half-label margins keep the day's lateral columns fully selected. At the
+    // data edges the margin falls outside the axis, so the window is shifted
+    // inward rather than truncated — truncating would halve it, which shows as a
+    // half-width selection and, since `minimapDelta` is taken from this width,
+    // halves the drag step too. The epsilon keeps the neighbouring label out.
+    // Columns occupy a slot each, so a label spans [i, i + 1] of `length` slots;
+    // points sit *on* the axis, so a label is the half-label margin either side
+    // of `i` across `length - 1` intervals. Using the point grid for a column
+    // chart leaves the selection overhanging its column by half a slot, which is
+    // visible as a sliver of the neighbouring column inside the minimap slider.
+    if (data.isBars || data.isCircle) {
+      return {
+        begin: dayStart / xLabels.length,
+        end: (dayEnd + 1) / xLabels.length,
+      };
     }
 
     // Half-label margins keep the day's lateral columns fully selected

@@ -10,13 +10,16 @@ export function preparePoints(
   visibilities: number[],
   bounds: { yMin?: number; yMax?: number },
   shouldConvertToArea?: boolean,
+  circleSums?: number[],
 ): Point[][] {
   let values = datasets.map(({ values }) => (
     values.slice(range.from, range.to + 1)
   ));
 
   if (data.isCircle && !shouldConvertToArea) {
-    values = prepareSumsByX(values);
+    // Pre-summed values arrive already interpolated, so the sectors animate
+    // towards a new range instead of snapping to it
+    values = circleSums ? circleSums.map((sum) => [sum]) : prepareSumsByX(values);
   }
 
   const points = values.map((datasetValues, i) => (

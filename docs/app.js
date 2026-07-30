@@ -55,6 +55,43 @@ document.addEventListener('DOMContentLoaded', () => {
       zoomType: 'donut',
       initialZoom: 'last',
     });
+
+    // Only the middle label is lopsided, so a zoom that leaked its neighbours
+    // into the sectors would read ~50/50 instead of 1/99
+    new LovelyChart(container, {
+      type: 'bar',
+      isStacked: true,
+      title: 'Lovely Bars — Zoom to Shares (single label)',
+      zoomToShares: true,
+      circleLabelsAround: 4,
+      zoomType: 'pie',
+      labels: [0, 1, 2, 3, 4].map((m) => Date.UTC(2029, m, 1)),
+      labelType: 'month',
+      datasets: [
+        { name: 'Alpha', color: '#3497ED', values: [500, 500, 1, 500, 500] },
+        { name: 'Beta', color: '#9ED448', values: [500, 500, 999, 500, 500] },
+      ],
+      withMinimap: true,
+      initialZoom: 2,
+    });
+
+    // Zoomed onto the final label, where the half-label margin falls off the axis
+    new LovelyChart(container, {
+      type: 'bar',
+      isStacked: true,
+      title: 'Lovely Bars — Zoom to Shares (last label)',
+      zoomToShares: true,
+      circleLabelsAround: 4,
+      zoomType: 'pie',
+      labels: [0, 1, 2, 3, 4].map((m) => Date.UTC(2029, m, 1)),
+      labelType: 'month',
+      datasets: [
+        { name: 'Alpha', color: '#3497ED', values: [500, 500, 500, 500, 1] },
+        { name: 'Beta', color: '#9ED448', values: [500, 500, 500, 500, 999] },
+      ],
+      withMinimap: true,
+      initialZoom: 'last',
+    });
   })();
 
   document.getElementById('skin-switcher').addEventListener('click', (e) => {

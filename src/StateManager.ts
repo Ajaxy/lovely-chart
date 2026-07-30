@@ -4,6 +4,7 @@ import {
   ANIMATE_PROPS,
   AXES_MAX_COLUMN_WIDTH,
   AXES_MAX_ROW_HEIGHT,
+  CIRCLE_STATIC_PROPS,
   GAP,
   NO_FOCUS,
   PLOT_CIRCLE_RADIUS_FACTOR,
@@ -47,7 +48,7 @@ export class StateManager {
 
   readonly #range: Range = { begin: 0, end: 1 };
   readonly #filter: Filter;
-  readonly #transitionConfig: TransitionConfigItem[];
+  #transitionConfig: TransitionConfigItem[];
   readonly #transitions: TransitionManager;
   readonly #runCallbackOnRaf: () => void;
 
@@ -63,6 +64,14 @@ export class StateManager {
     this.#transitionConfig = this.#buildTransitionConfig();
     this.#transitions = new TransitionManager(this.#runCallback);
     this.#runCallbackOnRaf = throttleWithRaf(this.#runCallback);
+  }
+
+  /**
+   * Zooming replaces the chart type in place, and the transition config depends
+   * on it — a circle animates its summed values and not its x-range.
+   */
+  refreshTransitionConfig() {
+    this.#transitionConfig = this.#buildTransitionConfig();
   }
 
   update({ range = {}, filter = {}, focusOn, minimapDelta }: StateUpdate = {}, noTransition?: boolean) {
@@ -112,11 +121,21 @@ export class StateManager {
     const transitionConfig: TransitionConfigItem[] = [];
     const datasetVisibilities = this.#data.datasets.map(({ key }) => `opacity#${key} ${TRANSITION_DEFAULT_DURATION}`);
     const datasetCircleShifts = this.#data.datasets.map(({ key }) => `circleShift#${key} 200`);
+    // A circle draws one summed value per dataset, so that is what has to
+    // animate; its own x-range props describe nothing it draws, and animating
+    // them would walk the aggregation through label windows it never selected
+    const datasetCircleSums = this.#data.isCircle
+      ? this.#data.datasets.map(({ key }) => `circleSum#${key} ${TRANSITION_DEFAULT_DURATION}`)
+      : [];
+    const animateProps = this.#data.isCircle
+      ? ANIMATE_PROPS.filter((prop) => !CIRCLE_STATIC_PROPS.includes(prop.split(' ')[0]))
+      : ANIMATE_PROPS;
 
     [
-      ...ANIMATE_PROPS,
+      ...animateProps,
       ...datasetVisibilities,
       ...datasetCircleShifts,
+      ...datasetCircleSums,
     ].forEach((transition) => {
       const [prop, duration, ...options] = transition.split(' ');
       transitionConfig.push({ prop, duration: duration ? Number(duration) : undefined, options });
@@ -183,8 +202,23 @@ function calculateState(
     datasetsOpacity[`opacity#${key}`] = filter[key] ? 1 : 0;
   });
 
-  const extendedLabelFromIndex = Math.max(0, labelFromIndex - 1);
-  const extendedLabelToIndex = Math.min(labelToIndex + 1, lastLabelIndex);
+  const datasetsCircleSum: Record<string, number> = {};
+  if (data.isCircle) {
+    data.datasets.forEach(({ key, values }) => {
+      let sum = 0;
+      for (let i = labelFromIndex; i <= labelToIndex; i++) {
+        sum += values[i] ?? 0;
+      }
+      datasetsCircleSum[`circleSum#${key}`] = sum;
+    });
+  }
+
+  // Line and bar charts need one label of margin per side so segments crossing
+  // the viewport edge are drawn. A circle has no edges to draw, and the extra
+  // labels would silently widen the range its sectors are summed over — a pie
+  // zoomed to one label would aggregate that label plus both its neighbours.
+  const extendedLabelFromIndex = data.isCircle ? labelFromIndex : Math.max(0, labelFromIndex - 1);
+  const extendedLabelToIndex = data.isCircle ? labelToIndex : Math.min(labelToIndex + 1, lastLabelIndex);
   const resolvedFocusOn = focusOn !== undefined ? focusOn : prevState.focusOn;
 
   const datasetsCircleShift = data.isCircle
@@ -208,6 +242,7 @@ function calculateState(
     minimapDelta: minimapDelta !== undefined ? minimapDelta : prevState.minimapDelta,
     ...yRanges,
     ...datasetsOpacity,
+    ...datasetsCircleSum,
     ...datasetsCircleShift,
     ...range,
   };

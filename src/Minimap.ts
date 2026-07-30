@@ -293,7 +293,9 @@ export class Minimap {
     let nextRange = { ...this.#range, ...range };
 
     if (this.#state?.minimapDelta && !isExternal) {
-      nextRange = this.#adjustDiscreteRange(nextRange);
+      // A slider drag moves both edges; an ear drag moves one
+      const isPan = range.begin !== undefined && range.end !== undefined;
+      nextRange = this.#adjustDiscreteRange(nextRange, isPan, range.begin !== undefined);
     }
 
     if (this.#limitBegin !== undefined && nextRange.begin < this.#limitBegin) {
@@ -312,10 +314,31 @@ export class Minimap {
     }
   }
 
-  #adjustDiscreteRange(nextRange: Range): Range {
-    // TODO sometimes beginChange and endChange are different for slider drag because of pixels division
-    const begin = Math.round(nextRange.begin / this.#state!.minimapDelta!) * this.#state!.minimapDelta!;
-    const end = Math.round(nextRange.end / this.#state!.minimapDelta!) * this.#state!.minimapDelta!;
+  #adjustDiscreteRange(nextRange: Range, isPan: boolean, movedBegin: boolean): Range {
+    const delta = this.#state!.minimapDelta!;
+    // Snap relative to where the window already sits rather than to bare
+    // multiples of the delta: a range may be built on the column grid or on the
+    // point grid, whose edges sit half a label apart. Snapping to the wrong one
+    // lands between labels — harmless on a 24-label day window, but a one-label
+    // window then straddles two and cannot be dragged label by label.
+    const origin = this.#range.begin;
+    const snap = (value: number) => origin + Math.round((value - origin) / delta) * delta;
+
+    if (isPan) {
+      // Snapping both edges independently lets them round in opposite directions,
+      // so a drag that should slide the window silently resizes it by a label
+      const begin = snap(nextRange.begin);
+      return { begin, end: begin + (this.#range.end - this.#range.begin) };
+    }
+
+    const begin = snap(nextRange.begin);
+    const end = snap(nextRange.end);
+
+    // Discrete ranges select whole labels, so an ear cannot shrink the window
+    // past the last one — collapsing it to nothing leaves the chart with no data
+    if (end - begin < delta) {
+      return movedBegin ? { begin: end - delta, end } : { begin, end: begin + delta };
+    }
 
     return { begin, end };
   }

@@ -174,7 +174,12 @@ export default class LovelyChart {
       withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isCircle,
     };
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`] as number);
-    const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams);
+    const circleSums = this.#data.isCircle
+      ? datasets.map(({ key }) => state[`circleSum#${key}`] as number)
+      : undefined;
+    const points = preparePoints(
+      this.#data, datasets, range, visibilities, boundsAndParams, undefined, circleSums,
+    );
     const projection = new Projection(boundsAndParams);
 
     let secondaryPoints: Point[] | undefined;

@@ -14,7 +14,7 @@ import path from 'node:path';
 import { chromium } from 'playwright-core';
 
 // Demo charts rendered by docs/app.js
-const EXPECTED_CHARTS = 11;
+const EXPECTED_CHARTS = 13;
 
 const ROOT = path.join(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
@@ -264,14 +264,6 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('zoomToShares opens shares on a non-percentage chart', isCircle && shareHasZoomOut,
     `circle container: ${isCircle}, zoom-out control: ${shareHasZoomOut}`);
 
-  if (shareHasZoomOut) {
-    await shareZoomOut.first().click();
-    await sleep(2000);
-    const stillCircle = await shareBars.evaluate((el) =>
-      el.classList.contains('lovely-chart--state-zoomed-in'));
-    check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
-  }
-
   // A month-granularity chart must not caption its zoom with a single day.
   const monthZoomCaption = await page.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
@@ -300,8 +292,84 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     element.remove();
     return caption;
   });
+  // A zoomed shares chart must aggregate the selected label only. Line and bar
+  // charts extend the range by one label per side to draw edge segments; doing
+  // that for a circle silently sums the neighbours into the sectors.
+  const singleLabel = charts.nth(11);
+  await singleLabel.scrollIntoViewIfNeeded();
+  const singlePlot = await singleLabel.locator('.lovely-chart--tooltip').boundingBox();
+  await hoverWiggle(page, { ...singlePlot, width: singlePlot.width + 140 }, 0.5, 0.42);
+  const singleText = (await singleLabel.locator('.lovely-chart--tooltip-balloon')
+    .textContent()).replace(/\s+/g, ' ').trim();
+  check('zoomed shares aggregate the selected label only',
+    singleText.includes('999') && !singleText.includes('1 999'),
+    JSON.stringify(singleText.slice(0, 60)));
+
+  // Dragging the zoomed minimap must step whole labels. Snapping that ignores
+  // the half-label offset makes a one-label window straddle two, so the caption
+  // flips between a single month and a range on every step.
+  const singleCaption = () => singleLabel.locator('.lovely-chart--header-caption').textContent();
+  const capZoomed = (await singleCaption()).trim();
+  const singleSlider = await singleLabel.locator('.lovely-chart--minimap-slider-inner').boundingBox();
+  const labelWidth = (await singleLabel.locator('.lovely-chart--minimap').boundingBox()).width / 5;
+  await drag(page, singleSlider.x + singleSlider.width / 2, singleSlider.y + singleSlider.height / 2,
+    -labelWidth, 0);
+  await sleep(700);
+  const capDragged = (await singleCaption()).trim();
+  check('zoomed minimap drag steps whole labels',
+    capZoomed === 'March 2029'
+    && (capDragged === 'February 2029' || capDragged === 'February — March 2029'),
+    `${JSON.stringify(capZoomed)} -> ${JSON.stringify(capDragged)}`);
+
+  // The sectors animate towards a new range: their values are what a circle
+  // draws, so those are what transition. Without it the pie snaps between
+  // aggregations, which is how it behaved when the range applied instantly.
+  const donutSignature = () => singleLabel.evaluate((el) => {
+    const cv = el.querySelector('canvas');
+    const data = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let hash = 0;
+    for (let i = 0; i < data.length; i += 997) hash = (hash * 31 + data[i]) % 1000003;
+    return hash;
+  });
+  const dragged = await singleLabel.locator('.lovely-chart--minimap-slider-inner').boundingBox();
+  await page.mouse.move(dragged.x + dragged.width / 2, dragged.y + dragged.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dragged.x + dragged.width / 2 + labelWidth, dragged.y + dragged.height / 2, { steps: 8 });
+  await page.mouse.up();
+  const donutFrames = [];
+  for (let i = 0; i < 10; i++) {
+    donutFrames.push(await donutSignature());
+    await sleep(30);
+  }
+  check('zoomed circle animates towards a new range',
+    new Set(donutFrames).size > 3, `${new Set(donutFrames).size} distinct frames`);
+
+  // At the first and last label the half-label margin falls outside the axis.
+  // Truncating it there halves the window, which both looks wrong and halves the
+  // drag step, since `minimapDelta` is taken from that width.
+  const edgeZoom = charts.nth(12);
+  await edgeZoom.scrollIntoViewIfNeeded();
+  const edgeCaption = (await edgeZoom.locator('.lovely-chart--header-caption').textContent()).trim();
+  const edgeMinimap = await edgeZoom.locator('.lovely-chart--minimap').boundingBox();
+  const edgeSlider = await edgeZoom.locator('.lovely-chart--minimap-slider-inner').boundingBox();
+  // A column chart draws 5 columns, so the selection must sit on the 5th of them
+  const column = edgeMinimap.width / 5;
+  const startsAt = (edgeSlider.x - edgeMinimap.x) / column;
+  const spans = edgeSlider.width / column;
+  check('zoom selects exactly its own column',
+    edgeCaption === 'May 2029' && Math.abs(startsAt - 4) < 0.12 && spans > 0.75 && spans < 1.05,
+    `${JSON.stringify(edgeCaption)}, starts at column ${startsAt.toFixed(2)}, spans ${spans.toFixed(2)}`);
+
   check('month chart captions its zoom by month, not day',
     monthZoomCaption.trim() === 'March 2029', JSON.stringify(monthZoomCaption));
+
+  if (shareHasZoomOut) {
+    await shareZoomOut.first().click();
+    await sleep(2000);
+    const stillCircle = await shareBars.evaluate((el) =>
+      el.classList.contains('lovely-chart--state-zoomed-in'));
+    check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
+  }
 
   // --- Start-zoomed init (chart 9: async onZoom, opened already on the zoomed day) ---
   const startZoomedAsync = charts.nth(9);
