@@ -14,7 +14,7 @@ import path from 'node:path';
 import { chromium } from 'playwright-core';
 
 // Demo charts rendered by docs/app.js
-const EXPECTED_CHARTS = 15;
+const EXPECTED_CHARTS = 9;
 
 const ROOT = path.join(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
@@ -97,6 +97,47 @@ function paintedPixels(page, chartIndex) {
 
 // A real hover needs movement over the chart: a single synthetic move event
 // can land before the throttled handler picks up the position.
+/**
+ * Mounts a chart for the checks that follow. Fixtures live here rather than on
+ * the demo page: they exist to make one failure unmistakable, not to be looked
+ * at. `dataUrl` seeds them from a demo dataset, `config` overrides it, and
+ * `zoomDataSource` attaches the day-drilling `onZoom` the demo page uses.
+ */
+async function mountProbe(page, { dataUrl, config = {}, zoomDataSource } = {}) {
+  await page.evaluate(async (spec) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const base = spec.dataUrl ? await fetch(spec.dataUrl).then((response) => response.json()) : {};
+    const params = { ...base, ...spec.config };
+
+    if (spec.zoomDataSource) {
+      params.onZoom = (timestamp) => {
+        const date = new Date(timestamp);
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
+
+        return fetch(`${spec.zoomDataSource}/${path}.json`).then((response) => response.json());
+      };
+    }
+
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeChart = new LovelyChart(element, params);
+  }, { dataUrl, config, zoomDataSource });
+  await sleep(1800);
+
+  return page.locator('#probe .lovely-chart--container');
+}
+
+async function unmountProbe(page) {
+  await page.evaluate(() => {
+    window.probeChart.destroy();
+    document.getElementById('probe').remove();
+  });
+  await sleep(200);
+}
+
 async function hoverWiggle(page, box, fx, fy) {
   await page.mouse.move(box.x + box.width * (fx - 0.05), box.y + box.height * fy, { steps: 5 });
   await sleep(200);
@@ -234,8 +275,11 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const pieText = (await pieBalloon.textContent()).trim();
   check('pie sector hover shows tooltip', pieShown && pieText.length > 0, JSON.stringify(pieText.slice(0, 40)));
 
-  // --- Start-zoomed init (chart 8: shares, opened already as a pie, no morph) ---
-  const startZoomed = charts.nth(8);
+  // --- Start-zoomed init: shares, opened already as a pie, no morph ---
+  const startZoomed = await mountProbe(page, {
+    dataUrl: './data/areas.json',
+    config: { title: 'Probe — Start Zoomed Shares', initialZoom: 'last' },
+  });
   await startZoomed.scrollIntoViewIfNeeded();
   const startedZoomed = await startZoomed.evaluate((el) =>
     el.classList.contains('lovely-chart--state-zoomed-in'));
@@ -251,10 +295,20 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       el.classList.contains('lovely-chart--state-zoomed-in'));
     check('start-zoomed zoom-out returns to overview', !stillZoomed, `still zoomed: ${stillZoomed}`);
   }
+  await unmountProbe(page);
 
-  // --- Zoom to shares on an absolute stacked bar chart (chart 10) ---
+  // --- Zoom to shares on an absolute stacked bar chart ---
   // `bars.json` has no `isPercentage`, so this only zooms because of `zoomToShares`.
-  const shareBars = charts.nth(10);
+  const shareBars = await mountProbe(page, {
+    dataUrl: './data/bars.json',
+    config: {
+      title: 'Probe — Zoom to Shares',
+      zoomToShares: true,
+      circleLabelsAround: 0,
+      zoomType: 'donut',
+      initialZoom: 'last',
+    },
+  });
   await shareBars.scrollIntoViewIfNeeded();
   const isCircle = await shareBars.evaluate((el) =>
     Boolean(el.querySelector('.lovely-chart--container-type-circle'))
@@ -263,6 +317,15 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const shareHasZoomOut = (await shareZoomOut.count()) > 0;
   check('zoomToShares opens shares on a non-percentage chart', isCircle && shareHasZoomOut,
     `circle container: ${isCircle}, zoom-out control: ${shareHasZoomOut}`);
+
+  if (shareHasZoomOut) {
+    await shareZoomOut.first().click();
+    await sleep(2000);
+    const stillCircle = await shareBars.evaluate((el) =>
+      el.classList.contains('lovely-chart--state-zoomed-in'));
+    check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
+  }
+  await unmountProbe(page);
 
   // A month-granularity chart must not caption its zoom with a single day.
   const monthZoomCaption = await page.evaluate(async () => {
@@ -295,7 +358,25 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   // A zoomed shares chart must aggregate the selected label only. Line and bar
   // charts extend the range by one label per side to draw edge segments; doing
   // that for a circle silently sums the neighbours into the sectors.
-  const singleLabel = charts.nth(11);
+  const singleLabel = await mountProbe(page, {
+    config: {
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Zoom to Shares (single label)',
+      zoomToShares: true,
+      circleLabelsAround: 4,
+      zoomType: 'pie',
+      labels: [0, 1, 2, 3, 4].map((month) => Date.UTC(2029, month, 1)),
+      labelType: 'month',
+      // Only the middle label is lopsided, so leaking a neighbour in is obvious
+      datasets: [
+        { name: 'Alpha', color: '#3497ED', values: [500, 500, 1, 500, 500] },
+        { name: 'Beta', color: '#9ED448', values: [500, 500, 999, 500, 500] },
+      ],
+      withMinimap: true,
+      initialZoom: 2,
+    },
+  });
   await singleLabel.scrollIntoViewIfNeeded();
   const singlePlot = await singleLabel.locator('.lovely-chart--tooltip').boundingBox();
   await hoverWiggle(page, { ...singlePlot, width: singlePlot.width + 140 }, 0.5, 0.42);
@@ -347,7 +428,25 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   // At the first and last label the half-label margin falls outside the axis.
   // Truncating it there halves the window, which both looks wrong and halves the
   // drag step, since `minimapDelta` is taken from that width.
-  const edgeZoom = charts.nth(12);
+  await unmountProbe(page);
+  const edgeZoom = await mountProbe(page, {
+    config: {
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Zoom to Shares (last label)',
+      zoomToShares: true,
+      circleLabelsAround: 4,
+      zoomType: 'pie',
+      labels: [0, 1, 2, 3, 4].map((month) => Date.UTC(2029, month, 1)),
+      labelType: 'month',
+      datasets: [
+        { name: 'Alpha', color: '#3497ED', values: [500, 500, 500, 500, 1] },
+        { name: 'Beta', color: '#9ED448', values: [500, 500, 500, 500, 999] },
+      ],
+      withMinimap: true,
+      initialZoom: 'last',
+    },
+  });
   await edgeZoom.scrollIntoViewIfNeeded();
   const edgeCaption = (await edgeZoom.locator('.lovely-chart--header-caption').textContent()).trim();
   const edgeMinimap = await edgeZoom.locator('.lovely-chart--minimap').boundingBox();
@@ -366,7 +465,24 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   // instead makes the range change at the same distance whatever part of the
   // slider was grabbed, so a grab near one edge changes it while the pointer is
   // still inside the label it started in.
-  const clickZoom = charts.nth(13);
+  await unmountProbe(page);
+  const clickZoom = await mountProbe(page, {
+    config: {
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Zoom to Shares (click to drill in)',
+      zoomToShares: true,
+      circleLabelsAround: 4,
+      zoomType: 'donut',
+      labels: [0, 1, 2, 3, 4].map((month) => Date.UTC(2029, month, 1)),
+      labelType: 'month',
+      datasets: [
+        { name: 'Alpha', color: '#3497ED', values: [500, 400, 300, 400, 500] },
+        { name: 'Beta', color: '#9ED448', values: [500, 600, 700, 600, 500] },
+      ],
+      withMinimap: true,
+    },
+  });
   await clickZoom.scrollIntoViewIfNeeded();
 
   const dragFromPointer = async (grabFraction) => {
@@ -416,19 +532,17 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     `near left: label ${grabbedNearLeft.start} -> changed at ${grabbedNearLeft.changed}; `
     + `near right: label ${grabbedNearRight.start} -> changed at ${grabbedNearRight.changed}`);
 
+  await unmountProbe(page);
+
   check('month chart captions its zoom by month, not day',
     monthZoomCaption.trim() === 'March 2029', JSON.stringify(monthZoomCaption));
 
-  if (shareHasZoomOut) {
-    await shareZoomOut.first().click();
-    await sleep(2000);
-    const stillCircle = await shareBars.evaluate((el) =>
-      el.classList.contains('lovely-chart--state-zoomed-in'));
-    check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
-  }
-
-  // --- Start-zoomed init (chart 9: async onZoom, opened already on the zoomed day) ---
-  const startZoomedAsync = charts.nth(9);
+  // --- Start-zoomed init: async `onZoom`, opened already on the zoomed day ---
+  const startZoomedAsync = await mountProbe(page, {
+    dataUrl: './data/bars.json',
+    config: { title: 'Probe — Start Zoomed onZoom', initialZoom: 'last' },
+    zoomDataSource: 'data/zoom_bars',
+  });
   await startZoomedAsync.scrollIntoViewIfNeeded();
   const asyncZoomOut = startZoomedAsync.locator('.lovely-chart--header-zoom-out-control');
   const asyncHasZoomOut = (await asyncZoomOut.count()) > 0;
@@ -443,6 +557,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     const backCaption = await startZoomedAsync.locator('.lovely-chart--header-caption').textContent();
     check('start-zoomed onZoom zoom-out returns to overview', backCaption.includes('—'), JSON.stringify(backCaption));
   }
+  await unmountProbe(page);
 
   // --- Localized captions (own chart, so the demo page stays English) ---
   const localizedCaption = await page.evaluate(async (locale) => {
