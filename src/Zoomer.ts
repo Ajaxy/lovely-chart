@@ -7,7 +7,7 @@ import type { AnalyzedData, ChartColors, ChartState, Filter, LovelyChartParams, 
 
 import { MILLISECONDS_IN_DAY, NO_FOCUS, ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants';
 import { analyzeData } from './data';
-import { getFullLabelDate } from './format';
+import { getZoomCaption } from './format';
 import { getLabelFraction } from './formulas';
 import { createColors } from './skin';
 
@@ -270,7 +270,7 @@ export class Zoomer {
     this.#header.toggleIsZooming(false);
 
     if (zoomInLabel) {
-      this.#header.zoom(getFullLabelDate(zoomInLabel, {}, this.#data.dateLocale));
+      this.#header.zoom(getZoomCaption(zoomInLabel, this.#data.labelType, this.#data.dateLocale));
     }
   }
 

@@ -272,6 +272,37 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
   }
 
+  // A month-granularity chart must not caption its zoom with a single day.
+  const monthZoomCaption = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    document.body.appendChild(element);
+
+    const labels = [Date.UTC(2029, 0, 1), Date.UTC(2029, 1, 1), Date.UTC(2029, 2, 1)];
+    const chart = new LovelyChart(element, {
+      type: 'bar',
+      isStacked: true,
+      zoomToShares: true,
+      circleLabelsAround: 0,
+      zoomType: 'donut',
+      labels,
+      labelType: 'month',
+      datasets: [
+        { name: 'A', color: '#3497ED', values: [3, 5, 7] },
+        { name: 'B', color: '#9ED448', values: [7, 5, 3] },
+      ],
+      initialZoom: 'last',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const caption = element.querySelector('.lovely-chart--header-caption').textContent;
+
+    chart.destroy();
+    element.remove();
+    return caption;
+  });
+  check('month chart captions its zoom by month, not day',
+    monthZoomCaption.trim() === 'March 2029', JSON.stringify(monthZoomCaption));
+
   // --- Start-zoomed init (chart 9: async onZoom, opened already on the zoomed day) ---
   const startZoomedAsync = charts.nth(9);
   await startZoomedAsync.scrollIntoViewIfNeeded();

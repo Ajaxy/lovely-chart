@@ -14,7 +14,7 @@ import {
 } from './constants';
 import { analyzeData } from './data';
 import { drawDatasets } from './drawDatasets';
-import { getFullLabelDate, getLabelDate } from './format';
+import { getRangeCaption, getZoomCaption } from './format';
 import { getSimplificationDelta, isDataRange } from './formulas';
 import { Header } from './Header';
 import { createElement } from './minifiers';
@@ -306,16 +306,18 @@ export default class LovelyChart {
     const { dateLocale } = this.#data;
 
     if (isDataRange(this.#data.xLabels[startIndex], this.#data.xLabels[endIndex])) {
-      const options = { withYear: true, omitCurrentYear: true };
-      const start = getLabelDate(this.#data.xLabels[startIndex], options, dateLocale);
-      const end = getLabelDate(this.#data.xLabels[endIndex], options, dateLocale);
-      return `${start} — ${end}`;
+      return getRangeCaption(
+        this.#data.xLabels[startIndex], this.#data.xLabels[endIndex],
+        this.#data.labelType, dateLocale,
+      );
     }
 
-    // A sub-day window is named by its middle label — `startIndex` may belong to
-    // the previous day when the window straddles midnight
+    // A window narrower than the label step is named by its middle label —
+    // `startIndex` may belong to the previous day when it straddles midnight.
+    // The name follows the chart's own granularity, so a month chart zoomed to
+    // one label reads "April 2029" rather than naming a single day inside it.
     const middleIndex = Math.round(state.lastLabelIndex * (state.begin + state.end) / 2);
-    return getFullLabelDate(this.#data.xLabels[middleIndex], {}, dateLocale);
+    return getZoomCaption(this.#data.xLabels[middleIndex], this.#data.labelType, dateLocale);
   }
 }
 

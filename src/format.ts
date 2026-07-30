@@ -1,4 +1,4 @@
-import type { DateLocale, XLabel } from './types';
+import type { DateLocale, LabelType, XLabel } from './types';
 
 import {
   MILLISECONDS_IN_DAY, MILLISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT,
@@ -136,6 +136,58 @@ export function getFullLabelDate(
   label: XLabel, { isShort = false }: LabelDateOptions = {}, dateLocale?: DateLocale,
 ): string {
   return getLabelDate(label, { isShort, withWeekDay: true, withYear: true, omitCurrentYear: true }, dateLocale);
+}
+
+/**
+ * Caption shown when a chart is zoomed into a single label. A day-granularity
+ * caption ("Wednesday, 6 Apr") is wrong for coarser charts, where one label
+ * stands for a whole month or year, so those get a caption at their own
+ * granularity.
+ */
+export function getZoomCaption(
+  label: XLabel, labelType?: LabelType, dateLocale?: DateLocale,
+): string {
+  const date = new Date(label.value);
+
+  switch (labelType) {
+    case 'year':
+      return String(date.getUTCFullYear());
+    case 'month': {
+      const monthsFull = dateLocale?.monthsFull ?? MONTHS_FULL;
+
+      return `${monthsFull[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+    }
+    default:
+      return getFullLabelDate(label, {}, dateLocale);
+  }
+}
+
+/**
+ * Caption for a range spanning several labels, at the chart's own granularity —
+ * a month chart reads "Feb — Mar 2029" rather than naming a day inside each end.
+ */
+export function getRangeCaption(
+  from: XLabel, to: XLabel, labelType?: LabelType, dateLocale?: DateLocale,
+): string {
+  if (labelType === 'year') {
+    return `${new Date(from.value).getUTCFullYear()} — ${new Date(to.value).getUTCFullYear()}`;
+  }
+
+  if (labelType === 'month') {
+    const monthsFull = dateLocale?.monthsFull ?? MONTHS_FULL;
+    const fromDate = new Date(from.value);
+    const toDate = new Date(to.value);
+    const fromYear = fromDate.getUTCFullYear();
+    const toYear = toDate.getUTCFullYear();
+    const start = monthsFull[fromDate.getUTCMonth()]
+      + (fromYear === toYear ? '' : ` ${fromYear}`);
+
+    return `${start} — ${monthsFull[toDate.getUTCMonth()]} ${toYear}`;
+  }
+
+  const options = { withYear: true, omitCurrentYear: true };
+
+  return `${getLabelDate(from, options, dateLocale)} — ${getLabelDate(to, options, dateLocale)}`;
 }
 
 export function getLabelDate(
