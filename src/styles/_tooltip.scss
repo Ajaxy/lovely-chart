@@ -110,7 +110,7 @@
 .lovely-chart--percentage-title {
   display: inline-block;
 
-  width: 35px;
+  width: var(--lovely-chart-percentage-width, 35px);
   margin-inline-end: 5px;
 
   font-weight: bold;

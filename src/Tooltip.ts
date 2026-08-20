@@ -468,15 +468,20 @@ export class Tooltip {
       return;
     }
 
-    const percentageValue = totalValue ? Math.round(value / totalValue * 100) : 0;
+    const precision = this.#data.percentPrecision ?? 0;
+    const percentageValue = totalValue ? (value / totalValue * 100).toFixed(precision) : (0).toFixed(precision);
+    // Three digits and a sign, plus the point and the digits a precision adds
+    const percentageWidth = precision > 0 ? `${4 + precision + 1}ch` : '';
     const percentageElement = dataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
 
     if (!percentageElement) {
       const newPercentageTitle = createElement<HTMLSpanElement>('span');
       newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
+      newPercentageTitle.style.setProperty('--lovely-chart-percentage-width', percentageWidth);
       newPercentageTitle.textContent = `${percentageValue}%`;
       dataSet.prepend(newPercentageTitle);
     } else {
+      (percentageElement as HTMLElement).style.setProperty('--lovely-chart-percentage-width', percentageWidth);
       percentageElement.textContent = `${percentageValue}%`;
     }
   }

@@ -70,6 +70,13 @@ export interface LovelyChartParams {
   dateLocale?: DateLocale;
   isStacked?: boolean;
   isPercentage?: boolean;
+  /**
+   * Digits after the point on the share a percentage tooltip prints beside each
+   * value. Defaults to 0, which suits a stack of a few large slices; raise it
+   * where slices sit close together and whole percents collapse them onto the
+   * same number.
+   */
+  percentPrecision?: number;
   withGradient?: boolean;
   hasSecondYAxis?: boolean;
   secondaryYAxis?: SecondaryYAxisConfig;
@@ -122,6 +129,7 @@ export interface AnalyzedData {
   datasets: AnalyzedDataset[];
   isStacked?: boolean;
   isPercentage?: boolean;
+  percentPrecision?: number;
   isShares: boolean;
   secondaryYAxis?: SecondaryYAxisConfig;
   hasSecondYAxis?: boolean;
