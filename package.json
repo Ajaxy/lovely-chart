@@ -25,13 +25,15 @@
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "npm run typecheck && npm run lint && npm run build && node test/e2e.js",
+    "lint:css": "stylelint \"src/**/*.scss\"",
+    "test": "npm run typecheck && npm run lint && npm run lint:css && npm run build && node test/e2e.js",
     "prepublishOnly": "npm run build",
     "demo": "npm run build && cp ./dist/LovelyChart.js ./dist/LovelyChart.css docs/",
     "prepare": "(husky || true) && npm run build"
   },
   "lint-staged": {
-    "*.{js,mjs,cjs,ts}": "eslint --fix"
+    "*.{js,mjs,cjs,ts}": "eslint --fix",
+    "*.scss": "stylelint --fix"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
