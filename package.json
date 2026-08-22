@@ -36,7 +36,6 @@
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@stylistic/eslint-plugin": "^4.4.1",
-    "cssnano": "^4.1.11",
     "eslint": "^9.39.4",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-no-null": "^1.0.2",
