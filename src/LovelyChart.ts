@@ -16,6 +16,7 @@ import {
 } from './constants.js';
 import { analyzeData } from './data.js';
 import { drawDatasets } from './drawDatasets.js';
+import { drawReferenceLines } from './drawReferenceLines.js';
 import { getRangeCaption, getZoomCaption } from './format.js';
 import {
   getCircleArea, getPlotStart, getSimplificationDelta, isDataRange,
@@ -33,7 +34,8 @@ import { debounce } from './utils.js';
 import { Zoomer } from './Zoomer.js';
 
 export type {
-  ChartType, DateLocale, LabelType, LovelyChartDatasetParams, LovelyChartParams, SecondaryYAxisConfig, ThemedColor,
+  ChartType, DateLocale, LabelType, LovelyChartDatasetParams, LovelyChartParams, ReferenceLine,
+  SecondaryYAxisConfig, ThemedColor,
 } from './types.js';
 
 const REDRAW_DEBOUNCE_MS = 500;
@@ -270,6 +272,7 @@ export default class LovelyChart {
     if (labelColumnWidth !== undefined) {
       this.#context!.restore();
     }
+    drawReferenceLines(this.#context!, this.#data, projection, this.#plotSize!, this.#colors, labelColumnWidth);
     if (!this.#data.isCircle && !this.#data.isSparkline) {
       this.#axes!.drawYAxis(state, projection, secondaryProjection);
       // TODO check isChanged

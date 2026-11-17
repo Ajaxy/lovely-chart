@@ -65,6 +65,19 @@ export interface LovelyChartDatasetParams {
  */
 export type ThemedColor = string | { light: string; dark: string };
 
+/**
+ * A dashed rule across the plot at a value of the main Y axis, labelled at its right end. The chart's Y range
+ * always reaches the value, so a line with `color: 'transparent'` draws nothing and only pins the range.
+ */
+export interface ReferenceLine {
+  /** The value on the main Y axis; on a percentage chart, a percentage from 0 to 100. */
+  value: number;
+  /** Text drawn above the right end of the line; none when empty or absent. */
+  label?: string;
+  /** Any canvas colour, or one per skin; defaults to the Y-axis text colour. */
+  color?: string | { light: string; dark: string };
+}
+
 /** Localized date strings for axis, tooltip and caption labels. Each is optional and falls back to English. */
 export interface DateLocale {
   months?: readonly string[]; // Short month names, 12 entries (Jan..Dec)
@@ -128,12 +141,16 @@ export interface LovelyChartParams {
    * unfocused bars and as a halo around the Y-axis labels; defaults to the skin's own background.
    */
   backgroundColor?: ThemedColor;
+  /** Dashed rules at fixed values, drawn over the datasets; ignored on pie and donut charts. */
+  referenceLines?: ReferenceLine[];
   /** Draws line datasets as monotone curves through their values, never overshooting a value. */
   areLinesSmooth?: boolean;
   /** Opacity of an area fill, 0 to 1; the area's outline and dots keep full opacity. */
   areaOpacity?: number;
-  /** Canvas colour of a 1px outline around each area, and around each run of an area split at a gap. */
-  areaBorderColor?: string;
+  /**
+   * Canvas colour of a 1px outline around each area, and around each run of an area split at a gap, or one per skin.
+   */
+  areaBorderColor?: string | { light: string; dark: string };
   hasSecondYAxis?: boolean;
   secondaryYAxis?: SecondaryYAxisConfig;
   onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
@@ -200,9 +217,10 @@ export interface AnalyzedData {
   axisFontSize?: number;
   axisTextColor?: ThemedColor;
   backgroundColor?: ThemedColor;
+  referenceLines: ReferenceLine[];
   areLinesSmooth?: boolean;
   areaOpacity?: number;
-  areaBorderColor?: string;
+  areaBorderColor?: LovelyChartParams['areaBorderColor'];
   secondaryYAxis?: SecondaryYAxisConfig;
   hasSecondYAxis?: boolean;
   valuePrefix?: string;

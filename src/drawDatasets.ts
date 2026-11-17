@@ -11,7 +11,7 @@ import {
 } from './formulas.js';
 import { preparePoints } from './preparePoints.js';
 import { simplify } from './simplify.js';
-import { getCssColor } from './skin.js';
+import { getCssColor, pickSkinColor } from './skin.js';
 
 const MARKED_SEGMENT_POINTS = 3;
 const AREA_BORDER_WIDTH = 1;
@@ -59,7 +59,8 @@ export function drawDatasets(
   // A percentage chart keeps that base, the shares of the values the label has.
   const isMissingInStack: boolean[] = [];
   const isStack = Boolean(data.isStacked || data.isShares);
-  const areaBorder = isStack && data.areaBorderColor !== undefined ? new Path2D() : undefined;
+  const areaBorderColor = data.areaBorderColor !== undefined ? pickSkinColor(data.areaBorderColor) : undefined;
+  const areaBorder = isStack && areaBorderColor !== undefined ? new Path2D() : undefined;
   const leadRange = { from: 0, to: range.from - 1 };
   let leadPoints: Point[][] | undefined;
 
@@ -80,7 +81,7 @@ export function drawDatasets(
       // A stack draws its sums, which the values alone do not give
       seriesValues: isStack ? undefined : values,
       areaOpacity: data.areaOpacity,
-      areaBorderColor: data.areaBorderColor,
+      areaBorderColor,
       areaBorder,
     };
 
@@ -126,7 +127,7 @@ export function drawDatasets(
 
   if (areaBorder) {
     context.save();
-    context.strokeStyle = data.areaBorderColor!;
+    context.strokeStyle = areaBorderColor!;
     context.lineWidth = AREA_BORDER_WIDTH;
     context.lineJoin = 'bevel';
     context.stroke(areaBorder);

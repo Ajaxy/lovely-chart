@@ -318,7 +318,9 @@ function calculateYRanges(
   const secondaryYAxisDataset = data.hasSecondYAxis ? data.datasets.at(-1) : undefined;
   const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
 
-  const yRanges: YRanges = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets);
+  const yRanges: YRanges = calculateYRangesForGroup(
+    data, labelFromIndex, labelToIndex, prevState, filteredDatasets, data.referenceLines.map(({ value }) => value),
+  );
 
   if (secondaryYAxisDataset) {
     const {
@@ -345,9 +347,10 @@ function calculateYRangesForGroup(
   labelToIndex: number,
   prevState: ChartState,
   datasets: AnalyzedData['datasets'],
+  referenceValues: number[] = [],
 ): YRanges {
   const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
-    = getMaxMin(datasets.flatMap(({ yMax, yMin }) => [yMax, yMin]));
+    = extendMaxMin(getMaxMin(datasets.flatMap(({ yMax, yMin }) => [yMax, yMin])), referenceValues);
   const yMinMinimap = getYRangeBottom(yMinMinimapReal, yMaxMinimap);
 
   let yMinViewport;
@@ -359,7 +362,7 @@ function calculateYRangesForGroup(
   } else {
     const filteredValues = datasets.map(({ values }) => values);
     const viewportValues = filteredValues.map((values) => values.slice(labelFromIndex, labelToIndex + 1));
-    const viewportMaxMin = getMaxMin(viewportValues.flat());
+    const viewportMaxMin = extendMaxMin(getMaxMin(viewportValues.flat()), referenceValues);
     const yMinViewportReal: number = viewportMaxMin.min !== undefined ? viewportMaxMin.min : prevState.yMinViewport;
     yMaxViewport = viewportMaxMin.max !== undefined ? viewportMaxMin.max : prevState.yMaxViewport;
     yMinViewport = getYRangeBottom(yMinViewportReal, yMaxViewport);
@@ -398,10 +401,15 @@ function calculateYRangesStacked(
     }
   }
 
-  const { max: yMaxMinimap = prevState.yMaxMinimap } = getMaxMin(posSums);
-  const { min: yMinMinimap = prevState.yMinMinimap } = getMaxMin(negSums);
-  const { max: yMaxViewport = prevState.yMaxViewport } = getMaxMin(posSums.slice(labelFromIndex, labelToIndex + 1));
-  const { min: yMinViewport = prevState.yMinViewport } = getMaxMin(negSums.slice(labelFromIndex, labelToIndex + 1));
+  // A percentage chart spans 0 to 100% whatever its reference lines
+  const referenceValues = data.isShares ? [] : data.referenceLines.map(({ value }) => value);
+  const viewportPosSums = posSums.slice(labelFromIndex, labelToIndex + 1);
+  const viewportNegSums = negSums.slice(labelFromIndex, labelToIndex + 1);
+
+  const { max: yMaxMinimap = prevState.yMaxMinimap } = extendMaxMin(getMaxMin(posSums), referenceValues);
+  const { min: yMinMinimap = prevState.yMinMinimap } = extendMaxMin(getMaxMin(negSums), referenceValues);
+  const { max: yMaxViewport = prevState.yMaxViewport } = extendMaxMin(getMaxMin(viewportPosSums), referenceValues);
+  const { min: yMinViewport = prevState.yMinViewport } = extendMaxMin(getMaxMin(viewportNegSums), referenceValues);
 
   return {
     yMinViewport,
@@ -409,6 +417,15 @@ function calculateYRangesStacked(
     yMinMinimap,
     yMaxMinimap,
   };
+}
+
+// Reference values widen a range of data and never make one alone, so hiding every dataset keeps the last range
+function extendMaxMin({ max, min }: { max?: number; min?: number }, values: number[]) {
+  if (max === undefined || min === undefined) {
+    return { max, min };
+  }
+
+  return { max: Math.max(max, ...values), min: Math.min(min, ...values) };
 }
 
 function calculateXAxisScale(plotWidth: number, labelFromIndex: number, labelToIndex: number): number {

@@ -143,6 +143,11 @@ function pickSchemeColor(color: ThemedColor, scheme: 'light' | 'dark') {
   return typeof color === 'string' ? color : color[scheme];
 }
 
+// Picks the colour of the skin on screen from a colour given one per skin
+export function pickSkinColor(color: string | { light: string; dark: string }): string {
+  return typeof color === 'string' ? color : color[SKIN_SCHEMES[skin!]];
+}
+
 export function getCssColor(colors: ChartColors, key: string, opacity?: number): string {
   return buildCssColor(colors[skin!][key], opacity);
 }

@@ -12,6 +12,11 @@ interface Series {
   values: (number | null)[];
 }
 
+interface Bounds {
+  min: number;
+  max: number;
+}
+
 interface LatestValue {
   value: number;
   labelIndex: number;
@@ -30,10 +35,12 @@ export function listYAxisValues(data: AnalyzedData, plotHeight: number): number[
     isStacked || !hasOwnYAxis ? [{ values }] : []
   ));
   const dataValues = series.flatMap(({ values }) => values.filter((value): value is number => value !== GAP));
+  const references = data.referenceLines.map(({ value }) => value);
   const { min = 0, max: top = 0 } = getMaxMin([
     ...dataValues,
     // A stacked window always spans 0
     ...(isStacked ? [0, ...listSubsetTotalBounds(series.map(({ values }) => values), length)] : []),
+    ...references,
   ]);
   const bottom = isStacked ? min : getYRangeBottom(min, top);
 
@@ -41,17 +48,18 @@ export function listYAxisValues(data: AnalyzedData, plotHeight: number): number[
     return [bottom];
   }
 
+  const referenceBounds = { min: Math.min(...references), max: Math.max(...references) };
   // A stacked window always spans 0, so its labels reach out from there
   const narrowestRanges = isStacked
-    ? new Map([[0, getNarrowestStackRange(dataValues)]])
-    : getNarrowestRanges(series);
+    ? new Map([[0, getNarrowestStackRange(series, dataValues, referenceBounds)]])
+    : getNarrowestRanges(series, referenceBounds);
   const anchors = Float64Array.from(narrowestRanges.keys()).sort();
   const anchorRanges = anchors.map((value) => narrowestRanges.get(value)!);
   const narrowestRange = anchorRanges.reduce((narrowest, range) => Math.min(narrowest, range), top - bottom);
   const rowCount = getYAxisRowCount(plotHeight);
   const finestLevel = calculateYAxisScale(plotHeight, 0, narrowestRange, noFloatSteps);
   const coarsestLevel = calculateYAxisScale(plotHeight, bottom, top, noFloatSteps);
-  const values = isStacked ? [] : listConstantValues(series);
+  const values = isStacked ? [] : listConstantValues(series, references);
   const reachedValues = new Float64Array(anchors.length);
 
   // Every step labels 0 when the range spans it, also where no other label of that step fits
@@ -111,18 +119,25 @@ function listSubsetTotalBounds(valueLists: (number | null)[][], length: number):
   return bounds;
 }
 
-// A stacked window spans 0 and the total of the datasets on screen, so none is narrower than one value
-function getNarrowestStackRange(dataValues: number[]): number {
-  return dataValues.reduce((narrowest, value) => (
-    narrowDown(narrowest, getWindowRange(Math.min(0, value), Math.max(0, value)))
+/**
+ * A stacked window spans 0 and the total of the datasets on screen, so none is narrower than one value, or than the
+ * reference lines alone where the datasets on screen have no value.
+ */
+function getNarrowestStackRange(series: Series[], dataValues: number[], references: Bounds): number {
+  const narrowestValueRange = dataValues.reduce((narrowest, value) => (
+    narrowDown(narrowest, getWindowRange(Math.min(0, value), Math.max(0, value), references))
   ), Infinity);
+  const hasGap = series.some(({ values }) => values.includes(GAP));
+
+  return hasGap ? narrowDown(narrowestValueRange, getWindowRange(0, 0, references)) : narrowestValueRange;
 }
 
 /**
- * The narrowest range of a window around each value, keyed by the value. A window that is not constant holds two
- * different values, the later of which meets the latest value of the other's dataset.
+ * The narrowest range of a window around each value, keyed by the value. A window that is not constant holds a value
+ * apart from a reference line, or two different values, the later of which meets the latest value of the other's
+ * dataset.
  */
-function getNarrowestRanges(series: Series[]): Map<number, number> {
+function getNarrowestRanges(series: Series[], references: Bounds): Map<number, number> {
   const narrowestRanges = new Map<number, number>();
   const latestValues: LatestValue[] = [];
   const length = Math.max(...series.map(({ values }) => values.length));
@@ -133,14 +148,17 @@ function getNarrowestRanges(series: Series[]): Map<number, number> {
       if (value === GAP) return;
 
       const ownLatest = latestValues[seriesIndex];
-      let narrowestRange = Infinity;
+      // A window of this value alone still spans every reference line
+      let narrowestRange = narrowDown(Infinity, getWindowRange(value, value, references));
 
       latestValues.forEach((latest, latestSeriesIndex) => {
         // A window back to the label of another dataset's value holds the latest value of this one too
         const isOwnLatestHeld = latestSeriesIndex !== seriesIndex && ownLatest !== undefined
           && ownLatest.labelIndex >= latest.labelIndex;
         const ownValue = isOwnLatestHeld ? ownLatest.value : value;
-        const range = getWindowRange(Math.min(value, latest.value, ownValue), Math.max(value, latest.value, ownValue));
+        const range = getWindowRange(
+          Math.min(value, latest.value, ownValue), Math.max(value, latest.value, ownValue), references,
+        );
         narrowestRange = narrowDown(narrowestRange, range);
         latest.narrowestRange = narrowDown(latest.narrowestRange, range);
       });
@@ -159,18 +177,21 @@ function getNarrowestRanges(series: Series[]): Map<number, number> {
   }
 }
 
-// A window of one value labels that value alone
-function listConstantValues(series: Series[]): number[] {
+// A window of one value labels that value alone, which every reference line has to equal
+function listConstantValues(series: Series[], references: number[]): number[] {
   const values = series.flatMap(({ values: seriesValues }) => seriesValues.filter(
     (value): value is number => value !== GAP,
   ));
 
-  return [...new Set(values)];
+  return [...new Set(values)].filter((value) => references.every((reference) => reference === value));
 }
 
-// A window spans its values, from 0 when its lowest value is low enough
-function getWindowRange(lowest: number, highest: number): number {
-  return highest - getYRangeBottom(lowest, highest);
+// A window spans its values and every reference line, from 0 when its lowest value is low enough
+function getWindowRange(lowest: number, highest: number, references: Bounds): number {
+  const max = Math.max(highest, references.max);
+  const bottom = getYRangeBottom(Math.min(lowest, references.min), max);
+
+  return max - bottom;
 }
 
 // A window of a range of 0 is constant, which takes no step

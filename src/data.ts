@@ -42,6 +42,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage,
     percentPrecision, secondaryYAxis, areLinesSmooth, areaOpacity, areaBorderColor,
+    referenceLines,
     plotHeight, isSparkline, areLabelsContrast, isYAxisOutward, noFloatSteps,
     axisFontSize, axisTextColor, backgroundColor,
     hasSecondYAxis, onZoom, noZoom, zoomType, zoomToShares, circleLabelsAround,
@@ -127,6 +128,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     axisFontSize,
     axisTextColor,
     backgroundColor,
+    referenceLines: isCircle ? [] : (referenceLines ?? []).filter(({ value }) => Number.isFinite(value)),
     areLinesSmooth,
     areaOpacity,
     areaBorderColor,
