@@ -2,7 +2,9 @@
  * End-to-end smoke test: serves the demo page (docs/) with the freshly built
  * library (dist/) overlaid, drives it in headless Chrome and asserts that
  * rendering and every interaction work: tooltips, minimap dragging, legend
- * toggling, zoom in/out, pie hover, theme switch and resize redraw.
+ * toggling, zoom in/out, pie hover, reference lines, comparison, selection
+ * callbacks, the plot-area variables, a late web font, colour schemes, theme
+ * switch and resize redraw.
  *
  * Run via `npm test` (builds first). Requires Google Chrome, or a Playwright
  * chromium (`npx playwright install chromium`) as fallback.
@@ -13,8 +15,27 @@ import http from 'node:http';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 
+import { buildWideFont, WIDE_FONT_FAMILY } from './wideFont.js';
+
 // Demo charts rendered by docs/app.js
-const EXPECTED_CHARTS = 9;
+const EXPECTED_CHARTS = 16;
+const COMPARISON_CHART = 9;
+const LIMIT_CHART = 10;
+const SPARKLINE_CHART = 11;
+const SMOOTH_CHART = 12;
+const FORECAST_CHART = 13;
+const DAY_PICKER_CHART = 14;
+const RTL_CHART = 15;
+// The datasets of the smooth demo chart, the last of which starts hidden, and its axis labels in each skin
+const SMOOTH_COLORS = ['#E65850', '#F79E39', '#5FB641'];
+const SMOOTH_AXIS_FONT_SIZE = 12;
+const SMOOTH_AXIS_COLORS = { night: '#7FB8F0', day: '#2373DB' };
+// The days of the forecast demo chart, the last of which its band covers
+const FORECAST_DAYS = 28;
+const FORECAST_WEEK = 7;
+const FORECAST_LINE_COLOR = '#3497ED';
+// The width of a small phone, which the demo page fits
+const PHONE_WIDTH = 375;
 
 const ROOT = path.join(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
@@ -31,6 +52,10 @@ const MIME = {
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// A web font the server holds back until `releaseWideFont()`, so it loads after the chart that uses it is built
+const WIDE_FONT_PATH = '/wide-font.ttf';
+const heldFontResponses = [];
 
 // Series fills of a dashboard's light and dark themes, pale and deep, for the legend label contrast check
 const LEGEND_FILLS = {
@@ -50,12 +75,69 @@ const LEGEND_FILLS = {
   'dark danger soft': '#8F4A47',
   'dark caution soft': '#8A6A1F',
 };
+// The middle of the plot, where the lines run clear of the axis labels at either side
+const CONSTANT_LINE_BAND = [0.2, 0.8];
+// The middle of the plot, where the dot of a single label sits
+const SINGLE_LABEL_BAND = [0.45, 0.55];
+// The plot of the default 320px canvas runs from under its top padding to over the X-axis band
+const PLOT_TOP = 15;
+const PLOT_BOTTOM = 290;
+// The minimap plots its 40px canvas under a 1px top padding
+const MINIMAP_PLOT_TOP = 1;
+const MINIMAP_PLOT_BOTTOM = 40;
+// A sparkline insets its plot from every edge of the canvas
+const SPARKLINE_INSET = 2;
 // The least contrast of a white legend label on its fill, below which the dark label takes over, so every label
 // reaches it
 const MIN_LEGEND_LABEL_CONTRAST = 2;
 // The eight colours of the default palette in order, and the pale ones of them, whose legend buttons take dark labels
 const DEFAULT_PALETTE = ['#3497ED', '#2373DB', '#9ED448', '#5FB641', '#F5BD25', '#F79E39', '#E65850', '#5D5CDC'];
 const DARK_LABEL_DEFAULT_COLORS = ['#9ED448', '#F5BD25'];
+// The space between the edge of the canvas and the plot or the Y-axis labels
+const GUTTER = 10;
+// How far contrast Y-axis labels stand in from their side of the chart
+const CONTRAST_LABEL_PADDING = 2;
+// The space between an outward Y-label column and the plot
+const Y_AXIS_LABEL_GAP = 6;
+// How far an edge of the plot-area overlay may stand from the pixels it frames, an antialiased 2px line included
+const PLOT_AREA_TOLERANCE = 1.5;
+// A host with a padding and a border of its own, which the plot-area properties count from the inside of
+const PADDED_HOST_STYLE = 'position: relative; padding: 13px 21px 17px 9px; border: 4px solid #8A97A5';
+const PLOT_AREA_PATTERN = /^-?\d+(\.\d+)?px$/;
+// A host scaled to three quarters of its width, as a dashboard scaled to fit, and how far its plot-area properties may
+// stand from those of the same host at full size
+const SCALED_HOST_WIDTH = 600;
+const HOST_SCALE = 0.75;
+const PLOT_AREA_SCALE_TOLERANCE = 0.01;
+
+// A sloped series that a window of a fifth of its labels pans across, the steps of the pan, the first of which settle
+// the window, and how far the pattern may move at one point of the series as the window pans, a smooth line's curves
+// measured in chords
+const PAN_PHASE_VALUES = [10, 47, 23, 61, 30, 52, 17];
+const PAN_PHASE_LABELS = 60;
+const PAN_PHASE_STEPS = 40;
+const PAN_PHASE_SETTLE_STEPS = 5;
+const PHASE_CURVE_CHORDS = 256;
+const MAX_PAN_PHASE_SHIFT = 0.1;
+
+// Values of more datasets than a tooltip holds, their order by size unlike their order in the legend
+const TOOLTIP_ROW_VALUES = [10, 80, 20, 90, 30, 100, 40, 110, 50, 120, 60, 130, 70];
+const TOOLTIP_ROW_COLORS = [
+  '#3497ED', '#2373DB', '#9ED448', '#5FB641', '#F5BD25', '#F79E39', '#E65850',
+  '#5D5CDC', '#8E44AD', '#16A085', '#C0392B', '#2C3E50', '#D35400',
+];
+const DEFAULT_COMPARISON_COLOR = '#6B7280';
+
+// An axis text colour of the chart, which a zoom keeps
+const ZOOM_AXIS_TEXT_COLOR = '#FF8800';
+// The last of the 10 labels of a `mountLinesZoom` overview, in the window the minimap opens on
+const LINES_ZOOM_LAST_LABEL_INDEX = 9;
+const HOUR_MS = 3_600_000;
+// The fewest pixels of its colour that show a dataset drawn on a canvas
+const MIN_DATASET_PIXELS = 100;
+// The labels of a bar chart that a callback destroys or rebuilds, and the fewer labels it rebuilds it with
+const CALLBACK_CHART_LABELS = 30;
+const CALLBACK_UPDATE_LABELS = 5;
 
 const SPANISH_DATE_LOCALE = {
   months: 'ene,feb,mar,abr,may,jun,jul,ago,sep,oct,nov,dic'.split(','),
@@ -68,6 +150,10 @@ function startServer() {
     if (urlPath === '/favicon.ico') {
       res.writeHead(204);
       res.end();
+      return;
+    }
+    if (urlPath === WIDE_FONT_PATH) {
+      heldFontResponses.push(res);
       return;
     }
     const rel = urlPath === '/' ? 'index.html' : urlPath.slice(1);
@@ -86,6 +172,14 @@ function startServer() {
 
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => resolve(server));
+  });
+}
+
+function releaseWideFont() {
+  const font = buildWideFont();
+  heldFontResponses.splice(0).forEach((res) => {
+    res.writeHead(200, { 'Content-Type': 'font/ttf' });
+    res.end(font);
   });
 }
 
@@ -110,6 +204,239 @@ function check(name, condition, details = '') {
   if (!condition) failures++;
 }
 
+// Counts the pixels of the plot canvas close to `rgb`, thin antialiased strokes included, and averages their height.
+// `xBand` limits the count to a horizontal band of the canvas, as fractions of its width, clear of the axis labels.
+function findColor(locator, [r, g, b], xBand = [0, 1]) {
+  return locator.evaluate((el, [color, [bandStart, bandEnd]]) => {
+    const canvas = el.querySelector('canvas');
+    const d = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    let count = 0;
+    let ySum = 0;
+    for (let j = 0; j < d.length; j += 4) {
+      const x = (j / 4) % canvas.width;
+      const isMatch = d[j + 3] > 100 && Math.abs(d[j] - color[0]) < 24 && Math.abs(d[j + 1] - color[1]) < 24
+        && Math.abs(d[j + 2] - color[2]) < 24 && x >= canvas.width * bandStart && x < canvas.width * bandEnd;
+      if (isMatch) {
+        count++;
+        ySum += Math.floor(j / 4 / canvas.width);
+      }
+    }
+    return { count, meanY: count ? ySum / count / (canvas.height / canvas.clientHeight) : undefined };
+  }, [[r, g, b], xBand]);
+}
+
+// Measures the dashes and gaps of a horizontal blue line on the canvas of an element, the margins and the end dashes
+// left out. A column counts as painted where the line covers at least half of it, in the row it covers most, the grid
+// line under it tinting the blue a little.
+function readBlueLinePattern(locator) {
+  return locator.evaluate((el) => {
+    const canvas = el.querySelector('canvas');
+    const scale = canvas.width / canvas.clientWidth;
+    const d = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    const readBlueAlpha = (x, y) => {
+      if (y < 0 || y >= canvas.height) return 0;
+      const j = (y * canvas.width + x) * 4;
+      return d[j] < 64 && d[j + 1] < 64 && d[j + 2] > 200 ? d[j + 3] : 0;
+    };
+    let row = 0;
+    let rowCount = 0;
+    for (let y = 0; y < canvas.height; y++) {
+      let rowBlue = 0;
+      for (let x = 0; x < canvas.width; x++) if (readBlueAlpha(x, y) > 100) rowBlue++;
+      if (rowBlue > rowCount) {
+        row = y;
+        rowCount = rowBlue;
+      }
+    }
+    const runs = [];
+    for (let x = 0; x < canvas.width; x++) {
+      const isPainted = Math.max(...[-2, -1, 0, 1, 2].map((dy) => readBlueAlpha(x, row + dy))) >= 128;
+      if (runs.length && runs[runs.length - 1].isPainted === isPainted) runs[runs.length - 1].length++;
+      else runs.push({ isPainted, length: 1 });
+    }
+    const inner = runs.slice(2, -2);
+    const average = (isPainted) => {
+      const lengths = inner.filter((run) => run.isPainted === isPainted).map(({ length }) => length / scale);
+      return lengths.reduce((sum, length) => sum + length, 0) / lengths.length;
+    };
+    return {
+      count: inner.filter(({ isPainted }) => isPainted).length,
+      dashLength: average(true),
+      gapLength: average(false),
+    };
+  });
+}
+
+/**
+ * Pans the probe chart's window a minimap pixel a step and follows the point of its patterned stroke nearest the middle
+ * of the plot: how far the pattern moved there, in px, the largest shift over the pan, and at how many labels the
+ * stroke started meanwhile.
+ */
+function readPanPhaseShift(page) {
+  return page.evaluate(async ({ steps, settleSteps, chords }) => {
+    const host = document.getElementById('probe');
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    const context = canvas.getContext('2d');
+    const strokes = [];
+    let path = [];
+    let isRecording = false;
+    const { beginPath, moveTo, lineTo, bezierCurveTo, stroke } = CanvasRenderingContext2D.prototype;
+    context.beginPath = function (...args) {
+      path = [];
+      return beginPath.apply(this, args);
+    };
+    context.moveTo = function (x, y) {
+      path.push({ to: [x, y] });
+      return moveTo.call(this, x, y);
+    };
+    context.lineTo = function (x, y) {
+      path.push({ to: [x, y] });
+      return lineTo.call(this, x, y);
+    };
+    context.bezierCurveTo = function (x1, y1, x2, y2, x, y) {
+      path.push({ controls: [[x1, y1], [x2, y2]], to: [x, y] });
+      return bezierCurveTo.call(this, x1, y1, x2, y2, x, y);
+    };
+    context.stroke = function (...args) {
+      const dash = this.getLineDash();
+      if (isRecording && dash.length) {
+        strokes.push({ offset: this.lineDashOffset, period: dash.reduce((sum, length) => sum + length, 0), path });
+      }
+      return stroke.apply(this, args);
+    };
+
+    const { top, height } = host.querySelector('.lovely-chart--minimap canvas').getBoundingClientRect();
+    const slider = host.querySelector('.lovely-chart--minimap-slider-inner');
+    const { left, width } = slider.getBoundingClientRect();
+    const fire = (target, type, clientX) => {
+      const event = new MouseEvent(type, {
+        bubbles: true, cancelable: true, buttons: 1, clientX, clientY: top + height / 2,
+      });
+      (type === 'mousedown' ? target : document).dispatchEvent(event);
+    };
+    const start = left + width / 2;
+    fire(slider, 'mousedown', start);
+    for (let step = 1; step <= steps; step++) {
+      isRecording = step > settleSteps;
+      fire(slider, 'mousemove', start + step);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    fire(slider, 'mouseup', start + steps);
+    ['beginPath', 'moveTo', 'lineTo', 'bezierCurveTo', 'stroke'].forEach((name) => delete context[name]);
+
+    // Each vertex of a stroke, with the place of the pattern there and the start of the stroke
+    const frames = strokes.map(({ offset, period, path: strokePath }) => {
+      let length = 0;
+      let previous = strokePath[0].to;
+      return strokePath.map(({ controls, to }) => {
+        if (controls) {
+          let chordStart = previous;
+          for (let j = 1; j <= chords; j++) {
+            const t = j / chords;
+            const u = 1 - t;
+            const weights = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+            const pixel = [0, 1].map((axis) => weights[0] * previous[axis] + weights[1] * controls[0][axis]
+              + weights[2] * controls[1][axis] + weights[3] * to[axis]);
+            length += Math.hypot(pixel[0] - chordStart[0], pixel[1] - chordStart[1]);
+            chordStart = pixel;
+          }
+        } else {
+          length += Math.hypot(to[0] - previous[0], to[1] - previous[1]);
+        }
+        previous = to;
+        return { x: to[0], y: to[1], startX: strokePath[0].to[0], phase: (offset + length) % period, period };
+      });
+    });
+    const middle = canvas.clientWidth / 2;
+    let point = frames[0].reduce((nearest, vertex) => (
+      Math.abs(vertex.x - middle) < Math.abs(nearest.x - middle) ? vertex : nearest
+    ));
+    const track = frames.map((vertices) => {
+      point = vertices
+        .filter(({ y }) => Math.abs(y - point.y) < 0.01)
+        .reduce((nearest, vertex) => (Math.abs(vertex.x - point.x) < Math.abs(nearest.x - point.x) ? vertex : nearest));
+      return point;
+    });
+    const [{ phase: firstPhase, period }] = track;
+    const shifts = track.map(({ phase }) => Math.abs(((phase - firstPhase + period * 1.5) % period) - period / 2));
+    return {
+      shift: Math.max(...shifts),
+      starts: new Set(track.map(({ x, startX }) => Math.round(x - startX))).size,
+    };
+  }, { steps: PAN_PHASE_STEPS, settleSteps: PAN_PHASE_SETTLE_STEPS, chords: PHASE_CURVE_CHORDS });
+}
+
+// Records what the plot canvas of a demo chart draws until `stopCanvasRecording()`: each text, with its font, colour
+// and direction, and the count of curves
+function startCanvasRecording(chart) {
+  return chart.evaluate((el) => {
+    const context = el.querySelector('canvas').getContext('2d');
+    const recording = { texts: [], curves: 0 };
+    window.canvasRecording = { context, recording };
+    context.fillText = function (text, ...args) {
+      recording.texts.push({ text: String(text), font: this.font, color: this.fillStyle, direction: this.direction });
+      return CanvasRenderingContext2D.prototype.fillText.call(this, text, ...args);
+    };
+    context.bezierCurveTo = function (...args) {
+      recording.curves++;
+      return CanvasRenderingContext2D.prototype.bezierCurveTo.apply(this, args);
+    };
+  });
+}
+
+function stopCanvasRecording(page) {
+  return page.evaluate(() => {
+    const { context, recording } = window.canvasRecording;
+    delete context.fillText;
+    delete context.bezierCurveTo;
+    delete window.canvasRecording;
+    return recording;
+  });
+}
+
+// Whether the words of each element's text, in reading order, run from right to left on screen
+function readRightToLeftWords(chart, selectors) {
+  return chart.evaluate((el, textSelectors) => textSelectors.map((selector) => {
+    const range = document.createRange();
+    const words = [];
+    el.querySelector(selector).childNodes.forEach((node) => {
+      if (node.nodeType !== Node.TEXT_NODE) return;
+      for (const match of node.data.matchAll(/\S+/g)) {
+        range.setStart(node, match.index);
+        range.setEnd(node, match.index + match[0].length);
+        const { left, right } = range.getBoundingClientRect();
+        words.push({ word: match[0], left, right });
+      }
+    });
+    return {
+      text: words.map(({ word }) => word).join(' '),
+      isRightToLeft: words.length > 1 && words.every((word, i) => !i || word.right <= words[i - 1].left + 1),
+    };
+  }), selectors);
+}
+
+// The characters of each negative number of a tooltip balloon in the order they show, left to right
+function readNegativeTooltipNumbers(chart) {
+  return chart.evaluate((el) => {
+    const range = document.createRange();
+    const selectors = '.lovely-chart--tooltip-dataset-value, .lovely-chart--tooltip-title-total';
+    return [...el.querySelectorAll(selectors)]
+      .filter((element) => element.textContent.trim().startsWith('-'))
+      .map((element) => {
+        const node = element.firstChild;
+        const characters = [];
+        for (let i = 0; i < node.length; i++) {
+          range.setStart(node, i);
+          range.setEnd(node, i + 1);
+          if (node.data[i].trim()) characters.push([node.data[i], range.getBoundingClientRect().left]);
+        }
+        const shown = characters.sort((a, b) => a[1] - b[1]).map(([character]) => character).join('');
+        return { text: node.data, shown };
+      });
+  });
+}
+
 function paintedPixels(page, chartIndex) {
   return page.evaluate((i) => {
     const canvas = document.querySelectorAll('.lovely-chart--container')[i].querySelector('canvas');
@@ -126,9 +453,11 @@ function paintedPixels(page, chartIndex) {
  * Mounts a chart for the checks that follow. Fixtures live here rather than on
  * the demo page: they exist to make one failure unmistakable, not to be looked
  * at. `dataUrl` seeds them from a demo dataset, `config` overrides it, and
- * `zoomDataSource` attaches the day-drilling `onZoom` the demo page uses.
+ * `zoomDataSource` attaches the day-drilling `onZoom` the demo page uses, its
+ * day data overridden by `zoomConfig`. `hostStyle` styles the element the
+ * chart is built in.
  */
-async function mountProbe(page, { dataUrl, config = {}, zoomDataSource } = {}) {
+async function mountProbe(page, { dataUrl, config = {}, zoomDataSource, zoomConfig = {}, hostStyle = '' } = {}) {
   await page.evaluate(async (spec) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
     const base = spec.dataUrl ? await fetch(spec.dataUrl).then((response) => response.json()) : {};
@@ -141,18 +470,301 @@ async function mountProbe(page, { dataUrl, config = {}, zoomDataSource } = {}) {
         const day = date.getDate();
         const path = `${date.getFullYear()}-${month < 10 ? '0' : ''}${month}/${day < 10 ? '0' : ''}${day}`;
 
-        return fetch(`${spec.zoomDataSource}/${path}.json`).then((response) => response.json());
+        return fetch(`${spec.zoomDataSource}/${path}.json`)
+          .then((response) => response.json())
+          .then((dayData) => ({ ...dayData, ...spec.zoomConfig }));
       };
     }
 
     const element = document.createElement('div');
     element.id = 'probe';
+    element.style.cssText = spec.hostStyle;
     document.getElementById('container').appendChild(element);
     window.probeChart = new LovelyChart(element, params);
-  }, { dataUrl, config, zoomDataSource });
+  }, { dataUrl, config, zoomDataSource, zoomConfig, hostStyle });
   await sleep(1800);
 
   return page.locator('#probe .lovely-chart--container');
+}
+
+// Collects the numbers the probe chart prints on its canvas, its Y-axis labels among them, with their heights, and
+// every text it prints, with its position, alignment, width and the animation frame that drew it
+async function recordProbeNumbers(page) {
+  await page.evaluate(() => {
+    window.probeNumbers = [];
+    window.probeTexts = [];
+    if (window.isFillTextRecorded) return;
+    window.isFillTextRecorded = true;
+    window.probeFrame = 0;
+    const countFrame = () => {
+      window.probeFrame++;
+      requestAnimationFrame(countFrame);
+    };
+    requestAnimationFrame(countFrame);
+    const { fillText } = CanvasRenderingContext2D.prototype;
+    CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...args) {
+      if (this.canvas.closest('#probe')) {
+        window.probeTexts.push({
+          text: String(text),
+          x,
+          align: this.textAlign,
+          width: this.measureText(text).width,
+          frame: window.probeFrame,
+          color: typeof this.fillStyle === 'string' ? this.fillStyle : '',
+        });
+        if (/^-?\d+(\.\d+)?$/.test(String(text))) {
+          window.probeNumbers.push({ value: Number(text), y, baseline: this.textBaseline });
+        }
+      }
+      return fillText.call(this, text, x, y, ...args);
+    };
+  });
+}
+
+// The texts the probe chart printed since the last read, and the width of its canvas
+function readProbeTexts(page) {
+  return page.evaluate(() => {
+    const texts = window.probeTexts;
+    window.probeTexts = [];
+    return { texts, canvasWidth: document.querySelector('#probe canvas').clientWidth };
+  });
+}
+
+// The texts the last frame among them printed
+function getLastFrameTexts({ texts }) {
+  const lastFrame = Math.max(...texts.map(({ frame }) => frame));
+  return texts.filter(({ frame }) => frame === lastFrame);
+}
+
+// Whether a canvas fill style is a hex colour, at any opacity
+function isTextColor(fillStyle, hex) {
+  return fillStyle === hex.toLowerCase() || fillStyle.startsWith(`rgba(${parseHex(hex).join(', ')}, `);
+}
+
+// The main Y-axis labels of an outward column, right-aligned left of the canvas middle, of every frame or the last
+function getYLabelColumn({ texts, canvasWidth }, isLastFrame = false) {
+  const labels = texts.filter(({ x, align }) => align === 'right' && x < canvasWidth / 2);
+  const lastFrame = Math.max(...labels.map(({ frame }) => frame));
+  const shownLabels = isLastFrame ? labels.filter(({ frame }) => frame === lastFrame) : labels;
+  const ends = [...new Set(shownLabels.map(({ x }) => x))];
+
+  return {
+    ends,
+    end: ends[0],
+    widest: Math.max(0, ...shownLabels.map(({ width }) => width)),
+    overflowing: [...new Set(shownLabels.filter(({ x, width }) => x - width < GUTTER).map(({ text }) => text))],
+    texts: [...new Set(shownLabels.map(({ text }) => text))],
+  };
+}
+
+function readProbeNumbers(page) {
+  return page.evaluate(() => [...new Set(window.probeNumbers.map(({ value }) => value))].sort((a, b) => a - b));
+}
+
+// The labels drawn by the last frame, one per number
+function readProbeNumberLabels(page) {
+  return page.evaluate(() => Object.values(
+    Object.fromEntries(window.probeNumbers.map((label) => [label.value, label])),
+  ));
+}
+
+// Selects a label of the probe chart and reads its tooltip: the rows, their swatches and colours, and the change
+function readProbeTooltip(page, labelIndex) {
+  return page.evaluate(async (index) => {
+    window.probeChart.selectLabel(index);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    const rows = [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset')];
+    const swatchedRows = rows.filter((row) => row.querySelector('.lovely-chart--tooltip-swatch'));
+    const textColor = getComputedStyle(balloon).color;
+    const resolveColor = (variable) => {
+      const element = document.createElement('span');
+      element.style.color = `var(${variable})`;
+      balloon.appendChild(element);
+      const color = getComputedStyle(element).color;
+      element.remove();
+      return color;
+    };
+    const change = balloon.querySelector('.lovely-chart--tooltip-change');
+    // A dashed or dotted swatch is an outline in its colour, a solid one a fill
+    const readSwatchColor = (swatch) => getComputedStyle(swatch)[
+      swatch.matches('[data-dashed], [data-dotted]') ? 'borderTopColor' : 'backgroundColor'
+    ];
+    return {
+      names: rows.map((row) => row.dataset.name ?? row.firstElementChild.textContent),
+      swatched: swatchedRows.map((row) => row.dataset.name),
+      swatchColors: swatchedRows.map((row) => readSwatchColor(row.querySelector('.lovely-chart--tooltip-swatch'))),
+      dashedSwatches: swatchedRows
+        .filter((row) => row.querySelector('.lovely-chart--tooltip-swatch[data-dashed]'))
+        .map((row) => row.dataset.name),
+      dottedSwatches: swatchedRows
+        .filter((row) => row.querySelector('.lovely-chart--tooltip-swatch[data-dotted]'))
+        .map((row) => row.dataset.name),
+      areValuesInTextColor: rows.every((row) => (
+        getComputedStyle(row.querySelector('.lovely-chart--tooltip-dataset-value')).color === textColor
+      )),
+      titleTotal: balloon.querySelector('.lovely-chart--tooltip-title-total')?.textContent,
+      change: {
+        text: change?.textContent,
+        tone: change?.dataset.tone,
+        color: change ? getComputedStyle(change).color : undefined,
+        textColor,
+        positiveColor: resolveColor('--tooltip-change-positive'),
+        negativeColor: resolveColor('--tooltip-change-negative'),
+      },
+    };
+  }, labelIndex);
+}
+
+function hexToRgb(hex) {
+  return `rgb(${parseHex(hex).join(', ')})`;
+}
+
+/**
+ * Mounts a line chart of `overview` datasets whose `onZoom` opens a lines view of `zoomed` datasets for the day,
+ * each dataset `{ name, color? }`, with the chart's `config` and the day's `zoomConfig`.
+ */
+async function mountLinesZoom(page, { overview, zoomed, config = {}, zoomConfig = {} }) {
+  await page.evaluate(async (spec) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const buildDatasets = (datasets, length) => datasets.map((dataset, i) => ({
+      ...dataset,
+      values: Array.from({ length }, (_, j) => 10 + ((j + i * 2) % 5) * 10),
+    }));
+
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeChart = new LovelyChart(element, {
+      type: 'line',
+      title: 'Probe — Lines zoom colours',
+      withMinimap: true,
+      labels: Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 10, 1 + i)),
+      datasets: buildDatasets(spec.overview, 10),
+      onZoom: (day) => Promise.resolve({
+        type: 'line',
+        labels: Array.from({ length: 24 }, (_, hour) => day + hour * spec.hourMs),
+        datasets: buildDatasets(spec.zoomed, 24),
+        ...spec.zoomConfig,
+      }),
+      ...spec.config,
+    });
+  }, { overview, zoomed, config, zoomConfig, hourMs: HOUR_MS });
+  await sleep(1800);
+
+  return page.locator('#probe .lovely-chart--container');
+}
+
+function parseHex(hex) {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+}
+
+// Narrows the probe chart's window to the narrowest the minimap selects, then pans it across the data, `stepPx` a frame
+async function sweepProbe(page, stepPx = 3) {
+  await page.evaluate(async (step) => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const host = document.getElementById('probe');
+    const { left, right, top, height } = host.querySelector('.lovely-chart--minimap canvas').getBoundingClientRect();
+    const fire = (target, type, clientX) => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY: top + height / 2 });
+      (type === 'mousedown' ? target : document).dispatchEvent(event);
+    };
+    const drag = async (target, fromX, toX) => {
+      fire(target, 'mousedown', fromX);
+      fire(target, 'mousemove', toX);
+      fire(target, 'mouseup', toX);
+      await wait(500);
+    };
+    const center = (element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.left + rect.width / 2;
+    };
+    const leftEar = host.querySelector('.lovely-chart--minimap-slider-handle');
+    const slider = host.querySelector('.lovely-chart--minimap-slider-inner');
+    await drag(leftEar, center(leftEar), right + 50);
+    await drag(slider, center(slider), center(slider) - (right - left) - 50);
+    const start = center(slider);
+    fire(slider, 'mousedown', start);
+    for (let dx = 0; dx <= right - left; dx += step) {
+      fire(slider, 'mousemove', start + dx);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    fire(slider, 'mouseup', start + right - left);
+    await wait(600);
+  }, stepPx);
+}
+
+// Places an element over the probe's plot by the plot-area properties of the probe's element alone
+function addPlotAreaOverlay(page) {
+  return page.evaluate(() => {
+    const overlay = document.createElement('div');
+    overlay.id = 'probe-overlay';
+    overlay.style.cssText = 'position: absolute; pointer-events: none; '
+      + 'left: var(--lovely-chart-plot-area-left); top: var(--lovely-chart-plot-area-top); '
+      + 'width: var(--lovely-chart-plot-area-width); height: var(--lovely-chart-plot-area-height)';
+    document.getElementById('probe').appendChild(overlay);
+  });
+}
+
+// The probe's overlay, the values of its plot-area properties and the box of the canvas pixels of each colour, or of
+// every painted pixel for `'any'`, all in px from the top left of the canvas
+function readPlotAreaFit(page, colors) {
+  return page.evaluate((hexes) => {
+    const host = document.getElementById('probe');
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    const canvasBox = canvas.getBoundingClientRect();
+    const overlayBox = document.getElementById('probe-overlay').getBoundingClientRect();
+    const scale = canvas.width / canvas.clientWidth;
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const boxes = hexes.map((hex) => {
+      const rgb = hex === 'any' ? undefined : [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      const box = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, meanY: 0, count: 0 };
+      for (let j = 0; j < data.length; j += 4) {
+        const isMatch = data[j + 3] > 100 && (!rgb || rgb.every((channel, k) => Math.abs(data[j + k] - channel) < 24));
+        if (!isMatch) continue;
+        const x = (j / 4) % canvas.width / scale;
+        const y = Math.floor(j / 4 / canvas.width) / scale;
+        box.left = Math.min(box.left, x);
+        box.top = Math.min(box.top, y);
+        box.right = Math.max(box.right, x + 1 / scale);
+        box.bottom = Math.max(box.bottom, y + 1 / scale);
+        box.meanY += y + 0.5 / scale;
+        box.count++;
+      }
+      box.meanY /= box.count;
+      return box;
+    });
+    return {
+      overlay: {
+        left: overlayBox.left - canvasBox.left,
+        top: overlayBox.top - canvasBox.top,
+        right: overlayBox.right - canvasBox.left,
+        bottom: overlayBox.bottom - canvasBox.top,
+      },
+      values: ['left', 'top', 'width', 'height']
+        .map((key) => host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)),
+      boxes,
+    };
+  }, colors);
+}
+
+// Whether each of the `sides` of the overlay stands within the tolerance of the same side of the box
+function isFramedBy(overlay, box, sides = ['left', 'top', 'right', 'bottom']) {
+  return box.count > 0 && sides.every((side) => Math.abs(overlay[side] - box[side]) <= PLOT_AREA_TOLERANCE);
+}
+
+function formatBox({ left, top, right, bottom }) {
+  return [left, top, right, bottom].map((value) => value.toFixed(1)).join(' ');
+}
+
+// The left edge of the plot area the probe's element carries, in px from the left of the canvas
+function readPlotAreaLeft(page) {
+  return page.evaluate(() => {
+    const host = document.getElementById('probe');
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    const canvasLeft = canvas.getBoundingClientRect().left - host.getBoundingClientRect().left - host.clientLeft;
+    return parseFloat(host.style.getPropertyValue('--lovely-chart-plot-area-left')) - canvasLeft;
+  });
 }
 
 async function unmountProbe(page) {
@@ -376,6 +988,46 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
   }
   await unmountProbe(page);
+
+  // A rebuild returns a zoomed chart to its overview, which `onZoomChange` reports
+  const mountZoomedShares = () => page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const data = await fetch('./data/bars.json').then((response) => response.json());
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeLog = [];
+    window.probeParams = {
+      ...data,
+      title: 'Probe — Zoom reports',
+      zoomToShares: true,
+      onZoomChange: (labelValue) => window.probeLog.push(labelValue === undefined ? 'out' : 'in'),
+    };
+    window.probeChart = new LovelyChart(element, { ...window.probeParams, initialZoom: 'last' });
+    await new Promise((resolve) => setTimeout(resolve, 1800));
+    return [...window.probeLog];
+  });
+  const zoomedBeforeResize = await mountZoomedShares();
+  const viewport = page.viewportSize();
+  await page.setViewportSize({ width: viewport.width - 20, height: viewport.height });
+  await sleep(1200);
+  await page.setViewportSize(viewport);
+  await sleep(1200);
+  const zoomAfterResize = await page.evaluate(() => window.probeLog);
+  await unmountProbe(page);
+  const zoomedBeforeUpdate = await mountZoomedShares();
+  const zoomAfterUpdate = await page.evaluate(async () => {
+    window.probeChart.update(window.probeParams);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return window.probeLog;
+  });
+  await unmountProbe(page);
+  check('a resize out of a zoom reports the zoom-out',
+    JSON.stringify(zoomedBeforeResize) === '["in"]' && JSON.stringify(zoomAfterResize) === '["in","out"]',
+    JSON.stringify(zoomAfterResize));
+  check('update() out of a zoom reports the zoom-out',
+    JSON.stringify(zoomedBeforeUpdate) === '["in"]' && JSON.stringify(zoomAfterUpdate) === '["in","out"]',
+    JSON.stringify(zoomAfterUpdate));
 
   // A month-granularity chart must not caption its zoom with a single day.
   const monthZoomCaption = await page.evaluate(async () => {
@@ -609,6 +1261,81 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   }
   await unmountProbe(page);
 
+  // --- A zoom names the zoomed datasets as their own, and a zoom out the overview's ---
+  const linesZoomCases = [
+    {
+      name: 'more',
+      overview: [{ name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }],
+      zoomed: [{ name: 'Blue', color: '#0000FF' }, { name: 'Magenta', color: '#FF00FF' }, { name: 'Palette' }],
+      config: { axisTextColor: ZOOM_AXIS_TEXT_COLOR },
+      // A zoom into more datasets than the chart draws them in the colours of `colors`
+      zoomConfig: { colors: { y0: '#0000FF', y1: '#FF00FF', y2: '#3497ED' } },
+    },
+    {
+      name: 'fewer',
+      overview: [
+        { name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }, { name: 'Blue', color: '#0000FF' },
+      ],
+      zoomed: [{ name: 'Magenta', color: '#FF00FF' }, { name: 'Palette' }],
+      config: { initialZoom: 'last' },
+    },
+    {
+      name: 'as many',
+      overview: [{ name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }],
+      zoomed: [{ name: 'Blue', color: '#0000FF' }, { name: 'Magenta', color: '#FF00FF' }],
+      config: { initialZoom: 'last' },
+    },
+    {
+      name: 'as many, with a comparison,',
+      overview: [{ name: 'Red', color: '#FF0000' }],
+      zoomed: [{ name: 'Blue', color: '#0000FF' }],
+      zoomConfig: { comparison: { name: 'Day before', values: [Array(24).fill(35)] } },
+    },
+  ];
+  const countPageErrors = () => errors.filter((error) => error.startsWith('[pageerror]')).length;
+  const readTooltipNames = async (labelIndex) => (await readProbeTooltip(page, labelIndex)).names
+    .filter((name) => name !== 'Day before').sort();
+  const toSortedNames = (datasets) => datasets.map(({ name }) => name).sort();
+  for (const { name, overview, zoomed, config = {}, zoomConfig } of linesZoomCases) {
+    const pageErrorsBefore = countPageErrors();
+    await recordProbeNumbers(page);
+    const linesZoom = await mountLinesZoom(page, { overview, zoomed, config, zoomConfig });
+    await linesZoom.scrollIntoViewIfNeeded();
+    if (!config.initialZoom) {
+      const linesZoomPlot = await linesZoom.locator('.lovely-chart--tooltip').boundingBox();
+      await hoverWiggle(page, linesZoomPlot, 0.5, 0.5);
+      await page.mouse.click(linesZoomPlot.x + linesZoomPlot.width / 2, linesZoomPlot.y + linesZoomPlot.height / 2);
+      await sleep(2000);
+    }
+    const zoomedTexts = getLastFrameTexts(await readProbeTexts(page));
+    const comparisonPixels = (await findColor(linesZoom, parseHex(DEFAULT_COMPARISON_COLOR))).count;
+    const zoomedNames = await readTooltipNames(1);
+    // Rows the tooltip makes while zoomed take the overview's names after a zoom out
+    await linesZoom.locator('.lovely-chart--button').first().click();
+    await sleep(500);
+    await linesZoom.locator('.lovely-chart--button').first().click();
+    await sleep(500);
+    const reshownNames = await readTooltipNames(1);
+    await page.evaluate(() => window.probeChart.selectLabel(undefined));
+    check(`a zoom into ${name} datasets than the overview names them as their own`,
+      countPageErrors() === pageErrorsBefore
+      && (!zoomConfig?.comparison || comparisonPixels > MIN_DATASET_PIXELS)
+      && JSON.stringify(zoomedNames) === JSON.stringify(toSortedNames(zoomed))
+      && JSON.stringify(reshownNames) === JSON.stringify(toSortedNames(zoomed))
+      && (!config.axisTextColor || zoomedTexts.every(({ color }) => isTextColor(color, config.axisTextColor))),
+      `comparison ${comparisonPixels}px, tooltip ${zoomedNames} then ${reshownNames}, `
+      + `text colours ${JSON.stringify([...new Set(zoomedTexts.map(({ color }) => color))])}`);
+
+    await linesZoom.locator('.lovely-chart--header-zoom-out-control').first().click();
+    await sleep(2000);
+    const overviewNames = await readTooltipNames(LINES_ZOOM_LAST_LABEL_INDEX);
+    check(`a zoom out of ${name} datasets names the overview's as before`,
+      countPageErrors() === pageErrorsBefore
+      && JSON.stringify(overviewNames) === JSON.stringify(toSortedNames(overview)),
+      `tooltip ${overviewNames}`);
+    await unmountProbe(page);
+  }
+
   // --- Localized captions (own chart, so the demo page stays English) ---
   const localizedCaption = await page.evaluate(async (locale) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
@@ -627,6 +1354,891 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('caption honours dateLocale',
     SPANISH_DATE_LOCALE.weekDays.some((day) => localizedCaption.startsWith(day)),
     JSON.stringify(localizedCaption));
+
+  // --- Reference lines ---
+  // A rule three times the tallest stack lands above the canvas unless the stacked range reaches it
+  const referenceStack = await mountProbe(page, {
+    config: {
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Reference above the stack',
+      labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [{ name: 'A', color: '#3497ED', values: [10, 20, 30, 20] }, { name: 'B', values: [5, 5, 5, 5] }],
+      referenceLines: [{ value: 105, color: '#FF00FF' }],
+    },
+  });
+  const magenta = await findColor(referenceStack, [255, 0, 255]);
+  check('a reference line widens a stacked range to reach it', magenta.count > 50, `${magenta.count}px`);
+  await unmountProbe(page);
+
+  // A target-met chart is constant at zero; a transparent pin keeps it on the baseline
+  const pinnedZero = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Pinned zero',
+      labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [{ name: 'Red cases', color: '#00AA00', values: [0, 0, 0, 0] }],
+      referenceLines: [{ value: 1, label: '', color: 'transparent' }],
+    },
+  });
+  const pinnedLine = await findColor(pinnedZero, [0, 170, 0]);
+  const plotBottom = await pinnedZero.evaluate((el) => el.querySelector('canvas').clientHeight - 30);
+  check('a transparent pin keeps a zero line on the baseline',
+    pinnedLine.count > 50 && Math.abs(pinnedLine.meanY - plotBottom) < 4,
+    `line at ${pinnedLine.meanY?.toFixed(1)}, plot bottom ${plotBottom}`);
+  await unmountProbe(page);
+
+  // --- A constant series sits at the middle height, its one Y label on it, on both axes ---
+  const plotCenterY = (PLOT_TOP + PLOT_BOTTOM) / 2;
+  for (const [mainValue, secondValue] of [[0.3, 12.1], [1.2, 0.3], [12.1, 1.2]]) {
+    await recordProbeNumbers(page);
+    const constantChart = await mountProbe(page, {
+      config: {
+        type: 'line',
+        title: 'Probe — Constant series',
+        labels: [1, 2, 3, 4, 5, 6, 7].map((day) => Date.UTC(2026, 10, day)),
+        datasets: [
+          { name: 'Main', color: '#FF0000', values: Array(7).fill(mainValue) },
+          // Dashed, so the main line shows through where both run at the middle
+          { name: 'Second', color: '#0000FF', values: Array(7).fill(secondValue), isDashed: true },
+        ],
+        hasSecondYAxis: true,
+      },
+    });
+    const mainLine = await findColor(constantChart, [255, 0, 0], CONSTANT_LINE_BAND);
+    const secondLine = await findColor(constantChart, [0, 0, 255], CONSTANT_LINE_BAND);
+    const labels = await readProbeNumberLabels(page);
+    await unmountProbe(page);
+    // A standard Y label sits half a gutter above its tick
+    const isLabelOnLine = (value) => labels.some((label) => label.value === value
+      && Math.abs(label.y + 5 - plotCenterY) < 1);
+    check(`a constant ${mainValue} and a constant ${secondValue} on the second axis sit at the middle, labelled`,
+      Math.abs(mainLine.meanY - plotCenterY) < 2 && Math.abs(secondLine.meanY - plotCenterY) < 2
+      && labels.length === 2 && isLabelOnLine(mainValue) && isLabelOnLine(secondValue),
+      `lines at ${mainLine.meanY?.toFixed(1)} and ${secondLine.meanY?.toFixed(1)} of ${plotCenterY}, `
+      + `labels ${JSON.stringify(labels)}`);
+  }
+
+  // --- A bar or an area of a constant range spans from zero at a plot edge to its value at the middle height ---
+  // A positive fill rises from the bottom edge and a negative one hangs from the top edge, in the minimap too, on
+  // either Y axis
+  const minimapCenterY = (MINIMAP_PLOT_TOP + MINIMAP_PLOT_BOTTOM) / 2;
+  const constantFills = [
+    ...[[342], [-342], [342, 342, 342], [-342, -342, -342], [0, 0, 0]].map((values) => ({ type: 'bar', values })),
+    ...[[342, 342, 342], [-342, -342, -342]].map((values) => ({ type: 'area', values })),
+    ...[[50, 50, 50, 50, 50], [-50, -50, -50, -50, -50]].map((values) => ({
+      type: 'bar', values, isOnSecondAxis: true,
+    })),
+  ];
+  for (const { type, values, isOnSecondAxis } of constantFills) {
+    const constantDataset = { name: 'Constant', color: '#FF0000', values };
+    const constantChart = await mountProbe(page, {
+      config: {
+        type,
+        title: `Probe — Constant ${type}`,
+        labels: values.map((_, i) => Date.UTC(2026, 10, 1 + i)),
+        datasets: isOnSecondAxis
+          ? [{ name: 'Main', color: '#00FF00', values: values.map((_, i) => 100 * (i + 1)) }, constantDataset]
+          : [constantDataset],
+        hasSecondYAxis: isOnSecondAxis,
+        withMinimap: true,
+      },
+    });
+    const plotFill = await findColor(constantChart, [255, 0, 0], CONSTANT_LINE_BAND);
+    const minimapFill = await findColor(constantChart.locator('.lovely-chart--minimap'), [255, 0, 0]);
+    await unmountProbe(page);
+    const axisNote = isOnSecondAxis ? ' on the second axis' : '';
+    const subject = values.length === 1
+      ? `a single label of ${values[0]}${axisNote} draws`
+      : `equal values of ${values[0]}${axisNote} draw`;
+    const fill = `${type === 'area' ? 'an' : 'a'} ${type}`;
+    const details = `${plotFill.count}px at ${plotFill.meanY?.toFixed(1)}, `
+      + `${minimapFill.count}px at ${minimapFill.meanY?.toFixed(1)} in the minimap`;
+    if (values[0] === 0) {
+      check(`${subject} no ${type}`, plotFill.count === 0 && minimapFill.count === 0, details);
+    } else {
+      const isPositive = values[0] > 0;
+      const plotFillMeanY = ((isPositive ? PLOT_BOTTOM : PLOT_TOP) + plotCenterY) / 2;
+      const minimapFillMeanY = ((isPositive ? MINIMAP_PLOT_BOTTOM : MINIMAP_PLOT_TOP) + minimapCenterY) / 2;
+      check(`${subject} ${fill} from the plot ${isPositive ? 'bottom' : 'top'} to the middle`,
+        plotFill.count > 1000 && Math.abs(plotFill.meanY - plotFillMeanY) < 2
+        && minimapFill.count > 100 && Math.abs(minimapFill.meanY - minimapFillMeanY) < 2,
+        `${details}, expected at ${plotFillMeanY} and ${minimapFillMeanY}`);
+    }
+  }
+
+  // --- A single label draws in a column centered in the plot, its X-axis label under it, whatever window the minimap
+  // opens on, which spans the whole minimap ---
+  for (const type of ['line', 'area', 'bar']) {
+    await recordProbeNumbers(page);
+    const singleChart = await mountProbe(page, {
+      config: {
+        type,
+        title: `Probe — Single ${type} with the minimap`,
+        labels: [Date.UTC(2026, 10, 1)],
+        datasets: [{ name: 'Single', color: '#FF0000', values: [342] }],
+        withMinimap: true,
+      },
+    });
+    const plotFill = await findColor(singleChart, [255, 0, 0]);
+    const middleFill = await findColor(singleChart, [255, 0, 0], SINGLE_LABEL_BAND);
+    const singleTexts = await readProbeTexts(page);
+    const xLabelXs = getLastFrameTexts(singleTexts).filter(({ align }) => align === 'center').map(({ x }) => x);
+    const maskWidths = await singleChart.locator('.lovely-chart--minimap-mask')
+      .evaluateAll((masks) => masks.map((mask) => mask.style.width));
+    await unmountProbe(page);
+    // A bar fills its column across the plot; a line or an area draws a dot in its middle
+    const isDrawn = type === 'bar' ? plotFill.count > 1000 : plotFill.count > 10 && middleFill.count === plotFill.count;
+    check(`a single-label ${type} with the minimap draws in a centered column, its window over the whole minimap`,
+      isDrawn && xLabelXs.length === 1 && Math.abs(xLabelXs[0] - singleTexts.canvasWidth / 2) < 1
+      && maskWidths.every((width) => width === '0%'),
+      `${plotFill.count}px, ${middleFill.count}px of them mid-plot, X-axis labels at ${JSON.stringify(xLabelXs)} `
+      + `of ${singleTexts.canvasWidth}px, minimap masks ${JSON.stringify(maskWidths)}`);
+  }
+
+  // --- A dashed or dotted line or step draws its pattern, on the plot and the minimap, and outlines its legend button
+  // and tooltip swatch in it; a dataset both dashed and dotted draws dots, and an area or bars draw neither ---
+  const linePatterns = [
+    { flags: { isDashed: true }, pattern: 'dashed', dash: 6, gap: 4, units: 'dashes' },
+    { flags: { isDotted: true }, pattern: 'dotted', dash: 2, gap: 3, units: 'dots' },
+    { flags: { isDashed: true, isDotted: true }, pattern: 'dotted', dash: 2, gap: 3, units: 'dots' },
+  ];
+  const isPatternMeasured = ({ count, dashLength, gapLength }, { dash, gap }) => count > 20
+    && Math.abs(dashLength - dash) <= 1 && Math.abs(gapLength - gap) <= 1
+    && Math.abs(dashLength + gapLength - dash - gap) < 0.5;
+  for (const { flags, pattern, dash, gap, units } of linePatterns) {
+    const flagNames = Object.keys(flags).join(' + ');
+    for (const type of ['line', 'step']) {
+      const patternChart = await mountProbe(page, {
+        config: {
+          type,
+          title: `Probe — ${flagNames} ${type}`,
+          withMinimap: true,
+          minimapRange: 'full',
+          labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 10, day)),
+          datasets: [{ name: 'Patterned', color: '#0000FF', values: [5, 5, 5, 5], ...flags }],
+        },
+      });
+      const plotPattern = await readBlueLinePattern(patternChart);
+      const minimapPattern = await readBlueLinePattern(patternChart.locator('.lovely-chart--minimap'));
+      const button = await patternChart.locator('.lovely-chart--button').evaluate((el) => ({
+        attributes: ['data-dashed', 'data-dotted'].filter((attribute) => el.hasAttribute(attribute)),
+        outline: getComputedStyle(el).borderTopStyle,
+      }));
+      const patternTooltip = await readProbeTooltip(page, 1);
+      await unmountProbe(page);
+      const swatches = { dashed: patternTooltip.dashedSwatches, dotted: patternTooltip.dottedSwatches };
+      check(`${flagNames} draws a ${type} in ${dash}px ${units} ${gap}px apart, its button and swatch ${pattern}`,
+        isPatternMeasured(plotPattern, { dash, gap }) && isPatternMeasured(minimapPattern, { dash, gap })
+        && JSON.stringify(button) === JSON.stringify({ attributes: [`data-${pattern}`], outline: pattern })
+        && JSON.stringify(swatches) === JSON.stringify({ dashed: [], dotted: [], [pattern]: ['Patterned'] }),
+        `plot ${JSON.stringify(plotPattern)}, minimap ${JSON.stringify(minimapPattern)}, `
+        + `button ${JSON.stringify(button)}, swatches ${JSON.stringify(swatches)}`);
+    }
+  }
+
+  for (const type of ['area', 'bar']) {
+    const patternedChart = await mountProbe(page, {
+      config: {
+        type,
+        title: `Probe — Dashed and dotted ${type}`,
+        labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 10, day)),
+        datasets: [
+          { name: 'Dashed', color: '#0000FF', values: [5, 6, 5, 6], isDashed: true },
+          { name: 'Dotted', color: '#00FF00', values: [4, 5, 4, 5], isDotted: true },
+          { name: 'Solid', color: '#FF0000', values: [2, 3, 2, 3] },
+        ],
+      },
+    });
+    const patternedButtons = await patternedChart
+      .locator('.lovely-chart--button[data-dashed], .lovely-chart--button[data-dotted]').count();
+    const patternedTooltip = await readProbeTooltip(page, 1);
+    await unmountProbe(page);
+    const patternedSwatches = [...patternedTooltip.dashedSwatches, ...patternedTooltip.dottedSwatches];
+    check(`isDashed and isDotted leave ${type === 'area' ? 'an area' : 'bars'} solid, legend buttons and swatches too`,
+      patternedButtons === 0 && patternedTooltip.swatched.length === 3 && !patternedSwatches.length,
+      `${patternedButtons} patterned buttons, patterned swatches ${JSON.stringify(patternedSwatches)}`);
+  }
+
+  // --- Panning leaves the dashes and dots of a sloped line, steps and a smooth line in place ---
+  const panPhaseLabels = Array.from({ length: PAN_PHASE_LABELS }, (_, i) => Date.UTC(2026, 0, 1 + i));
+  const panPhaseCases = [
+    { name: 'a dotted line', type: 'line', flags: { isDotted: true } },
+    { name: 'a dashed line', type: 'line', flags: { isDashed: true } },
+    { name: 'dotted steps', type: 'step', flags: { isDotted: true } },
+    { name: 'a dotted smooth line', type: 'line', flags: { isDotted: true }, areLinesSmooth: true },
+  ];
+  for (const { name, type, flags, areLinesSmooth = false } of panPhaseCases) {
+    await mountProbe(page, {
+      config: {
+        type,
+        title: 'Probe — Panned pattern',
+        withMinimap: true,
+        minimapRange: [0.3, 0.5],
+        areLinesSmooth,
+        labels: panPhaseLabels,
+        datasets: [{
+          name: 'Patterned',
+          color: '#0000FF',
+          values: panPhaseLabels.map((_, i) => PAN_PHASE_VALUES[i % PAN_PHASE_VALUES.length]),
+          ...flags,
+        }],
+      },
+    });
+    const panPhase = await readPanPhaseShift(page);
+    await unmountProbe(page);
+    check(`panning ${name} leaves its pattern in place`,
+      panPhase.starts > 1 && panPhase.shift <= MAX_PAN_PHASE_SHIFT, JSON.stringify(panPhase));
+  }
+
+  // --- Smooth lines curve through their values ---
+  const zigzag = {
+    type: 'line',
+    labels: [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day)),
+    datasets: [{ name: 'Zigzag', color: '#FF0000', values: [0, 10, 0, 10, 0] }],
+  };
+  // A band of 2px a quarter of the way from the peak at label 1 down to label 2, as fractions of the canvas width
+  const quarterBand = (chart) => chart.evaluate((el) => {
+    const width = el.querySelector('canvas').clientWidth;
+    const x = 10 + (1.25 / 4) * (width - 20);
+    return [(x - 1) / width, (x + 1) / width];
+  });
+  const straightChart = await mountProbe(page, { config: { ...zigzag, title: 'Probe — Straight lines' } });
+  const straightQuarter = await findColor(straightChart, [255, 0, 0], await quarterBand(straightChart));
+  await unmountProbe(page);
+  const smoothChart = await mountProbe(page, {
+    config: { ...zigzag, title: 'Probe — Smooth lines', areLinesSmooth: true },
+  });
+  const smoothQuarter = await findColor(smoothChart, [255, 0, 0], await quarterBand(smoothChart));
+  await unmountProbe(page);
+  // A monotone curve leaves a peak flat, so a quarter of the way down it runs well above the straight line
+  check('areLinesSmooth curves a line through its values',
+    straightQuarter.count > 0 && smoothQuarter.count > 0 && straightQuarter.meanY - smoothQuarter.meanY > 10,
+    `straight at ${straightQuarter.meanY?.toFixed(1)}, smooth at ${smoothQuarter.meanY?.toFixed(1)}`);
+
+  // --- A missing value in a stacked area ---
+  // An absolute stack has no base above a missing value, so the areas above it break there. A percentage
+  // chart has one, the shares of the values the label has, so only the missing dataset's own wedge empties.
+  const gapLabels = Array.from({ length: 12 }, (_, i) => Date.UTC(2026, 10, 1 + i));
+  for (const isPercentage of [false, true]) {
+    const gapChart = await mountProbe(page, {
+      config: {
+        type: 'area',
+        isStacked: true,
+        isPercentage,
+        title: 'Probe — Stack gap',
+        labels: gapLabels,
+        datasets: [
+          { name: 'Low', color: '#0000FF', values: Array(12).fill(30) },
+          // `values` marks a missing value with `null`
+          // eslint-disable-next-line no-null/no-null
+          { name: 'Middle', color: '#00AA00', values: gapLabels.map((_, i) => (i === 5 ? null : 30)) },
+          { name: 'Top', color: '#FF0000', values: Array(12).fill(40) },
+        ],
+      },
+    });
+    // A band of 6px around a label's column, as fractions of the canvas width
+    const columnBand = (labelIndex) => gapChart.evaluate((el, index) => {
+      const width = el.querySelector('canvas').clientWidth;
+      const x = 10 + (index / 11) * (width - 20);
+      return [(x - 3) / width, (x + 3) / width];
+    }, labelIndex);
+    const topAtGap = await findColor(gapChart, [255, 0, 0], await columnBand(5));
+    const topElsewhere = await findColor(gapChart, [255, 0, 0], await columnBand(2));
+    await unmountProbe(page);
+    const details = `${topAtGap.count}px of the top area at the missing value, ${topElsewhere.count}px at a full one`;
+    if (isPercentage) {
+      check('a percentage area keeps the areas above a missing value filled',
+        topElsewhere.count > 100 && topAtGap.count > topElsewhere.count / 2, details);
+    } else {
+      check('a stacked area leaves the areas above a missing value unfilled',
+        topElsewhere.count > 100 && topAtGap.count === 0, details);
+    }
+  }
+
+  // --- An area outline runs along every edge of each run of an area split at a gap ---
+  const outlineChart = await mountProbe(page, {
+    config: {
+      type: 'area',
+      title: 'Probe — Area outline',
+      labels: Array.from({ length: 7 }, (_, i) => Date.UTC(2026, 10, 1 + i)),
+      // `values` marks a missing value with `null`
+      // eslint-disable-next-line no-null/no-null
+      datasets: [{ name: 'Split', color: '#0000FF', values: [20, 30, 20, null, 20, 30, 20] }],
+      areaOpacity: 0.25,
+      areaBorderColor: '#FF0000',
+    },
+  });
+  // A band of 4px around a label's column, as fractions of the canvas width
+  const outlineBand = (labelIndex) => outlineChart.evaluate((el, index) => {
+    const width = el.querySelector('canvas').clientWidth;
+    const x = 10 + (index / 6) * (width - 20);
+    return [(x - 2) / width, (x + 2) / width];
+  }, labelIndex);
+  // The left and the right edge of the run before the gap, then of the run after it
+  const outlineEdges = [];
+  for (const labelIndex of [0, 2, 4, 6]) {
+    outlineEdges.push((await findColor(outlineChart, [255, 0, 0], await outlineBand(labelIndex))).count);
+  }
+  await unmountProbe(page);
+  const [firstLeft, firstRight, secondLeft, secondRight] = outlineEdges;
+  check('areaBorderColor outlines both sides of each run of a split area',
+    firstRight > 100 && secondRight > 100 && firstLeft > firstRight / 2 && secondLeft > secondRight / 2,
+    `${JSON.stringify(outlineEdges)}px at the left and right edges of either run`);
+
+  // --- A themed area outline takes the colour of the theme, and follows a change of the theme ---
+  const wasOutlineThemeDark = await page.evaluate(() => document.documentElement.classList.contains('theme-dark'));
+  await page.evaluate(() => document.documentElement.classList.remove('theme-dark'));
+  const themedOutlineChart = await mountProbe(page, {
+    config: {
+      type: 'area',
+      title: 'Probe — Themed area outline',
+      labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [{ name: 'Outlined', color: '#0000FF', values: [20, 30, 25, 35] }],
+      areaOpacity: 0.25,
+      areaBorderColor: { light: '#FF0000', dark: '#00FFFF' },
+    },
+  });
+  const readOutlinePixels = async () => [
+    (await findColor(themedOutlineChart, [255, 0, 0])).count,
+    (await findColor(themedOutlineChart, [0, 255, 255])).count,
+  ];
+  const lightOutline = await readOutlinePixels();
+  await page.evaluate(() => document.documentElement.classList.add('theme-dark'));
+  await sleep(300);
+  const darkOutline = await readOutlinePixels();
+  await unmountProbe(page);
+  await page.evaluate((isDark) => document.documentElement.classList.toggle('theme-dark', isDark), wasOutlineThemeDark);
+  check('a themed areaBorderColor outlines an area in the colour of the theme as the theme changes',
+    lightOutline[0] > 100 && lightOutline[1] === 0 && darkOutline[0] === 0 && darkOutline[1] > 100,
+    `red and cyan px: ${JSON.stringify(lightOutline)} in the light theme, ${JSON.stringify(darkOutline)} in the dark`);
+
+  // --- The outward Y-label column fits the widest label the data can show, and holds still ---
+  const columnLabels = Array.from({ length: 120 }, (_, i) => Date.UTC(2026, 0, 1 + i));
+  const columnConfig = {
+    type: 'line',
+    title: 'Probe — Label column',
+    withMinimap: true,
+    isYAxisOutward: true,
+    labels: columnLabels,
+    datasets: [
+      {
+        name: 'High',
+        color: '#FF0000',
+        values: columnLabels.map((_, i) => 6000 + Math.round(300 * Math.sin(i / 7)) + i * 3),
+      },
+      { name: 'Low', color: '#0000FF', values: columnLabels.map((_, i) => 2000 + Math.round(900 * Math.cos(i / 5))) },
+    ],
+  };
+  await recordProbeNumbers(page);
+  const columnChart = await mountProbe(page, { config: columnConfig });
+  await columnChart.scrollIntoViewIfNeeded();
+  const initialColumn = getYLabelColumn(await readProbeTexts(page));
+  // The narrowest window, panned, then with the low dataset hidden, so the window starts above 0
+  const columnEar = await columnChart.locator('.lovely-chart--minimap-slider-handle').first().boundingBox();
+  await drag(page, columnEar.x + columnEar.width / 2, columnEar.y + columnEar.height / 2, 600, 0, 20);
+  await sleep(700);
+  const columnSlider = await columnChart.locator('.lovely-chart--minimap-slider-inner').boundingBox();
+  await drag(page, columnSlider.x + columnSlider.width / 2, columnSlider.y + columnSlider.height / 2, -300, 0, 30);
+  await sleep(700);
+  await columnChart.locator('.lovely-chart--button').nth(1).click();
+  await sleep(1000);
+  const pannedColumn = getYLabelColumn(await readProbeTexts(page));
+  const pannedEnds = [...new Set([...initialColumn.ends, ...pannedColumn.ends])];
+  check('an outward Y-label column holds still while the reader narrows, pans and hides datasets',
+    pannedEnds.length === 1 && pannedColumn.texts.some((text) => !initialColumn.texts.includes(text)),
+    `ends at ${JSON.stringify(pannedEnds)}, labels ${initialColumn.texts.join(' ')} `
+    + `then ${pannedColumn.texts.join(' ')}`);
+  check('the outward column fits its widest label, and no wider',
+    pannedColumn.overflowing.length === 0 && pannedColumn.end - GUTTER - pannedColumn.widest < 1,
+    `ends at ${pannedColumn.end}, widest label ${pannedColumn.widest.toFixed(2)}px, `
+    + `overflowing: ${JSON.stringify(pannedColumn.overflowing)}`);
+  // The plot is clipped from the pixel where the column ends, so the band stops half a pixel short of it
+  const columnFraction = await columnChart.evaluate(
+    (el, end) => (end - 0.5) / el.querySelector('canvas').clientWidth,
+    pannedColumn.end,
+  );
+  const inColumn = await findColor(columnChart, [255, 0, 0], [0, columnFraction]);
+  const inPlot = await findColor(columnChart, [255, 0, 0], [columnFraction, 1]);
+  check('a panned plot stays out of the Y-label column', inColumn.count === 0 && inPlot.count > 100,
+    `${inColumn.count}px in the column, ${inPlot.count}px in the plot`);
+
+  await page.evaluate(() => window.probeChart.update({
+    type: 'line',
+    isYAxisOutward: true,
+    labels: [1, 2, 3].map((day) => Date.UTC(2026, 0, day)),
+    datasets: [{ name: 'Small', values: [0.5, 1.25, 0.75] }],
+  }));
+  await sleep(1500);
+  const updatedColumn = getYLabelColumn(await readProbeTexts(page), true);
+  await unmountProbe(page);
+  check('update() measures the outward column for the new data',
+    updatedColumn.end < pannedColumn.end && updatedColumn.overflowing.length === 0,
+    `ends at ${updatedColumn.end} after ${pannedColumn.end}, labels ${updatedColumn.texts.join(' ')}`);
+
+  await recordProbeNumbers(page);
+  await mountProbe(page, { config: { ...columnConfig, title: 'Probe — Label column, 14px', axisFontSize: 14 } });
+  const largeFontColumn = getYLabelColumn(await readProbeTexts(page));
+  await unmountProbe(page);
+  check('a larger axis font widens the outward column to fit',
+    largeFontColumn.ends.length === 1 && largeFontColumn.end > pannedColumn.end
+    && largeFontColumn.overflowing.length === 0,
+    `ends at ${JSON.stringify(largeFontColumn.ends)} at 14px, ${pannedColumn.end} at 10px`);
+
+  // A zoom swaps in the day's data, which brings a column of its own, and a zoom out brings back the overview's
+  const zoomColumnConfig = { title: 'Probe — Label column zoom', isYAxisOutward: true };
+  await recordProbeNumbers(page);
+  await mountProbe(page, { dataUrl: './data/bars.json', config: zoomColumnConfig });
+  const overviewColumn = getYLabelColumn(await readProbeTexts(page), true);
+  const overviewAreaLeft = await readPlotAreaLeft(page);
+  await unmountProbe(page);
+  await recordProbeNumbers(page);
+  const zoomColumnChart = await mountProbe(page, {
+    dataUrl: './data/bars.json',
+    config: { ...zoomColumnConfig, initialZoom: 'last' },
+    zoomDataSource: 'data/zoom_bars',
+    zoomConfig: { isYAxisOutward: true },
+  });
+  await sleep(1000);
+  const dayColumn = getYLabelColumn(await readProbeTexts(page), true);
+  const dayAreaLeft = await readPlotAreaLeft(page);
+  await zoomColumnChart.locator('.lovely-chart--header-zoom-out-control').first().click();
+  await sleep(2500);
+  const zoomedOutColumn = getYLabelColumn(await readProbeTexts(page), true);
+  const zoomedOutAreaLeft = await readPlotAreaLeft(page);
+  await unmountProbe(page);
+  check('a zoom into a day measures an outward column of its own, and a zoom out the overview\'s',
+    dayColumn.ends.length === 1 && dayColumn.end !== overviewColumn.end && dayColumn.overflowing.length === 0
+    && zoomedOutColumn.end === overviewColumn.end,
+    `overview ${overviewColumn.end} (${overviewColumn.texts.join(' ')}), day ${JSON.stringify(dayColumn.ends)} `
+    + `(${dayColumn.texts.join(' ')}), zoomed out ${zoomedOutColumn.end}`);
+  check('a zoom into a day and out of it moves the plot area to the column on screen',
+    overviewAreaLeft === overviewColumn.end + Y_AXIS_LABEL_GAP && dayAreaLeft === dayColumn.end + Y_AXIS_LABEL_GAP
+    && zoomedOutAreaLeft === overviewAreaLeft,
+    `left ${overviewAreaLeft}, ${dayAreaLeft} zoomed in, ${zoomedOutAreaLeft} zoomed out, `
+    + `after labels ending at ${overviewColumn.end}, ${dayColumn.end} and ${zoomedOutColumn.end}`);
+
+  // --- The outward column fits the labels a previous period, a gap, a reference line or a hidden dataset bring ---
+  const sweepLabels = (count) => Array.from({ length: count }, (_, i) => Date.UTC(2026, 0, 1 + i));
+  // The window of the last week opens on finer steps than its values alone take, its previous values being lower
+  await recordProbeNumbers(page);
+  await mountProbe(page, {
+    config: {
+      type: 'line',
+      withMinimap: true,
+      isYAxisOutward: true,
+      title: 'Probe — Column, small counts',
+      labels: sweepLabels(7),
+      datasets: [{ name: 'Signups', values: [3, 2, 3, 2, 3, 3, 3] }],
+      comparison: { name: 'Week before', values: [[4, 2, 2, 2, 4, 2, 3]] },
+    },
+  });
+  const smallCountsColumn = getYLabelColumn(await readProbeTexts(page), true);
+  await unmountProbe(page);
+  check('an outward column fits the first labels of small counts against a previous period',
+    smallCountsColumn.texts.includes('2.2') && smallCountsColumn.overflowing.length === 0,
+    `ends at ${JSON.stringify(smallCountsColumn.ends)}, labels ${smallCountsColumn.texts.join(' ')}, `
+    + `overflowing: ${JSON.stringify(smallCountsColumn.overflowing)}`);
+
+  const columnSweeps = [{
+    name: 'a dataset missing a previous value',
+    config: {
+      labels: sweepLabels(6),
+      datasets: [
+        { name: 'Web', values: [309.92, 300.5, 310.25, 305.75, 312.5, 308.25] },
+        // `values` marks a missing value with `null`
+        // eslint-disable-next-line no-null/no-null
+        { name: 'App', values: [null, 1500, 1520, 1510, 1490, 1530] },
+      ],
+      comparison: {
+        name: 'Week before',
+        // eslint-disable-next-line no-null/no-null
+        values: [[299.68, 295, 305, 300, 310, 300], [null, 1480, 1500, 1490, 1470, 1500]],
+      },
+    },
+  }, {
+    name: 'mixed signs against a previous period, the positive dataset hidden',
+    hiddenIndexes: [1],
+    config: {
+      labels: sweepLabels(5),
+      datasets: [
+        { name: 'Refunds', values: [-4.6e6, -4.9e6, -5.2e6, -5.9e6, -5e6] },
+        { name: 'Sales', values: [8.9e6, 9e6, 10.5e6, 11.3e6, 11.6e6] },
+        { name: 'Fees', values: [-3e6, -4.1e6, -4.3e6, -5.1e6, -3.8e6] },
+      ],
+      comparison: {
+        name: 'Last year',
+        values: [
+          [-3.8e6, -6.2e6, -3.4e6, -8.1e6, -6.1e6],
+          [9.9e6, 12.3e6, 9.1e6, 15.8e6, 7.3e6],
+          [-2.1e6, -2.3e6, -2.3e6, -2.8e6, -2.2e6],
+        ],
+      },
+    },
+  }, {
+    name: 'stacked bars with a gap under a reference line',
+    config: {
+      type: 'bar',
+      isStacked: true,
+      labels: sweepLabels(8),
+      // eslint-disable-next-line no-null/no-null
+      datasets: [{ name: 'A', values: [4.3e9, 4.3e9, 4e9, 4.7e9, 4.9e9, 5.8e9, null, 7.3e9] }],
+      referenceLines: [{ value: 1.26e9, label: 'Floor' }],
+    },
+  }, {
+    name: 'whole steps of rates under a target',
+    config: {
+      noFloatSteps: true,
+      labels: sweepLabels(6),
+      datasets: [{ name: 'Rate', values: [0.12, 0.3, 0.25, 0.4, 0.33, 0.2] }],
+      referenceLines: [{ value: 0.5 }],
+    },
+  }];
+  for (const { name, hiddenIndexes = [], config } of columnSweeps) {
+    await recordProbeNumbers(page);
+    const sweptChart = await mountProbe(page, {
+      config: { type: 'line', withMinimap: true, isYAxisOutward: true, title: `Probe — Column, ${name}`, ...config },
+    });
+    await sweptChart.scrollIntoViewIfNeeded();
+    for (const index of hiddenIndexes) {
+      await sweptChart.locator('.lovely-chart--button').nth(index).click();
+    }
+    await sweepProbe(page);
+    const sweptColumn = getYLabelColumn(await readProbeTexts(page));
+    await unmountProbe(page);
+    check(`an outward column fits every label of ${name}`,
+      sweptColumn.ends.length === 1 && sweptColumn.overflowing.length === 0,
+      `ends at ${JSON.stringify(sweptColumn.ends)}, widest ${sweptColumn.widest.toFixed(2)}px, `
+      + `overflowing: ${JSON.stringify(sweptColumn.overflowing)}`);
+  }
+
+  // --- Contrast labels stand in from either side of the chart, the second axis's too ---
+  const twoAxesLabels = Array.from({ length: 30 }, (_, i) => Date.UTC(2026, 0, 1 + i));
+  const twoAxesConfig = {
+    type: 'line',
+    hasSecondYAxis: true,
+    labels: twoAxesLabels,
+    datasets: [
+      { name: 'Views', values: twoAxesLabels.map((_, i) => 4000 + Math.round(1500 * Math.sin(i / 6))) },
+      { name: 'Rate', values: twoAxesLabels.map((_, i) => Math.round(30 + 12 * Math.cos(i / 5))) },
+    ],
+  };
+  // How far in from its side of the canvas each axis prints its labels: left-aligned for the main one inside the
+  // plot, right-aligned right of the middle for the second one
+  const readYLabelInsets = async () => {
+    const { texts, canvasWidth } = await readProbeTexts(page);
+    const secondTexts = texts.filter(({ align, x }) => align === 'right' && x > canvasWidth / 2);
+    return {
+      main: [...new Set(texts.filter(({ align }) => align === 'left').map(({ x }) => x))],
+      second: [...new Set(secondTexts.map(({ x }) => canvasWidth - x))],
+    };
+  };
+  await recordProbeNumbers(page);
+  await mountProbe(page, { config: { ...twoAxesConfig, title: 'Probe — Default labels' } });
+  const defaultInsets = await readYLabelInsets();
+  const defaultNumbers = await readProbeNumberLabels(page);
+  await unmountProbe(page);
+  await recordProbeNumbers(page);
+  await mountProbe(page, { config: { ...twoAxesConfig, title: 'Probe — Contrast labels', areLabelsContrast: true } });
+  const contrastInsets = await readYLabelInsets();
+  const contrastNumbers = await readProbeNumberLabels(page);
+  await unmountProbe(page);
+  // A standard label stands half a gutter above its tick, its bottom on the line, and a contrast one on the tick
+  const isCenteredOnTick = defaultNumbers.length > 1 && defaultNumbers.every(({ value, y, baseline }) => {
+    const contrastLabel = contrastNumbers.find((label) => label.value === value);
+    return baseline === 'bottom' && contrastLabel?.baseline === 'middle'
+      && Math.abs(contrastLabel.y - (y + GUTTER / 2)) < 0.01;
+  });
+  check('areLabelsContrast centers each label on its grid line', isCenteredOnTick,
+    `default ${JSON.stringify(defaultNumbers)}, contrast ${JSON.stringify(contrastNumbers)}`);
+  const contrastInset = GUTTER + CONTRAST_LABEL_PADDING;
+  check('areLabelsContrast moves the labels of either axis 2px in from their side',
+    JSON.stringify(defaultInsets) === JSON.stringify({ main: [GUTTER], second: [GUTTER] })
+    && JSON.stringify(contrastInsets) === JSON.stringify({ main: [contrastInset], second: [contrastInset] }),
+    `default ${JSON.stringify(defaultInsets)}, contrast ${JSON.stringify(contrastInsets)}`);
+
+  await recordProbeNumbers(page);
+  await mountProbe(page, { config: { ...twoAxesConfig, title: 'Probe — Outward labels', isYAxisOutward: true } });
+  const outwardColumn = getYLabelColumn(await readProbeTexts(page));
+  await unmountProbe(page);
+  await recordProbeNumbers(page);
+  await mountProbe(page, {
+    config: {
+      ...twoAxesConfig, title: 'Probe — Outward contrast labels', isYAxisOutward: true, areLabelsContrast: true,
+    },
+  });
+  const outwardContrastTexts = await readProbeTexts(page);
+  const outwardContrastColumn = getYLabelColumn(outwardContrastTexts);
+  const outwardSecondInsets = [...new Set(outwardContrastTexts.texts
+    .filter(({ align, x }) => align === 'right' && x > outwardContrastTexts.canvasWidth / 2)
+    .map(({ x }) => outwardContrastTexts.canvasWidth - x))];
+  await unmountProbe(page);
+  check('an outward contrast column ends 2px further in, the second axis staying inside the plot',
+    outwardContrastColumn.end === outwardColumn.end + CONTRAST_LABEL_PADDING
+    && JSON.stringify(outwardSecondInsets) === JSON.stringify([contrastInset]),
+    `column ends at ${outwardContrastColumn.end} after ${outwardColumn.end}, `
+    + `second axis ${JSON.stringify(outwardSecondInsets)} in from the right`);
+
+  // --- A sparkline has no axes, so no column either ---
+  await recordProbeNumbers(page);
+  const outwardSparkline = await mountProbe(page, {
+    config: { ...columnConfig, title: 'Probe — Outward sparkline', withMinimap: false, isSparkline: true },
+  });
+  const { texts: sparklineTexts } = await readProbeTexts(page);
+  const sparklineEdge = await findColor(outwardSparkline, [255, 0, 0], [0, 0.02]);
+  await unmountProbe(page);
+  check('an outward sparkline draws no labels and runs to its edge',
+    sparklineTexts.length === 0 && sparklineEdge.count > 0,
+    `${sparklineTexts.length} texts, ${sparklineEdge.count}px of the line at the left edge`);
+
+  // --- The plot-area properties place an overlay over the data area, inside a padded and bordered element ---
+  // The first label at the top of the range and the last at its bottom, so the line runs corner to corner
+  const areaConfig = {
+    type: 'line',
+    title: 'Probe — Plot area',
+    labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 0, day)),
+    datasets: [{ name: 'Corners', color: '#FF0000', values: [100, 20, 80, 0] }],
+    referenceLines: [{ value: 50, color: '#0000FF' }],
+  };
+  await recordProbeNumbers(page);
+  await mountProbe(page, { config: areaConfig, hostStyle: PADDED_HOST_STYLE });
+  await addPlotAreaOverlay(page);
+  const areaFit = await readPlotAreaFit(page, ['#FF0000', '#0000FF']);
+  const [areaLine, areaReference] = areaFit.boxes;
+  const areaMiddle = (areaFit.overlay.top + areaFit.overlay.bottom) / 2;
+  check('the plot-area properties are px lengths',
+    areaFit.values.every((value) => PLOT_AREA_PATTERN.test(value)), JSON.stringify(areaFit.values));
+  check('a plot-area overlay frames the first and the last point of a full-range line',
+    isFramedBy(areaFit.overlay, areaLine),
+    `overlay ${formatBox(areaFit.overlay)}, line ${formatBox(areaLine)}`);
+  check('a plot-area overlay puts the middle of the Y range on a reference line there',
+    Math.abs(areaReference.meanY - areaMiddle) <= PLOT_AREA_TOLERANCE
+    && isFramedBy(areaFit.overlay, areaReference, ['left']),
+    `overlay middle ${areaMiddle.toFixed(1)}, reference line at ${areaReference.meanY.toFixed(1)} `
+    + `from ${areaReference.left.toFixed(1)}`);
+
+  // An update to an outward column and a shorter plot moves the area, and the overlay follows. The reference line
+  // stands off the grid lines at the quarters of the range, which would tint it.
+  const updatedReferenceFraction = 0.4;
+  await page.evaluate(({ config, fraction }) => window.probeChart.update({
+    ...config,
+    datasets: [{ ...config.datasets[0], values: config.datasets[0].values.map((value) => value * 1000) }],
+    referenceLines: [{ value: fraction * 100000, color: '#0000FF' }],
+    isYAxisOutward: true,
+    plotHeight: 240,
+  }), { config: areaConfig, fraction: updatedReferenceFraction });
+  await sleep(1200);
+  const updatedFit = await readPlotAreaFit(page, ['#FF0000', '#0000FF']);
+  const [updatedLine, updatedReference] = updatedFit.boxes;
+  const updatedChildren = await page.evaluate(() => [...document.getElementById('probe').children]
+    .map((child) => child.id || child.className));
+  check('update() rebuilds the chart under the overlay added after it',
+    JSON.stringify(updatedChildren) === JSON.stringify(['lovely-chart--container', 'probe-overlay']),
+    JSON.stringify(updatedChildren));
+  const areaColumn = getYLabelColumn(await readProbeTexts(page), true);
+  check('update() moves the plot area to an outward column and a shorter plot',
+    isFramedBy(updatedFit.overlay, updatedLine)
+    && Math.abs(updatedFit.overlay.left - (areaColumn.end + Y_AXIS_LABEL_GAP)) <= PLOT_AREA_TOLERANCE
+    && updatedFit.overlay.bottom < areaFit.overlay.bottom - 50
+    && Math.abs(updatedReference.meanY - updatedFit.overlay.bottom
+      + updatedReferenceFraction * (updatedFit.overlay.bottom - updatedFit.overlay.top)) <= PLOT_AREA_TOLERANCE,
+    `overlay ${formatBox(updatedFit.overlay)} after ${formatBox(areaFit.overlay)}, line ${formatBox(updatedLine)}, `
+    + `labels end at ${areaColumn.end}, reference line at ${updatedReference.meanY.toFixed(1)}`);
+
+  const destroyedValues = await page.evaluate(() => {
+    const host = document.getElementById('probe');
+    window.probeChart.destroy();
+    const values = ['left', 'top', 'width', 'height']
+      .map((key) => host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`));
+    host.remove();
+    return values;
+  });
+  check('destroy() removes the plot-area properties', destroyedValues.every((value) => value === ''),
+    JSON.stringify(destroyedValues));
+
+  // A pie fills the square around its circle, and a sparkline its plot inset from every edge
+  await mountProbe(page, {
+    config: {
+      type: 'pie',
+      title: 'Probe — Plot area pie',
+      labels: areaConfig.labels,
+      datasets: [{ name: 'A', values: [5, 3, 6, 2] }, { name: 'B', values: [2, 4, 1, 3] }],
+    },
+    hostStyle: PADDED_HOST_STYLE,
+  });
+  await addPlotAreaOverlay(page);
+  const pieFit = await readPlotAreaFit(page, ['any']);
+  await unmountProbe(page);
+  check('a pie\'s plot area is the square around its circle',
+    isFramedBy(pieFit.overlay, pieFit.boxes[0])
+    && Math.abs(pieFit.overlay.right - pieFit.overlay.left - (pieFit.overlay.bottom - pieFit.overlay.top)) < 0.01,
+    `overlay ${formatBox(pieFit.overlay)}, pie ${formatBox(pieFit.boxes[0])}`);
+
+  await mountProbe(page, {
+    config: { ...areaConfig, title: 'Probe — Plot area sparkline', isSparkline: true, plotHeight: 64 },
+    hostStyle: PADDED_HOST_STYLE,
+  });
+  await addPlotAreaOverlay(page);
+  const sparklineFit = await readPlotAreaFit(page, ['#FF0000']);
+  await unmountProbe(page);
+  check('a sparkline\'s plot area is its plot inset by 2px',
+    isFramedBy(sparklineFit.overlay, sparklineFit.boxes[0])
+    && sparklineFit.overlay.left === SPARKLINE_INSET && sparklineFit.overlay.top === SPARKLINE_INSET,
+    `overlay ${formatBox(sparklineFit.overlay)}, line ${formatBox(sparklineFit.boxes[0])}`);
+
+  // A flat sparkline fills from its bottom edge to the middle of its 2px inset
+  const flatSparkline = await mountProbe(page, {
+    config: {
+      type: 'area',
+      isSparkline: true,
+      labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [{ name: 'Flat', color: '#FF0000', values: [7, 7, 7, 7] }],
+    },
+  });
+  const sparklineFill = await findColor(flatSparkline, [255, 0, 0]);
+  const sparklineHeight = await flatSparkline.evaluate((el) => el.querySelector('canvas').clientHeight);
+  await unmountProbe(page);
+  const sparklineFillMeanY = (sparklineHeight / 2 + sparklineHeight - SPARKLINE_INSET) / 2;
+  check('a flat sparkline area fills from its bottom to the middle',
+    sparklineFill.count > 1000 && Math.abs(sparklineFill.meanY - sparklineFillMeanY) < 2,
+    `${sparklineFill.count}px at ${sparklineFill.meanY?.toFixed(1)}, expected at ${sparklineFillMeanY}`);
+
+  // A scaled element, as in a dashboard scaled to fit, takes the plot area in px of its own
+  const readPlotAreaValues = () => page.evaluate(() => {
+    const { style } = document.getElementById('probe');
+    return ['left', 'top', 'width', 'height']
+      .map((key) => parseFloat(style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+  });
+  await mountProbe(page, { config: areaConfig, hostStyle: PADDED_HOST_STYLE, width: SCALED_HOST_WIDTH });
+  const unscaledArea = await readPlotAreaValues();
+  await unmountProbe(page);
+  await mountProbe(page, {
+    config: areaConfig,
+    hostStyle: `${PADDED_HOST_STYLE}; transform: scale(${HOST_SCALE}); transform-origin: 0 0`,
+    width: SCALED_HOST_WIDTH,
+  });
+  const scaledArea = await readPlotAreaValues();
+  await unmountProbe(page);
+  check('a scaled element takes the plot area of its own px',
+    scaledArea.every((value, i) => Math.abs(value - unscaledArea[i]) < PLOT_AREA_SCALE_TOLERANCE),
+    `${JSON.stringify(scaledArea)} scaled, ${JSON.stringify(unscaledArea)} at full size`);
+
+  // Panning and narrowing the window repaints every frame, and leaves the area as it is
+  await page.evaluate(() => {
+    window.plotAreaWrites = 0;
+    const { setProperty } = CSSStyleDeclaration.prototype;
+    CSSStyleDeclaration.prototype.setProperty = function (property, ...args) {
+      if (property.startsWith('--lovely-chart-plot-area-') && this === document.getElementById('probe')?.style) {
+        window.plotAreaWrites++;
+      }
+      return setProperty.call(this, property, ...args);
+    };
+  });
+  await recordProbeNumbers(page);
+  const pannedAreaChart = await mountProbe(page, {
+    config: { ...columnConfig, title: 'Probe — Plot area while panning' },
+  });
+  await pannedAreaChart.scrollIntoViewIfNeeded();
+  await addPlotAreaOverlay(page);
+  const builtWrites = await page.evaluate(() => window.plotAreaWrites);
+  const builtLeft = await readPlotAreaLeft(page);
+  await sweepProbe(page);
+  const pannedWrites = await page.evaluate(() => window.plotAreaWrites) - builtWrites;
+  const pannedAreaColumn = getYLabelColumn(await readProbeTexts(page), true);
+  await unmountProbe(page);
+  check('a pan writes no plot-area property, and the area starts after the outward column',
+    builtWrites === 4 && pannedWrites === 0 && builtLeft === pannedAreaColumn.end + Y_AXIS_LABEL_GAP,
+    `${builtWrites} writes on the build, ${pannedWrites} while panning, left ${builtLeft} `
+    + `after labels ending at ${pannedAreaColumn.end}`);
+
+  // --- A web font that loads after the build widens the outward column to fit, and moves the plot area ---
+  await page.evaluate(({ family, fontPath }) => {
+    const style = document.createElement('style');
+    style.id = 'probe-font';
+    style.textContent = `@font-face { font-family: ${family}; src: url(${fontPath}) format('truetype'); }
+      #probe .lovely-chart--container { font-family: ${family}, sans-serif; }`;
+    document.head.appendChild(style);
+  }, { family: WIDE_FONT_FAMILY, fontPath: WIDE_FONT_PATH });
+  await recordProbeNumbers(page);
+  const lateFontChart = await mountProbe(page, { config: { ...columnConfig, title: 'Probe — Late web font' } });
+  await lateFontChart.scrollIntoViewIfNeeded();
+  const fallbackFontColumn = getYLabelColumn(await readProbeTexts(page), true);
+  const fallbackFontLeft = await readPlotAreaLeft(page);
+  const writesBeforeFont = await page.evaluate(() => window.plotAreaWrites);
+  releaseWideFont();
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  await sleep(500);
+  const fontWrites = await page.evaluate(() => window.plotAreaWrites) - writesBeforeFont;
+  // A redraw, as a legend toggle brings, prints the labels in the loaded font
+  await lateFontChart.locator('.lovely-chart--button').nth(1).click();
+  await sleep(1000);
+  const wideFontColumn = getYLabelColumn(await readProbeTexts(page), true);
+  const wideFontLeft = await readPlotAreaLeft(page);
+  await unmountProbe(page);
+  await page.evaluate(() => document.getElementById('probe-font').remove());
+  check('a web font that loads after the build widens the outward column to fit its labels',
+    wideFontColumn.end > fallbackFontColumn.end && wideFontColumn.overflowing.length === 0,
+    `ends at ${fallbackFontColumn.end} in the fallback font, then at ${wideFontColumn.end}, widest label `
+    + `${wideFontColumn.widest.toFixed(2)}px, overflowing: ${JSON.stringify(wideFontColumn.overflowing)}`);
+  check('a web font that loads after the build moves the plot area once, after the widened column',
+    fallbackFontLeft === fallbackFontColumn.end + Y_AXIS_LABEL_GAP
+    && wideFontLeft === wideFontColumn.end + Y_AXIS_LABEL_GAP && fontWrites === 4,
+    `left ${fallbackFontLeft}, then ${wideFontLeft} in ${fontWrites} writes`);
+
+  // --- A `FontFace` the page adds already loaded fires no `loadingdone`, and the next frame fits the column to it ---
+  const loadedFontFamily = `${WIDE_FONT_FAMILY}Loaded`;
+  await page.evaluate((family) => {
+    const style = document.createElement('style');
+    style.id = 'probe-font';
+    style.textContent = `#probe .lovely-chart--container { font-family: ${family}, sans-serif; }`;
+    document.head.appendChild(style);
+  }, loadedFontFamily);
+  await recordProbeNumbers(page);
+  const loadedFontChart = await mountProbe(page, {
+    config: { ...columnConfig, title: 'Probe — Font face added loaded' },
+  });
+  await loadedFontChart.scrollIntoViewIfNeeded();
+  const unloadedFontColumn = getYLabelColumn(await readProbeTexts(page), true);
+  await page.evaluate(async ({ family, bytes }) => {
+    window.probeFontFace = new FontFace(family, Uint8Array.from(atob(bytes), (char) => char.charCodeAt(0)));
+    await window.probeFontFace.load();
+    document.fonts.add(window.probeFontFace);
+  }, { family: loadedFontFamily, bytes: buildWideFont().toString('base64') });
+  await sleep(500);
+  await loadedFontChart.locator('.lovely-chart--button').nth(1).click();
+  await sleep(1000);
+  const loadedFontColumn = getYLabelColumn(await readProbeTexts(page), true);
+  const loadedFontLeft = await readPlotAreaLeft(page);
+  await unmountProbe(page);
+  await page.evaluate(() => {
+    document.fonts.delete(window.probeFontFace);
+    document.getElementById('probe-font').remove();
+  });
+  check('a font face added already loaded widens the outward column and moves the plot area on the next frame',
+    loadedFontColumn.end > unloadedFontColumn.end && loadedFontColumn.overflowing.length === 0
+    && loadedFontLeft === loadedFontColumn.end + Y_AXIS_LABEL_GAP,
+    `ends at ${unloadedFontColumn.end} before the font, then at ${loadedFontColumn.end}, widest label `
+    + `${loadedFontColumn.widest.toFixed(2)}px, overflowing: ${JSON.stringify(loadedFontColumn.overflowing)}, `
+    + `left ${loadedFontLeft}`);
+
+  // --- Whole Y steps for counts, on both axes ---
+  const countsConfig = {
+    type: 'line',
+    labels: [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day)),
+    datasets: [{ name: 'Red cases', values: [0, 1, 2, 1, 0] }, { name: 'Runs', values: [2, 0, 1, 2, 1] }],
+    hasSecondYAxis: true,
+  };
+  await recordProbeNumbers(page);
+  await mountProbe(page, { config: { ...countsConfig, title: 'Probe — Fractional steps' } });
+  const fractionalSteps = await readProbeNumbers(page);
+  await unmountProbe(page);
+  await recordProbeNumbers(page);
+  await mountProbe(page, { config: { ...countsConfig, title: 'Probe — Whole steps', noFloatSteps: true } });
+  const wholeSteps = await readProbeNumbers(page);
+  await unmountProbe(page);
+  check('noFloatSteps labels a count of 0 to 2 in steps of 1',
+    fractionalSteps.includes(0.5) && JSON.stringify(wholeSteps) === '[0,1,2]',
+    `default: ${JSON.stringify(fractionalSteps)}, whole: ${JSON.stringify(wholeSteps)}`);
 
   // --- Legend labels contrast with their fills ---
   const legendFills = await mountProbe(page, {
@@ -665,6 +2277,769 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       .map(({ color, isLabelWhite }) => `${color} ${isLabelWhite ? 'white' : 'dark'}`)));
   await unmountProbe(page);
 
+  // --- Dashed and dotted datasets, comparison and its tooltip (demo charts) ---
+  const limitChart = charts.nth(LIMIT_CHART);
+  const legendOutlines = await limitChart.locator('.lovely-chart--button')
+    .evaluateAll((elements) => elements.map((el) => getComputedStyle(el).borderTopStyle));
+  check('dashed and dotted datasets outline their legend buttons with a dash and with dots',
+    JSON.stringify(legendOutlines) === '["solid","dashed","dotted"]', JSON.stringify(legendOutlines));
+
+  const comparisonChart = charts.nth(COMPARISON_CHART);
+  await comparisonChart.scrollIntoViewIfNeeded();
+  const comparisonLegend = await comparisonChart.locator('.lovely-chart--comparison-legend').textContent();
+  const comparisonPlot = await comparisonChart.locator('.lovely-chart--tooltip').boundingBox();
+  await hoverWiggle(page, comparisonPlot, 0.7, 0.5);
+  const comparisonTooltip = await comparisonChart.locator('.lovely-chart--tooltip-balloon').evaluate((el) => ({
+    firstRow: el.querySelector('.lovely-chart--tooltip-legend').firstElementChild.className,
+    swatches: el.querySelectorAll('.lovely-chart--tooltip-swatch').length,
+    titleTotal: el.querySelector('.lovely-chart--tooltip-title-total')?.textContent ?? '',
+    hasTotalRow: Boolean(el.querySelector('.lovely-chart--tooltip-dataset-total')),
+    change: el.querySelector('.lovely-chart--tooltip-change')?.dataset.tone,
+  }));
+  check('comparison names its line in the legend', comparisonLegend === 'Week before',
+    JSON.stringify(comparisonLegend));
+  check('the demo tooltip lists the comparison first, swatches and the total by the title',
+    comparisonTooltip.firstRow.includes('lovely-chart--tooltip-dataset-comparison')
+    && comparisonTooltip.swatches > 1 && /^\d{1,3}(,\d{3})+$/.test(comparisonTooltip.titleTotal)
+    && !comparisonTooltip.hasTotalRow && ['positive', 'negative', 'neutral'].includes(comparisonTooltip.change),
+    JSON.stringify(comparisonTooltip));
+
+  // --- Tooltip rows: their look, their order and the total ---
+  const rowsConfig = {
+    type: 'bar',
+    isStacked: true,
+    labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)),
+    datasets: TOOLTIP_ROW_VALUES.map((value, i) => ({
+      name: `D${i}`, color: TOOLTIP_ROW_COLORS[i], values: [value, value, value],
+    })),
+    noZoom: true,
+  };
+  // The 11 largest of the 13 rows fit beside the comparison row
+  const largestRows = TOOLTIP_ROW_VALUES.map((value, i) => ({ value, name: `D${i}` }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 11);
+  const rowsByValue = largestRows.map(({ name }) => name);
+  const rowsInLegendOrder = [...rowsByValue].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+  const rowsTotal = String(TOOLTIP_ROW_VALUES.reduce((sum, value) => sum + value, 0));
+
+  await mountProbe(page, {
+    config: {
+      ...rowsConfig,
+      title: 'Probe — Tooltip rows',
+      comparison: { name: 'Before', values: TOOLTIP_ROW_VALUES.map((value) => [value, value * 0.8, value]) },
+    },
+  });
+  const defaultRows = await readProbeTooltip(page, 1);
+  await unmountProbe(page);
+  check('tooltip rows list the comparison, then the largest values down, then the Total row',
+    JSON.stringify(defaultRows.names) === JSON.stringify(['Before', ...rowsByValue, 'Total'])
+    && defaultRows.titleTotal === undefined,
+    JSON.stringify(defaultRows.names));
+  check('tooltip rows carry swatches of their datasets, the comparison a dashed one, and values in the text colour',
+    JSON.stringify(defaultRows.swatched) === JSON.stringify(['Before', ...rowsByValue])
+    && JSON.stringify(defaultRows.dashedSwatches) === JSON.stringify(['Before'])
+    && defaultRows.swatchColors[0] === hexToRgb(DEFAULT_COMPARISON_COLOR)
+    && defaultRows.swatchColors.slice(1).every((color, i) => (
+      color === hexToRgb(TOOLTIP_ROW_COLORS[Number(rowsByValue[i].slice(1))])
+    ))
+    && defaultRows.areValuesInTextColor,
+    JSON.stringify(defaultRows));
+  check('a rise of the comparison change takes --tooltip-change-positive',
+    defaultRows.change.text === '+25%' && defaultRows.change.tone === 'positive'
+    && defaultRows.change.color === defaultRows.change.positiveColor
+    && defaultRows.change.color !== defaultRows.change.textColor,
+    JSON.stringify(defaultRows.change));
+
+  await mountProbe(page, {
+    config: {
+      ...rowsConfig,
+      title: 'Probe — Tooltip rows, fixed order, total in the title',
+      comparison: { name: 'Before', values: TOOLTIP_ROW_VALUES.map((value) => [value, value * 1.25, value]) },
+      isTooltipOrderFixed: true,
+      isTooltipTotalInTitle: true,
+    },
+  });
+  const fixedRows = await readProbeTooltip(page, 1);
+  await unmountProbe(page);
+  check('isTooltipOrderFixed lists the largest values in the order of the legend',
+    JSON.stringify(fixedRows.names) === JSON.stringify(['Before', ...rowsInLegendOrder]),
+    JSON.stringify(fixedRows.names));
+  check('isTooltipTotalInTitle puts the total by the title, with no Total row',
+    fixedRows.titleTotal === rowsTotal && !fixedRows.names.includes('Total'),
+    `title total: ${fixedRows.titleTotal}, rows: ${JSON.stringify(fixedRows.names)}`);
+  await mountProbe(page, {
+    config: {
+      type: 'area',
+      title: 'Probe — Percentage total in the title',
+      isPercentage: true,
+      isStacked: true,
+      isTooltipTotalInTitle: true,
+      labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [
+        { name: 'A', values: [10, 20, 30] },
+        { name: 'B', values: [30, 40, 50] },
+      ],
+      noZoom: true,
+    },
+  });
+  const percentageRows = await readProbeTooltip(page, 1);
+  await unmountProbe(page);
+  check('isTooltipTotalInTitle puts the total of a percentage chart by the title',
+    percentageRows.titleTotal === '60' && !percentageRows.names.includes('Total'),
+    `title total: ${percentageRows.titleTotal}, rows: ${JSON.stringify(percentageRows.names)}`);
+  check('a fall of the comparison change takes --tooltip-change-negative',
+    fixedRows.change.text === '-20%' && fixedRows.change.tone === 'negative'
+    && fixedRows.change.color === fixedRows.change.negativeColor
+    && fixedRows.change.color !== fixedRows.change.textColor,
+    JSON.stringify(fixedRows.change));
+
+  // A zoom swaps in data of its own, which keeps its total in a row
+  const zoomTotal = await mountProbe(page, {
+    dataUrl: './data/bars.json',
+    config: { title: 'Probe — Title total through a zoom', isTooltipTotalInTitle: true },
+    zoomDataSource: 'data/zoom_bars',
+  });
+  await zoomTotal.scrollIntoViewIfNeeded();
+  const readTotals = () => zoomTotal.locator('.lovely-chart--tooltip-balloon').evaluate((el) => {
+    const title = el.querySelector('.lovely-chart--tooltip-title');
+    const total = el.querySelector('.lovely-chart--tooltip-title-total');
+    const chevron = getComputedStyle(title, '::after');
+
+    return {
+      titleTotal: total?.textContent,
+      hasTotalRow: Boolean(el.querySelector('.lovely-chart--tooltip-dataset-total')),
+      totalEnd: total?.getBoundingClientRect().right,
+      chevronStart: chevron.display === 'none'
+        ? undefined
+        : title.getBoundingClientRect().right - parseFloat(chevron.width),
+    };
+  });
+  const zoomTotalPlot = await zoomTotal.locator('.lovely-chart--tooltip').boundingBox();
+  // The day data covers the newest dates alone
+  const zoomTotalFx = (zoomTotalPlot.width - 5) / zoomTotalPlot.width;
+  await hoverWiggle(page, zoomTotalPlot, zoomTotalFx, 0.6);
+  const overviewTotals = await readTotals();
+  await page.mouse.click(
+    zoomTotalPlot.x + zoomTotalPlot.width * zoomTotalFx,
+    zoomTotalPlot.y + zoomTotalPlot.height * 0.6,
+  );
+  await sleep(2000);
+  await hoverWiggle(page, zoomTotalPlot, 0.5, 0.6);
+  const zoomedTotals = await readTotals();
+  await unmountProbe(page);
+  check('a zoom into data with its total in a row takes the total off the title',
+    Boolean(overviewTotals.titleTotal) && !overviewTotals.hasTotalRow
+    && zoomedTotals.titleTotal === undefined && zoomedTotals.hasTotalRow,
+    JSON.stringify({ overviewTotals, zoomedTotals }));
+  check('the title total of a zoomable balloon stops short of the zoom chevron',
+    overviewTotals.chevronStart !== undefined && overviewTotals.totalEnd <= overviewTotals.chevronStart,
+    JSON.stringify(overviewTotals));
+
+  // The total on the scale of `secondaryYAxis` scales the total `resolveTooltipTotal` gives. A function cannot cross
+  // into the page, so the page builds the chart with the total it is given.
+  const readResolvedSecondaryRows = (config, resolvedTotal) => page.evaluate(async ({ spec, total }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeChart = new LovelyChart(element, {
+      ...spec,
+      title: 'Probe — Resolved secondary total',
+      labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [{ name: 'A', values: [100, 200, 300] }, { name: 'B', values: [10, 20, 30] }],
+      secondaryYAxis: { label: 'USD ≈', multiplier: 2.5, prefix: '$' },
+      resolveTooltipTotal: () => total,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    window.probeChart.selectLabel(1);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
+    const rows = [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset')].map((row) => [
+      row.dataset.name ?? row.firstElementChild.textContent,
+      row.querySelector('.lovely-chart--tooltip-dataset-value').textContent,
+    ].join(' '));
+    window.probeChart.destroy();
+    element.remove();
+    return rows;
+  }, { spec: config, total: resolvedTotal });
+  const resolvedSecondaryRows = {
+    resolved: await readResolvedSecondaryRows({ type: 'line' }, 500),
+    // `resolveTooltipTotal` marks a missing total with `null`
+    // eslint-disable-next-line no-null/no-null
+    missing: await readResolvedSecondaryRows({ type: 'line' }, null),
+  };
+  check('the total on the secondaryYAxis scale scales the total resolveTooltipTotal gives',
+    JSON.stringify(resolvedSecondaryRows.resolved) === '["A 200","B 20","USD ≈ $1250.00"]'
+    && JSON.stringify(resolvedSecondaryRows.missing) === '["A 200","B 20","USD ≈ —"]',
+    JSON.stringify(resolvedSecondaryRows));
+
+  const sparkline = charts.nth(SPARKLINE_CHART);
+  const sparklineLayout = await sparkline.evaluate((el) => ({
+    header: getComputedStyle(el.querySelector('.lovely-chart--header')).display,
+    tools: getComputedStyle(el.querySelector('.lovely-chart--tools')).display,
+    height: el.querySelector('canvas').clientHeight,
+  }));
+  check('a sparkline draws the plot alone at its height',
+    sparklineLayout.header === 'none' && sparklineLayout.tools === 'none' && sparklineLayout.height === 64,
+    JSON.stringify(sparklineLayout));
+
+  // --- Smooth lines, a dataset that starts hidden and the axis font (demo chart) ---
+  const smoothDemoChart = charts.nth(SMOOTH_CHART);
+  await smoothDemoChart.scrollIntoViewIfNeeded();
+  const smoothDemoButtons = smoothDemoChart.locator('.lovely-chart--button');
+  const readSmoothPaint = async () => {
+    const pixels = [];
+    for (const color of SMOOTH_COLORS) pixels.push((await findColor(smoothDemoChart, parseHex(color))).count);
+    const legend = await smoothDemoButtons
+      .evaluateAll((buttons) => buttons.map((button) => button.classList.contains('lovely-chart--state-checked')));
+    return { legend, pixels };
+  };
+  const hiddenPaint = await readSmoothPaint();
+  await startCanvasRecording(smoothDemoChart);
+  await smoothDemoButtons.nth(2).click();
+  await sleep(800);
+  const nightAxisDrawing = await stopCanvasRecording(page);
+  const shownPaint = await readSmoothPaint();
+  // The day skin, while the dataset hides again
+  await page.evaluate(() => document.documentElement.classList.remove('theme-dark'));
+  await sleep(800);
+  await startCanvasRecording(smoothDemoChart);
+  await smoothDemoButtons.nth(2).click();
+  await sleep(800);
+  const dayAxisDrawing = await stopCanvasRecording(page);
+  await page.evaluate(() => document.documentElement.classList.add('theme-dark'));
+  await sleep(800);
+  check('a demo dataset that starts hidden leaves its legend button unchecked and its line out until it is checked',
+    JSON.stringify(hiddenPaint.legend) === '[true,true,false]'
+    && JSON.stringify(shownPaint.legend) === '[true,true,true]'
+    && hiddenPaint.pixels.slice(0, 2).every((count) => count > MIN_DATASET_PIXELS) && hiddenPaint.pixels[2] === 0
+    && shownPaint.pixels[2] > MIN_DATASET_PIXELS,
+    JSON.stringify({ hiddenPaint, shownPaint }));
+  check('the smooth demo chart draws its lines as curves', nightAxisDrawing.curves > 0,
+    `${nightAxisDrawing.curves} curves`);
+  const isSmoothAxisText = ({ texts }, hex) => texts.length > 0 && texts.every(({ font, color }) => (
+    font.split(' ').includes(`${SMOOTH_AXIS_FONT_SIZE}px`) && isTextColor(color, hex)
+  ));
+  check('the demo axis labels take axisFontSize and the axisTextColor of each skin',
+    isSmoothAxisText(nightAxisDrawing, SMOOTH_AXIS_COLORS.night)
+    && isSmoothAxisText(dayAxisDrawing, SMOOTH_AXIS_COLORS.day),
+    JSON.stringify([nightAxisDrawing.texts[0], dayAxisDrawing.texts[0]]));
+
+  // --- An element over the plot by the plot-area variables (demo chart) ---
+  const forecastChart = charts.nth(FORECAST_CHART);
+  await forecastChart.scrollIntoViewIfNeeded();
+  const forecastFit = await forecastChart.evaluate((el, [days, week, hex]) => {
+    const host = el.parentElement;
+    const band = host.querySelector('.forecast-band');
+    const canvas = el.querySelector('canvas');
+    const hostBox = host.getBoundingClientRect();
+    const toHost = ({ left, top, right, bottom }) => ({
+      left: left - hostBox.left - host.clientLeft,
+      top: top - hostBox.top - host.clientTop,
+      right: right - hostBox.left - host.clientLeft,
+      bottom: bottom - hostBox.top - host.clientTop,
+    });
+    const [left, top, width, height] = ['left', 'top', 'width', 'height']
+      .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+    const canvasBox = toHost(canvas.getBoundingClientRect());
+    const scale = canvas.width / canvas.clientWidth;
+    const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const line = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+    for (let j = 0; j < data.length; j += 4) {
+      if (data[j + 3] <= 100 || rgb.some((channel, k) => Math.abs(data[j + k] - channel) >= 24)) continue;
+      const x = canvasBox.left + ((j / 4) % canvas.width) / scale;
+      const y = canvasBox.top + Math.floor(j / 4 / canvas.width) / scale;
+      line.left = Math.min(line.left, x);
+      line.top = Math.min(line.top, y);
+      line.right = Math.max(line.right, x + 1 / scale);
+      line.bottom = Math.max(line.bottom, y + 1 / scale);
+    }
+    return {
+      area: { left, top, right: left + width, bottom: top + height },
+      band: toHost(band.getBoundingClientRect()),
+      bandLeft: left + width * (1 - (week - 1) / (days - 1)),
+      line,
+      isBandBeforeChart: band.nextElementSibling === el,
+    };
+  }, [FORECAST_DAYS, FORECAST_WEEK, FORECAST_LINE_COLOR]);
+  const { area: forecastArea, band: forecastBand, line: forecastLine } = forecastFit;
+  const isNear = (a, b) => Math.abs(a - b) <= PLOT_AREA_TOLERANCE;
+  check('the demo forecast band stands on the plot area by its variables from the first forecast day, under the chart',
+    isNear(forecastBand.top, forecastArea.top) && isNear(forecastBand.bottom, forecastArea.bottom)
+    && isNear(forecastBand.right, forecastArea.right) && isNear(forecastBand.left, forecastFit.bandLeft)
+    && forecastFit.isBandBeforeChart,
+    `band ${formatBox(forecastBand)}, area ${formatBox(forecastArea)}, start ${forecastFit.bandLeft.toFixed(1)}`);
+  check('the plot area of the demo forecast frames its line',
+    isNear(forecastLine.left, forecastArea.left) && isNear(forecastLine.right, forecastArea.right)
+    && forecastLine.top >= forecastArea.top - PLOT_AREA_TOLERANCE
+    && forecastLine.bottom <= forecastArea.bottom + PLOT_AREA_TOLERANCE,
+    `line ${formatBox(forecastLine)}, area ${formatBox(forecastArea)}`);
+  await hoverWiggle(page, await page.locator('.forecast-band').boundingBox(), 0.5, 0.5);
+  const forecastBalloon = await forecastChart.locator('.lovely-chart--tooltip-balloon').evaluate((el) => ({
+    isShown: el.classList.contains('lovely-chart--state-shown'),
+    title: el.querySelector('.lovely-chart--tooltip-title').textContent,
+  }));
+  await page.mouse.move(5, 5);
+  check('the pointer over the demo forecast band reaches the tooltip', forecastBalloon.isShown,
+    JSON.stringify(forecastBalloon));
+
+  // --- `selectLabel()` from the page and `onSelectedIndexChange` (demo chart) ---
+  const pickerChart = charts.nth(DAY_PICKER_CHART);
+  const pickerDays = page.locator('.day-picker-day');
+  await page.locator('.day-picker').scrollIntoViewIfNeeded();
+  const pickerDates = await page.locator('.day-picker-date').allTextContents();
+  const readDayPicker = () => pickerChart.evaluate((el) => {
+    const balloon = el.querySelector('.lovely-chart--tooltip-balloon');
+    return {
+      isShown: balloon.classList.contains('lovely-chart--state-shown'),
+      title: balloon.querySelector('.lovely-chart--tooltip-title').textContent.trim(),
+      marked: [...document.querySelectorAll('.day-picker-day[aria-current="date"] .day-picker-date')]
+        .map((date) => date.textContent),
+    };
+  });
+  const isPickedDay = (picked, i) => picked.isShown && pickerDates[i].endsWith(` ${picked.title}`)
+    && JSON.stringify(picked.marked) === JSON.stringify([pickerDates[i]]);
+  await pickerDays.nth(2).hover();
+  await sleep(400);
+  const hoveredDay = await readDayPicker();
+  await pickerDays.nth(4).focus();
+  await page.keyboard.press('Tab');
+  await sleep(400);
+  const focusedDay = await readDayPicker();
+  const previousDayButton = page.locator('.day-picker-step').first();
+  const nextDayButton = page.locator('.day-picker-step').last();
+  const readSteppedDay = async (button) => {
+    await button.click();
+    await sleep(400);
+    return readDayPicker();
+  };
+  const steppedBackDay = await readSteppedDay(previousDayButton);
+  const steppedOnDay = await readSteppedDay(nextDayButton);
+  const lastDay = await readSteppedDay(nextDayButton);
+  const pastLastDay = await readSteppedDay(nextDayButton);
+  check('a row of the demo list selects its day in the tooltip on hover, and onSelectedIndexChange marks it',
+    isPickedDay(hoveredDay, 2), JSON.stringify(hoveredDay));
+  check('the demo list selects a day on keyboard focus and steps the selection with its buttons up to the last day',
+    isPickedDay(focusedDay, 5) && isPickedDay(steppedBackDay, 4) && isPickedDay(steppedOnDay, 5)
+    && isPickedDay(lastDay, 6) && isPickedDay(pastLastDay, 6),
+    JSON.stringify({ focusedDay, steppedBackDay, steppedOnDay, lastDay, pastLastDay }));
+  const pickerPlot = await pickerChart.locator('.lovely-chart--tooltip').boundingBox();
+  await hoverWiggle(page, pickerPlot, 0.2, 0.5);
+  const pointedDay = await readDayPicker();
+  await page.mouse.move(5, 5);
+  await sleep(400);
+  const leftDay = await readDayPicker();
+  check('the pointer over the demo chart takes the selection over, and leaving the chart clears it',
+    pointedDay.isShown && !pickerDates.some((date) => date.endsWith(` ${pointedDay.title}`))
+    && !pointedDay.marked.length && !leftDay.isShown && !leftDay.marked.length,
+    JSON.stringify({ pointedDay, leftDay }));
+  // A listed day the pointer picks on the chart, which leaves the tooltip as the pointer leaves for a button
+  await hoverWiggle(page, pickerPlot, 0.9, 0.5);
+  const pointedListedDay = await readDayPicker();
+  const pointedListIndex = pickerDates.findIndex((date) => date.endsWith(` ${pointedListedDay.title}`));
+  await page.mouse.move(5, 5);
+  await sleep(400);
+  const stepFromPointedDay = await readSteppedDay(previousDayButton);
+  check('the demo buttons step from a day the pointer picked on the chart after it leaves',
+    pointedListIndex > 0 && isPickedDay(stepFromPointedDay, pointedListIndex - 1),
+    JSON.stringify({ pointedListedDay, stepFromPointedDay }));
+
+  // --- A right-to-left page (demo chart) ---
+  const rtlChart = charts.nth(RTL_CHART);
+  await rtlChart.scrollIntoViewIfNeeded();
+  const rtlButton = rtlChart.locator('.lovely-chart--button').first();
+  await startCanvasRecording(rtlChart);
+  await rtlButton.click();
+  await sleep(600);
+  await rtlButton.click();
+  await sleep(600);
+  const rtlDrawing = await stopCanvasRecording(page);
+  await hoverWiggle(page, await rtlChart.locator('.lovely-chart--tooltip').boundingBox(), 0.62, 0.5);
+  const rtlTooltipNumbers = await readNegativeTooltipNumbers(rtlChart);
+  const rtlDates = await readRightToLeftWords(rtlChart, [
+    '.lovely-chart--header-caption', '.lovely-chart--tooltip-title > span:not(.lovely-chart--tooltip-title-total)',
+  ]);
+  await page.mouse.move(5, 5);
+  const rtlYLabels = [...new Set(rtlDrawing.texts.filter(({ text }) => /^-\d/.test(text))
+    .map(({ text, direction }) => `${text} ${direction}`))];
+  const rtlXLabels = [...new Set(rtlDrawing.texts.filter(({ text }) => !/^-?[\d.]+K?$/.test(text))
+    .map(({ text, direction }) => `${text} ${direction}`))];
+  check('the right-to-left demo chart puts the signs of its Y-axis labels and tooltip numbers before the digits',
+    rtlYLabels.length > 0 && rtlYLabels.every((label) => label.endsWith(' ltr'))
+    && rtlTooltipNumbers.length > 0 && rtlTooltipNumbers.every(({ text, shown }) => shown === text.trim()),
+    JSON.stringify({ rtlYLabels, rtlTooltipNumbers }));
+  check('the right-to-left demo chart reads its Hebrew dates in order on the axis, the caption and the tooltip title',
+    rtlXLabels.length > 0 && rtlXLabels.every((label) => /^\d+ ינו׳ inherit$/.test(label))
+    && rtlDates.every(({ isRightToLeft }) => isRightToLeft),
+    JSON.stringify({ rtlXLabels, rtlDates }));
+
+  // --- Selection, legend callbacks and the plot height property ---
+  await page.evaluate(() => {
+    window.probeLog = [];
+  });
+  const driven = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    element.style.setProperty('--lovely-chart-plot-height', '12.5rem');
+    document.getElementById('container').appendChild(element);
+    window.probeChart = new LovelyChart(element, {
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Driven from outside',
+      labels: [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [{ name: 'A', values: [1, 2, 3, 4, 5] }, { name: 'B', values: [5, 4, 3, 2, 1] }],
+      onSelectedIndexChange: (index) => window.probeLog.push(['selected', index ?? 'none']),
+      onHiddenSeriesChange: (names, indexes) => window.probeLog.push(['hidden', names.join(), indexes.join()]),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    window.probeChart.selectLabel(3);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
+    const isShown = balloon.classList.contains('lovely-chart--state-shown');
+    element.querySelector('.lovely-chart--button').click();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return {
+      isShown,
+      height: element.querySelector('canvas').clientHeight,
+      remHeight: 12.5 * parseFloat(getComputedStyle(document.documentElement).fontSize),
+      log: window.probeLog,
+    };
+  });
+  check('selectLabel shows the tooltip and reports the index', driven.isShown && driven.log[0]?.[1] === 3,
+    JSON.stringify(driven.log));
+  check('a legend toggle reports the hidden datasets',
+    JSON.stringify(driven.log.find(([kind]) => kind === 'hidden')) === JSON.stringify(['hidden', 'A', '0']),
+    JSON.stringify(driven.log));
+  check('the plot height follows --lovely-chart-plot-height', driven.height === driven.remHeight,
+    `${driven.height}px of ${driven.remHeight}px`);
+
+  // The pointer crossing the chart's header, outside its plot, leaves a called selection in place
+  const drivenHeader = await page.locator('#probe .lovely-chart--header-title').boundingBox();
+  await page.mouse.move(drivenHeader.x + 2, drivenHeader.y + drivenHeader.height / 2);
+  await page.mouse.move(drivenHeader.x + 30, drivenHeader.y + drivenHeader.height / 2, { steps: 5 });
+  await sleep(300);
+  const heldSelection = await page.evaluate(async () => {
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    const isHeld = balloon.classList.contains('lovely-chart--state-shown');
+    const heldLog = window.probeLog.filter(([kind]) => kind === 'selected');
+    window.probeChart.selectLabel(undefined);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return {
+      isHeld,
+      heldLog,
+      isCleared: !balloon.classList.contains('lovely-chart--state-shown'),
+      clearedLog: window.probeLog.filter(([kind]) => kind === 'selected'),
+    };
+  });
+  check('a called selection holds while the pointer moves elsewhere',
+    heldSelection.isHeld && JSON.stringify(heldSelection.heldLog) === '[["selected",3]]',
+    JSON.stringify(heldSelection.heldLog));
+  check('selectLabel(undefined) clears the selection and reports it',
+    heldSelection.isCleared && JSON.stringify(heldSelection.clearedLog) === '[["selected",3],["selected","none"]]',
+    JSON.stringify(heldSelection.clearedLog));
+  await unmountProbe(page);
+
+  // A callback can destroy or rebuild the chart that calls it, which then leaves alone what the callback did
+  const callbackRebuilds = await page.evaluate(async ({ labels, newLabels }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const buildParams = (length, onSelectedIndexChange) => ({
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Rebuilt by a callback',
+      labels: Array.from({ length }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+      datasets: [
+        { name: 'A', color: '#3497ED', values: Array.from({ length }, (_, i) => 10 + (i % 4) * 10) },
+        { name: 'B', color: '#F34C44', values: Array.from({ length }, (_, i) => 20 + (i % 3) * 10) },
+      ],
+      onSelectedIndexChange,
+    });
+    const readError = (act) => {
+      try {
+        act();
+        return 'none';
+      } catch (error) {
+        return error.message;
+      }
+    };
+
+    let chart = new LovelyChart(element, buildParams(labels, (index) => {
+      if (index !== undefined) chart.destroy();
+    }));
+    await wait(800);
+    const selectError = readError(() => chart.selectLabel(labels - 1));
+    const selectChildren = element.childElementCount;
+
+    // `update()` reports the end of the selection before it rebuilds the chart
+    chart = new LovelyChart(element, buildParams(labels, (index) => {
+      if (index === undefined) chart.destroy();
+    }));
+    await wait(800);
+    chart.selectLabel(labels - 1);
+    const updateError = readError(() => chart.update(buildParams(newLabels)));
+    const updateChildren = element.childElementCount;
+
+    let isUpdated = false;
+    chart = new LovelyChart(element, buildParams(labels, (index) => {
+      if (index === undefined || isUpdated) return;
+      isUpdated = true;
+      chart.update(buildParams(newLabels));
+    }));
+    await wait(800);
+    const rebuildError = readError(() => chart.selectLabel(labels - 1));
+    await wait(1200);
+    const canvas = element.querySelector('.lovely-chart--container > canvas');
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    let fullColorPixels = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] === 0x34 && data[i + 1] === 0x97 && data[i + 2] === 0xED && data[i + 3] === 255) {
+        fullColorPixels++;
+      }
+    }
+    chart.destroy();
+    element.remove();
+
+    return {
+      selectError, selectChildren, updateError, updateChildren, rebuildError, isUpdated, fullColorPixels,
+    };
+  }, { labels: CALLBACK_CHART_LABELS, newLabels: CALLBACK_UPDATE_LABELS });
+  check('destroy() from onSelectedIndexChange of a bar chart throws nothing and leaves nothing mounted',
+    callbackRebuilds.selectError === 'none' && callbackRebuilds.selectChildren === 0,
+    JSON.stringify(callbackRebuilds));
+  check('destroy() from the onSelectedIndexChange that update() calls stops the update',
+    callbackRebuilds.updateError === 'none' && callbackRebuilds.updateChildren === 0,
+    JSON.stringify(callbackRebuilds));
+  check('update() from onSelectedIndexChange of a bar chart draws the new data in full colour',
+    callbackRebuilds.rebuildError === 'none' && callbackRebuilds.isUpdated
+    && callbackRebuilds.fullColorPixels > MIN_DATASET_PIXELS,
+    JSON.stringify(callbackRebuilds));
+
+  // The state's label range reaches one label past each edge of the window, which selectLabel must not
+  const windowSelection = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeLog = [];
+    const count = 101;
+    window.probeChart = new LovelyChart(element, {
+      type: 'line',
+      title: 'Probe — Selection in the window',
+      withMinimap: true,
+      labels: Array.from({ length: count }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+      datasets: [{ name: 'A', values: Array.from({ length: count }, (_, i) => i % 7) }],
+      onSelectedIndexChange: (index) => window.probeLog.push(index ?? 'none'),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
+    // The default window is the last 20%, so its first label is 80
+    window.probeChart.selectLabel(79);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const isShownBefore = balloon.classList.contains('lovely-chart--state-shown');
+    window.probeChart.selectLabel(80);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return {
+      isShownBefore,
+      isShownFirst: balloon.classList.contains('lovely-chart--state-shown'),
+      title: element.querySelector('.lovely-chart--tooltip-title').textContent,
+      log: [...window.probeLog],
+    };
+  });
+  check('selectLabel ignores the label before the window and takes its first',
+    !windowSelection.isShownBefore && windowSelection.isShownFirst && JSON.stringify(windowSelection.log) === '[80]',
+    JSON.stringify(windowSelection));
+
+  // Panning keeps a called selection on its label until the label leaves the window
+  const windowProbe = page.locator('#probe .lovely-chart--container');
+  await windowProbe.scrollIntoViewIfNeeded();
+  const windowMinimap = await windowProbe.locator('.lovely-chart--minimap').boundingBox();
+  const readWindowSelection = () => page.evaluate(() => ({
+    isShown: document.querySelector('#probe .lovely-chart--tooltip-balloon')
+      .classList.contains('lovely-chart--state-shown'),
+    title: document.querySelector('#probe .lovely-chart--tooltip-title').textContent,
+    log: window.probeLog,
+  }));
+  const sliderX = windowMinimap.x + windowMinimap.width * 0.9;
+  const sliderY = windowMinimap.y + windowMinimap.height / 2;
+  await drag(page, sliderX, sliderY, -windowMinimap.width * 0.1, 0);
+  await sleep(600);
+  const panned = await readWindowSelection();
+  await drag(page, sliderX - windowMinimap.width * 0.1, sliderY, -windowMinimap.width * 0.2, 0);
+  await sleep(600);
+  const pannedAway = await readWindowSelection();
+  check('a called selection follows its label through a pan',
+    panned.isShown && panned.title === windowSelection.title && JSON.stringify(panned.log) === '[80]',
+    JSON.stringify(panned));
+  check('a called selection clears once its label leaves the window',
+    !pannedAway.isShown && JSON.stringify(pannedAway.log) === '[80,"none"]', JSON.stringify(pannedAway));
+  await unmountProbe(page);
+
+  // --- Colour schemes: the `theme-dark` class on <html>, or the system scheme, each against the other ---
+  // A reference line of a colour per skin shows the skin of the canvas, and `--background-color` that of the CSS
+  const schemeConfig = {
+    type: 'line',
+    labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 10, day)),
+    datasets: [{ name: 'A', color: '#3497ED', values: [1, 3, 2, 4] }],
+    referenceLines: [{ value: 2.5, color: { light: '#FF00FF', dark: '#00FFFF' } }],
+  };
+  const readSkins = async (chart) => {
+    await sleep(300);
+    const day = await findColor(chart, [255, 0, 255]);
+    const night = await findColor(chart, [0, 255, 255]);
+    const background = await chart.evaluate((el) => (
+      getComputedStyle(el).getPropertyValue('--background-color').trim().toLowerCase()
+    ));
+    const canvas = (day.count > 50 && !night.count && 'day') || (night.count > 50 && !day.count && 'night') || 'mixed';
+    return `${canvas} canvas, ${background}`;
+  };
+  const setHtmlDark = (isDark) => page.evaluate((value) => {
+    document.documentElement.classList.toggle('theme-dark', value);
+  }, isDark);
+  const wasHtmlDark = await page.evaluate(() => document.documentElement.classList.contains('theme-dark'));
+
+  const defaultSchemeChart = await mountProbe(page, { config: { ...schemeConfig, title: 'Probe — Default scheme' } });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await setHtmlDark(false);
+  const defaultSchemeDay = await readSkins(defaultSchemeChart);
+  await page.emulateMedia({ colorScheme: 'light' });
+  await setHtmlDark(true);
+  const defaultSchemeNight = await readSkins(defaultSchemeChart);
+  await unmountProbe(page);
+  check('a chart without colorScheme follows the theme-dark class on <html>, not the system',
+    defaultSchemeDay === 'day canvas, #ffffff' && defaultSchemeNight === 'night canvas, #242f3e',
+    `dark system without the class: ${defaultSchemeDay}; light system with it: ${defaultSchemeNight}`);
+
+  const classChart = await mountProbe(page, {
+    config: { ...schemeConfig, title: 'Probe — HTML class name scheme', colorScheme: 'htmlClassName' },
+  });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await setHtmlDark(false);
+  const classDay = await readSkins(classChart);
+  await page.emulateMedia({ colorScheme: 'light' });
+  await setHtmlDark(true);
+  const classNight = await readSkins(classChart);
+  await unmountProbe(page);
+  check('colorScheme htmlClassName follows the theme-dark class on <html>',
+    classDay === 'day canvas, #ffffff' && classNight === 'night canvas, #242f3e',
+    `without the class: ${classDay}; with it: ${classNight}`);
+
+  const systemChart = await mountProbe(page, {
+    config: { ...schemeConfig, title: 'Probe — System scheme', colorScheme: 'system' },
+  });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await setHtmlDark(true);
+  const systemDay = await readSkins(systemChart);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await setHtmlDark(false);
+  const systemNight = await readSkins(systemChart);
+  // Playwright restores the system scheme on `null` alone
+  // eslint-disable-next-line no-null/no-null
+  await page.emulateMedia({ colorScheme: null });
+  await setHtmlDark(wasHtmlDark);
+  await unmountProbe(page);
+  check('colorScheme system follows prefers-color-scheme',
+    systemDay === 'day canvas, #ffffff' && systemNight === 'night canvas, #242f3e',
+    `light: ${systemDay}; dark: ${systemNight}`);
+
+  // A zoom into a lines view keeps the chart's scheme, live
+  const schemeReferenceLines = [{ value: 25, color: { light: '#FF00FF', dark: '#00FFFF' } }];
+  await page.emulateMedia({ colorScheme: 'light' });
+  await setHtmlDark(false);
+  const systemZoom = await mountLinesZoom(page, {
+    overview: [{ name: 'A', color: '#3497ED' }, { name: 'B', color: '#E65850' }],
+    zoomed: [{ name: 'C', color: '#3497ED' }, { name: 'D', color: '#E65850' }, { name: 'E', color: '#9ED448' }],
+    config: { colorScheme: 'system', referenceLines: schemeReferenceLines },
+    // A zoom into more datasets than the chart draws them in the colours of `colors`
+    zoomConfig: { referenceLines: schemeReferenceLines, colors: { y0: '#3497ED', y1: '#E65850', y2: '#9ED448' } },
+  });
+  await systemZoom.scrollIntoViewIfNeeded();
+  const systemZoomPlot = await systemZoom.locator('.lovely-chart--tooltip').boundingBox();
+  await hoverWiggle(page, systemZoomPlot, 0.5, 0.5);
+  await page.mouse.click(systemZoomPlot.x + systemZoomPlot.width / 2, systemZoomPlot.y + systemZoomPlot.height / 2);
+  await sleep(2000);
+  await page.mouse.move(0, 0);
+  const systemZoomDay = await readSkins(systemZoom);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const systemZoomNight = await readSkins(systemZoom);
+  const isSystemZoomLines = await systemZoom.locator('.lovely-chart--button').count() === 3;
+  // eslint-disable-next-line no-null/no-null
+  await page.emulateMedia({ colorScheme: null });
+  await setHtmlDark(wasHtmlDark);
+  await unmountProbe(page);
+  check('colorScheme system follows prefers-color-scheme through a zoom into a lines view',
+    isSystemZoomLines && systemZoomDay === 'day canvas, #ffffff' && systemZoomNight === 'night canvas, #242f3e',
+    `light: ${systemZoomDay}; dark: ${systemZoomNight}`);
+
+  // --- A page's night colours, under the library's own night selectors, apply ---
+  const nightOverride = await mountProbe(page, {
+    dataUrl: './data/steps.json',
+    config: { title: 'Probe — Night override' },
+  });
+  const nightColors = await nightOverride.evaluate((el) => {
+    const root = document.documentElement;
+    const wasDark = root.classList.contains('theme-dark');
+    root.classList.add('theme-dark');
+    const style = document.createElement('style');
+    style.textContent = 'html.theme-dark .lovely-chart--container { --background-color: #101010; }'
+      + ' html.theme-dark .lovely-chart--tooltip-balloon { box-shadow: rgb(1, 2, 3) 0px 0px 3px; }';
+    document.head.appendChild(style);
+    const colors = {
+      background: getComputedStyle(el).getPropertyValue('--background-color').trim().toLowerCase(),
+      balloonShadow: getComputedStyle(el.querySelector('.lovely-chart--tooltip-balloon')).boxShadow,
+    };
+    style.remove();
+    root.classList.toggle('theme-dark', wasDark);
+    return colors;
+  });
+  check('a page overrides the night colours with the library\'s night selectors',
+    nightColors.background === '#101010' && nightColors.balloonShadow.includes('rgb(1, 2, 3)'),
+    JSON.stringify(nightColors));
+  await unmountProbe(page);
+
+  // --- UTC labels, west of UTC ---
+  const westContext = await browser.newContext({ timezoneId: 'America/Los_Angeles' });
+  const westPage = await westContext.newPage();
+  await westPage.goto(url);
+  const westTitles = await westPage.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const titleAt = async (isUtc) => {
+      const element = document.createElement('div');
+      document.body.appendChild(element);
+      const chart = new LovelyChart(element, {
+        type: 'line',
+        labels: [Date.UTC(2026, 10, 17), Date.UTC(2026, 10, 18)],
+        labelType: 'day',
+        isUtc,
+        datasets: [{ name: 'A', values: [1, 2] }],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      chart.selectLabel(1);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const title = element.querySelector('.lovely-chart--tooltip-title').textContent;
+      chart.destroy();
+      element.remove();
+      return title;
+    };
+    return { utc: await titleAt(true), local: await titleAt(false) };
+  });
+  await westPage.locator('.day-picker-day').nth(2).hover();
+  await sleep(400);
+  const westPickedDay = {
+    date: await westPage.locator('.day-picker-date').nth(2).textContent(),
+    title: (await westPage.locator('.lovely-chart--container').nth(DAY_PICKER_CHART)
+      .locator('.lovely-chart--tooltip-title').textContent()).trim(),
+  };
+  await westContext.close();
+  check('isUtc reads day labels in UTC', westTitles.utc === '18 Nov' && westTitles.local === '17 Nov',
+    JSON.stringify(westTitles));
+  check('the demo list and its chart\'s tooltip read the same day west of UTC',
+    westPickedDay.date.endsWith(` ${westPickedDay.title}`), JSON.stringify(westPickedDay));
+
   // --- RTL layout (header sides swap, nothing overlaps) ---
   await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
   await sleep(300);
@@ -677,6 +3052,59 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('rtl header puts the title on the trailing side',
     rtlHeader.titleLeft >= rtlHeader.captionRight,
     `title left: ${Math.round(rtlHeader.titleLeft)}, caption right: ${Math.round(rtlHeader.captionRight)}`);
+  await charts.nth(0).scrollIntoViewIfNeeded();
+  await hoverWiggle(page, await charts.nth(0).locator('.lovely-chart--tooltip').boundingBox(), 0.45, 0.5);
+  const rtlRow = await charts.nth(0).evaluate((el) => {
+    const row = el.querySelector('.lovely-chart--tooltip-dataset');
+    const box = (selector) => row.querySelector(selector).getBoundingClientRect();
+    return {
+      swatchLeft: box('.lovely-chart--tooltip-swatch').left,
+      name: { left: box('.lovely-chart--dataset-title').left, right: box('.lovely-chart--dataset-title').right },
+      valueRight: box('.lovely-chart--tooltip-dataset-value').right,
+    };
+  });
+  check('an rtl tooltip row puts the swatch on the right and the value on the left',
+    rtlRow.swatchLeft >= rtlRow.name.right && rtlRow.valueRight <= rtlRow.name.left, JSON.stringify(rtlRow));
+  await mountProbe(page, {
+    config: {
+      type: 'bar', isStacked: true, labelType: 'text', labels: ['A', 'B'], isTooltipTotalInTitle: true,
+      datasets: [{ name: 'Sales', values: [10, -30] }, { name: 'Fees', values: [5, 10] }],
+      comparison: { name: 'Before', values: [[5, 10], [2, 5]] },
+    },
+  });
+  // The characters of each number in the order they show, left to right
+  const rtlNumbers = await page.evaluate(async () => {
+    window.probeChart.selectLabel(1);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    const readVisualOrder = (element) => {
+      const range = document.createRange();
+      const characters = [];
+      const walk = (node) => {
+        if (node.nodeType !== Node.TEXT_NODE) {
+          node.childNodes.forEach(walk);
+          return;
+        }
+        for (let i = 0; i < node.length; i++) {
+          range.setStart(node, i);
+          range.setEnd(node, i + 1);
+          if (node.data[i].trim()) characters.push([node.data[i], range.getBoundingClientRect().left]);
+        }
+      };
+      walk(element);
+      return characters.sort((a, b) => a[1] - b[1]).map(([character]) => character).join('');
+    };
+    return {
+      comparison: readVisualOrder(balloon.querySelector(
+        '.lovely-chart--tooltip-dataset-comparison .lovely-chart--tooltip-dataset-value',
+      )),
+      titleTotal: readVisualOrder(balloon.querySelector('.lovely-chart--tooltip-title-total')),
+    };
+  });
+  check('an rtl tooltip puts the signs of its comparison and its title total before the digits',
+    rtlNumbers.comparison === '15·-233%' && rtlNumbers.titleTotal === '-20',
+    JSON.stringify(rtlNumbers));
+  await unmountProbe(page);
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
   await sleep(300);
 
@@ -686,12 +3114,46 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('theme switch repaints without errors', (await paintedPixels(page, 0)) > 1000);
 
   // --- Resize (debounced destroy-and-recreate path) ---
+  // The probe's element follows the viewport width, so the rebuild narrows the plot area
+  const resizedAreaChart = await mountProbe(page, {
+    config: { ...areaConfig, title: 'Probe — Plot area resize' },
+    hostStyle: `${PADDED_HOST_STYLE}; width: 40vw`,
+  });
+  await resizedAreaChart.scrollIntoViewIfNeeded();
+  await addPlotAreaOverlay(page);
+  const wideAreaFit = await readPlotAreaFit(page, ['#FF0000']);
   await page.setViewportSize({ width: 700, height: 1200 });
   await sleep(1200);
+  const narrowAreaFit = await readPlotAreaFit(page, ['#FF0000']);
+  await unmountProbe(page);
+  check('a rebuild on resize narrows the plot area with the plot',
+    isFramedBy(narrowAreaFit.overlay, narrowAreaFit.boxes[0])
+    && narrowAreaFit.overlay.right < wideAreaFit.overlay.right - 50,
+    `overlay ${formatBox(narrowAreaFit.overlay)} after ${formatBox(wideAreaFit.overlay)}, `
+    + `line ${formatBox(narrowAreaFit.boxes[0])}`);
+
   const countAfterResize = await page.locator('.lovely-chart--container').count();
   const paintedAfterResize = await paintedPixels(page, 0);
   check('resize redraw keeps all charts alive', countAfterResize === EXPECTED_CHARTS && paintedAfterResize > 1000,
     `charts: ${countAfterResize}, painted: ${paintedAfterResize}px`);
+
+  await page.setViewportSize({ width: PHONE_WIDTH, height: 812 });
+  await sleep(1200);
+  const phoneWidths = await page.evaluate(() => ({
+    scroll: document.documentElement.scrollWidth,
+    client: document.documentElement.clientWidth,
+  }));
+  check('the demo page fits a phone without scrolling sideways', phoneWidths.scroll <= phoneWidths.client,
+    JSON.stringify(phoneWidths));
+  const phoneForecastLabel = await page.locator('.forecast-band').evaluate((band) => {
+    const range = document.createRange();
+    range.selectNodeContents(band);
+    const text = range.getBoundingClientRect();
+    const { left, right } = band.getBoundingClientRect();
+    return { band: [left, right], text: [text.left, text.right], isInside: text.left >= left && text.right <= right };
+  });
+  check('the demo forecast band holds its label on a phone', phoneForecastLabel.isInside,
+    JSON.stringify(phoneForecastLabel));
 
   // --- Console hygiene ---
   check('no page or console errors', errors.length === 0, errors.join('; ').slice(0, 200));

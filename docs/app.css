@@ -56,3 +56,96 @@ a:hover, a:active, a:visited {
   display: inline-flex;
   margin: 0 10px;
 }
+
+.forecast-chart {
+  position: relative;
+}
+
+.forecast-band {
+  position: absolute;
+  top: var(--lovely-chart-plot-area-top);
+  left: calc(var(--lovely-chart-plot-area-left) + var(--lovely-chart-plot-area-width) * var(--forecast-start));
+  width: calc(var(--lovely-chart-plot-area-width) * (1 - var(--forecast-start)));
+  height: var(--lovely-chart-plot-area-height);
+  display: flex;
+  align-items: flex-end;
+  box-sizing: border-box;
+  padding: 6px 4px;
+  border-left: 1px dashed #108BE3;
+  background: repeating-linear-gradient(135deg, rgba(16, 139, 227, 0.14) 0 5px, transparent 5px 10px);
+  color: #108BE3;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+html.theme-dark .forecast-band {
+  border-left-color: #48AAF0;
+  background: repeating-linear-gradient(135deg, rgba(72, 170, 240, 0.2) 0 5px, transparent 5px 10px);
+  color: #48AAF0;
+}
+
+.day-picker {
+  --day-picker-line: rgba(24, 45, 59, 0.1);
+  --day-picker-accent: #0A6EBD;
+  --day-picker-current: rgba(52, 151, 237, 0.12);
+
+  margin: 0 10px 24px;
+}
+
+html.theme-dark .day-picker {
+  --day-picker-line: rgba(255, 255, 255, 0.1);
+  --day-picker-accent: #48AAF0;
+  --day-picker-current: rgba(72, 170, 240, 0.18);
+}
+
+.day-picker button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+
+.day-picker button:focus-visible {
+  outline: 2px solid var(--day-picker-accent);
+  outline-offset: -2px;
+}
+
+.day-picker-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.day-picker .day-picker-step {
+  padding: 6px 14px;
+  border: 1px solid var(--day-picker-line);
+  border-radius: 16px;
+  color: var(--day-picker-accent);
+}
+
+.day-picker-days {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--day-picker-line);
+}
+
+.day-picker .day-picker-day {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--day-picker-line);
+}
+
+.day-picker .day-picker-day[aria-current] {
+  background: var(--day-picker-current);
+  box-shadow: inset 3px 0 var(--day-picker-accent);
+  font-weight: 500;
+}
+
+.day-picker-value {
+  font-variant-numeric: tabular-nums;
+}
