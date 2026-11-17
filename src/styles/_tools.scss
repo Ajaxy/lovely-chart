@@ -11,3 +11,22 @@
     opacity: 0;
   }
 }
+
+// The comparison line is not a dataset to toggle, so its entry is a dashed swatch beside its name
+.lovely-chart--comparison-legend {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+
+  margin-block: 0 8px;
+  padding: 7px 0;
+
+  color: var(--text-color);
+  vertical-align: top;
+
+  &::before {
+    content: '';
+    width: 16px;
+    border-top: 2px dashed var(--lovely-chart-series-color);
+  }
+}

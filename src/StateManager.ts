@@ -1,5 +1,6 @@
 import type { AnalyzedData, ChartState, Filter, FocusOn, PointerVector, Range, Size } from './types.js';
 
+import { extendComparisonRanges } from './comparison.js';
 import {
   ANIMATE_PROPS,
   AXES_MAX_COLUMN_WIDTH,
@@ -189,6 +190,7 @@ function calculateState(
   const yRanges = data.isStacked || data.isShares
     ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState)
     : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+  extendComparisonRanges(data, filter, labelFromIndex, labelToIndex, yRanges);
 
   const yAxisScale = calculateYAxisScale(
     viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport, data.noFloatSteps,

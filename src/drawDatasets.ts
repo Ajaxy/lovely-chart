@@ -3,6 +3,7 @@ import type {
   AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, LabelRange, LinePattern, Pixel, Point,
 } from './types.js';
 
+import { getComparisonValues } from './comparison.js';
 import {
   CIRCLE_MINIMUM_VISIBLE_PERCENT, DONUT_INNER_RADIUS_FACTOR, GAP, NO_FOCUS, PLOT_BARS_WIDTH_SHIFT, PLOT_CIRCLE_SHIFT,
 } from './constants.js';
@@ -16,6 +17,8 @@ import { getCssColor, pickSkinColor } from './skin.js';
 const MARKED_SEGMENT_POINTS = 3;
 const AREA_BORDER_WIDTH = 1;
 const MARK_RADIUS_FACTOR = 1.5;
+const COMPARISON_LINE_WIDTH_FACTOR = 0.75;
+const COMPARISON_DASH = [5, 4];
 const DATASET_DASHES: Record<LinePattern, number[]> = { dashed: [6, 4], dotted: [2, 3] };
 // The chords that measure each curve of a smooth line
 const SMOOTH_LENGTH_SAMPLES = 64;
@@ -132,6 +135,28 @@ export function drawDatasets(
     context.lineJoin = 'bevel';
     context.stroke(areaBorder);
     context.restore();
+  }
+
+  if (data.comparison) {
+    const comparisonValues = getComparisonValues(data, visibilities);
+    const toComparisonPoint = (value: number | null, labelIndex: number): DrawPoint => (
+      { labelIndex, stackValue: value ?? 0, isGap: value === GAP }
+    );
+    const comparisonPoints = comparisonValues
+      .slice(range.from, range.to + 1)
+      .map((value, j) => toComparisonPoint(value, range.from + j));
+
+    // The comparison line takes the shape of the line datasets it compares with
+    drawDatasetLine(context, comparisonPoints, projection, {
+      color: getCssColor(colors, 'dataset#comparison'),
+      lineWidth: lineWidth * COMPARISON_LINE_WIDTH_FACTOR,
+      opacity: 1,
+      simplification,
+      dash: COMPARISON_DASH,
+      leadPoints: comparisonValues.slice(0, range.from).map(toComparisonPoint),
+      areLinesSmooth: data.isLines && data.areLinesSmooth,
+      seriesValues: comparisonValues,
+    });
   }
 
   if (state.focusOn !== undefined && state.focusOn !== NO_FOCUS && (data.isBars || data.isSteps)) {

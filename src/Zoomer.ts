@@ -192,6 +192,7 @@ export class Zoomer {
     zoomInLabel: XLabel | undefined,
     isInstant: boolean,
   ) {
+    const legendBefore = describeLegend(this.#data);
     // The skin belongs to the page around the chart, which a zoom leaves as it is
     const { axisTextColor, backgroundColor } = this.#overviewData;
     Object.assign(this.#data, newData, { axisTextColor, backgroundColor });
@@ -199,6 +200,13 @@ export class Zoomer {
 
     if (shouldZoomToLines && newRawData.colors) {
       Object.assign(this.#colors, createColors(newRawData.colors, this.#data));
+    }
+    if (newData.comparison) {
+      // The comparison of the zoomed data takes its colour beside the colours of the datasets on screen
+      const comparisonColors = createColors({ comparison: newData.comparison.color }, this.#data);
+      Object.keys(comparisonColors).forEach((skin) => {
+        this.#colors[skin]['dataset#comparison'] = comparisonColors[skin]['dataset#comparison'];
+      });
     }
 
     const daysCount = this.#isZoomed || this.#data.shouldZoomToShares
@@ -244,6 +252,8 @@ export class Zoomer {
       this.#tools.redraw(filter);
       this.#container.style.width = `${this.#container.scrollWidth}px`;
       this.#container.style.height = `${this.#container.scrollHeight}px`;
+    } else if (describeLegend(this.#data) !== legendBefore) {
+      this.#tools.redraw(filter);
     }
 
     if (isInstant) {
@@ -339,4 +349,9 @@ export class Zoomer {
       }),
     };
   }
+}
+
+// What the legend shows of the data: the comparison's name and colour
+function describeLegend({ comparison }: AnalyzedData): string {
+  return JSON.stringify(comparison && [comparison.name, comparison.color]);
 }

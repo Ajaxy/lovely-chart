@@ -47,9 +47,10 @@ export class Tools {
     this.#element = createElement();
     this.#element.className = 'lovely-chart--tools';
 
-    // A lone dataset needs no legend, unless it starts hidden and the legend is the way to show it
-    const { datasets } = this.#data;
-    if (datasets.length < 2 && !datasets.some(({ isInitiallyHidden }) => isInitiallyHidden)) {
+    // A lone dataset needs no legend, unless it starts hidden and the legend is the way to show it,
+    // or a comparison line needs its name
+    const { datasets, comparison } = this.#data;
+    if (datasets.length < 2 && !comparison && !datasets.some(({ isInitiallyHidden }) => isInitiallyHidden)) {
       this.#element.className += ' lovely-chart--state-hidden';
     }
 
@@ -107,6 +108,14 @@ export class Tools {
 
       this.#element.appendChild(control);
     });
+
+    if (comparison) {
+      const comparisonLegend = createElement<HTMLSpanElement>('span');
+      comparisonLegend.className = 'lovely-chart--comparison-legend';
+      comparisonLegend.style.setProperty('--lovely-chart-series-color', comparison.color);
+      comparisonLegend.textContent = comparison.name;
+      this.#element.appendChild(comparisonLegend);
+    }
 
     this.#container.appendChild(this.#element);
   }

@@ -1,5 +1,6 @@
 import type { AnalyzedData } from './types.js';
 
+import { getComparisonValues } from './comparison.js';
 import { GAP } from './constants.js';
 import {
   calculateYAxisScale, ceilToStep, floorToStep, getYAxisRowCount, getYRangeBottom, isConstantRange, yScaleLevelToStep,
@@ -10,6 +11,8 @@ const DECIMAL_BASE = 10;
 
 interface Series {
   values: (number | null)[];
+  // The comparison line while this dataset is the only one on screen
+  previousValues: (number | null)[];
 }
 
 interface Bounds {
@@ -31,18 +34,22 @@ interface LatestValue {
 export function listYAxisValues(data: AnalyzedData, plotHeight: number): number[] {
   const { isStacked, noFloatSteps } = data;
   const length = data.xLabels.length;
-  const series = data.datasets.flatMap(({ values, hasOwnYAxis }): Series[] => (
-    isStacked || !hasOwnYAxis ? [{ values }] : []
+  const series = data.datasets.flatMap(({ values, hasOwnYAxis }, i): Series[] => (
+    isStacked || !hasOwnYAxis ? [{ values, previousValues: data.comparison?.values[i] ?? [] }] : []
   ));
   const dataValues = series.flatMap(({ values }) => values.filter((value): value is number => value !== GAP));
   const references = data.referenceLines.map(({ value }) => value);
-  const { min = 0, max: top = 0 } = getMaxMin([
+  const previousTotals = data.comparison ? getComparisonValues(data, data.datasets.map(() => 1)) : [];
+  const { min = 0, max = 0 } = getMaxMin([
     ...dataValues,
     // A stacked window always spans 0
     ...(isStacked ? [0, ...listSubsetTotalBounds(series.map(({ values }) => values), length)] : []),
     ...references,
   ]);
-  const bottom = isStacked ? min : getYRangeBottom(min, top);
+  // The comparison line draws the previous total of the datasets on screen, which no subset takes past these bounds
+  const comparison = getMaxMin(listSubsetTotalBounds(series.map(({ previousValues }) => previousValues), length));
+  const bottom = Math.min(isStacked ? min : getYRangeBottom(min, max), comparison.min ?? Infinity);
+  const top = Math.max(max, comparison.max ?? -Infinity);
 
   if (isConstantRange(bottom, top)) {
     return [bottom];
@@ -52,14 +59,14 @@ export function listYAxisValues(data: AnalyzedData, plotHeight: number): number[
   // A stacked window always spans 0, so its labels reach out from there
   const narrowestRanges = isStacked
     ? new Map([[0, getNarrowestStackRange(series, dataValues, referenceBounds)]])
-    : getNarrowestRanges(series, referenceBounds);
+    : getNarrowestRanges(series, previousTotals, referenceBounds);
   const anchors = Float64Array.from(narrowestRanges.keys()).sort();
   const anchorRanges = anchors.map((value) => narrowestRanges.get(value)!);
   const narrowestRange = anchorRanges.reduce((narrowest, range) => Math.min(narrowest, range), top - bottom);
   const rowCount = getYAxisRowCount(plotHeight);
   const finestLevel = calculateYAxisScale(plotHeight, 0, narrowestRange, noFloatSteps);
   const coarsestLevel = calculateYAxisScale(plotHeight, bottom, top, noFloatSteps);
-  const values = isStacked ? [] : listConstantValues(series, references);
+  const values = isStacked ? [] : listConstantValues(series, references, length);
   const reachedValues = new Float64Array(anchors.length);
 
   // Every step labels 0 when the range spans it, also where no other label of that step fits
@@ -101,7 +108,7 @@ function listSubsetTotalBounds(valueLists: (number | null)[][], length: number):
 
     valueLists.forEach((values) => {
       const value = values[i];
-      if (value === GAP) return;
+      if (value === GAP || value === undefined) return;
 
       if (value < 0) {
         negativeSum += value;
@@ -134,16 +141,18 @@ function getNarrowestStackRange(series: Series[], dataValues: number[], referenc
 
 /**
  * The narrowest range of a window around each value, keyed by the value. A window that is not constant holds a value
- * apart from a reference line, or two different values, the later of which meets the latest value of the other's
- * dataset.
+ * apart from a reference line, two different values, the later of which meets the latest value of the other's
+ * dataset, or a value apart from the previous one at its label.
  */
-function getNarrowestRanges(series: Series[], references: Bounds): Map<number, number> {
+function getNarrowestRanges(
+  series: Series[], previousTotals: (number | null)[], references: Bounds,
+): Map<number, number> {
   const narrowestRanges = new Map<number, number>();
   const latestValues: LatestValue[] = [];
   const length = Math.max(...series.map(({ values }) => values.length));
 
   for (let labelIndex = 0; labelIndex < length; labelIndex++) {
-    series.forEach(({ values }, seriesIndex) => {
+    series.forEach(({ values, previousValues }, seriesIndex) => {
       const value = values[labelIndex];
       if (value === GAP) return;
 
@@ -163,6 +172,12 @@ function getNarrowestRanges(series: Series[], references: Bounds): Map<number, n
         latest.narrowestRange = narrowDown(latest.narrowestRange, range);
       });
 
+      [previousValues[labelIndex], previousTotals[labelIndex]].forEach((previousValue) => {
+        if (previousValue === GAP || previousValue === undefined) return;
+
+        narrowestRange = narrowDown(narrowestRange, getWindowRange(value, value, references, previousValue));
+      });
+
       if (ownLatest !== undefined) keepNarrowest(ownLatest);
       latestValues[seriesIndex] = { value, labelIndex, narrowestRange };
     });
@@ -177,21 +192,30 @@ function getNarrowestRanges(series: Series[], references: Bounds): Map<number, n
   }
 }
 
-// A window of one value labels that value alone, which every reference line has to equal
-function listConstantValues(series: Series[], references: number[]): number[] {
-  const values = series.flatMap(({ values: seriesValues }) => seriesValues.filter(
-    (value): value is number => value !== GAP,
+/**
+ * A window of one value labels that value alone, which every reference line has to equal. So does its previous
+ * value, unless a dataset lacks one at its label: with that dataset on screen, the comparison line has a gap there.
+ */
+function listConstantValues(series: Series[], references: number[], length: number): number[] {
+  const isPreviousMissing = Array.from({ length }, (_, i) => series.some(({ previousValues }) => (
+    previousValues[i] === GAP || previousValues[i] === undefined
+  )));
+  const values = series.flatMap(({ values: seriesValues, previousValues }) => seriesValues.filter(
+    (value, i): value is number => value !== GAP && (isPreviousMissing[i] || previousValues[i] === value),
   ));
 
   return [...new Set(values)].filter((value) => references.every((reference) => reference === value));
 }
 
-// A window spans its values and every reference line, from 0 when its lowest value is low enough
-function getWindowRange(lowest: number, highest: number, references: Bounds): number {
+// A window spans its values and every reference line, from 0 when its lowest value is low enough, then its previous
+// value, which the comparison line adds to the range after that
+function getWindowRange(lowest: number, highest: number, references: Bounds, previousValue?: number): number {
   const max = Math.max(highest, references.max);
   const bottom = getYRangeBottom(Math.min(lowest, references.min), max);
 
-  return max - bottom;
+  return previousValue === undefined
+    ? max - bottom
+    : Math.max(max, previousValue) - Math.min(bottom, previousValue);
 }
 
 // A window of a range of 0 is constant, which takes no step

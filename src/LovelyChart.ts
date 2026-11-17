@@ -34,7 +34,7 @@ import { debounce } from './utils.js';
 import { Zoomer } from './Zoomer.js';
 
 export type {
-  ChartType, DateLocale, LabelType, LovelyChartDatasetParams, LovelyChartParams, ReferenceLine,
+  ChartType, Comparison, DateLocale, LabelType, LovelyChartDatasetParams, LovelyChartParams, ReferenceLine,
   SecondaryYAxisConfig, ThemedColor,
 } from './types.js';
 

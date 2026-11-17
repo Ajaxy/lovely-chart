@@ -8,6 +8,8 @@ import {
 import { getLabelFraction } from './formulas.js';
 import { getMaxMin } from './utils.js';
 
+const DEFAULT_COMPARISON_COLOR = '#6B7280';
+
 const DEFAULT_COLORS = [
   '#3497ED', '#2373DB', '#9ED448', '#5FB641',
   '#F5BD25', '#F79E39', '#E65850', '#5D5CDC',
@@ -42,7 +44,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage,
     percentPrecision, secondaryYAxis, areLinesSmooth, areaOpacity, areaBorderColor,
-    referenceLines,
+    referenceLines, comparison,
     plotHeight, isSparkline, areLabelsContrast, isYAxisOutward, noFloatSteps,
     axisFontSize, axisTextColor, backgroundColor,
     hasSecondYAxis, onZoom, noZoom, zoomType, zoomToShares, circleLabelsAround,
@@ -56,7 +58,14 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : undefined);
   const { datasets, labels } = prepareDatasets(data);
 
+  const isShares = Boolean(isPercentage) || isCircle;
+  const analyzedComparison = comparison && !isShares
+    ? { ...comparison, color: comparison.color ?? DEFAULT_COMPARISON_COLOR }
+    : undefined;
   const colors: Record<string, string> = {};
+  if (analyzedComparison) {
+    colors.comparison = analyzedComparison.color;
+  }
   let totalYMin = Infinity;
   let totalYMax = -Infinity;
   datasets.forEach(({ key, color, yMin, yMax }) => {
@@ -119,7 +128,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     isStacked,
     isPercentage,
     percentPrecision,
-    isShares: Boolean(isPercentage) || isCircle,
+    isShares,
     plotHeight,
     isSparkline,
     areLabelsContrast,
@@ -129,6 +138,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     axisTextColor,
     backgroundColor,
     referenceLines: isCircle ? [] : (referenceLines ?? []).filter(({ value }) => Number.isFinite(value)),
+    comparison: analyzedComparison,
     areLinesSmooth,
     areaOpacity,
     areaBorderColor,

@@ -78,6 +78,19 @@ export interface ReferenceLine {
   color?: string | { light: string; dark: string };
 }
 
+/** The values of a previous period, drawn as one dashed line under the name of its legend entry. */
+export interface Comparison {
+  /** Name in the legend and in the tooltip, as `'Previous period'`. */
+  name: string;
+  /** Hex colour of the line; defaults to `#6B7280`. */
+  color?: string;
+  /**
+   * Previous values per dataset, in the order of `datasets`, each aligned with `labels`. The line draws their
+   * sum over the datasets on screen, and `null` leaves a gap.
+   */
+  values: (number | null)[][];
+}
+
 /** Localized date strings for axis, tooltip and caption labels. Each is optional and falls back to English. */
 export interface DateLocale {
   months?: readonly string[]; // Short month names, 12 entries (Jan..Dec)
@@ -141,6 +154,11 @@ export interface LovelyChartParams {
    * unfocused bars and as a halo around the Y-axis labels; defaults to the skin's own background.
    */
   backgroundColor?: ThemedColor;
+  /**
+   * A previous period, drawn as a dashed line on the main Y axis with its change in the tooltip; ignored on
+   * percentage, pie and donut charts.
+   */
+  comparison?: Comparison;
   /** Dashed rules at fixed values, drawn over the datasets; ignored on pie and donut charts. */
   referenceLines?: ReferenceLine[];
   /** Draws line datasets as monotone curves through their values, never overshooting a value. */
@@ -218,6 +236,7 @@ export interface AnalyzedData {
   axisTextColor?: ThemedColor;
   backgroundColor?: ThemedColor;
   referenceLines: ReferenceLine[];
+  comparison?: Comparison & { color: string };
   areLinesSmooth?: boolean;
   areaOpacity?: number;
   areaBorderColor?: LovelyChartParams['areaBorderColor'];
@@ -324,4 +343,7 @@ export interface StatisticsItem {
   value: number | null;
   hasOwnYAxis: boolean | undefined;
   originalIndex: number;
+  isComparison?: boolean;
+  // Change of the current total against the comparison value, in percent
+  comparisonChange?: number;
 }

@@ -4,6 +4,7 @@ import type {
 } from './types.js';
 
 import { clearCanvas, setupCanvas } from './canvas.js';
+import { getComparisonValues } from './comparison.js';
 import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, SPARKLINE_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { formatDayHourFull, formatInteger, getLabelDate, getLabelTime } from './format.js';
 import { getCircleRadius } from './formulas.js';
@@ -12,6 +13,7 @@ import { getCssColor, isColorCloseToBackground } from './skin.js';
 import { throttle, throttleWithRaf } from './utils.js';
 
 const CONTENT_THROTTLE_MS = 100;
+const NO_VALUE = '—';
 const CIRCLE_RADIUS = 4;
 const CIRCLE_LINE_WIDTH = 2;
 
@@ -341,7 +343,11 @@ export class Tooltip {
     return this.#data.isCircle ? `${this.#offsetY}px` : 0;
   }
 
-  #updateBalloon(statistics: StatisticsItem[], labelIndex: number) {
+  #updateBalloon(datasetStatistics: StatisticsItem[], labelIndex: number) {
+    const statistics = this.#data.comparison
+      ? [this.#buildComparisonItem(datasetStatistics, labelIndex), ...datasetStatistics]
+      : datasetStatistics;
+
     this.#balloon.style.transform
       = `translate3D(${this.#getBalloonLeftOffset(labelIndex)}px, ${this.#getBalloonTopOffset()}, 0)`;
     this.#balloon.classList.add('lovely-chart--state-shown');
@@ -351,6 +357,25 @@ export class Tooltip {
     } else {
       this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics);
     }
+  }
+
+  #buildComparisonItem(statistics: StatisticsItem[], labelIndex: number): StatisticsItem {
+    const { comparison, datasets } = this.#data;
+    const visibilities = datasets.map(({ key }) => (this.#state!.filter[key] ? 1 : 0));
+    const value = getComparisonValues(this.#data, visibilities)[labelIndex];
+    const current = statistics.reduce((sum, { value: itemValue, hasOwnYAxis }) => (
+      hasOwnYAxis ? sum : sum + (itemValue ?? 0)
+    ), 0);
+
+    return {
+      key: 'comparison',
+      name: comparison!.name,
+      value,
+      hasOwnYAxis: false,
+      originalIndex: -1,
+      isComparison: true,
+      comparisonChange: value !== GAP && value > 0 ? (current / value - 1) * 100 : undefined,
+    };
   }
 
   #getTitle(data: AnalyzedData, labelIndex: number): string {
@@ -411,14 +436,15 @@ export class Tooltip {
   }
 
   #insertNewDataSet(dataSetContainer: HTMLElement, statItem: StatisticsItem, totalValue: number) {
-    const { key, value } = statItem;
+    const { key, value, isComparison, comparisonChange } = statItem;
     const colorHex = this.#data.colors[key];
     const colorClass = isColorCloseToBackground(this.#colors, colorHex)
       ? ''
       : ` lovely-chart--color-${colorHex.slice(1)}`;
     const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right${colorClass}`;
     const newDataSet = createElement();
-    newDataSet.className = 'lovely-chart--tooltip-dataset';
+    newDataSet.className
+      = `lovely-chart--tooltip-dataset${isComparison ? ' lovely-chart--tooltip-dataset-comparison' : ''}`;
     newDataSet.setAttribute('data-present', 'true');
     newDataSet.setAttribute('data-key', key);
     const titleElement = createElement<HTMLSpanElement>('span');
@@ -428,7 +454,7 @@ export class Tooltip {
 
     const valueElement = createElement<HTMLSpanElement>('span');
     valueElement.className = className;
-    valueElement.textContent = this.#formatValue(value!);
+    valueElement.textContent = this.#formatValue(value, comparisonChange);
     newDataSet.appendChild(valueElement);
 
     this.#renderPercentageValue(newDataSet, value!, totalValue);
@@ -437,14 +463,14 @@ export class Tooltip {
   }
 
   #updateDataSet(currentDataSet: HTMLElement, statItem: StatisticsItem, totalValue: number) {
-    const { value } = statItem;
+    const { value, comparisonChange } = statItem;
     currentDataSet.setAttribute('data-present', 'true');
     this.#fillDataSetIdentity(currentDataSet, statItem);
 
     const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value`);
 
     if (valueElement) {
-      valueElement.textContent = this.#formatValue(value!);
+      valueElement.textContent = this.#formatValue(value, comparisonChange);
     }
 
     this.#renderPercentageValue(currentDataSet, value!, totalValue);
@@ -456,7 +482,15 @@ export class Tooltip {
     dataSet.querySelector('.lovely-chart--dataset-title')!.textContent = name;
   }
 
-  #formatValue(value: number): string {
+  #formatValue(value: number | null, change?: number): string {
+    if (value === GAP) {
+      return NO_VALUE;
+    }
+
+    if (change !== undefined) {
+      return `${this.#formatValue(value)} · ${formatChange(change)}`;
+    }
+
     const formatted = formatInteger(value);
     const prefix = this.#data.valuePrefix || '';
     const suffix = this.#data.valueSuffix || '';
@@ -508,10 +542,15 @@ export class Tooltip {
       }
     });
 
-    const totalValue = statistics.reduce((a, x) => a + (x.value ?? 0), 0);
+    const totalValue = statistics.reduce((a, x) => (x.isComparison ? a : a + (x.value ?? 0)), 0);
     const pointerVector = this.#getPointerVector();
-    const filteredStatistics = statistics.filter(({ value }) => value !== 0 && value !== GAP);
-    const sortedStatistics = filteredStatistics.sort((a, b) => b.value! - a.value!);
+    // The comparison row stays first, its value missing or zero included
+    const filteredStatistics = statistics.filter(({ value, isComparison }) => (
+      isComparison || (value !== 0 && value !== GAP)
+    ));
+    const sortedStatistics = filteredStatistics.sort((a, b) => (
+      Number(Boolean(b.isComparison)) - Number(Boolean(a.isComparison)) || b.value! - a.value!
+    ));
     const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
     const finalStatistics = this.#data.isCircle
       ? limitedStatistics.filter(
@@ -643,4 +682,9 @@ export class Tooltip {
   #getPageOffset(element: HTMLElement): DOMRect {
     return element.getBoundingClientRect();
   }
+}
+
+function formatChange(change: number): string {
+  const rounded = Math.round(change);
+  return `${rounded > 0 ? '+' : ''}${rounded}%`;
 }
