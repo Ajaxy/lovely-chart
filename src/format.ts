@@ -88,7 +88,11 @@ export function humanize(value: number, decimals = 1): string {
   const abs = Math.abs(value);
   const sign = value < 0 ? '-' : '';
 
-  if (abs >= 1e6) {
+  if (abs >= 1e12) {
+    return sign + keepThreeDigits(abs / 1e12, decimals) + 'T';
+  } else if (abs >= 1e9) {
+    return sign + keepThreeDigits(abs / 1e9, decimals) + 'B';
+  } else if (abs >= 1e6) {
     return sign + keepThreeDigits(abs / 1e6, decimals) + 'M';
   } else if (abs >= 1e3) {
     return sign + keepThreeDigits(abs / 1e3, decimals) + 'K';

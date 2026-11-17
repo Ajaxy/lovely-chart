@@ -6,6 +6,7 @@ import {
   AXES_MAX_ROW_HEIGHT,
   CIRCLE_STATIC_PROPS,
   GAP,
+  GUTTER,
   NO_FOCUS,
   PLOT_CIRCLE_RADIUS_FACTOR,
   PLOT_TOP_PADDING,
@@ -16,6 +17,10 @@ import {
 import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas.js';
 import { TransitionManager } from './TransitionManager.js';
 import { getMaxMin, mergeProxied, throttleWithRaf } from './utils.js';
+
+const MIN_LEGIBLE_Y_LABELS = 2;
+// Height of the band under the plot top where the axis labels fade out (`applyXEdgeOpacity`)
+const Y_AXIS_TOP_FADE_HEIGHT = GUTTER * 3 - PLOT_TOP_PADDING;
 
 interface StateUpdate {
   range?: Partial<Range>;
@@ -411,7 +416,12 @@ function calculateXAxisScale(plotWidth: number, labelFromIndex: number, labelToI
 function calculateYAxisScale(plotHeight: number, yMin: number, yMax: number): number {
   const availableHeight = plotHeight - X_AXIS_HEIGHT;
   const viewportLabelsCount = yMax - yMin;
-  const maxRows = Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT);
+  const maxRows = Math.max(1, Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT));
+  const level = yStepToScaleLevel(viewportLabelsCount / maxRows);
 
-  return yStepToScaleLevel(viewportLabelsCount / maxRows);
+  // Labels in the band under the top edge fade out, so a coarse step that leaves a short plot fewer than
+  // two legible labels takes the next finer one
+  const plotSpan = availableHeight - PLOT_TOP_PADDING;
+  const legibleCount = viewportLabelsCount * (plotSpan - Y_AXIS_TOP_FADE_HEIGHT) / plotSpan;
+  return level > 0 && legibleCount / yScaleLevelToStep(level) < MIN_LEGIBLE_Y_LABELS ? level - 1 : level;
 }
