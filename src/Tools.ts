@@ -1,6 +1,7 @@
 import type { AnalyzedData, Filter } from './types.js';
 
 import { captureEvents } from './captureEvents.js';
+import { getDrawnPattern } from './formulas.js';
 import { createElement } from './minifiers.js';
 import { isLightContentTooFaint } from './skin.js';
 
@@ -52,7 +53,8 @@ export class Tools {
       this.#element.className += ' lovely-chart--state-hidden';
     }
 
-    datasets.forEach(({ key, name, isInitiallyHidden }) => {
+    datasets.forEach((dataset) => {
+      const { key, name, isInitiallyHidden } = dataset;
       const color = this.#data.colors[key];
       const control = createElement<HTMLAnchorElement>('a');
       control.href = '#';
@@ -64,6 +66,10 @@ export class Tools {
       control.setAttribute('role', 'button');
       control.setAttribute('aria-pressed', String(isChecked));
       control.style.setProperty('--lovely-chart-series-color', color);
+      const pattern = getDrawnPattern(dataset);
+      if (pattern) {
+        control.setAttribute(`data-${pattern}`, 'true');
+      }
       // A link activates on Enter alone, while a button also activates on Space
       control.addEventListener('keydown', (e) => {
         if (e.key === ' ') {

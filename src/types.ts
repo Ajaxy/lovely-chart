@@ -49,6 +49,10 @@ export interface LovelyChartDatasetParams {
   values: (number | null)[];
   /** Starts the dataset hidden, its legend button unchecked, so a reader can show it from the legend. */
   isInitiallyHidden?: boolean;
+  /** Draws a line or step dataset in 6px dashes 4px apart, its legend button with a dashed outline. */
+  isDashed?: boolean;
+  /** Draws a line or step dataset in 2px dots 3px apart, `isDashed` or not, its legend button with a dotted outline. */
+  isDotted?: boolean;
 }
 
 /** Localized date strings for axis, tooltip and caption labels. Each is optional and falls back to English. */
@@ -85,6 +89,12 @@ export interface LovelyChartParams {
    * labels 0, 1 and 2.
    */
   noFloatSteps?: boolean;
+  /** Draws line datasets as monotone curves through their values, never overshooting a value. */
+  areLinesSmooth?: boolean;
+  /** Opacity of an area fill, 0 to 1; the area's outline and dots keep full opacity. */
+  areaOpacity?: number;
+  /** Canvas colour of a 1px outline around each area, and around each run of an area split at a gap. */
+  areaBorderColor?: string;
   hasSecondYAxis?: boolean;
   secondaryYAxis?: SecondaryYAxisConfig;
   onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
@@ -115,6 +125,8 @@ export interface LovelyChartParams {
   onLimitedRangeClick?: () => void;
 }
 
+export type LinePattern = 'dashed' | 'dotted';
+
 export interface AnalyzedDataset {
   type: ChartType;
   key: string;
@@ -122,6 +134,8 @@ export interface AnalyzedDataset {
   color: string;
   values: (number | null)[];
   isInitiallyHidden?: boolean;
+  isDashed?: boolean;
+  isDotted?: boolean;
   hasOwnYAxis: boolean | undefined;
   yMin: number | undefined;
   yMax: number | undefined;
@@ -140,6 +154,9 @@ export interface AnalyzedData {
   percentPrecision?: number;
   isShares: boolean;
   noFloatSteps?: boolean;
+  areLinesSmooth?: boolean;
+  areaOpacity?: number;
+  areaBorderColor?: string;
   secondaryYAxis?: SecondaryYAxisConfig;
   hasSecondYAxis?: boolean;
   valuePrefix?: string;

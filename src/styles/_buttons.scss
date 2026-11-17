@@ -52,6 +52,17 @@
   &.lovely-chart--state-shake {
     animation-name: lovely-chart--animation-shake;
   }
+
+  // The dash of a dashed dataset and the dots of a dotted one show on the outline, around the fill of a checked button
+  &[data-dashed] {
+    border-style: dashed;
+    background-clip: padding-box;
+  }
+
+  &[data-dotted] {
+    border-style: dotted;
+    background-clip: padding-box;
+  }
 }
 
 .lovely-chart--button-check {

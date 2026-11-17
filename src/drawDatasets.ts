@@ -1,21 +1,40 @@
 import type { Projection } from './Projection.js';
-import type { AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, LabelRange, Pixel, Point } from './types.js';
+import type {
+  AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, LabelRange, LinePattern, Pixel, Point,
+} from './types.js';
 
 import {
-  CIRCLE_MINIMUM_VISIBLE_PERCENT, DONUT_INNER_RADIUS_FACTOR, NO_FOCUS, PLOT_BARS_WIDTH_SHIFT, PLOT_CIRCLE_SHIFT,
+  CIRCLE_MINIMUM_VISIBLE_PERCENT, DONUT_INNER_RADIUS_FACTOR, GAP, NO_FOCUS, PLOT_BARS_WIDTH_SHIFT, PLOT_CIRCLE_SHIFT,
 } from './constants.js';
-import { getCircleRadius, getCircleTextShift, getCircleTextSize, isConstantRange } from './formulas.js';
+import {
+  getCircleRadius, getCircleTextShift, getCircleTextSize, getDrawnPattern, isConstantRange,
+} from './formulas.js';
+import { preparePoints } from './preparePoints.js';
 import { simplify } from './simplify.js';
 import { getCssColor } from './skin.js';
 
 const MARKED_SEGMENT_POINTS = 3;
+const AREA_BORDER_WIDTH = 1;
 const MARK_RADIUS_FACTOR = 1.5;
+const DATASET_DASHES: Record<LinePattern, number[]> = { dashed: [6, 4], dotted: [2, 3] };
+// The chords that measure each curve of a smooth line
+const SMOOTH_LENGTH_SAMPLES = 64;
 
 interface DrawOptions {
   color: string;
   lineWidth: number;
   opacity: number;
   simplification: number;
+  dash?: number[];
+  // The points before the drawn range, from which a dashed or dotted run that enters the range counts its pattern
+  leadPoints?: DrawPoint[];
+  areLinesSmooth?: boolean;
+  // Every value of the line, so the ones beyond the drawn points still bend the ends of a smooth line
+  seriesValues?: (number | null)[];
+  areaOpacity?: number;
+  areaBorderColor?: string;
+  // Collects the outlines of a stack, stroked once over all its fills so a boundary two areas share draws once
+  areaBorder?: Path2D;
   center?: Pixel;
   radius?: number;
   shift?: number;
@@ -39,22 +58,41 @@ export function drawDatasets(
   // A label where a visible stacked dataset has no value leaves every area stacked above it without a base.
   // A percentage chart keeps that base, the shares of the values the label has.
   const isMissingInStack: boolean[] = [];
+  const isStack = Boolean(data.isStacked || data.isShares);
+  const areaBorder = isStack && data.areaBorderColor !== undefined ? new Path2D() : undefined;
+  const leadRange = { from: 0, to: range.from - 1 };
+  let leadPoints: Point[][] | undefined;
 
-  data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
+  data.datasets.forEach((dataset, i) => {
     if (!visibilities[i]) {
       return;
     }
 
+    const { key, type, hasOwnYAxis, values } = dataset;
+    const pattern = getDrawnPattern(dataset);
     const options: DrawOptions = {
       color: getCssColor(colors, `dataset#${key}`),
       lineWidth,
-      opacity: data.isStacked || data.isShares ? 1 : visibilities[i],
+      opacity: isStack ? 1 : visibilities[i],
       simplification,
+      dash: pattern && DATASET_DASHES[pattern],
+      areLinesSmooth: data.areLinesSmooth,
+      // A stack draws its sums, which the values alone do not give
+      seriesValues: isStack ? undefined : values,
+      areaOpacity: data.areaOpacity,
+      areaBorderColor: data.areaBorderColor,
+      areaBorder,
     };
 
     const datasetType = (type === 'pie' || type === 'donut') && shouldConvertToBars ? 'bar' : type;
     const datasetPoints: DrawPoint[] = hasOwnYAxis ? secondaryPoints! : points[i];
     const datasetProjection = hasOwnYAxis ? secondaryProjection! : projection;
+
+    if (options.dash && range.from > 0) {
+      options.leadPoints = hasOwnYAxis
+        ? preparePoints(data, [dataset], leadRange, visibilities, secondaryProjection!.getParams())[0]
+        : (leadPoints ??= preparePoints(data, data.datasets, leadRange, visibilities, projection.getParams()))[i];
+    }
 
     if (datasetType === 'area') {
       if (data.isStacked && !data.isShares) {
@@ -85,6 +123,15 @@ export function drawDatasets(
 
     drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
   });
+
+  if (areaBorder) {
+    context.save();
+    context.strokeStyle = data.areaBorderColor!;
+    context.lineWidth = AREA_BORDER_WIDTH;
+    context.lineJoin = 'bevel';
+    context.stroke(areaBorder);
+    context.restore();
+  }
 
   if (state.focusOn !== undefined && state.focusOn !== NO_FOCUS && (data.isBars || data.isSteps)) {
     const [x0] = projection.toPixels(0, 0);
@@ -123,33 +170,11 @@ function drawDataset(
 function drawDatasetLine(
   context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions,
 ) {
-  context.beginPath();
+  const segments = traceRuns(points, projection, false);
 
-  const segments: Pixel[][] = [];
-  let current: Pixel[] = [];
-  for (let j = 0, l = points.length; j < l; j++) {
-    const point = points[j];
-    if (point.isGap) {
-      if (current.length) {
-        segments.push(current);
-        current = [];
-      }
-      continue;
-    }
-    current.push(projection.toPixels(point.labelIndex, point.stackValue));
-  }
-  if (current.length) segments.push(current);
-
-  segments.forEach((segment) => {
-    let pixels = segment;
-    if (options.simplification) {
-      pixels = simplify(pixels)(options.simplification).points;
-    }
-    pixels.forEach(([x, y], k) => {
-      if (k === 0) context.moveTo(x, y);
-      else context.lineTo(x, y);
-    });
-  });
+  // A run that starts or ends at the drawn range runs on to the neighbouring value outside it
+  const pixelBefore = findNeighbourPixel(points[0], -1, projection, options.seriesValues);
+  const pixelAfter = findNeighbourPixel(points[points.length - 1], 1, projection, options.seriesValues);
 
   context.save();
   context.strokeStyle = options.color;
@@ -157,7 +182,24 @@ function drawDatasetLine(
   context.globalAlpha = options.opacity;
   context.lineJoin = 'bevel';
   context.lineCap = 'butt';
-  context.stroke();
+  const leadLength = measureLead(points, segments, projection, options, false);
+  strokeRuns(context, segments, options.dash, leadLength, (segment, k) => {
+    if (options.areLinesSmooth && segment.length > 2) {
+      traceSmoothLine(
+        context, segment, k === 0 ? pixelBefore : undefined, k === segments.length - 1 ? pixelAfter : undefined,
+      );
+      return;
+    }
+
+    let pixels = segment;
+    if (options.simplification) {
+      pixels = simplify(pixels)(options.simplification).points;
+    }
+    pixels.forEach(([x, y], j) => {
+      if (j === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    });
+  });
 
   // A run this short between gaps reads as a stray stroke, or draws nothing at all, so each point carries a dot
   const markedPixels = segments.filter((segment) => segment.length < MARKED_SEGMENT_POINTS).flat();
@@ -173,6 +215,166 @@ function drawDatasetLine(
   }
 
   context.restore();
+}
+
+// The pixels of each run of known values between gaps: a line's at its labels, steps' at both edges of their columns
+function traceRuns(points: DrawPoint[], projection: Projection, isSteps: boolean): Pixel[][] {
+  const runs: Pixel[][] = [];
+  let current: Pixel[] = [];
+  for (let j = 0, l = points.length; j < l; j++) {
+    const { labelIndex, stackValue, isGap } = points[j];
+    if (isGap) {
+      if (current.length) {
+        runs.push(current);
+        current = [];
+      }
+      continue;
+    }
+    if (isSteps) {
+      current.push(
+        projection.toPixels(labelIndex - PLOT_BARS_WIDTH_SHIFT, stackValue),
+        projection.toPixels(labelIndex + PLOT_BARS_WIDTH_SHIFT, stackValue),
+      );
+    } else {
+      current.push(projection.toPixels(labelIndex, stackValue));
+    }
+  }
+  if (current.length) runs.push(current);
+
+  return runs;
+}
+
+// The length of the path that the first run takes from its first known value before the drawn range up to the range,
+// risers of steps and curves of a smooth line included
+function measureLead(
+  points: DrawPoint[], runs: Pixel[][], projection: Projection, options: DrawOptions, isSteps: boolean,
+): number {
+  const { leadPoints } = options;
+  if (!options.dash || !leadPoints?.length || !runs.length || points[0].isGap) return 0;
+
+  let start = leadPoints.length;
+  while (start > 0 && !leadPoints[start - 1].isGap) start--;
+  if (start === leadPoints.length) return 0;
+
+  const [run] = runs;
+  const pixels = [...traceRuns(leadPoints.slice(start), projection, isSteps)[0], run[0]];
+  return !isSteps && options.areLinesSmooth && run.length > 2
+    ? measureSmoothLine(pixels, getSmoothTangents(pixels, undefined, run[1]))
+    : measureLine(pixels);
+}
+
+function measureLine(pixels: Pixel[]): number {
+  let length = 0;
+  for (let j = 1; j < pixels.length; j++) {
+    length += Math.hypot(pixels[j][0] - pixels[j - 1][0], pixels[j][1] - pixels[j - 1][1]);
+  }
+
+  return length;
+}
+
+// A dashed or dotted run that enters the drawn range starts its pattern where the pattern stands after `leadLength`,
+// its path before the range, so panning leaves the dashes and dots in place
+function strokeRuns(
+  context: CanvasRenderingContext2D, runs: Pixel[][], dash: number[] | undefined, leadLength: number,
+  traceRun: (run: Pixel[], index: number) => void,
+) {
+  if (!dash) {
+    context.beginPath();
+    runs.forEach(traceRun);
+    context.stroke();
+    return;
+  }
+
+  const period = dash.reduce((sum, length) => sum + length, 0);
+  context.setLineDash(dash);
+  runs.forEach((run, index) => {
+    context.beginPath();
+    traceRun(run, index);
+    context.lineDashOffset = index === 0 ? leadLength % period : 0;
+    context.stroke();
+  });
+}
+
+function findNeighbourPixel(
+  point: DrawPoint | undefined, direction: number, projection: Projection, seriesValues: (number | null)[] | undefined,
+): Pixel | undefined {
+  if (!point || point.isGap || !seriesValues) return undefined;
+
+  const labelIndex = point.labelIndex + direction;
+  const value = seriesValues[labelIndex];
+  return value === GAP || value === undefined ? undefined : projection.toPixels(labelIndex, value);
+}
+
+function traceSmoothLine(context: CanvasRenderingContext2D, pixels: Pixel[], pixelBefore?: Pixel, pixelAfter?: Pixel) {
+  context.moveTo(pixels[0][0], pixels[0][1]);
+  forEachCubic(pixels, getSmoothTangents(pixels, pixelBefore, pixelAfter), (_, [x1, y1], [x2, y2], [x, y]) => {
+    context.bezierCurveTo(x1, y1, x2, y2, x, y);
+  });
+}
+
+function measureSmoothLine(pixels: Pixel[], tangents: number[]): number {
+  let length = 0;
+  forEachCubic(pixels, tangents, (from, control1, control2, to) => {
+    let previous = from;
+    for (let j = 1; j <= SMOOTH_LENGTH_SAMPLES; j++) {
+      const pixel = getCubicPixel(from, control1, control2, to, j / SMOOTH_LENGTH_SAMPLES);
+      length += Math.hypot(pixel[0] - previous[0], pixel[1] - previous[1]);
+      previous = pixel;
+    }
+  });
+
+  return length;
+}
+
+/**
+ * Harmonic-mean tangents keep each cubic between its two values, so the curve adds no extremum of its own. The pixels
+ * beyond either end bend the end tangents without being drawn, so an end keeps its shape while its neighbour scrolls
+ * out of the drawn range.
+ */
+function getSmoothTangents(pixels: Pixel[], pixelBefore?: Pixel, pixelAfter?: Pixel): number[] {
+  const tangentPixels = [...(pixelBefore ? [pixelBefore] : []), ...pixels, ...(pixelAfter ? [pixelAfter] : [])];
+  const offset = pixelBefore ? 1 : 0;
+  const slopes = tangentPixels.slice(1).map(([x, y], j) => {
+    const [previousX, previousY] = tangentPixels[j];
+    return x > previousX ? (y - previousY) / (x - previousX) : 0;
+  });
+  return pixels.map((_, j) => {
+    const k = j + offset;
+    if (k === 0) {
+      return slopes[0];
+    }
+
+    if (k === tangentPixels.length - 1) {
+      return slopes[k - 1];
+    }
+
+    const before = slopes[k - 1];
+    const after = slopes[k];
+    return before * after <= 0 ? 0 : 2 * before * after / (before + after);
+  });
+}
+
+// Each cubic of a smooth line from one pixel to the next, its control points a third of the way along the tangents
+function forEachCubic(
+  pixels: Pixel[], tangents: number[], callback: (from: Pixel, control1: Pixel, control2: Pixel, to: Pixel) => void,
+) {
+  for (let j = 1; j < pixels.length; j++) {
+    const [previousX, previousY] = pixels[j - 1];
+    const [x, y] = pixels[j];
+    const third = (x - previousX) / 3;
+    const control1: Pixel = [previousX + third, previousY + tangents[j - 1] * third];
+    const control2: Pixel = [x - third, y - tangents[j] * third];
+    callback(pixels[j - 1], control1, control2, pixels[j]);
+  }
+}
+
+function getCubicPixel([x0, y0]: Pixel, [x1, y1]: Pixel, [x2, y2]: Pixel, [x3, y3]: Pixel, t: number): Pixel {
+  const u = 1 - t;
+  const weights = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+  return [
+    weights[0] * x0 + weights[1] * x1 + weights[2] * x2 + weights[3] * x3,
+    weights[0] * y0 + weights[1] * y1 + weights[2] * y2 + weights[3] * y3,
+  ];
 }
 
 function drawDatasetBars(
@@ -218,38 +420,19 @@ function getFillProjection(projection: Projection): Projection {
 function drawDatasetSteps(
   context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions,
 ) {
-  context.beginPath();
-
-  const segments: Pixel[][] = [];
-  let current: Pixel[] = [];
-  for (let j = 0, l = points.length; j < l; j++) {
-    const point = points[j];
-    if (point.isGap) {
-      if (current.length) {
-        segments.push(current);
-        current = [];
-      }
-      continue;
-    }
-    current.push(
-      projection.toPixels(point.labelIndex - PLOT_BARS_WIDTH_SHIFT, point.stackValue),
-      projection.toPixels(point.labelIndex + PLOT_BARS_WIDTH_SHIFT, point.stackValue),
-    );
-  }
-  if (current.length) segments.push(current);
-
-  segments.forEach((segment) => {
-    segment.forEach(([x, y], k) => {
-      if (k === 0) context.moveTo(x, y);
-      else context.lineTo(x, y);
-    });
-  });
+  const segments = traceRuns(points, projection, true);
 
   context.save();
   context.strokeStyle = options.color;
   context.lineWidth = options.lineWidth;
   context.globalAlpha = options.opacity;
-  context.stroke();
+  const leadLength = measureLead(points, segments, projection, options, true);
+  strokeRuns(context, segments, options.dash, leadLength, (segment) => {
+    segment.forEach(([x, y], k) => {
+      if (k === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    });
+  });
   context.restore();
 }
 
@@ -299,8 +482,7 @@ function drawAreaSegments(
 function drawDatasetArea(
   context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions,
 ) {
-  context.beginPath();
-
+  const outline = new Path2D();
   let pixels: Pixel[] = [];
 
   for (let j = 0, l = points.length; j < l; j++) {
@@ -314,16 +496,25 @@ function drawDatasetArea(
   }
 
   pixels.forEach(([x, y]) => {
-    context.lineTo(x, y);
+    outline.lineTo(x, y);
   });
+  outline.closePath();
 
   context.save();
   context.fillStyle = options.color;
-  context.lineWidth = options.lineWidth;
-  context.globalAlpha = options.opacity;
-  context.lineJoin = 'bevel';
-  context.lineCap = 'butt';
-  context.fill();
+  context.globalAlpha = options.opacity * (options.areaOpacity ?? 1);
+  context.fill(outline);
+
+  if (options.areaBorder) {
+    options.areaBorder.addPath(outline);
+  } else if (options.areaBorderColor !== undefined) {
+    context.globalAlpha = options.opacity;
+    context.strokeStyle = options.areaBorderColor;
+    context.lineWidth = AREA_BORDER_WIDTH;
+    context.lineJoin = 'bevel';
+    context.stroke(outline);
+  }
+
   context.restore();
 }
 

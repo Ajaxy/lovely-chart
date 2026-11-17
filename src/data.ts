@@ -41,7 +41,8 @@ const LABEL_TYPE_TO_FORMATTER: Record<LabelType, string | undefined> = {
 export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelType): AnalyzedData {
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage,
-    percentPrecision, secondaryYAxis, noFloatSteps,
+    percentPrecision, secondaryYAxis, areLinesSmooth, areaOpacity, areaBorderColor,
+    noFloatSteps,
     hasSecondYAxis, onZoom, noZoom, zoomType, zoomToShares, circleLabelsAround,
     withMinimap, minimapRange, noCaption, zoomOutLabel,
     valuePrefix, valueSuffix, isCurrencyPrefix, limitDate, onLimitedRangeClick, initialZoom,
@@ -118,6 +119,9 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     percentPrecision,
     isShares: Boolean(isPercentage) || isCircle,
     noFloatSteps,
+    areLinesSmooth,
+    areaOpacity,
+    areaBorderColor,
     secondaryYAxis,
     hasSecondYAxis,
     valuePrefix,
@@ -239,7 +243,7 @@ function prepareDatasets(data: LovelyChartParams): { labels: (number | string)[]
 
   return {
     labels: [...labels],
-    datasets: datasets.map(({ name, color, values, isInitiallyHidden }, i) => {
+    datasets: datasets.map(({ name, color, values, isInitiallyHidden, isDashed, isDotted }, i) => {
       const { min: yMin, max: yMax } = getMaxMin(values);
 
       return {
@@ -249,6 +253,8 @@ function prepareDatasets(data: LovelyChartParams): { labels: (number | string)[]
         color: color || defaultColors[nextDefaultColor++ % defaultColors.length],
         values: [...values],
         isInitiallyHidden,
+        isDashed,
+        isDotted,
         hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
         yMin,
         yMax,

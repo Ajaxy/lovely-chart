@@ -1,5 +1,5 @@
 import type { Projection } from './Projection.js';
-import type { XLabel } from './types.js';
+import type { AnalyzedDataset, LinePattern, XLabel } from './types.js';
 
 import { GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, SIMPLIFIER_MIN_POINTS } from './constants.js';
 
@@ -106,6 +106,13 @@ export function applyXEdgeOpacity(opacity: number, yPx: number): number {
   return (yPx - GUTTER <= GUTTER * 2)
     ? Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2))
     : opacity;
+}
+
+// Only a line or a step draws the pattern of a dashed or dotted dataset, and the dots of one that is both
+export function getDrawnPattern({ type, isDashed, isDotted }: AnalyzedDataset): LinePattern | undefined {
+  if (type !== 'line' && type !== 'step') return undefined;
+  if (isDotted) return 'dotted';
+  return isDashed ? 'dashed' : undefined;
 }
 
 export function getCircleRadius(projection: Projection): number {
