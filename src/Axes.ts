@@ -1,13 +1,22 @@
 import type { Projection } from './Projection.js';
 import type { AnalyzedData, ChartColors, ChartState, SecondaryYAxisConfig, Size } from './types.js';
 
-import { AXES_FONT_STYLE, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants.js';
+import { AXES_FONT_STYLE, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { humanize } from './format.js';
 import {
   applyXEdgeOpacity, applyYEdgeOpacity, ceilToStep, floorToStep, getEdgePin, isConstantRange,
   xScaleLevelToStep, yScaleLevelToStep,
 } from './formulas.js';
 import { getCssColor } from './skin.js';
+
+const X_AXIS_LABEL_GAP = 8;
+
+interface PlacedLabel {
+  text: string;
+  x: number;
+  halfWidth: number;
+  opacity: number;
+}
 
 export class Axes {
   readonly #context: CanvasRenderingContext2D;
@@ -30,39 +39,63 @@ export class Axes {
 
     const topOffset = plotSize.height - X_AXIS_HEIGHT / 2;
     const scaleLevel = Math.floor(state.xAxisScale);
-    const step = xScaleLevelToStep(scaleLevel);
-    const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
-    // Per-edge pin: 1 when the range is flush to a data boundary, easing off as it scrolls in
-    const innerWidth = plotSize.width - GUTTER * 2;
-    const visibleFraction = state.end - state.begin;
-    const startPin = getEdgePin(state.begin / visibleFraction * innerWidth);
-    const endPin = getEdgePin((1 - state.end) / visibleFraction * innerWidth);
 
     context.font = getAxesFont(context);
     context.textAlign = 'center';
     context.textBaseline = 'middle';
 
+    // A grid that would crowd two labels, an edge label pinned inside the plot included, takes the next coarser
+    // step, so the labels stay evenly spaced from the newest one
+    let step = xScaleLevelToStep(scaleLevel);
+    let labels = this.#placeXLabels(state, projection, step);
+    while (labels.some(isCrowdedLabel)) {
+      step *= 2;
+      labels = this.#placeXLabels(state, projection, step);
+    }
+
+    labels.forEach(({ text, x, opacity }) => {
+      context.fillStyle = getCssColor(this.#colors, 'x-axis-text', opacity);
+      context.fillText(text, x, topOffset);
+    });
+  }
+
+  #placeXLabels(state: ChartState, projection: Projection, step: number): PlacedLabel[] {
+    const context = this.#context;
+    const plotSize = this.#plotSize;
+    const plotStart = GUTTER;
+    const plotEnd = plotSize.width - GUTTER;
+    const scaleLevel = Math.floor(state.xAxisScale);
+    const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
+    // Per-edge pin: 1 when the range is flush to a data boundary, easing off as it scrolls in
+    const innerWidth = plotEnd - plotStart;
+    const visibleFraction = state.end - state.begin;
+    const startPin = getEdgePin(state.begin / visibleFraction * innerWidth);
+    const endPin = getEdgePin((1 - state.end) / visibleFraction * innerWidth);
+    const lastLabelIndex = this.#data.xLabels.length - 1;
+    const labels: PlacedLabel[] = [];
+
     for (let i = state.labelFromIndex; i <= state.labelToIndex; i++) {
-      const shiftedI = i - X_AXIS_SHIFT_START;
+      // Counted from the newest label, which the grid therefore always holds
+      const shiftedI = lastLabelIndex - i;
 
       if (shiftedI % step !== 0) {
         continue;
       }
 
-      const label = this.#data.xLabels[i];
+      const { text } = this.#data.xLabels[i];
       const [xPx] = projection.toPixels(i, 0);
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
       opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width, startPin, endPin);
 
-      let drawX = xPx;
-      if (startPin > 0 || endPin > 0) {
-        const halfWidth = context.measureText(label.text).width / 2;
-        drawX = shiftIntoView(xPx, halfWidth, plotSize.width, startPin, endPin);
-      }
+      const halfWidth = context.measureText(text).width / 2;
+      const x = startPin > 0 || endPin > 0
+        ? shiftIntoView(xPx, halfWidth, plotStart, plotEnd, startPin, endPin)
+        : xPx;
 
-      context.fillStyle = getCssColor(this.#colors, 'x-axis-text', opacity);
-      context.fillText(label.text, drawX, topOffset);
+      labels.push({ text, x, halfWidth, opacity });
     }
+
+    return labels;
   }
 
   drawYAxis(state: ChartState, projection: Projection, secondaryProjection?: Projection) {
@@ -281,16 +314,25 @@ function getVisibleYTicks(yMin: number, yMax: number, step: number): [number, nu
   return isConstantRange(yMin, yMax) ? [yMin, yMin] : [ceilToStep(yMin, step), floorToStep(yMax, step)];
 }
 
+function isCrowdedLabel(label: PlacedLabel, index: number, labels: PlacedLabel[]): boolean {
+  if (index === 0) {
+    return false;
+  }
+
+  const previous = labels[index - 1];
+  return label.x - label.halfWidth - (previous.x + previous.halfWidth) < X_AXIS_LABEL_GAP;
+}
+
 // Nudge a centered label inward so a pinned edge never clips it, scaled by the edge's pin
 function shiftIntoView(
-  xPx: number, halfWidth: number, plotWidth: number, startPin: number, endPin: number,
+  xPx: number, halfWidth: number, plotStart: number, plotEnd: number, startPin: number, endPin: number,
 ): number {
-  const leftCross = halfWidth - xPx;
+  const leftCross = plotStart - (xPx - halfWidth);
   if (leftCross > 0) {
     return xPx + leftCross * startPin;
   }
 
-  const rightCross = xPx + halfWidth - plotWidth;
+  const rightCross = xPx + halfWidth - plotEnd;
   if (rightCross > 0) {
     return xPx - rightCross * endPin;
   }
