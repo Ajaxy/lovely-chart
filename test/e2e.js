@@ -32,6 +32,31 @@ const MIME = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Series fills of a dashboard's light and dark themes, pale and deep, for the legend label contrast check
+const LEGEND_FILLS = {
+  'light ink': '#343D47',
+  'light ink soft': '#7D8995',
+  'light neutral': '#C5CCD3',
+  'light amber': '#B07800',
+  'light danger soft': '#EBA39E',
+  'light caution soft': '#E9B949',
+  positive: '#1BB866',
+  danger: '#F35B5B',
+  caution: '#FFB020',
+  accent: '#0191FF',
+  'dark ink': '#DFE5EA',
+  'dark ink soft': '#8A97A5',
+  'dark neutral': '#46525E',
+  'dark danger soft': '#8F4A47',
+  'dark caution soft': '#8A6A1F',
+};
+// The least contrast of a white legend label on its fill, below which the dark label takes over, so every label
+// reaches it
+const MIN_LEGEND_LABEL_CONTRAST = 2;
+// The eight colours of the default palette in order, and the pale ones of them, whose legend buttons take dark labels
+const DEFAULT_PALETTE = ['#3497ED', '#2373DB', '#9ED448', '#5FB641', '#F5BD25', '#F79E39', '#E65850', '#5D5CDC'];
+const DARK_LABEL_DEFAULT_COLORS = ['#9ED448', '#F5BD25'];
+
 const SPANISH_DATE_LOCALE = {
   months: 'ene,feb,mar,abr,may,jun,jul,ago,sep,oct,nov,dic'.split(','),
   weekDays: 'domingo,lunes,martes,miércoles,jueves,viernes,sábado'.split(','),
@@ -136,6 +161,31 @@ async function unmountProbe(page) {
     document.getElementById('probe').remove();
   });
   await sleep(200);
+}
+
+// Reads the dataset colour of each legend button, as its `lovely-chart--color-*` class names it, the contrast of its
+// label on its fill, the contrast a white label would have there and whether the label is white
+function readLegendLabels(chart) {
+  return chart.evaluate((el) => {
+    const parseRgb = (value) => value.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
+    const getLuminance = (rgb) => rgb
+      .map((channel) => channel / 255)
+      .map((value) => (value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, value, i) => sum + [0.2126, 0.7152, 0.0722][i] * value, 0);
+    return Array.from(el.querySelectorAll('.lovely-chart--button')).map((button) => {
+      const fill = getLuminance(parseRgb(getComputedStyle(button).backgroundColor));
+      const label = getLuminance(parseRgb(getComputedStyle(button.querySelector('.lovely-chart--button-label')).color));
+      const contrast = (Math.max(fill, label) + 0.05) / (Math.min(fill, label) + 0.05);
+      const whiteContrast = 1.05 / (fill + 0.05);
+      return {
+        name: button.textContent,
+        color: `#${button.className.match(/lovely-chart--color-(\w+)/)[1]}`,
+        contrast: Math.round(contrast * 100) / 100,
+        whiteContrast: Math.round(whiteContrast * 100) / 100,
+        isLabelWhite: label > 0.99,
+      };
+    });
+  });
 }
 
 async function hoverWiggle(page, box, fx, fy) {
@@ -577,6 +627,43 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('caption honours dateLocale',
     SPANISH_DATE_LOCALE.weekDays.some((day) => localizedCaption.startsWith(day)),
     JSON.stringify(localizedCaption));
+
+  // --- Legend labels contrast with their fills ---
+  const legendFills = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Legend fills',
+      labels: [1, 2].map((day) => Date.UTC(2026, 10, day)),
+      datasets: Object.entries(LEGEND_FILLS).map(([name, color]) => ({ name, color, values: [1, 2] })),
+    },
+  });
+  const legendContrasts = await readLegendLabels(legendFills);
+  const illegibleLabels = legendContrasts.filter(({ contrast }) => contrast < MIN_LEGEND_LABEL_CONTRAST);
+  check('legend labels contrast with their fills',
+    legendContrasts.length === Object.keys(LEGEND_FILLS).length && !illegibleLabels.length,
+    JSON.stringify(illegibleLabels.length ? illegibleLabels : legendContrasts.map(({ contrast }) => contrast)));
+  const needlesslyDarkLabels = legendContrasts
+    .filter(({ whiteContrast, isLabelWhite }) => whiteContrast >= MIN_LEGEND_LABEL_CONTRAST && !isLabelWhite);
+  check('legend labels stay white where white reads',
+    !needlesslyDarkLabels.length, JSON.stringify(needlesslyDarkLabels));
+  await unmountProbe(page);
+
+  const defaultPaletteLegend = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Default palette legend',
+      labels: [1, 2].map((day) => Date.UTC(2026, 10, day)),
+      datasets: DEFAULT_PALETTE.map((_, i) => ({ name: `Dataset ${i + 1}`, values: [1, 2] })),
+    },
+  });
+  const defaultPaletteLabels = await readLegendLabels(defaultPaletteLegend);
+  const darkLabelColors = defaultPaletteLabels.filter(({ isLabelWhite }) => !isLabelWhite).map(({ color }) => color);
+  check('of the default colours, the light green and the amber alone take dark legend labels',
+    JSON.stringify(defaultPaletteLabels.map(({ color }) => color)) === JSON.stringify(DEFAULT_PALETTE)
+    && JSON.stringify(darkLabelColors) === JSON.stringify(DARK_LABEL_DEFAULT_COLORS),
+    JSON.stringify(defaultPaletteLabels
+      .map(({ color, isLabelWhite }) => `${color} ${isLabelWhite ? 'white' : 'dark'}`)));
+  await unmountProbe(page);
 
   // --- RTL layout (header sides swap, nothing overlaps) ---
   await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));

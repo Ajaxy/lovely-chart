@@ -2,7 +2,7 @@ import type { AnalyzedData, Filter } from './types.js';
 
 import { captureEvents } from './captureEvents.js';
 import { createElement } from './minifiers.js';
-import { isColorCloseToWhite } from './skin.js';
+import { isLightContentTooFaint } from './skin.js';
 
 // Matches the fade-out transition of the replaced controls
 const HIDE_TIMEOUT = 500;
@@ -50,7 +50,7 @@ export class Tools {
       const control = createElement<HTMLAnchorElement>('a');
       control.href = '#';
       control.dataset.key = key;
-      const darkContent = isColorCloseToWhite(color) ? ' lovely-chart--dark-content' : '';
+      const darkContent = isLightContentTooFaint(color) ? ' lovely-chart--dark-content' : '';
       control.className = `lovely-chart--button lovely-chart--color-${color.slice(1)}`
         + ` lovely-chart--state-checked${darkContent}`;
 

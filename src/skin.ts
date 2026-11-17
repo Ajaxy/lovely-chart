@@ -1,6 +1,21 @@
 import type { ChartColors, ColorChannels } from './types.js';
 
 const COLOR_CLOSENESS_THRESHOLD = 70;
+// The label colours of a checked legend button, as `_buttons.scss` sets them
+const DARK_CONTENT_COLOR = '#222222';
+const LIGHT_CONTENT_COLOR = '#FFFFFF';
+// The least contrast of a light label on its fill, below which the dark one takes over: pale fills, such as the light
+// green and the amber of the default colours, take the dark label, while mid-tones, such as their green and orange,
+// keep the light one
+const MIN_LIGHT_CONTENT_CONTRAST = 2;
+// Relative luminance and contrast ratio as WCAG 2 defines them
+const LUMINANCE_WEIGHTS = [0.2126, 0.7152, 0.0722];
+const SRGB_LINEAR_LIMIT = 0.03928;
+const SRGB_LINEAR_SLOPE = 12.92;
+const SRGB_OFFSET = 0.055;
+const SRGB_GAMMA = 2.4;
+const CONTRAST_FLARE = 0.05;
+const CHANNEL_MAX = 255;
 
 function detectSkin() {
   return document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
@@ -132,8 +147,28 @@ export function isColorCloseToBackground(colors: ChartColors, hex: string): bool
   return getColorDistance(background, foreground) < COLOR_CLOSENESS_THRESHOLD;
 }
 
-export function isColorCloseToWhite(hex: string): boolean {
-  return getColorDistance(hexToChannels(hex), [255, 255, 255]) < COLOR_CLOSENESS_THRESHOLD;
+// A checked legend button keeps its light label while that reaches `MIN_LIGHT_CONTENT_CONTRAST` on the fill
+export function isLightContentTooFaint(hex: string): boolean {
+  const luminance = getRelativeLuminance(hexToChannels(hex));
+  const darkContrast = getContrastRatio(luminance, getRelativeLuminance(hexToChannels(DARK_CONTENT_COLOR)));
+  const lightContrast = getContrastRatio(luminance, getRelativeLuminance(hexToChannels(LIGHT_CONTENT_COLOR)));
+  return lightContrast < MIN_LIGHT_CONTENT_CONTRAST && darkContrast > lightContrast;
+}
+
+function getRelativeLuminance([r, g, b]: ColorChannels): number {
+  return [r, g, b].reduce((sum, channel, i) => {
+    const value = channel / CHANNEL_MAX;
+    const linear = value <= SRGB_LINEAR_LIMIT
+      ? value / SRGB_LINEAR_SLOPE
+      : ((value + SRGB_OFFSET) / (1 + SRGB_OFFSET)) ** SRGB_GAMMA;
+    return sum + LUMINANCE_WEIGHTS[i] * linear;
+  }, 0);
+}
+
+function getContrastRatio(luminance: number, otherLuminance: number): number {
+  const lighter = Math.max(luminance, otherLuminance);
+  const darker = Math.min(luminance, otherLuminance);
+  return (lighter + CONTRAST_FLARE) / (darker + CONTRAST_FLARE);
 }
 
 function getColorDistance([r1, g1, b1]: ColorChannels, [r2, g2, b2]: ColorChannels): number {
