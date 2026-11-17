@@ -14,7 +14,9 @@ import {
   X_AXIS_HEIGHT,
   Y_AXIS_ZERO_BASED_THRESHOLD,
 } from './constants.js';
-import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas.js';
+import {
+  floorToStep, isConstantRange, xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel,
+} from './formulas.js';
 import { TransitionManager } from './TransitionManager.js';
 import { getMaxMin, mergeProxied, throttleWithRaf } from './utils.js';
 
@@ -179,8 +181,9 @@ function calculateState(
   minimapDelta: number | undefined,
   prevState: ChartState,
 ): ChartState {
-  const { begin, end } = range;
   const lastLabelIndex = data.xLabels.length - 1;
+  // A single label takes a column centered in the plot, which a window over a part of the axis leaves out
+  const { begin, end } = lastLabelIndex === 0 ? { begin: 0, end: 1 } : range;
 
   const labelFromIndex = Math.max(0, Math.ceil(lastLabelIndex * begin));
   const labelToIndex = Math.min(Math.floor(lastLabelIndex * end), lastLabelIndex);
@@ -198,12 +201,17 @@ function calculateState(
     viewportSize.height, yRanges.yMinViewportSecond!, yRanges.yMaxViewportSecond!, data.noFloatSteps,
   );
 
-  const yStep = yScaleLevelToStep(yAxisScale);
-  yRanges.yMinViewport = Math.floor(yRanges.yMinViewport / yStep) * yStep;
+  // A constant range keeps its one value for the axis to label at the middle height, so it does not round its bottom
+  // down to a step
+  if (!isConstantRange(yRanges.yMinViewport, yRanges.yMaxViewport)) {
+    yRanges.yMinViewport = floorToStep(yRanges.yMinViewport, yScaleLevelToStep(yAxisScale));
+  }
 
-  if (yAxisScaleSecond) {
-    const yStepSecond = yScaleLevelToStep(yAxisScaleSecond);
-    yRanges.yMinViewportSecond = Math.floor(yRanges.yMinViewportSecond! / yStepSecond) * yStepSecond;
+  if (
+    typeof yAxisScaleSecond === 'number'
+    && !isConstantRange(yRanges.yMinViewportSecond!, yRanges.yMaxViewportSecond!)
+  ) {
+    yRanges.yMinViewportSecond = floorToStep(yRanges.yMinViewportSecond!, yScaleLevelToStep(yAxisScaleSecond));
   }
 
   const datasetsOpacity: Record<string, number> = {};
@@ -253,7 +261,8 @@ function calculateState(
     ...datasetsOpacity,
     ...datasetsCircleSum,
     ...datasetsCircleShift,
-    ...range,
+    begin,
+    end,
   };
 }
 

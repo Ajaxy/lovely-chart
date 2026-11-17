@@ -3,7 +3,10 @@ import type { AnalyzedData, ChartColors, ChartState, SecondaryYAxisConfig, Size 
 
 import { AXES_FONT_STYLE, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants.js';
 import { humanize } from './format.js';
-import { applyXEdgeOpacity, applyYEdgeOpacity, getEdgePin, xScaleLevelToStep, yScaleLevelToStep } from './formulas.js';
+import {
+  applyXEdgeOpacity, applyYEdgeOpacity, ceilToStep, floorToStep, getEdgePin, isConstantRange,
+  xScaleLevelToStep, yScaleLevelToStep,
+} from './formulas.js';
 import { getCssColor } from './skin.js';
 
 export class Axes {
@@ -162,8 +165,7 @@ export class Axes {
     const context = this.#context;
     const plotSize = this.#plotSize;
     const step = yScaleLevelToStep(scaleLevel);
-    const firstVisibleValue = Math.ceil(yMin / step) * step;
-    const lastVisibleValue = Math.floor(yMax / step) * step;
+    const [firstVisibleValue, lastVisibleValue] = getVisibleYTicks(yMin, yMax, step);
 
     context.font = getAxesFont(context);
     context.textAlign = isSecondary ? 'right' : 'left';
@@ -245,8 +247,7 @@ export class Axes {
     const context = this.#context;
     const { multiplier, prefix = '', suffix = '' } = secondaryYAxis;
     const step = yScaleLevelToStep(scaleLevel);
-    const firstVisibleValue = Math.ceil(yMin / step) * step;
-    const lastVisibleValue = Math.floor(yMax / step) * step;
+    const [firstVisibleValue, lastVisibleValue] = getVisibleYTicks(yMin, yMax, step);
 
     context.font = getAxesFont(context);
     context.textAlign = 'right';
@@ -273,6 +274,11 @@ export class Axes {
     }
     return `${prefix}${formatted}${suffix}`;
   }
+}
+
+// A constant range has one label, its value, which the projection puts at the middle height
+function getVisibleYTicks(yMin: number, yMax: number, step: number): [number, number] {
+  return isConstantRange(yMin, yMax) ? [yMin, yMin] : [ceilToStep(yMin, step), floorToStep(yMax, step)];
 }
 
 // Nudge a centered label inward so a pinned edge never clips it, scaled by the edge's pin

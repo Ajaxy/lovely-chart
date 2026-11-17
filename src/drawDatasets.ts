@@ -4,9 +4,12 @@ import type { AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, Label
 import {
   CIRCLE_MINIMUM_VISIBLE_PERCENT, DONUT_INNER_RADIUS_FACTOR, NO_FOCUS, PLOT_BARS_WIDTH_SHIFT, PLOT_CIRCLE_SHIFT,
 } from './constants.js';
-import { getCircleRadius, getCircleTextShift, getCircleTextSize } from './formulas.js';
+import { getCircleRadius, getCircleTextShift, getCircleTextSize, isConstantRange } from './formulas.js';
 import { simplify } from './simplify.js';
 import { getCssColor } from './skin.js';
+
+const MARKED_SEGMENT_POINTS = 3;
+const MARK_RADIUS_FACTOR = 1.5;
 
 interface DrawOptions {
   color: string;
@@ -33,6 +36,10 @@ export function drawDatasets(
   secondaryPoints: Point[] | undefined, secondaryProjection: Projection | undefined,
   lineWidth: number, visibilities: number[], colors: ChartColors, shouldConvertToBars: boolean, simplification: number,
 ) {
+  // A label where a visible stacked dataset has no value leaves every area stacked above it without a base.
+  // A percentage chart keeps that base, the shares of the values the label has.
+  const isMissingInStack: boolean[] = [];
+
   data.datasets.forEach(({ key, type, hasOwnYAxis }, i) => {
     if (!visibilities[i]) {
       return;
@@ -46,18 +53,18 @@ export function drawDatasets(
     };
 
     const datasetType = (type === 'pie' || type === 'donut') && shouldConvertToBars ? 'bar' : type;
-    let datasetPoints: DrawPoint[] = hasOwnYAxis ? secondaryPoints! : points[i];
+    const datasetPoints: DrawPoint[] = hasOwnYAxis ? secondaryPoints! : points[i];
     const datasetProjection = hasOwnYAxis ? secondaryProjection! : projection;
 
     if (datasetType === 'area') {
-      const bottomLine: DrawPoint[] = [
-        { labelIndex: range.from, stackValue: 0 },
-        { labelIndex: range.to, stackValue: 0 },
-      ];
-      const lowerBoundary: DrawPoint[] = points[i - 1] || bottomLine;
-      const upperBoundary = points[i].slice().reverse();
+      if (data.isStacked && !data.isShares) {
+        datasetPoints.forEach(({ isGap }, j) => {
+          isMissingInStack[j] ||= Boolean(isGap);
+        });
+      }
 
-      datasetPoints = [...lowerBoundary, ...upperBoundary];
+      drawAreaSegments(context, datasetPoints, isMissingInStack, datasetProjection, options);
+      return;
     }
 
     if (datasetType === 'pie' || datasetType === 'donut') {
@@ -151,14 +158,28 @@ function drawDatasetLine(
   context.lineJoin = 'bevel';
   context.lineCap = 'butt';
   context.stroke();
+
+  // A run this short between gaps reads as a stray stroke, or draws nothing at all, so each point carries a dot
+  const markedPixels = segments.filter((segment) => segment.length < MARKED_SEGMENT_POINTS).flat();
+  if (markedPixels.length) {
+    const radius = options.lineWidth * MARK_RADIUS_FACTOR;
+    context.beginPath();
+    markedPixels.forEach(([x, y]) => {
+      context.moveTo(x + radius, y);
+      context.arc(x, y, radius, 0, Math.PI * 2);
+    });
+    context.fillStyle = options.color;
+    context.fill();
+  }
+
   context.restore();
 }
 
-// TODO try areas
 function drawDatasetBars(
   context: CanvasRenderingContext2D, points: DrawPoint[], projection: Projection, options: DrawOptions,
 ) {
-  const { yMin } = projection.getParams();
+  const fillProjection = getFillProjection(projection);
+  const { yMin } = fillProjection.getParams();
 
   context.save();
   context.globalAlpha = options.opacity;
@@ -168,8 +189,8 @@ function drawDatasetBars(
     if (points[j].isGap) continue;
     const { labelIndex, stackValue, stackOffset = 0 } = points[j];
 
-    const [, yFrom] = projection.toPixels(labelIndex, Math.max(stackOffset, yMin));
-    const [x, yTo] = projection.toPixels(labelIndex, stackValue);
+    const [, yFrom] = fillProjection.toPixels(labelIndex, Math.max(stackOffset, yMin));
+    const [x, yTo] = fillProjection.toPixels(labelIndex, stackValue);
     const rectX = x - options.lineWidth / 2;
     const rectY = yTo;
     const rectW = options.opacity === 1
@@ -181,6 +202,17 @@ function drawDatasetBars(
   }
 
   context.restore();
+}
+
+// A constant range puts its value at the middle height, so bars and areas project over a range from zero to twice that
+// value: a positive fill rises from the plot bottom to the middle and a negative one hangs from the plot top
+function getFillProjection(projection: Projection): Projection {
+  const { yMin, yMax } = projection.getParams();
+  if (!isConstantRange(yMin, yMax)) {
+    return projection;
+  }
+
+  return projection.copy({ yMin: Math.min(0, yMin * 2), yMax: Math.max(0, yMin * 2) });
 }
 
 function drawDatasetSteps(
@@ -232,6 +264,36 @@ function drawBarsMask(context: CanvasRenderingContext2D, projection: Projection,
     xCenter - width / 2, yCenter - height / 2, x - options.lineWidth / 2 + PLOT_BARS_WIDTH_SHIFT, height,
   );
   context.fillRect(x + options.lineWidth / 2, yCenter - height / 2, width - (x + options.lineWidth / 2), height);
+}
+
+// Each run of known values fills down to its own stack base, and a lone value draws as a dot
+function drawAreaSegments(
+  context: CanvasRenderingContext2D, points: DrawPoint[], isMissingInStack: boolean[],
+  projection: Projection, options: DrawOptions,
+) {
+  const segments: DrawPoint[][] = [];
+  let current: DrawPoint[] = [];
+  points.forEach((point, j) => {
+    if (point.isGap || isMissingInStack[j]) {
+      if (current.length) {
+        segments.push(current);
+        current = [];
+      }
+      return;
+    }
+    current.push(point);
+  });
+  if (current.length) segments.push(current);
+
+  segments.forEach((segment) => {
+    if (segment.length === 1) {
+      drawDatasetLine(context, segment, projection, options);
+      return;
+    }
+
+    const lowerBoundary = segment.map(({ labelIndex, stackOffset = 0 }) => ({ labelIndex, stackValue: stackOffset }));
+    drawDatasetArea(context, [...lowerBoundary, ...segment.slice().reverse()], getFillProjection(projection), options);
+  });
 }
 
 function drawDatasetArea(

@@ -5,6 +5,9 @@ import { GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, SIMPLIFIER_MIN_
 
 const EDGE_FADE_DISTANCE = GUTTER * 4;
 const EDGE_PIN_DISTANCE = GUTTER * 2;
+const CONSTANT_RANGE_EPSILONS = 4;
+// A value within this fraction of a step from a step multiple counts as on it, so float error never moves it a step
+const STEP_EPSILON = 1e-9;
 
 export function xScaleLevelToStep(scaleLevel: number): number {
   return Math.pow(2, scaleLevel);
@@ -55,6 +58,20 @@ export function yStepToScaleLevel(neededStep: number): number {
 
   return LAST_SCALE_LEVEL + power * EXTENDED_SCALE_FACTORS.length
     + (factorIndex === -1 ? EXTENDED_SCALE_FACTORS.length : factorIndex);
+}
+
+// A range whose ends differ by machine-precision noise around one value draws as constant: stretched to the full
+// height, that noise would draw as a trend
+export function isConstantRange(yMin: number, yMax: number): boolean {
+  return Math.abs(yMax - yMin) <= CONSTANT_RANGE_EPSILONS * Number.EPSILON * Math.max(Math.abs(yMin), Math.abs(yMax));
+}
+
+export function floorToStep(value: number, step: number): number {
+  return Math.floor(value / step + STEP_EPSILON) * step;
+}
+
+export function ceilToStep(value: number, step: number): number {
+  return Math.ceil(value / step - STEP_EPSILON) * step;
 }
 
 // 1 when the edge is flush with its data boundary, easing to 0 as `hiddenPx` scrolls past

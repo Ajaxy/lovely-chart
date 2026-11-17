@@ -1,5 +1,6 @@
 import type { Pixel, ProjectionParams } from './types.js';
 
+import { isConstantRange } from './formulas.js';
 import { mergeProxied } from './utils.js';
 
 export class Projection {
@@ -32,14 +33,15 @@ export class Projection {
 
     this.#params = params;
     this.#lastLabelIndex = lastLabelIndex;
-    this.#withColumns = withColumns;
+    // A single label has no span to stretch over, so it takes a column centered in the plot
+    this.#withColumns = withColumns || lastLabelIndex === 0;
     this.#availableWidth = availableWidth;
     this.#availableHeight = availableHeight;
 
     // In column mode (bars, steps) every label owns a full-width column, so the
     // X scale spans one extra unit and label positions shift to column centers —
     // otherwise the first and last columns are cut in half at the plot edges
-    const xUnitsCount = withColumns ? lastLabelIndex + 1 : lastLabelIndex;
+    const xUnitsCount = this.#withColumns ? lastLabelIndex + 1 : lastLabelIndex;
     const xRatio = end !== begin ? end - begin : 1;
 
     // The chart bleeds beyond the container edge while panning, but keeps an
@@ -53,13 +55,15 @@ export class Projection {
 
     this.#xFactor = effectiveWidth / (xRatio * xUnitsCount);
     this.#xOffsetPx = (begin * xUnitsCount) * this.#xFactor - leftPadding;
-    if (withColumns) {
+    if (this.#withColumns) {
       this.#xOffsetPx -= this.#xFactor / 2;
     }
 
     this.#effectiveHeight = availableHeight - yPadding;
-    this.#yFactor = this.#effectiveHeight / (yMax - yMin);
-    this.#yOffsetPx = yMin * this.#yFactor;
+    // A constant range sits at the middle height
+    const isConstant = isConstantRange(yMin, yMax);
+    this.#yFactor = isConstant ? 0 : this.#effectiveHeight / (yMax - yMin);
+    this.#yOffsetPx = isConstant ? -this.#effectiveHeight / 2 : yMin * this.#yFactor;
   }
 
   toPixels(labelIndex: number, value: number): Pixel {

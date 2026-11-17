@@ -322,6 +322,11 @@ export class Minimap {
       nextRange = this.#adjustDiscreteRange(nextRange, isPan, range.begin !== undefined);
     }
 
+    // A single label leaves no part of the axis to select, so the window spans the whole minimap
+    if (this.#data.xLabels.length === 1) {
+      nextRange = { begin: 0, end: 1 };
+    }
+
     if (this.#limitBegin !== undefined && nextRange.begin < this.#limitBegin) {
       nextRange.begin = this.#limitBegin;
     }
