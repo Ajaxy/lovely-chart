@@ -1,5 +1,56 @@
 # Changelog
 
+## 2.1.0
+
+### Added
+
+- `referenceLines`: dashed rules at fixed values, `[{ value, label?, color? }]`, labelled at their right end. The Y range reaches every value on line, bar, step and area charts, stacked ones included, so a `color: 'transparent'` line draws nothing and pins the range. On a percentage chart the value is a percentage on the 0–100% grid.
+- `comparison`: a previous period, `{ name, color?, values }`, drawn as a dashed line of the previous total of the datasets on screen, on the main Y axis. The legend names it beside a dashed swatch, and the tooltip lists it first, set apart, with the change of the current total tinted by `--tooltip-change-positive` and `--tooltip-change-negative`.
+- `datasets[*].isDashed`: draws a `line` or `step` dataset in 6px dashes 4px apart. The dataset's legend button shows the dash on its outline and carries `data-dashed`, and its tooltip swatch is a dashed outline.
+- `datasets[*].isDotted`: draws a `line` or `step` dataset in 2px dots 3px apart, `isDashed` or not. The dataset's legend button shows the dots on its outline and carries `data-dotted`, and its tooltip swatch is a dotted outline.
+- `datasets[*].isInitiallyHidden`: starts a dataset hidden, its legend button unchecked. A lone dataset that starts hidden keeps its legend.
+- `plotHeight`, and the `--lovely-chart-plot-height` custom property (a unitless number, `px` or `rem`) that takes precedence over it.
+- `--lovely-chart-plot-area-left`, `--lovely-chart-plot-area-top`, `--lovely-chart-plot-area-width` and `--lovely-chart-plot-area-height`, set by the chart on its element: the data area of the plot in px of the element's padding box, for elements of the page to cover it with. A pie or donut sets the square around its circle, and a sparkline its plot inset by 2px.
+- `isSparkline`: the plot alone, inset by 2px, with no axes, grid, header or legend. The bottom of its Y range stays unrounded to an axis step and follows the zero baseline of every chart: 0, unless the values go below 0 or their lowest is more than three quarters of their highest.
+- `isYAxisOutward`: the main Y-axis labels in a column left of the plot, right-aligned, as wide as the widest label the data can show, so the plot holds still while the reader pans or hides datasets. The column is measured again when a web font changes the axis font after the chart is built: once the font finishes loading, or on the next frame the chart draws after the page adds a `FontFace` already loaded, which fires no event.
+- `noFloatSteps`: whole-number steps of at least 1 on both Y axes, for counts.
+- `areLabelsContrast`: Y-axis labels centered on their grid lines inside a halo of the background colour, 2px in from their side of the chart.
+- `axisFontSize` and `axisTextColor`.
+- `backgroundColor`: the surface colour for hover dots, the bar focus mask and label halos.
+- `axisTextColor` and `backgroundColor` take a hex colour or `{ light, dark }`; reference line colours take any canvas colour or `{ light, dark }`.
+- `colorScheme`: `'htmlClassName'`, the default, follows the `theme-dark` class on the `<html>` element, and `'system'` follows `prefers-color-scheme`, live.
+- `isUtc`: reads every date and time of the labels in UTC.
+- `areLinesSmooth`: monotone curves for `line` datasets, and for the `comparison` line beside them, that never overshoot a value.
+- `areaOpacity` and `areaBorderColor` for `area` datasets: a fill opacity, and a 1px outline around each area and each run of an area split at a gap, in one canvas colour or one per skin.
+- `isTooltipOrderFixed`: tooltip rows in the order of the legend; the largest values still decide which rows fit.
+- `isTooltipTotalInTitle`: the total of a stacked or percentage bar, step or area chart beside the tooltip title, in place of the Total row.
+- `formatTooltipValue`: formats a tooltip number, wrapped by `valuePrefix` and `valueSuffix`.
+- `resolveTooltipTotal`: supplies the tooltip total for a label and the datasets on screen; `null` shows `—`.
+- `tooltipFormatter: "statsTooltipFormat('week')"` titles a tooltip `Week of 16 Nov`, and `dateLocale.weekOf` translates it.
+- `selectLabel(labelIndex)`: selects a label as hovering it would, and holds it while the pointer moves elsewhere on the page; `selectLabel(undefined)` clears it.
+- `legendContainer`: an element of your own for the legend.
+- `onZoomChange`, `onHiddenSeriesChange` and `onSelectedIndexChange` callbacks.
+- `ReferenceLine`, `Comparison`, `ThemedColor` and `DateLocale` types.
+- Legend buttons carry `role="button"` and `aria-pressed`, toggle on Space, and expose their dataset colour as `--lovely-chart-series-color`.
+
+### Changed
+
+- Numbers abbreviate billions as `B` and trillions as `T`.
+- The Y axis steps in 1, 2 and 5 times a power of ten below 100, and past 100M in 1, 2.5 and 5 times a power of ten without end. A short plot takes a finer step so at least two labels stay legible.
+- The X-axis label grid counts from the newest label, which it always shows, and takes a coarser step when labels would crowd; edge labels stay within the plot.
+- A resize or an orientation change keeps the datasets the reader hid, and a zoom into or out of a lines view keeps the legend buttons in step with the datasets shown.
+- Tooltip rows follow their dataset key, so datasets sharing a name keep separate rows.
+- Tooltip rows show a swatch of the dataset colour before the name and the value in the text colour, in place of a value in the dataset colour. The comparison row and dashed lines take a dashed swatch.
+- A checked legend button keeps its white label while that reaches 2:1 contrast on its fill; below that, a `#222222` label takes over when it reads clearer. Pale fills take dark labels, among the eight default colours the light green `#9ED448` and the amber `#F5BD25` alone, while mid-tones such as the green `#5FB641` and the orange `#F79E39` keep white.
+
+### Fixed
+
+- A constant series draws at the middle height, its value the one Y-axis label on it, on the main and the second axis; a single-label chart draws in a centered column. Neither draws `NaN` paths. A bar or an unstacked area of a constant range, such as a single label or equal values, spans from zero at the plot edge to the middle height: up from the bottom for a positive value and down from the top for a negative one, on both Y axes and in the minimap.
+- A Y range that starts on a multiple of its axis step, such as 0.3 in steps of 0.1, starts on that label.
+- An area splits at a missing value and fills each run down to its own stack base; a lone value draws as a dot.
+- A line run of one or two points between gaps draws its points as dots.
+- The type declarations resolve under `moduleResolution` `node16` and `nodenext`, so the parameters type-check there.
+
 ## 2.0.6
 
 ### Changed
