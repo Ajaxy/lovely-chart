@@ -19,7 +19,7 @@ import { drawDatasets } from './drawDatasets.js';
 import { drawReferenceLines } from './drawReferenceLines.js';
 import { getRangeCaption, getZoomCaption } from './format.js';
 import {
-  getCircleArea, getPlotStart, getSimplificationDelta, isDataRange,
+  getCircleArea, getPlotStart, getSimplificationDelta, getVisibleLabelRange, isDataRange,
 } from './formulas.js';
 import { Header } from './Header.js';
 import { createElement } from './minifiers.js';
@@ -72,6 +72,8 @@ export default class LovelyChart {
   #originalData: LovelyChartParams;
   #isDestroyed = false;
   #initialZoomPending = false;
+  #selectedLabelIndex?: number;
+  #hiddenDatasetsKey?: string;
 
   #themeObserver?: MutationObserver;
   #fontFaces?: FontFaceSet;
@@ -97,6 +99,11 @@ export default class LovelyChart {
   update(newData: LovelyChartParams) {
     if (this.#isDestroyed) return;
     this.#initialZoomPending = false;
+    this.#reportSelectedLabel(undefined);
+    this.#reportZoomOut();
+    // A callback of the reports can destroy the chart
+    if (this.#isDestroyed) return;
+    this.#hiddenDatasetsKey = undefined;
     this.#originalData = newData;
     const nextSibling = this.#element!.nextSibling ?? undefined;
     this.#destroyComponents();
@@ -107,6 +114,15 @@ export default class LovelyChart {
     Object.assign(this.#data, fresh);
     Object.assign(this.#colors, createColors(this.#data.colors, this.#data));
     this.#setupComponents(nextSibling);
+  }
+
+  /**
+   * Selects the label at `labelIndex` as hovering it would, showing its tooltip, and `undefined` clears the
+   * selection. Pointer moves outside the chart keep it; ignored on pie and donut charts.
+   */
+  selectLabel(labelIndex: number | undefined) {
+    if (this.#isDestroyed) return;
+    this.#tooltip?.selectLabel(labelIndex);
   }
 
   destroy() {
@@ -141,7 +157,7 @@ export default class LovelyChart {
     this.#tooltip = new Tooltip(
       this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus,
     );
-    this.#tools = new Tools(this.#element!, this.#data, this.#onFilterChange);
+    this.#tools = new Tools(this.#originalData.legendContainer ?? this.#element!, this.#data, this.#onFilterChange);
     this.#zoomer = this.#data.isZoomable
       ? new Zoomer(
         this.#data, this.#originalData, this.#colors, this.#stateManager,
@@ -328,13 +344,44 @@ export default class LovelyChart {
 
   readonly #onFilterChange = (filter: Filter) => {
     this.#stateManager!.update({ filter });
+    this.#reportHiddenDatasets(filter);
   };
 
+  // The legend reports its first filter while it sets up, which is the one the params ask for
+  #reportHiddenDatasets(filter: Filter) {
+    const hiddenIndexes = this.#data.datasets.flatMap(({ key }, i) => (filter[key] === false ? [i] : []));
+    const key = hiddenIndexes.join();
+    const isFirstReport = this.#hiddenDatasetsKey === undefined;
+    if (key === this.#hiddenDatasetsKey) return;
+
+    this.#hiddenDatasetsKey = key;
+    if (isFirstReport) return;
+
+    this.#originalData.onHiddenSeriesChange?.(hiddenIndexes.map((i) => this.#data.datasets[i].name), hiddenIndexes);
+  }
+
+  #reportSelectedLabel(labelIndex: number | undefined) {
+    if (labelIndex === this.#selectedLabelIndex) return;
+
+    this.#selectedLabelIndex = labelIndex;
+    this.#originalData.onSelectedIndexChange?.(labelIndex);
+  }
+
+  // A rebuild opens the overview, so a zoom the reader saw ends
+  #reportZoomOut() {
+    if (this.#zoomer?.isZoomed()) {
+      this.#originalData.onZoomChange?.(undefined);
+    }
+  }
+
+  // The report goes last, as its callback can update or destroy the chart
   readonly #onFocus = (focusOn: FocusOn) => {
     if (this.#data.isBars || this.#data.isCircle || this.#data.isSteps) {
       // TODO animate
       this.#stateManager!.update({ focusOn });
     }
+
+    this.#reportSelectedLabel(typeof focusOn === 'number' && Number.isInteger(focusOn) ? focusOn : undefined);
   };
 
   readonly #onZoomIn = (labelIndex: number) => {
@@ -411,6 +458,10 @@ export default class LovelyChart {
 
   #redraw() {
     if (this.#isDestroyed) return;
+    this.#reportSelectedLabel(undefined);
+    this.#reportZoomOut();
+    // A callback of the reports can destroy the chart
+    if (this.#isDestroyed) return;
     const filter = this.#zoomer?.getOverviewFilter() ?? this.#stateManager?.getFilter() ?? {};
     const nextSibling = this.#element!.nextSibling ?? undefined;
     this.#destroyComponents();
@@ -430,10 +481,7 @@ export default class LovelyChart {
     // reflects the transition target instead
     const state = renderedState.static ?? renderedState;
 
-    // The state label indexes are extended by one label per side for edge drawing,
-    // so the visible window is derived from the range fractions instead
-    const startIndex = Math.max(0, Math.ceil(state.lastLabelIndex * state.begin));
-    const endIndex = Math.min(Math.floor(state.lastLabelIndex * state.end), state.lastLabelIndex);
+    const { from: startIndex, to: endIndex } = getVisibleLabelRange(state);
 
     const { dateLocale } = this.#data;
 

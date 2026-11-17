@@ -290,6 +290,9 @@ export class Zoomer {
     if (zoomInLabel) {
       this.#header.zoom(getZoomCaption(zoomInLabel, this.#data.labelType, this.#data.dateLocale));
     }
+
+    // The report goes last, as its callback can update or destroy the chart
+    this.#overviewData.onZoomChange?.(this.#isZoomed ? zoomInLabel?.value : undefined);
   }
 
   // The hourly window in zoomed data may be clamped at the data edges, so the

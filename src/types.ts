@@ -191,6 +191,20 @@ export interface LovelyChartParams {
   hasSecondYAxis?: boolean;
   secondaryYAxis?: SecondaryYAxisConfig;
   onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
+  /**
+   * Called once a zoom settles, with the value of the zoomed-in label, and with `undefined` once zoomed out, also
+   * when `update()`, a resize or an orientation change returns a zoomed chart to its overview.
+   */
+  onZoomChange?: (labelValue: number | undefined) => void;
+  /** Called when the reader shows or hides a dataset in the legend, with the names and indexes of the hidden ones. */
+  onHiddenSeriesChange?: (names: string[], datasetIndexes: number[]) => void;
+  /**
+   * Called when the selected label changes, by pointer, touch or `selectLabel()`, with its index, and with
+   * `undefined` once nothing is selected; a pie or donut selects no label.
+   */
+  onSelectedIndexChange?: (labelIndex: number | undefined) => void;
+  /** Element that holds the legend, in place of the chart container. */
+  legendContainer?: HTMLElement;
   noZoom?: boolean;
   zoomType?: 'pie' | 'donut';
   /**

@@ -1,5 +1,5 @@
 import type { Projection } from './Projection.js';
-import type { AnalyzedDataset, LinePattern, Rect, XLabel } from './types.js';
+import type { AnalyzedDataset, ChartState, LabelRange, LinePattern, Rect, XLabel } from './types.js';
 
 import {
   AXES_MAX_ROW_HEIGHT, GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, PLOT_TOP_PADDING, SIMPLIFIER_MIN_POINTS,
@@ -169,6 +169,14 @@ export function getCircleTextSize(percent: number, radius: number): number {
 
 export function getCircleTextShift(percent: number, radius: number): number {
   return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
+}
+
+// The state's label indexes reach one label past each edge for edge drawing, so the window comes from its fractions
+export function getVisibleLabelRange({ lastLabelIndex, begin, end }: ChartState): LabelRange {
+  return {
+    from: Math.max(0, Math.ceil(lastLabelIndex * begin)),
+    to: Math.min(Math.floor(lastLabelIndex * end), lastLabelIndex),
+  };
 }
 
 export function getLabelFraction(labelIndex: number, lastLabelIndex: number): number {

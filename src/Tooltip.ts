@@ -7,7 +7,7 @@ import { clearCanvas, setupCanvas } from './canvas.js';
 import { getComparisonValues } from './comparison.js';
 import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, SPARKLINE_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { formatDayHourFull, formatInteger, getLabelDate, getLabelTime } from './format.js';
-import { getCircleRadius, getDrawnPattern } from './formulas.js';
+import { getCircleRadius, getDrawnPattern, getVisibleLabelRange } from './formulas.js';
 import { addEventListener, createElement, removeEventListener } from './minifiers.js';
 import { getCssColor } from './skin.js';
 import { throttle, throttleWithRaf } from './utils.js';
@@ -40,6 +40,9 @@ export class Tooltip {
   #offsetX?: number;
   #offsetY?: number;
   #clickedOnLabel?: number;
+  // The label `selectLabel()` selected: it follows its label through range changes, and only a pointer over the
+  // chart or a call takes it back
+  #calledLabelIndex?: number;
 
   #isZoomed = false;
   #isZooming = false;
@@ -84,7 +87,41 @@ export class Tooltip {
     this.#projection = projection;
     this.#secondaryPoints = secondaryPoints;
     this.#secondaryProjection = secondaryProjection;
+
+    if (this.#calledLabelIndex !== undefined) {
+      if (!this.#isLabelVisible(this.#calledLabelIndex)) {
+        this.#clear();
+        return;
+      }
+
+      this.#offsetX = projection.toPixels(this.#calledLabelIndex, 0)[0];
+    }
+
     this.#selectLabel(true);
+  }
+
+  // Selects a label as a pointer over it would, so a keyboard or another view can drive the selection
+  selectLabel(labelIndex: number | undefined) {
+    if (!this.#state || this.#data.isCircle) {
+      return;
+    }
+
+    if (labelIndex === undefined) {
+      if (this.#offsetX !== undefined) {
+        this.#clear();
+      }
+      return;
+    }
+
+    if (!Number.isInteger(labelIndex) || !this.#isLabelVisible(labelIndex)) {
+      return;
+    }
+
+    this.#calledLabelIndex = labelIndex;
+    this.#offsetX = this.#projection!.toPixels(labelIndex, 0)[0];
+    this.#offsetY = 0;
+    this.#isZooming = false;
+    this.#selectLabel();
   }
 
   toggleLoading(isLoading: boolean) {
@@ -161,6 +198,7 @@ export class Tooltip {
     }
 
     this.#isZooming = false;
+    this.#calledLabelIndex = undefined;
 
     const event = e as MouseEvent & TouchEvent;
     const pageOffset = this.#getPageOffset(this.#element);
@@ -171,7 +209,10 @@ export class Tooltip {
   };
 
   readonly #onDocumentMove = (e: MouseEvent | TouchEvent) => {
-    if (this.#offsetX !== undefined && e.target !== this.#element && !this.#element.contains(e.target as Node)) {
+    if (
+      this.#offsetX !== undefined && this.#calledLabelIndex === undefined
+      && e.target !== this.#element && !this.#element.contains(e.target as Node)
+    ) {
       this.#clear();
     }
   };
@@ -210,6 +251,7 @@ export class Tooltip {
   #clear(isExternal?: boolean) {
     this.#offsetX = undefined;
     this.#clickedOnLabel = undefined;
+    this.#calledLabelIndex = undefined;
     clearCanvas(this.#canvas, this.#context);
     this.#hideBalloon();
 
@@ -218,11 +260,19 @@ export class Tooltip {
     }
   }
 
+  #isLabelVisible(labelIndex: number): boolean {
+    const { from, to } = getVisibleLabelRange(this.#state!.static ?? this.#state!);
+    return labelIndex >= from && labelIndex <= to;
+  }
+
   #getLabelIndex(): number | undefined {
     const labelIndex = this.#projection!.findClosestLabelIndex(this.#offsetX!);
+    // A Y-axis label column hides the labels left of the window, which begins at its inset
+    const firstLabelIndex = this.#projection!.getParams().xInsetStart !== undefined
+      ? getVisibleLabelRange(this.#state!.static ?? this.#state!).from
+      : this.#state!.labelFromIndex;
     // `NaN` (e.g. from an `#offsetX` cleared mid-interaction) fails both comparisons
-    return Number.isNaN(labelIndex) || labelIndex < this.#state!.labelFromIndex
-      || labelIndex > this.#state!.labelToIndex
+    return Number.isNaN(labelIndex) || labelIndex < firstLabelIndex || labelIndex > this.#state!.labelToIndex
       ? undefined
       : labelIndex;
   }
@@ -240,14 +290,6 @@ export class Tooltip {
 
     const pointerVector = this.#getPointerVector();
     const shouldShowBalloon = this.#data.isCircle ? pointerVector.distance <= getCircleRadius(this.#projection!) : true;
-
-    if (!isExternal) {
-      if (this.#data.isCircle) {
-        this.#onFocus?.(pointerVector);
-      } else {
-        this.#onFocus?.(labelIndex);
-      }
-    }
 
     const getValue = (values: (number | null)[], labelIndex: number): number | null => {
       if (this.#data.isCircle) {
@@ -283,6 +325,15 @@ export class Tooltip {
 
       const plotBottom = this.#plotSize.height - (this.#data.isSparkline ? SPARKLINE_PADDING : X_AXIS_HEIGHT);
       this.#drawTail(xPx, plotBottom, getCssColor(this.#colors, 'grid-lines'));
+    }
+
+    // The focus goes last, as the report of it can update or destroy the chart
+    if (!isExternal) {
+      if (this.#data.isCircle) {
+        this.#onFocus?.(pointerVector);
+      } else {
+        this.#onFocus?.(labelIndex);
+      }
     }
   }
 
