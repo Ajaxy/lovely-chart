@@ -12,6 +12,7 @@ import {
   PLOT_TOP_PADDING,
   SIMPLIFIER_PLOT_FACTOR,
   SPARKLINE_PADDING,
+  SYSTEM_DARK_QUERY,
   X_AXIS_HEIGHT,
 } from './constants.js';
 import { analyzeData } from './data.js';
@@ -76,6 +77,7 @@ export default class LovelyChart {
   #hiddenDatasetsKey?: string;
 
   #themeObserver?: MutationObserver;
+  #systemSchemeQuery?: MediaQueryList;
   #fontFaces?: FontFaceSet;
   #onWindowResize?: () => void;
   #onWindowOrientationChange?: () => void;
@@ -131,6 +133,8 @@ export default class LovelyChart {
 
     this.#themeObserver!.disconnect();
     this.#themeObserver = undefined;
+    this.#systemSchemeQuery?.removeEventListener('change', this.#onSystemSchemeChange);
+    this.#systemSchemeQuery = undefined;
     this.#fontFaces?.removeEventListener('loadingdone', this.#onFontsLoaded);
     this.#fontFaces = undefined;
     window.removeEventListener('resize', this.#onWindowResize!);
@@ -176,6 +180,9 @@ export default class LovelyChart {
     }
     if (this.#data.isSparkline) {
       this.#element.classList.add('lovely-chart--container-sparkline');
+    }
+    if (this.#data.colorScheme === 'system') {
+      this.#element.classList.add('lovely-chart--container-scheme-system');
     }
 
     if (nextSibling?.parentNode === this.#container) {
@@ -392,6 +399,11 @@ export default class LovelyChart {
     this.#zoomer!.zoomOut(this.#state!);
   };
 
+  readonly #onSystemSchemeChange = () => {
+    if (this.#isDestroyed || !this.#stateManager || this.#data.colorScheme !== 'system') return;
+    this.#stateManager.update();
+  };
+
   readonly #onFontsLoaded = () => {
     if (this.#isDestroyed || !this.#stateManager) return;
     this.#resetFontMeasures();
@@ -411,6 +423,11 @@ export default class LovelyChart {
       this.#stateManager.update();
     });
     this.#themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+    if (typeof matchMedia === 'function') {
+      this.#systemSchemeQuery = matchMedia(SYSTEM_DARK_QUERY);
+      this.#systemSchemeQuery.addEventListener('change', this.#onSystemSchemeChange);
+    }
 
     // DOM emulations such as jsdom leave out `document.fonts`
     if ('fonts' in document) {

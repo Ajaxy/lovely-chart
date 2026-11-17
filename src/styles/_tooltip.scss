@@ -151,8 +151,15 @@
   text-align: end;
 }
 
-html.theme-dark .lovely-chart--tooltip-balloon {
+// `:where()` keeps the specificity of `html.theme-dark .lovely-chart--tooltip-balloon`
+html.theme-dark :where(.lovely-chart--container:not(.lovely-chart--container-scheme-system)) .lovely-chart--tooltip-balloon {
   box-shadow: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .lovely-chart--container-scheme-system .lovely-chart--tooltip-balloon {
+    box-shadow: none;
+  }
 }
 
 .lovely-chart--tooltip-title-total {

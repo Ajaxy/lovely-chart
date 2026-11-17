@@ -1,4 +1,6 @@
-import type { ChartColors, ColorChannels, ThemedColor } from './types.js';
+import type { ChartColors, ColorChannels, LovelyChartParams, ThemedColor } from './types.js';
+
+import { COLOR_SCHEME, SYSTEM_DARK_QUERY } from './constants.js';
 
 const MASK_OPACITY = 0.5;
 // The label colours of a checked legend button, as `_buttons.scss` sets them
@@ -22,7 +24,10 @@ function detectSkin() {
   return document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
 }
 
-let skin: 'skin-day' | 'skin-night' | undefined;
+type Skin = 'skin-day' | 'skin-night';
+
+let skin: Skin | undefined;
+let systemDarkQuery: MediaQueryList | undefined;
 let styleSheet: CSSStyleSheet | null | undefined;
 
 const COLORS = {
@@ -62,6 +67,7 @@ function ensureInited() {
   }
 
   skin = detectSkin();
+  systemDarkQuery = typeof matchMedia === 'function' ? matchMedia(SYSTEM_DARK_QUERY) : undefined;
 
   // Prefer Constructable Stylesheets so a strict `style-src` CSP without
   // `'unsafe-inline'` does not block us; fall back to an injected <style> on
@@ -89,11 +95,13 @@ function ensureInited() {
 
 export function createColors(
   datasetColors: Record<string, string>,
-  { axisTextColor, backgroundColor }: { axisTextColor?: ThemedColor; backgroundColor?: ThemedColor } = {},
+  { axisTextColor, backgroundColor, colorScheme }: Pick<
+    LovelyChartParams, 'axisTextColor' | 'backgroundColor' | 'colorScheme'
+  > = {},
 ): ChartColors {
   ensureInited();
 
-  const colors: ChartColors = {};
+  const colors: ChartColors = { [COLOR_SCHEME]: colorScheme === 'system' ? 'system' : 'htmlClassName' };
   const baseClass = `.lovely-chart--color`;
 
   (['skin-day', 'skin-night'] as const).forEach((skin) => {
@@ -138,12 +146,20 @@ function pickSchemeColor(color: ThemedColor, scheme: 'light' | 'dark') {
 }
 
 // Picks the colour of the skin on screen from a colour given one per skin
-export function pickSkinColor(color: string | { light: string; dark: string }): string {
-  return typeof color === 'string' ? color : color[SKIN_SCHEMES[skin!]];
+export function pickSkinColor(colors: ChartColors, color: string | { light: string; dark: string }): string {
+  return typeof color === 'string' ? color : color[SKIN_SCHEMES[getSkin(colors)]];
 }
 
 export function getCssColor(colors: ChartColors, key: string, opacity?: number): string {
-  return buildCssColor(colors[skin!][key], opacity);
+  return buildCssColor(colors[getSkin(colors)][key], opacity);
+}
+
+function getSkin(colors: ChartColors): Skin {
+  if (colors[COLOR_SCHEME] === 'system') {
+    return systemDarkQuery?.matches ? 'skin-night' : 'skin-day';
+  }
+
+  return skin!;
 }
 
 function hexToChannels(hexWithAlpha: string): ColorChannels {

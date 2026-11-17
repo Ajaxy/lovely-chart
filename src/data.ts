@@ -44,7 +44,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage,
     percentPrecision, secondaryYAxis, areLinesSmooth, areaOpacity, areaBorderColor,
-    referenceLines, comparison,
+    isUtc, colorScheme, referenceLines, comparison,
     isTooltipOrderFixed, isTooltipTotalInTitle, formatTooltipValue, resolveTooltipTotal,
     plotHeight, isSparkline, areLabelsContrast, isYAxisOutward, noFloatSteps,
     axisFontSize, axisTextColor, backgroundColor,
@@ -93,14 +93,14 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
       xLabels = formatWeek(labels as number[]);
       break;
     case 'statsFormatDayHour':
-      xLabels = formatDayHour(labels as number[], dateLocale);
+      xLabels = formatDayHour(labels as number[], dateLocale, isUtc);
       break;
     case 'statsFormat(\'day\')':
-      xLabels = formatDay(labels as number[], dateLocale);
+      xLabels = formatDay(labels as number[], dateLocale, isUtc);
       break;
     case 'statsFormat(\'hour\')':
     case 'statsFormat(\'5min\')':
-      xLabels = formatMin(labels as number[]);
+      xLabels = formatMin(labels as number[], isUtc);
       break;
     default:
       xLabels = formatText(labels);
@@ -139,6 +139,8 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     axisTextColor,
     backgroundColor,
     referenceLines: isCircle ? [] : (referenceLines ?? []).filter(({ value }) => Number.isFinite(value)),
+    isUtc,
+    colorScheme,
     comparison: analyzedComparison,
     isTooltipOrderFixed,
     isTooltipTotalInTitle,

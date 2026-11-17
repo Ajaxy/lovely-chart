@@ -1,3 +1,17 @@
+@mixin night-colors {
+  --background-color: #242F3E;
+  --text-color: #ffffff;
+  --minimap-mask: #{rgba(#304259, 0.6)};
+  --minimap-slider: #56626D;
+  --grid-lines: #{rgba(#FFFFFF, 0.1)};
+  --zoom-out-text: #48AAF0;
+  --tooltip-background: #1c2533;
+  --tooltip-arrow: #D2D5D7;
+  --minimap-limit-color: #BFC0C2;
+  --tooltip-change-positive: #48AAF0;
+  --tooltip-change-negative: #F07068;
+}
+
 .lovely-chart--container {
   --background-color: #ffffff;
   --text-color: #222222;
@@ -24,18 +38,11 @@
 
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 
-  html.theme-dark & {
-    --background-color: #242F3E;
-    --text-color: #ffffff;
-    --minimap-mask: #{rgba(#304259, 0.6)};
-    --minimap-slider: #56626D;
-    --grid-lines: #{rgba(#FFFFFF, 0.1)};
-    --zoom-out-text: #48AAF0;
-    --tooltip-background: #1c2533;
-    --tooltip-arrow: #D2D5D7;
-    --minimap-limit-color: #BFC0C2;
-    --tooltip-change-positive: #48AAF0;
-    --tooltip-change-negative: #F07068;
+  // The `theme-dark` class on `<html>` sets the night colours of a chart with `colorScheme: 'htmlClassName'`,
+  // and the system scheme alone sets those of one with `'system'`. `:where()` keeps the specificity of
+  // `html.theme-dark .lovely-chart--container`, so a page's own night colours under that selector apply.
+  html.theme-dark &:where(:not(.lovely-chart--container-scheme-system)) {
+    @include night-colors;
   }
 
   // &.lovely-chart--state-invisible > * {
@@ -45,6 +52,12 @@
   > canvas,
   .lovely-chart--tooltip canvas {
     margin-top: 10px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    &.lovely-chart--container-scheme-system {
+      @include night-colors;
+    }
   }
 }
 

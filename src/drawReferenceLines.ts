@@ -29,7 +29,7 @@ export function drawReferenceLines(
   const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
 
   data.referenceLines.forEach(({ value, label, color }) => {
-    const stroke = color !== undefined ? pickSkinColor(color) : getCssColor(colors, 'y-axis-text');
+    const stroke = color !== undefined ? pickSkinColor(colors, color) : getCssColor(colors, 'y-axis-text');
     if (stroke.toLowerCase() === TRANSPARENT) return;
 
     const yPx = getReferenceY(data, projection, value);

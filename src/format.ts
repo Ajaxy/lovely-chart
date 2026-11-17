@@ -4,43 +4,35 @@ import {
   MILLISECONDS_IN_DAY, MILLISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT,
 } from './constants.js';
 
-export function formatDayHour(labels: number[], dateLocale?: DateLocale): XLabel[] {
-  const months = dateLocale?.months ?? MONTHS;
-  return labels.map((value) => {
-    const date = new Date(value);
-    const hours = String(date.getHours()).padStart(2, '0');
-    return {
-      value,
-      text: `${date.getDate()} ${months[date.getMonth()]} ${hours}:00`,
-    };
-  });
+export function formatDayHour(labels: number[], dateLocale?: DateLocale, isUtc = false): XLabel[] {
+  return labels.map((value) => ({
+    value,
+    text: formatDayHourFull(value, dateLocale, isUtc),
+  }));
 }
 
-export function formatDayHourFull(value: number, dateLocale?: DateLocale): string {
+export function formatDayHourFull(value: number, dateLocale?: DateLocale, isUtc = false): string {
   const months = dateLocale?.months ?? MONTHS;
-  const date = new Date(value);
-  const hours = String(date.getHours()).padStart(2, '0');
-  return `${date.getDate()} ${months[date.getMonth()]} ${hours}:00`;
+  const { day, month, hours } = getDateParts(value, isUtc);
+  return `${day} ${months[month]} ${padTwoDigits(hours)}:00`;
 }
 
-export function formatDay(labels: number[], dateLocale?: DateLocale): XLabel[] {
+export function formatDay(labels: number[], dateLocale?: DateLocale, isUtc = false): XLabel[] {
   const months = dateLocale?.months ?? MONTHS;
   return labels.map((value) => {
-    const date = new Date(value);
-    const day = date.getDate();
-    const month = months[date.getMonth()];
+    const { day, month } = getDateParts(value, isUtc);
 
     return ({
       value,
-      text: `${day} ${month}`,
+      text: `${day} ${months[month]}`,
     });
   });
 }
 
-export function formatMin(labels: number[]): XLabel[] {
+export function formatMin(labels: number[], isUtc = false): XLabel[] {
   return labels.map((value) => ({
     value,
-    text: new Date(value).toString().match(/(\d+:\d+):/)![1],
+    text: formatTime(value, isUtc),
   }));
 }
 
@@ -225,6 +217,23 @@ export function getLabelDate(
   return string;
 }
 
-export function getLabelTime(label: XLabel): string {
-  return new Date(label.value).toString().match(/(\d+:\d+):/)![1];
+export function getLabelTime(label: XLabel, isUtc = false): string {
+  return formatTime(label.value, isUtc);
+}
+
+function formatTime(value: number, isUtc: boolean): string {
+  const { hours, minutes } = getDateParts(value, isUtc);
+  return `${padTwoDigits(hours)}:${padTwoDigits(minutes)}`;
+}
+
+function getDateParts(value: number, isUtc: boolean) {
+  const date = new Date(value);
+
+  return isUtc
+    ? { day: date.getUTCDate(), month: date.getUTCMonth(), hours: date.getUTCHours(), minutes: date.getUTCMinutes() }
+    : { day: date.getDate(), month: date.getMonth(), hours: date.getHours(), minutes: date.getMinutes() };
+}
+
+function padTwoDigits(value: number): string {
+  return String(value).padStart(2, '0');
 }

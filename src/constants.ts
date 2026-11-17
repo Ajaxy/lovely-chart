@@ -3,6 +3,9 @@ export const DPR = typeof window !== 'undefined' ? window.devicePixelRatio ?? 1 
 
 export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
 export const NO_FOCUS = Symbol('NO_FOCUS');
+// Marks the `colorScheme` the colours of a chart follow, carried along by `Object.assign`
+export const COLOR_SCHEME = Symbol('COLOR_SCHEME');
+export const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
 // Raw JSON represents missing dataset values as `null`; compare via
 // `value === GAP` instead of spelling the literal
 // eslint-disable-next-line no-null/no-null

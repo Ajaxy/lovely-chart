@@ -62,7 +62,7 @@ export function drawDatasets(
   // A percentage chart keeps that base, the shares of the values the label has.
   const isMissingInStack: boolean[] = [];
   const isStack = Boolean(data.isStacked || data.isShares);
-  const areaBorderColor = data.areaBorderColor !== undefined ? pickSkinColor(data.areaBorderColor) : undefined;
+  const areaBorderColor = data.areaBorderColor !== undefined ? pickSkinColor(colors, data.areaBorderColor) : undefined;
   const areaBorder = isStack && areaBorderColor !== undefined ? new Path2D() : undefined;
   const leadRange = { from: 0, to: range.from - 1 };
   let leadPoints: Point[][] | undefined;

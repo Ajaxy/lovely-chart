@@ -1,4 +1,4 @@
-import type { NO_FOCUS } from './constants.js';
+import type { COLOR_SCHEME, NO_FOCUS } from './constants.js';
 
 export type ChartType = 'line' | 'bar' | 'step' | 'area' | 'pie' | 'donut';
 
@@ -160,6 +160,16 @@ export interface LovelyChartParams {
    * percentage, pie and donut charts.
    */
   comparison?: Comparison;
+  /**
+   * Reads every date and time of the labels in UTC. Axis labels of days, hours and minutes and their tooltip
+   * titles otherwise follow the reader's time zone, while captions and day titles always read UTC.
+   */
+  isUtc?: boolean;
+  /**
+   * `'htmlClassName'`, the default, follows the `theme-dark` class on the `<html>` element; `'system'`
+   * follows the `prefers-color-scheme` of the reader's system, live.
+   */
+  colorScheme?: 'htmlClassName' | 'system';
   /** Dashed rules at fixed values, drawn over the datasets; ignored on pie and donut charts. */
   referenceLines?: ReferenceLine[];
   /**
@@ -269,6 +279,8 @@ export interface AnalyzedData {
   axisTextColor?: ThemedColor;
   backgroundColor?: ThemedColor;
   referenceLines: ReferenceLine[];
+  isUtc?: boolean;
+  colorScheme?: LovelyChartParams['colorScheme'];
   comparison?: Comparison & { color: string };
   isTooltipOrderFixed?: boolean;
   isTooltipTotalInTitle?: boolean;
@@ -372,7 +384,7 @@ export type Pixel = [number, number];
 
 export type ColorChannels = [number, number, number, number?];
 type SkinColors = Record<string, ColorChannels>;
-export type ChartColors = Record<string, SkinColors>;
+export type ChartColors = Record<string, SkinColors> & { [COLOR_SCHEME]?: 'htmlClassName' | 'system' };
 
 export interface StatisticsItem {
   key: string;

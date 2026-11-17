@@ -442,14 +442,14 @@ export class Tooltip {
   #getTitle(data: AnalyzedData, labelIndex: number): string {
     switch (data.tooltipFormatter) {
       case 'statsFormatDayHourFull':
-        return formatDayHourFull(data.xLabels[labelIndex].value, data.dateLocale);
+        return formatDayHourFull(data.xLabels[labelIndex].value, data.dateLocale, data.isUtc);
       case 'statsTooltipFormat(\'day\')':
         return getLabelDate(data.xLabels[labelIndex], { withYear: true }, data.dateLocale);
       case 'statsTooltipFormat(\'week\')':
         return `${data.dateLocale?.weekOf ?? WEEK_OF} ${getLabelDate(data.xLabels[labelIndex], {}, data.dateLocale)}`;
       case 'statsTooltipFormat(\'hour\')':
       case 'statsTooltipFormat(\'5min\')':
-        return getLabelTime(data.xLabels[labelIndex]);
+        return getLabelTime(data.xLabels[labelIndex], data.isUtc);
       default:
         return data.xLabels[labelIndex].text;
     }

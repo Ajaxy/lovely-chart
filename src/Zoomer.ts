@@ -194,8 +194,8 @@ export class Zoomer {
   ) {
     const legendBefore = describeLegend(this.#data);
     // The skin belongs to the page around the chart, which a zoom leaves as it is
-    const { axisTextColor, backgroundColor } = this.#overviewData;
-    Object.assign(this.#data, newData, { axisTextColor, backgroundColor });
+    const { axisTextColor, backgroundColor, colorScheme } = this.#overviewData;
+    Object.assign(this.#data, newData, { axisTextColor, backgroundColor, colorScheme });
     this.#stateManager.refreshTransitionConfig();
 
     if (shouldZoomToLines && newRawData.colors) {
