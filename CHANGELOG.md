@@ -1,6 +1,67 @@
 # Changelog
 
-## 2.0.0 (unreleased)
+## 2.0.6
+
+### Changed
+
+- The unused `cssnano` development dependency is removed, and with it the audit advisories of its PostCSS chain.
+
+## 2.0.5
+
+### Added
+
+- `zoomToShares` parameter — opts a non-percentage chart into zoom-to-shares, so a stacked chart of absolute values can drill into a label's shares without being converted to percentages.
+- `circleLabelsAround` parameter — how many labels either side of the clicked one the zoomed pie/donut covers (default `3`).
+- `percentPrecision` parameter — the digits after the point of the share a percentage tooltip prints beside each value (default `0`).
+
+### Changed
+
+- The caption of a zoomed or multi-label window follows `labelType`: a year chart reads `2029`, a month chart `April 2029` and `February — March 2029`.
+- A discrete minimap drag steps by the label under the pointer, so the range changes as the pointer crosses a label boundary.
+
+### Fixed
+
+- A zoomed pie or donut sums and selects the labels of its own window, with no neighbour labels from the edge margin.
+
+## 2.0.4
+
+### Added
+
+- Right-to-left layouts under `dir="rtl"`.
+
+### Fixed
+
+- Header captions, the zoomed caption included, follow `dateLocale`.
+
+## 2.0.3
+
+### Added
+
+- `dateLocale` parameter — localized month and weekday names for axis, tooltip and caption labels.
+- `initialZoom` parameter — opens the chart already zoomed on a label index or `'last'`.
+
+### Fixed
+
+- A percentage chart whose datasets all hold 0 at a label draws with no `NaN` paths.
+
+## 2.0.2
+
+### Changed
+
+- The Y range of a chart that does not stack starts at 0 unless the values go below 0 or their lowest is more than three quarters of their highest.
+
+## 2.0.1
+
+### Changed
+
+- Week labels use ISO 8601 week numbers.
+- Captions omit the year when it is the current one.
+
+### Fixed
+
+- X-axis labels at a range pinned to a data boundary keep full opacity and stay inside the plot edge.
+
+## 2.0.0
 
 ### Breaking changes
 
@@ -24,8 +85,6 @@
 - `LovelyChartInstance` — a structural type of the chart handle, satisfiable by test stubs.
 - `noZoom` parameter to disable zooming.
 - `zoomType` parameter (`'pie' | 'donut'`) — the chart type a percentage chart zooms into.
-- `zoomToShares` parameter — opts a non-percentage chart into zoom-to-shares, so a stacked chart of absolute values can drill into a label's shares without being converted to percentages.
-- `circleLabelsAround` parameter — how many labels either side of the clicked one the zoomed pie/donut covers (default `3`).
 - The `step` chart type is documented and demonstrated on the demo page.
 - A single modern ESM build replaces the previous bundle formats.
 

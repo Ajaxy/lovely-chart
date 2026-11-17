@@ -64,13 +64,15 @@ Parameter | Description |
 `title`| Chart headline
 `type`| Chart type. Supported types: `line`, `area`, `bar`, `step`, `pie`, `donut`
 `labels`| Array of UNIX timestamps in milliseconds, or arbitrary strings for text labels
-`labelType`| Optional X-axis label kind: `year`, `month`, `week`, `day`, `hour`, `5min`, `dayHour` or `text`. When omitted, it is inferred from the first two `labels` records: strings → `text`, timestamps → `year`/`month`/`week`/`day`/`hour`/`5min` depending on the step between them. `year` labels render as `2026`, `month` as `January`, `week` as `Week 1` (week of the year). Charts with `text` labels show no header caption.
+`labelType`| Optional X-axis label kind: `year`, `month`, `week`, `day`, `hour`, `5min`, `dayHour` or `text`. When omitted, it is inferred from the first two `labels` records: strings → `text`, timestamps → `year`/`month`/`week`/`day`/`hour`/`5min` depending on the step between them. `year` labels render as `2026`, `month` as `January`, `week` as `Week 1`, the ISO 8601 week number of the label's UTC date, so labels on 29 Dec 2025 and 28 Dec 2026 read `Week 1` and `Week 53`. Charts with `text` labels show no header caption.
 `dateLocale`| Optional localized date strings for axis, tooltip and caption labels: `{ months, monthsFull, weekDays, weekDaysShort }`. Each field is an optional array (12 months, or 7 weekdays starting Sunday) and falls back to English when omitted.
+`tooltipFormatter`| Optional tooltip title format: `statsTooltipFormat('day')` (`18 Nov 2026`), `statsTooltipFormat('hour')` or `statsTooltipFormat('5min')` (`14:00`), `statsFormatDayHourFull` (`18 Nov 14:00`). Defaults to the X-axis label.
 `datasets`| Array of params for each dataset
 `datasets[*].name`| Dataset name
 `datasets[*].color`| Dataset color
 `datasets[*].values`| Array of dataset values
 `isPercentage` | `true` for percentage based values
+`percentPrecision`| Digits after the point of the share a percentage chart's tooltip prints beside each value. Default `0`.
 `isStacked`| `true` for values stacking on top of each other
 `hasSecondYAxis`| `true` for charts with 2 Y axes
 `valuePrefix`| Optional string prepended to every formatted value (e.g. `$`)
