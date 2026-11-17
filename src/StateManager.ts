@@ -116,6 +116,10 @@ export class StateManager {
     }
   }
 
+  getFilter(): Filter {
+    return { ...this.#filter };
+  }
+
   hasAnimations(): boolean {
     return this.#transitions.isFast();
   }
@@ -155,8 +159,8 @@ export class StateManager {
   #buildDefaultFilter(): Filter {
     const filter: Filter = {};
 
-    this.#data.datasets.forEach(({ key }) => {
-      filter[key] = true;
+    this.#data.datasets.forEach(({ key, isInitiallyHidden }) => {
+      filter[key] = !isInitiallyHidden;
     });
 
     return filter;

@@ -47,6 +47,8 @@ export interface LovelyChartDatasetParams {
   name: string;
   color?: string;
   values: (number | null)[];
+  /** Starts the dataset hidden, its legend button unchecked, so a reader can show it from the legend. */
+  isInitiallyHidden?: boolean;
 }
 
 /** Localized date strings for axis, tooltip and caption labels. Each is optional and falls back to English. */
@@ -119,6 +121,7 @@ export interface AnalyzedDataset {
   name: string;
   color: string;
   values: (number | null)[];
+  isInitiallyHidden?: boolean;
   hasOwnYAxis: boolean | undefined;
   yMin: number | undefined;
   yMax: number | undefined;

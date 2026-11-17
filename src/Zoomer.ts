@@ -113,6 +113,11 @@ export class Zoomer {
     return this.#isZoomed;
   }
 
+  // While a zoomed view shows, or one is on its way in, the overview's filter lives only in the saved state
+  getOverviewFilter(): Filter | undefined {
+    return this.#isZoomed || this.#swapDataTimeout !== undefined ? this.#stateBeforeZoomIn?.filter : undefined;
+  }
+
   destroy() {
     this.#isDestroyed = true;
     if (this.#swapDataTimeout !== undefined) {
@@ -219,7 +224,7 @@ export class Zoomer {
           end: 1,
         };
         filter = {};
-        this.#data.datasets.forEach(({ key }) => filter[key] = true);
+        this.#data.datasets.forEach(({ key, isInitiallyHidden }) => filter[key] = !isInitiallyHidden);
       } else {
         // The clicked day is not necessarily in the window middle — at the data
         // edges the window is clamped, so the day is located by timestamp

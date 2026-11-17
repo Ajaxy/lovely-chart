@@ -28,7 +28,7 @@ export class Tools {
     const oldElement = this.#element;
     oldElement.classList.add('lovely-chart--state-hidden');
     setTimeout(() => {
-      oldElement.parentNode!.removeChild(oldElement);
+      oldElement.remove();
     }, HIDE_TIMEOUT);
 
     this.#setupLayout(filter);
@@ -38,23 +38,39 @@ export class Tools {
     });
   }
 
+  destroy() {
+    this.#element.remove();
+  }
+
   #setupLayout(filter?: Filter) {
     this.#element = createElement();
     this.#element.className = 'lovely-chart--tools';
 
-    if (this.#data.datasets.length < 2) {
+    // A lone dataset needs no legend, unless it starts hidden and the legend is the way to show it
+    const { datasets } = this.#data;
+    if (datasets.length < 2 && !datasets.some(({ isInitiallyHidden }) => isInitiallyHidden)) {
       this.#element.className += ' lovely-chart--state-hidden';
     }
 
-    this.#data.datasets.forEach(({ key, name }) => {
+    datasets.forEach(({ key, name, isInitiallyHidden }) => {
       const color = this.#data.colors[key];
       const control = createElement<HTMLAnchorElement>('a');
       control.href = '#';
       control.dataset.key = key;
       const darkContent = isLightContentTooFaint(color) ? ' lovely-chart--dark-content' : '';
-      const isChecked = filter?.[key] ?? true;
+      const isChecked = filter?.[key] ?? !isInitiallyHidden;
       const checked = isChecked ? ' lovely-chart--state-checked' : '';
       control.className = `lovely-chart--button lovely-chart--color-${color.slice(1)}${checked}${darkContent}`;
+      control.setAttribute('role', 'button');
+      control.setAttribute('aria-pressed', String(isChecked));
+      control.style.setProperty('--lovely-chart-series-color', color);
+      // A link activates on Enter alone, while a button also activates on Space
+      control.addEventListener('keydown', (e) => {
+        if (e.key === ' ') {
+          e.preventDefault();
+          control.click();
+        }
+      });
 
       const check = createElement<HTMLSpanElement>('span');
       check.className = 'lovely-chart--button-check';
@@ -115,7 +131,9 @@ export class Tools {
     const filter: Filter = {};
 
     buttons.forEach((input) => {
-      filter[input.dataset.key!] = input.classList.contains('lovely-chart--state-checked');
+      const isChecked = input.classList.contains('lovely-chart--state-checked');
+      filter[input.dataset.key!] = isChecked;
+      input.setAttribute('aria-pressed', String(isChecked));
     });
 
     this.#filterCallback(filter);

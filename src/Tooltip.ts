@@ -409,9 +409,8 @@ export class Tooltip {
     }
   }
 
-  #insertNewDataSet(
-    dataSetContainer: HTMLElement, { name, key, value }: StatisticsItem, totalValue: number,
-  ) {
+  #insertNewDataSet(dataSetContainer: HTMLElement, statItem: StatisticsItem, totalValue: number) {
+    const { key, value } = statItem;
     const colorHex = this.#data.colors[key];
     const colorClass = isColorCloseToBackground(this.#colors, colorHex)
       ? ''
@@ -420,11 +419,11 @@ export class Tooltip {
     const newDataSet = createElement();
     newDataSet.className = 'lovely-chart--tooltip-dataset';
     newDataSet.setAttribute('data-present', 'true');
-    newDataSet.setAttribute('data-name', name);
+    newDataSet.setAttribute('data-key', key);
     const titleElement = createElement<HTMLSpanElement>('span');
     titleElement.className = 'lovely-chart--dataset-title';
-    titleElement.textContent = name;
     newDataSet.appendChild(titleElement);
+    this.#fillDataSetIdentity(newDataSet, statItem);
 
     const valueElement = createElement<HTMLSpanElement>('span');
     valueElement.className = className;
@@ -436,8 +435,10 @@ export class Tooltip {
     dataSetContainer.appendChild(newDataSet);
   }
 
-  #updateDataSet(currentDataSet: HTMLElement, { value }: StatisticsItem, totalValue: number) {
+  #updateDataSet(currentDataSet: HTMLElement, statItem: StatisticsItem, totalValue: number) {
+    const { value } = statItem;
     currentDataSet.setAttribute('data-present', 'true');
+    this.#fillDataSetIdentity(currentDataSet, statItem);
 
     const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value`);
 
@@ -446,6 +447,12 @@ export class Tooltip {
     }
 
     this.#renderPercentageValue(currentDataSet, value!, totalValue);
+  }
+
+  // A zoom swaps the datasets under the same keys, names included
+  #fillDataSetIdentity(dataSet: HTMLElement, { name }: StatisticsItem) {
+    dataSet.setAttribute('data-name', name);
+    dataSet.querySelector('.lovely-chart--dataset-title')!.textContent = name;
   }
 
   #formatValue(value: number): string {
@@ -513,7 +520,7 @@ export class Tooltip {
 
     finalStatistics.forEach((statItem) => {
       const currentDataSet = Array.from(dataSetContainer.children)
-        .find((element) => (element as HTMLElement).dataset.name === statItem.name) as HTMLElement | undefined;
+        .find((element) => (element as HTMLElement).dataset.key === statItem.key) as HTMLElement | undefined;
 
       if (!currentDataSet) {
         this.#insertNewDataSet(dataSetContainer, statItem, totalValue);

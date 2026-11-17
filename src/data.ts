@@ -239,7 +239,7 @@ function prepareDatasets(data: LovelyChartParams): { labels: (number | string)[]
 
   return {
     labels: [...labels],
-    datasets: datasets.map(({ name, color, values }, i) => {
+    datasets: datasets.map(({ name, color, values, isInitiallyHidden }, i) => {
       const { min: yMin, max: yMax } = getMaxMin(values);
 
       return {
@@ -248,6 +248,7 @@ function prepareDatasets(data: LovelyChartParams): { labels: (number | string)[]
         name,
         color: color || defaultColors[nextDefaultColor++ % defaultColors.length],
         values: [...values],
+        isInitiallyHidden,
         hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
         yMin,
         yMax,

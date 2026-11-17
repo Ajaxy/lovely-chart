@@ -270,6 +270,7 @@ export default class LovelyChart {
 
   #destroyComponents() {
     this.#zoomer?.destroy();
+    this.#tools?.destroy();
     this.#tooltip?.destroy();
     this.#header?.destroy();
     this.#stateManager?.destroy();
@@ -292,8 +293,15 @@ export default class LovelyChart {
 
   #redraw() {
     if (this.#isDestroyed) return;
+    const filter = this.#zoomer?.getOverviewFilter() ?? this.#stateManager?.getFilter() ?? {};
     this.#destroyComponents();
     Object.assign(this.#data, analyzeData(this.#originalData));
+    // The rebuilt chart keeps the datasets the reader hid
+    this.#data.datasets.forEach((dataset) => {
+      if (filter[dataset.key] !== undefined) {
+        dataset.isInitiallyHidden = !filter[dataset.key];
+      }
+    });
     this.#setupComponents();
   }
 
