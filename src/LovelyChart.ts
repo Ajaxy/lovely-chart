@@ -29,7 +29,7 @@ import { debounce } from './utils.js';
 import { Zoomer } from './Zoomer.js';
 
 export type {
-  ChartType, LabelType, LovelyChartDatasetParams, LovelyChartParams, SecondaryYAxisConfig,
+  ChartType, DateLocale, LabelType, LovelyChartDatasetParams, LovelyChartParams, SecondaryYAxisConfig,
 } from './types.js';
 
 const REDRAW_DEBOUNCE_MS = 500;
