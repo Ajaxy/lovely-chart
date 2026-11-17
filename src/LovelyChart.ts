@@ -1,5 +1,6 @@
 import type {
-  AnalyzedData, ChartColors, ChartState, Filter, FocusOn, LovelyChartParams, Point, ProjectionParams, Range, Size,
+  AnalyzedData, ChartColors, ChartState, Filter, FocusOn, LovelyChartParams, Pixel, Point, ProjectionParams, Range,
+  Rect, Size,
 } from './types.js';
 
 import { Axes } from './Axes.js';
@@ -10,12 +11,15 @@ import {
   PLOT_LINE_WIDTH,
   PLOT_TOP_PADDING,
   SIMPLIFIER_PLOT_FACTOR,
+  SPARKLINE_PADDING,
   X_AXIS_HEIGHT,
 } from './constants.js';
 import { analyzeData } from './data.js';
 import { drawDatasets } from './drawDatasets.js';
 import { getRangeCaption, getZoomCaption } from './format.js';
-import { getSimplificationDelta, isDataRange } from './formulas.js';
+import {
+  getCircleArea, getPlotStart, getSimplificationDelta, isDataRange,
+} from './formulas.js';
 import { Header } from './Header.js';
 import { createElement } from './minifiers.js';
 import { Minimap } from './Minimap.js';
@@ -29,10 +33,18 @@ import { debounce } from './utils.js';
 import { Zoomer } from './Zoomer.js';
 
 export type {
-  ChartType, DateLocale, LabelType, LovelyChartDatasetParams, LovelyChartParams, SecondaryYAxisConfig,
+  ChartType, DateLocale, LabelType, LovelyChartDatasetParams, LovelyChartParams, SecondaryYAxisConfig, ThemedColor,
 } from './types.js';
 
 const REDRAW_DEBOUNCE_MS = 500;
+const PLOT_HEIGHT_PROPERTY = '--lovely-chart-plot-height';
+const PLOT_HEIGHT_PATTERN = /^(\d*\.?\d+)(px|rem)?$/;
+const PLOT_AREA_PROPERTIES: [keyof Rect, string][] = [
+  ['left', '--lovely-chart-plot-area-left'],
+  ['top', '--lovely-chart-plot-area-top'],
+  ['width', '--lovely-chart-plot-area-width'],
+  ['height', '--lovely-chart-plot-area-height'],
+];
 
 export default class LovelyChart {
   readonly #container: HTMLElement;
@@ -43,6 +55,8 @@ export default class LovelyChart {
   #plot?: HTMLCanvasElement;
   #context?: CanvasRenderingContext2D;
   #plotSize?: Size;
+  // The data area of the plot in the coordinates of the canvas, as last written to the element
+  #plotArea?: Rect;
 
   #header?: Header;
   #axes?: Axes;
@@ -58,6 +72,7 @@ export default class LovelyChart {
   #initialZoomPending = false;
 
   #themeObserver?: MutationObserver;
+  #fontFaces?: FontFaceSet;
   #onWindowResize?: () => void;
   #onWindowOrientationChange?: () => void;
 
@@ -70,7 +85,7 @@ export default class LovelyChart {
     this.#originalData = originalData;
 
     this.#data = analyzeData(this.#originalData);
-    this.#colors = createColors(this.#data.colors);
+    this.#colors = createColors(this.#data.colors, this.#data);
     this.#initialZoomPending = this.#data.initialZoomIndex !== undefined;
 
     this.#setupComponents();
@@ -81,14 +96,15 @@ export default class LovelyChart {
     if (this.#isDestroyed) return;
     this.#initialZoomPending = false;
     this.#originalData = newData;
+    const nextSibling = this.#element!.nextSibling ?? undefined;
     this.#destroyComponents();
     const fresh = analyzeData(this.#originalData);
     Object.keys(this.#data).forEach((k) => {
       delete (this.#data as unknown as Record<string, unknown>)[k];
     });
     Object.assign(this.#data, fresh);
-    Object.assign(this.#colors, createColors(this.#data.colors));
-    this.#setupComponents();
+    Object.assign(this.#colors, createColors(this.#data.colors, this.#data));
+    this.#setupComponents(nextSibling);
   }
 
   destroy() {
@@ -97,16 +113,19 @@ export default class LovelyChart {
 
     this.#themeObserver!.disconnect();
     this.#themeObserver = undefined;
+    this.#fontFaces?.removeEventListener('loadingdone', this.#onFontsLoaded);
+    this.#fontFaces = undefined;
     window.removeEventListener('resize', this.#onWindowResize!);
     this.#onWindowResize = undefined;
     window.removeEventListener('orientationchange', this.#onWindowOrientationChange!);
     this.#onWindowOrientationChange = undefined;
 
     this.#destroyComponents();
+    PLOT_AREA_PROPERTIES.forEach(([, property]) => this.#container.style.removeProperty(property));
   }
 
-  #setupComponents() {
-    this.#setupContainer();
+  #setupComponents(nextSibling?: Node) {
+    this.#setupContainer(nextSibling);
     this.#header = new Header(this.#element!, this.#data.title!, this.#data.zoomOutLabel, this.#onZoomOut);
     this.#setupPlotCanvas();
     this.#stateManager = new StateManager(this.#data, this.#plotSize!, this.#onStateUpdate);
@@ -129,18 +148,29 @@ export default class LovelyChart {
       : undefined;
   }
 
-  #setupContainer() {
+  // A rebuilt chart takes the place of the one before it among the children of the element, so elements of the page
+  // there keep the stacking they had over or under the chart
+  #setupContainer(nextSibling?: Node) {
     this.#element = createElement();
-    this.#element.className
-      = `lovely-chart--container${this.#data.shouldZoomToShares ? ' lovely-chart--container-type-circle' : ''}`;
+    this.#element.className = 'lovely-chart--container';
+    if (this.#data.shouldZoomToShares) {
+      this.#element.classList.add('lovely-chart--container-type-circle');
+    }
+    if (this.#data.isSparkline) {
+      this.#element.classList.add('lovely-chart--container-sparkline');
+    }
 
-    this.#container.appendChild(this.#element);
+    if (nextSibling?.parentNode === this.#container) {
+      this.#container.insertBefore(this.#element, nextSibling);
+    } else {
+      this.#container.appendChild(this.#element);
+    }
   }
 
   #setupPlotCanvas() {
     const { canvas, context } = setupCanvas(this.#element!, {
       width: this.#element!.clientWidth,
-      height: PLOT_HEIGHT,
+      height: this.#readPlotHeightProperty() ?? this.#data.plotHeight ?? PLOT_HEIGHT,
     });
 
     this.#plot = canvas;
@@ -152,11 +182,30 @@ export default class LovelyChart {
     };
   }
 
+  #readPlotHeightProperty() {
+    const value = getComputedStyle(this.#element!).getPropertyValue(PLOT_HEIGHT_PROPERTY).trim();
+    const match = PLOT_HEIGHT_PATTERN.exec(value);
+    if (!match) return undefined;
+
+    const height = parseFloat(match[1]);
+    if (!(height > 0)) return undefined;
+
+    return match[2] === 'rem'
+      ? height * parseFloat(getComputedStyle(document.documentElement).fontSize)
+      : height;
+  }
+
   readonly #onStateUpdate = (state: ChartState) => {
     if (this.#isDestroyed) return;
     this.#state = state;
 
+    // A `FontFace` the page adds to `document.fonts` already loaded fires no `loadingdone`
+    if (this.#axes!.detectFontChange()) {
+      this.#resetFontMeasures();
+    }
+
     const { datasets } = this.#data;
+    const labelColumnWidth = this.#axes!.getLabelColumnWidth();
     const range = {
       from: state.labelFromIndex,
       to: state.labelToIndex,
@@ -168,9 +217,10 @@ export default class LovelyChart {
       yMin: state.yMinViewport,
       yMax: state.yMaxViewport,
       availableWidth: this.#plotSize!.width,
-      availableHeight: this.#plotSize!.height - X_AXIS_HEIGHT,
-      xPadding: GUTTER,
-      yPadding: PLOT_TOP_PADDING,
+      availableHeight: this.#plotSize!.height - (this.#data.isSparkline ? SPARKLINE_PADDING : X_AXIS_HEIGHT),
+      xPadding: this.#data.isSparkline ? SPARKLINE_PADDING : GUTTER,
+      xInsetStart: labelColumnWidth !== undefined ? getPlotStart(labelColumnWidth) : undefined,
+      yPadding: this.#data.isSparkline ? SPARKLINE_PADDING : PLOT_TOP_PADDING,
       withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isCircle,
     };
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`] as number);
@@ -181,6 +231,7 @@ export default class LovelyChart {
       this.#data, datasets, range, visibilities, boundsAndParams, undefined, circleSums,
     );
     const projection = new Projection(boundsAndParams);
+    this.#updatePlotArea(this.#data.isCircle ? getCircleArea(projection) : projection.getArea());
 
     let secondaryPoints: Point[] | undefined;
     let secondaryProjection: Projection | undefined;
@@ -203,12 +254,23 @@ export default class LovelyChart {
     const totalPoints = points.reduce((a, p) => a + p.length, 0);
     const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_PLOT_FACTOR;
 
+    // A panned plot runs past its start, so the column of the Y-axis labels clips it
+    if (labelColumnWidth !== undefined) {
+      const labelColumnEnd = GUTTER + labelColumnWidth;
+      this.#context!.save();
+      this.#context!.beginPath();
+      this.#context!.rect(labelColumnEnd, 0, this.#plotSize!.width - labelColumnEnd, this.#plotSize!.height);
+      this.#context!.clip();
+    }
     drawDatasets(
       this.#context!, state, this.#data,
       range, points, projection, secondaryPoints, secondaryProjection,
       PLOT_LINE_WIDTH, visibilities, this.#colors, false, simplification,
     );
-    if (!this.#data.isCircle) {
+    if (labelColumnWidth !== undefined) {
+      this.#context!.restore();
+    }
+    if (!this.#data.isCircle && !this.#data.isSparkline) {
       this.#axes!.drawYAxis(state, projection, secondaryProjection);
       // TODO check isChanged
       this.#axes!.drawXAxis(state, projection);
@@ -223,6 +285,39 @@ export default class LovelyChart {
       this.#zoomer.zoomIn(state, this.#data.initialZoomIndex, true);
     }
   };
+
+  // The element carries the data area for overlays of the page, rewritten only when it changes, as on a build or a
+  // zoom into data of another label column
+  #updatePlotArea(area: Rect) {
+    const previousArea = this.#plotArea;
+    if (previousArea && PLOT_AREA_PROPERTIES.every(([key]) => area[key] === previousArea[key])) return;
+
+    this.#plotArea = area;
+    const [offsetLeft, offsetTop] = this.#measurePlotOffset();
+    const placedArea = { ...area, left: offsetLeft + area.left, top: offsetTop + area.top };
+    PLOT_AREA_PROPERTIES.forEach(([key, property]) => {
+      this.#container.style.setProperty(property, `${placedArea[key]}px`);
+    });
+  }
+
+  // The canvas origin in the padding box of the element. The layout offset of the canvas leaves out the transform
+  // that turns it in a circle transition, and the scale of a transformed element or ancestor turns the distance
+  // between the boxes on the screen back into px of the element.
+  #measurePlotOffset(): Pixel {
+    const container = this.#container;
+    const element = this.#element!;
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    const scaleX = containerRect.width && container.offsetWidth ? containerRect.width / container.offsetWidth : 1;
+    const scaleY = containerRect.height && container.offsetHeight ? containerRect.height / container.offsetHeight : 1;
+
+    return [
+      (elementRect.left - containerRect.left) / scaleX + element.clientLeft + this.#plot!.offsetLeft
+      - container.clientLeft + container.scrollLeft,
+      (elementRect.top - containerRect.top) / scaleY + element.clientTop + this.#plot!.offsetTop
+      - container.clientTop + container.scrollTop,
+    ];
+  }
 
   readonly #onRangeChange = (range: Range) => {
     this.#stateManager!.update({ range });
@@ -247,12 +342,31 @@ export default class LovelyChart {
     this.#zoomer!.zoomOut(this.#state!);
   };
 
+  readonly #onFontsLoaded = () => {
+    if (this.#isDestroyed || !this.#stateManager) return;
+    this.#resetFontMeasures();
+    this.#stateManager.update();
+  };
+
+  // A web font that arrives after the build changes the width of the Y-axis labels the column was measured for, and
+  // can move the plot inside the element
+  #resetFontMeasures() {
+    this.#axes!.resetLabelColumn();
+    this.#plotArea = undefined;
+  }
+
   #setupGlobalListeners() {
     this.#themeObserver = new MutationObserver(() => {
       if (this.#isDestroyed || !this.#stateManager) return;
       this.#stateManager.update();
     });
     this.#themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+    // DOM emulations such as jsdom leave out `document.fonts`
+    if ('fonts' in document) {
+      this.#fontFaces = document.fonts;
+      this.#fontFaces.addEventListener('loadingdone', this.#onFontsLoaded);
+    }
 
     this.#onWindowResize = () => {
       if (window.innerWidth !== this.#windowWidth) {
@@ -282,6 +396,7 @@ export default class LovelyChart {
     this.#element = undefined;
     this.#plot = undefined;
     this.#context = undefined;
+    this.#plotArea = undefined;
     this.#header = undefined;
     this.#axes = undefined;
     this.#minimap = undefined;
@@ -294,6 +409,7 @@ export default class LovelyChart {
   #redraw() {
     if (this.#isDestroyed) return;
     const filter = this.#zoomer?.getOverviewFilter() ?? this.#stateManager?.getFilter() ?? {};
+    const nextSibling = this.#element!.nextSibling ?? undefined;
     this.#destroyComponents();
     Object.assign(this.#data, analyzeData(this.#originalData));
     // The rebuilt chart keeps the datasets the reader hid
@@ -302,7 +418,7 @@ export default class LovelyChart {
         dataset.isInitiallyHidden = !filter[dataset.key];
       }
     });
-    this.#setupComponents();
+    this.#setupComponents(nextSibling);
   }
 
   #getCaption(renderedState: ChartState): string {

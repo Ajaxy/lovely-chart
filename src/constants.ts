@@ -11,9 +11,12 @@ export const TRANSITION_DEFAULT_DURATION = 400;
 export const LONG_PRESS_TIMEOUT = 500;
 
 export const GUTTER = 10;
+export const Y_AXIS_LABEL_GAP = 6;
+export const SPARKLINE_PADDING = 2;
 export const PLOT_HEIGHT = 320;
 export const PLOT_TOP_PADDING = 15;
 export const PLOT_LINE_WIDTH = 2;
+export const HALO_WIDTH = 3;
 export const PLOT_CIRCLE_RADIUS_FACTOR = 0.9 / 2;
 export const PLOT_CIRCLE_SHIFT = 10;
 export const PLOT_BARS_WIDTH_SHIFT = 0.5;
@@ -24,7 +27,8 @@ export const DONUT_INNER_RADIUS_FACTOR = 0.5;
 export const BALLOON_OFFSET = 20;
 export const MAX_TOOLTIP_ITEMS = 12;
 
-export const AXES_FONT_STYLE = '300 10px';
+export const AXES_FONT_WEIGHT = 300;
+export const AXES_FONT_STYLE = `${AXES_FONT_WEIGHT} 10px`;
 export const AXES_MAX_COLUMN_WIDTH = 45;
 export const AXES_MAX_ROW_HEIGHT = 50;
 export const X_AXIS_HEIGHT = 30;

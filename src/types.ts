@@ -19,6 +19,11 @@ export interface Size {
   height: number;
 }
 
+export interface Rect extends Size {
+  left: number;
+  top: number;
+}
+
 export interface XLabel {
   value: number;
   text: string;
@@ -55,6 +60,11 @@ export interface LovelyChartDatasetParams {
   isDotted?: boolean;
 }
 
+/**
+ * A hex colour (`#RRGGBB`, optionally `#RRGGBB/alpha`) for both the day and the night skin, or one for each.
+ */
+export type ThemedColor = string | { light: string; dark: string };
+
 /** Localized date strings for axis, tooltip and caption labels. Each is optional and falls back to English. */
 export interface DateLocale {
   months?: readonly string[]; // Short month names, 12 entries (Jan..Dec)
@@ -85,10 +95,39 @@ export interface LovelyChartParams {
   percentPrecision?: number;
   withGradient?: boolean;
   /**
+   * Plot canvas height in px; defaults to 320. A `--lovely-chart-plot-height` custom property on the chart
+   * element or an ancestor takes precedence, so a media query can set it.
+   */
+  plotHeight?: number;
+  /** Draws the datasets alone, with no axes, grid, header or legend, inset by 2px. */
+  isSparkline?: boolean;
+  /**
+   * Centers each Y-axis label on its grid line, over the line, instead of above it, inside a halo of the background
+   * colour, and moves the labels of either axis 2px in from their side of the chart.
+   */
+  areLabelsContrast?: boolean;
+  /**
+   * Puts the main Y-axis labels in a column left of the plot, right-aligned, clear of the data. The column fits the
+   * widest label the chart can show for its data, measured once per data set, so the plot holds still while the
+   * reader pans, animates or hides datasets, and again when a web font of the page changes the axis font: once it
+   * finishes loading, or on the next frame the chart draws after the page adds a `FontFace` already loaded. The second
+   * Y axis keeps its labels inside the plot.
+   */
+  isYAxisOutward?: boolean;
+  /**
    * Steps both Y axes in whole numbers, 1 at the finest, for counts that have no fractions: a range of 0 to 2
    * labels 0, 1 and 2.
    */
   noFloatSteps?: boolean;
+  /** Font size in px of the axis labels; defaults to 10. */
+  axisFontSize?: number;
+  /** Colour of the axis labels. */
+  axisTextColor?: ThemedColor;
+  /**
+   * Colour of the surface behind the chart. The chart paints it inside the hover dots, in the mask over
+   * unfocused bars and as a halo around the Y-axis labels; defaults to the skin's own background.
+   */
+  backgroundColor?: ThemedColor;
   /** Draws line datasets as monotone curves through their values, never overshooting a value. */
   areLinesSmooth?: boolean;
   /** Opacity of an area fill, 0 to 1; the area's outline and dots keep full opacity. */
@@ -153,7 +192,14 @@ export interface AnalyzedData {
   isPercentage?: boolean;
   percentPrecision?: number;
   isShares: boolean;
+  plotHeight?: number;
+  isSparkline?: boolean;
+  areLabelsContrast?: boolean;
+  isYAxisOutward?: boolean;
   noFloatSteps?: boolean;
+  axisFontSize?: number;
+  axisTextColor?: ThemedColor;
+  backgroundColor?: ThemedColor;
   areLinesSmooth?: boolean;
   areaOpacity?: number;
   areaBorderColor?: string;
@@ -242,6 +288,8 @@ export interface ProjectionParams {
   availableWidth: number;
   availableHeight: number;
   xPadding?: number;
+  // A left padding that panning keeps, in place of `xPadding`, as beside a Y-axis label column
+  xInsetStart?: number;
   yPadding?: number;
   withColumns?: boolean;
 }

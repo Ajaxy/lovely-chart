@@ -1,6 +1,6 @@
 import type { Size } from './types.js';
 
-import { DPR } from './constants.js';
+import { DPR, HALO_WIDTH } from './constants.js';
 import { createElement } from './minifiers.js';
 
 export function setupCanvas(container: HTMLElement, { width, height }: Size) {
@@ -17,6 +17,16 @@ export function setupCanvas(container: HTMLElement, { width, height }: Size) {
   container.appendChild(canvas);
 
   return { canvas, context };
+}
+
+// An outline of the background colour keeps a label over the plot legible across lines and bars
+export function drawHalo(context: CanvasRenderingContext2D, text: string, x: number, y: number, color: string) {
+  context.save();
+  context.lineWidth = HALO_WIDTH;
+  context.lineJoin = 'round';
+  context.strokeStyle = color;
+  context.strokeText(text, x, y);
+  context.restore();
 }
 
 export function clearCanvas(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) {

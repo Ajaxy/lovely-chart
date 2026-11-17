@@ -1,0 +1,232 @@
+import type { AnalyzedData } from './types.js';
+
+import { GAP } from './constants.js';
+import {
+  calculateYAxisScale, ceilToStep, floorToStep, getYAxisRowCount, getYRangeBottom, isConstantRange, yScaleLevelToStep,
+} from './formulas.js';
+import { getMaxMin } from './utils.js';
+
+const DECIMAL_BASE = 10;
+
+interface Series {
+  values: (number | null)[];
+}
+
+interface LatestValue {
+  value: number;
+  labelIndex: number;
+  narrowestRange: number;
+}
+
+/**
+ * The values the main Y axis can label for the data, whatever window the reader picks and whichever datasets they
+ * hide: the one value of each constant window and, at every step a window can take, the longest labels of each
+ * order of magnitude that window reaches.
+ */
+export function listYAxisValues(data: AnalyzedData, plotHeight: number): number[] {
+  const { isStacked, noFloatSteps } = data;
+  const length = data.xLabels.length;
+  const series = data.datasets.flatMap(({ values, hasOwnYAxis }): Series[] => (
+    isStacked || !hasOwnYAxis ? [{ values }] : []
+  ));
+  const dataValues = series.flatMap(({ values }) => values.filter((value): value is number => value !== GAP));
+  const { min = 0, max: top = 0 } = getMaxMin([
+    ...dataValues,
+    // A stacked window always spans 0
+    ...(isStacked ? [0, ...listSubsetTotalBounds(series.map(({ values }) => values), length)] : []),
+  ]);
+  const bottom = isStacked ? min : getYRangeBottom(min, top);
+
+  if (isConstantRange(bottom, top)) {
+    return [bottom];
+  }
+
+  // A stacked window always spans 0, so its labels reach out from there
+  const narrowestRanges = isStacked
+    ? new Map([[0, getNarrowestStackRange(dataValues)]])
+    : getNarrowestRanges(series);
+  const anchors = Float64Array.from(narrowestRanges.keys()).sort();
+  const anchorRanges = anchors.map((value) => narrowestRanges.get(value)!);
+  const narrowestRange = anchorRanges.reduce((narrowest, range) => Math.min(narrowest, range), top - bottom);
+  const rowCount = getYAxisRowCount(plotHeight);
+  const finestLevel = calculateYAxisScale(plotHeight, 0, narrowestRange, noFloatSteps);
+  const coarsestLevel = calculateYAxisScale(plotHeight, bottom, top, noFloatSteps);
+  const values = isStacked ? [] : listConstantValues(series);
+  const reachedValues = new Float64Array(anchors.length);
+
+  // Every step labels 0 when the range spans it, also where no other label of that step fits
+  if (bottom <= 0 && top >= 0) {
+    values.push(0);
+  }
+
+  for (let level = finestLevel; level <= coarsestLevel; level++) {
+    const step = yScaleLevelToStep(level);
+    // The widest range that takes this step, past which the next coarser one does
+    const widestRange = rowCount * yScaleLevelToStep(level + 1);
+    let reachedCount = 0;
+
+    for (let i = 0; i < anchors.length; i++) {
+      if (anchorRanges[i] <= widestRange) {
+        reachedValues[reachedCount++] = anchors[i];
+      }
+    }
+
+    values.push(...listStepValues(
+      reachedValues.subarray(0, reachedCount), floorToStep(bottom, step), floorToStep(top, step), step,
+      widestRange + step,
+    ));
+  }
+
+  return values;
+}
+
+// Per label, the lowest and the highest total of some of the values: the sum of the negative ones and the sum of
+// the positive ones
+function listSubsetTotalBounds(valueLists: (number | null)[][], length: number): number[] {
+  const bounds: number[] = [];
+
+  for (let i = 0; i < length; i++) {
+    let negativeSum = 0;
+    let positiveSum = 0;
+    let hasNegative = false;
+    let hasPositive = false;
+
+    valueLists.forEach((values) => {
+      const value = values[i];
+      if (value === GAP) return;
+
+      if (value < 0) {
+        negativeSum += value;
+        hasNegative = true;
+      } else {
+        positiveSum += value;
+        hasPositive = true;
+      }
+    });
+
+    if (hasNegative) bounds.push(negativeSum);
+    if (hasPositive) bounds.push(positiveSum);
+  }
+
+  return bounds;
+}
+
+// A stacked window spans 0 and the total of the datasets on screen, so none is narrower than one value
+function getNarrowestStackRange(dataValues: number[]): number {
+  return dataValues.reduce((narrowest, value) => (
+    narrowDown(narrowest, getWindowRange(Math.min(0, value), Math.max(0, value)))
+  ), Infinity);
+}
+
+/**
+ * The narrowest range of a window around each value, keyed by the value. A window that is not constant holds two
+ * different values, the later of which meets the latest value of the other's dataset.
+ */
+function getNarrowestRanges(series: Series[]): Map<number, number> {
+  const narrowestRanges = new Map<number, number>();
+  const latestValues: LatestValue[] = [];
+  const length = Math.max(...series.map(({ values }) => values.length));
+
+  for (let labelIndex = 0; labelIndex < length; labelIndex++) {
+    series.forEach(({ values }, seriesIndex) => {
+      const value = values[labelIndex];
+      if (value === GAP) return;
+
+      const ownLatest = latestValues[seriesIndex];
+      let narrowestRange = Infinity;
+
+      latestValues.forEach((latest, latestSeriesIndex) => {
+        // A window back to the label of another dataset's value holds the latest value of this one too
+        const isOwnLatestHeld = latestSeriesIndex !== seriesIndex && ownLatest !== undefined
+          && ownLatest.labelIndex >= latest.labelIndex;
+        const ownValue = isOwnLatestHeld ? ownLatest.value : value;
+        const range = getWindowRange(Math.min(value, latest.value, ownValue), Math.max(value, latest.value, ownValue));
+        narrowestRange = narrowDown(narrowestRange, range);
+        latest.narrowestRange = narrowDown(latest.narrowestRange, range);
+      });
+
+      if (ownLatest !== undefined) keepNarrowest(ownLatest);
+      latestValues[seriesIndex] = { value, labelIndex, narrowestRange };
+    });
+  }
+
+  latestValues.forEach(keepNarrowest);
+
+  return narrowestRanges;
+
+  function keepNarrowest({ value, narrowestRange }: LatestValue) {
+    narrowestRanges.set(value, Math.min(narrowestRanges.get(value) ?? Infinity, narrowestRange));
+  }
+}
+
+// A window of one value labels that value alone
+function listConstantValues(series: Series[]): number[] {
+  const values = series.flatMap(({ values: seriesValues }) => seriesValues.filter(
+    (value): value is number => value !== GAP,
+  ));
+
+  return [...new Set(values)];
+}
+
+// A window spans its values, from 0 when its lowest value is low enough
+function getWindowRange(lowest: number, highest: number): number {
+  return highest - getYRangeBottom(lowest, highest);
+}
+
+// A window of a range of 0 is constant, which takes no step
+function narrowDown(narrowest: number, range: number): number {
+  return range > 0 ? Math.min(narrowest, range) : narrowest;
+}
+
+// Every order of magnitude has labels of one length at a step, the longest among the first two and the last two
+function listStepValues(
+  reachedValues: Float64Array, lowest: number, highest: number, step: number, reach: number,
+): number[] {
+  const values: number[] = [];
+  const largest = Math.max(-lowest, highest);
+
+  for (let exponent = Math.floor(Math.log10(step)); DECIMAL_BASE ** exponent <= largest; exponent++) {
+    const first = ceilToStep(DECIMAL_BASE ** exponent, step);
+    const last = floorToStep(DECIMAL_BASE ** (exponent + 1), step) - step;
+
+    values.push(
+      ...listReachedEnds(reachedValues, Math.max(first, lowest), Math.min(last, highest), step, reach),
+      ...listReachedEnds(reachedValues, Math.max(-last, lowest), Math.min(-first, highest), step, reach),
+    );
+  }
+
+  return values;
+}
+
+// The first two and the last two labels from `from` to `to` that a window around a reached value spans
+function listReachedEnds(
+  reachedValues: Float64Array, from: number, to: number, step: number, reach: number,
+): number[] {
+  if (from > to) return [];
+
+  const firstIndex = findFirstIndex(reachedValues, from - reach, true);
+  const lastIndex = findFirstIndex(reachedValues, to + reach, false) - 1;
+  if (firstIndex > lastIndex) return [];
+
+  const start = ceilToStep(Math.max(from, reachedValues[firstIndex] - reach), step);
+  const end = floorToStep(Math.min(to, reachedValues[lastIndex] + reach), step);
+
+  return [start, start + step, end - step, end].filter((value) => value >= start && value <= end);
+}
+
+// The index of the first sorted value above `value`, or at it when `isInclusive`
+function findFirstIndex(sorted: Float64Array, value: number, isInclusive: boolean): number {
+  let low = 0;
+  let high = sorted.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (sorted[middle] < value || (!isInclusive && sorted[middle] === value)) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low;
+}

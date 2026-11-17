@@ -1,4 +1,4 @@
-import type { Pixel, ProjectionParams } from './types.js';
+import type { Pixel, ProjectionParams, Rect } from './types.js';
 
 import { isConstantRange } from './formulas.js';
 import { mergeProxied } from './utils.js';
@@ -27,6 +27,7 @@ export class Projection {
       availableWidth,
       availableHeight,
       xPadding = 0,
+      xInsetStart,
       yPadding = 0,
       withColumns = false,
     } = params;
@@ -47,9 +48,10 @@ export class Projection {
     // The chart bleeds beyond the container edge while panning, but keeps an
     // edge margin when scrolled all the way to the begin/end. The margin fades
     // in over the last `xPadding` of scroll distance, so the layout stays
-    // stable when the minimap hits a boundary.
+    // stable when the minimap hits a boundary. A label column would hide what
+    // bleeds under it, so beside one the window begins at its fixed inset.
     const baseXFactor = availableWidth / (xRatio * xUnitsCount);
-    const leftPadding = Math.max(0, xPadding - begin * xUnitsCount * baseXFactor);
+    const leftPadding = xInsetStart ?? Math.max(0, xPadding - begin * xUnitsCount * baseXFactor);
     const rightPadding = Math.max(0, xPadding - (1 - end) * xUnitsCount * baseXFactor);
     const effectiveWidth = availableWidth - leftPadding - rightPadding;
 
@@ -93,6 +95,14 @@ export class Projection {
 
   getSize(): Pixel {
     return [this.#availableWidth, this.#effectiveHeight];
+  }
+
+  // The rectangle that a window over every label and the Y range fill; a panned window bleeds past its X padding
+  getArea(): Rect {
+    const { xPadding = 0, xInsetStart, yPadding = 0 } = this.#params;
+    const left = xInsetStart ?? xPadding;
+
+    return { left, top: yPadding, width: this.#availableWidth - xPadding - left, height: this.#effectiveHeight };
   }
 
   getParams(): ProjectionParams {

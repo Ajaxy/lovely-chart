@@ -1,15 +1,31 @@
 import type { Projection } from './Projection.js';
-import type { AnalyzedData, ChartColors, ChartState, SecondaryYAxisConfig, Size } from './types.js';
+import type { AnalyzedData, AnalyzedDataset, ChartColors, ChartState, SecondaryYAxisConfig, Size } from './types.js';
 
-import { AXES_FONT_STYLE, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT } from './constants.js';
+import { drawHalo } from './canvas.js';
+import { AXES_FONT_STYLE, AXES_FONT_WEIGHT, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { humanize } from './format.js';
 import {
-  applyXEdgeOpacity, applyYEdgeOpacity, ceilToStep, floorToStep, getEdgePin, isConstantRange,
+  applyXEdgeOpacity, applyYEdgeOpacity, ceilToStep, floorToStep, getEdgePin, getPlotStart, isConstantRange,
   xScaleLevelToStep, yScaleLevelToStep,
 } from './formulas.js';
 import { getCssColor } from './skin.js';
+import { listYAxisValues } from './yAxisValues.js';
 
 const X_AXIS_LABEL_GAP = 8;
+const CONTRAST_LABEL_PADDING = 2;
+const PERCENT_VALUES = [0, 0.25, 0.5, 0.75, 1];
+const DIGITS = '0123456789';
+// A text in the axis font that a font of other digits or units measures apart
+const FONT_PROBE_TEXT = `${DIGITS}KMBT%`;
+const DIGIT_PATTERN = /\d/g;
+
+interface AxisLabel {
+  text: string;
+  x: number;
+  y: number;
+  colorKey: string;
+  opacity: number;
+}
 
 interface PlacedLabel {
   text: string;
@@ -24,6 +40,13 @@ export class Axes {
   readonly #plotSize: Size;
   readonly #colors: ChartColors;
 
+  #labelColumnWidth = 0;
+  #measuredDatasets?: AnalyzedDataset[];
+  #fontProbeWidth?: number;
+  #drawnDatasets?: AnalyzedDataset[];
+  // From a zoom's swap of the data until the Y range holds still, the labels fading out belong to the data before
+  #isFadingOutSwappedData = false;
+
   constructor(context: CanvasRenderingContext2D, data: AnalyzedData, plotSize: Size, colors: ChartColors) {
     this.#context = context;
     this.#data = data;
@@ -31,16 +54,49 @@ export class Axes {
     this.#colors = colors;
   }
 
+  // The width of the column left of the plot that holds the main Y-axis labels, `undefined` while they stand inside it
+  getLabelColumnWidth(): number | undefined {
+    const { isYAxisOutward, isSparkline, isCircle, datasets } = this.#data;
+    if (!isYAxisOutward || isSparkline || isCircle) return undefined;
+
+    // A zoom swaps the data in place, and every data set brings datasets of its own
+    if (datasets !== this.#measuredDatasets) {
+      this.#measuredDatasets = datasets;
+      this.#labelColumnWidth = this.#getLabelPadding() + this.#measureWidestYLabel();
+    }
+
+    return this.#labelColumnWidth;
+  }
+
+  resetLabelColumn() {
+    this.#measuredDatasets = undefined;
+  }
+
+  // `true` on the first call after the axis font changes, however the font arrives
+  detectFontChange(): boolean {
+    const context = this.#context;
+    context.save();
+    context.font = getAxesFont(context, this.#data.axisFontSize);
+    const width = context.measureText(FONT_PROBE_TEXT).width;
+    context.restore();
+
+    const isChanged = this.#fontProbeWidth !== undefined && width !== this.#fontProbeWidth;
+    this.#fontProbeWidth = width;
+    return isChanged;
+  }
+
   drawXAxis(state: ChartState, projection: Projection) {
     const context = this.#context;
     const plotSize = this.#plotSize;
 
-    context.clearRect(0, plotSize.height - X_AXIS_HEIGHT + 1, plotSize.width, X_AXIS_HEIGHT + 1);
+    // A contrast zero label is centered on the plot bottom, so its lower half stays uncleared
+    const clearTop = plotSize.height - X_AXIS_HEIGHT + (this.#data.areLabelsContrast ? GUTTER : 1);
+    context.clearRect(0, clearTop, plotSize.width, plotSize.height - clearTop + 2);
 
     const topOffset = plotSize.height - X_AXIS_HEIGHT / 2;
     const scaleLevel = Math.floor(state.xAxisScale);
 
-    context.font = getAxesFont(context);
+    context.font = getAxesFont(context, this.#data.axisFontSize);
     context.textAlign = 'center';
     context.textBaseline = 'middle';
 
@@ -62,7 +118,7 @@ export class Axes {
   #placeXLabels(state: ChartState, projection: Projection, step: number): PlacedLabel[] {
     const context = this.#context;
     const plotSize = this.#plotSize;
-    const plotStart = GUTTER;
+    const plotStart = getPlotStart(this.getLabelColumnWidth());
     const plotEnd = plotSize.width - GUTTER;
     const scaleLevel = Math.floor(state.xAxisScale);
     const opacityFactor = 1 - (state.xAxisScale - scaleLevel);
@@ -85,7 +141,7 @@ export class Axes {
       const { text } = this.#data.xLabels[i];
       const [xPx] = projection.toPixels(i, 0);
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
-      opacity = applyYEdgeOpacity(opacity, xPx, plotSize.width, startPin, endPin);
+      opacity = applyYEdgeOpacity(opacity, xPx, plotStart, plotSize.width, startPin, endPin);
 
       const halfWidth = context.measureText(text).width / 2;
       const x = startPin > 0 || endPin > 0
@@ -108,6 +164,14 @@ export class Axes {
     } = state;
     const colorKey = secondaryProjection ? `dataset#${this.#data.datasets[0].key}` : undefined;
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
+
+    if (this.#data.datasets !== this.#drawnDatasets) {
+      this.#isFadingOutSwappedData = this.#drawnDatasets !== undefined;
+      this.#drawnDatasets = this.#data.datasets;
+    }
+    if (!isYChanging) {
+      this.#isFadingOutSwappedData = false;
+    }
 
     if (this.#data.isPercentage) {
       this.#drawYAxisPercents(projection);
@@ -142,7 +206,9 @@ export class Axes {
       );
     }
 
-    if (yAxisScaleProgress > 0 && isYChanging) {
+    // The label column fits the data on screen alone, so the labels of the data before stay out of it
+    const isFadeOutHidden = this.#isFadingOutSwappedData && this.getLabelColumnWidth() !== undefined;
+    if (yAxisScaleProgress > 0 && isYChanging && !isFadeOutHidden) {
       this.#drawYAxisScaled(
         state,
         projection,
@@ -197,12 +263,11 @@ export class Axes {
   ) {
     const context = this.#context;
     const plotSize = this.#plotSize;
+    const labelColumnWidth = this.getLabelColumnWidth();
     const step = yScaleLevelToStep(scaleLevel);
     const [firstVisibleValue, lastVisibleValue] = getVisibleYTicks(yMin, yMax, step);
-
-    context.font = getAxesFont(context);
-    context.textAlign = isSecondary ? 'right' : 'left';
-    context.textBaseline = 'bottom';
+    const labelX = isSecondary ? this.#getSecondaryLabelX() : this.#getMainLabelX(labelColumnWidth);
+    const labels: AxisLabel[] = [];
 
     context.lineWidth = 1;
 
@@ -210,21 +275,16 @@ export class Axes {
 
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
       const [, yPx] = projection.toPixels(0, value);
-      const textOpacity = applyXEdgeOpacity(opacity, yPx);
+      // A contrast label is centered on its tick, so it stays whole under the top edge and needs no fade there
+      const textOpacity = this.#data.areLabelsContrast ? opacity : applyXEdgeOpacity(opacity, yPx);
 
-      context.fillStyle = colorKey
-        ? getCssColor(this.#colors, colorKey, textOpacity)
-        : getCssColor(this.#colors, 'y-axis-text', textOpacity);
-
-      const label = isSecondary
-        ? humanize(value)
-        : this.#formatPrimaryAxisLabel(value);
-
-      if (!isSecondary) {
-        context.fillText(label, GUTTER, yPx - GUTTER / 2);
-      } else {
-        context.fillText(label, plotSize.width - GUTTER, yPx - GUTTER / 2);
-      }
+      labels.push({
+        text: isSecondary ? humanize(value) : this.#formatPrimaryAxisLabel(value),
+        x: labelX,
+        y: this.#getLabelY(yPx),
+        colorKey: colorKey ?? 'y-axis-text',
+        opacity: textOpacity,
+      });
 
       if (isSecondary) {
         context.strokeStyle = getCssColor(this.#colors, colorKey!, opacity);
@@ -232,40 +292,47 @@ export class Axes {
         context.moveTo(plotSize.width - GUTTER, yPx);
         context.lineTo(plotSize.width - GUTTER * 2, yPx);
       } else {
-        context.moveTo(GUTTER, yPx);
+        context.moveTo(getPlotStart(labelColumnWidth), yPx);
         context.strokeStyle = getCssColor(this.#colors, 'grid-lines', opacity);
         context.lineTo(plotSize.width - GUTTER, yPx);
       }
     }
 
     context.stroke();
+
+    this.#fillAxisLabels(labels, isSecondary || labelColumnWidth !== undefined ? 'right' : 'left');
   }
 
   #drawYAxisPercents(projection: Projection) {
     const context = this.#context;
     const plotSize = this.#plotSize;
-    const percentValues = [0, 0.25, 0.50, 0.75, 1];
+    const labelColumnWidth = this.getLabelColumnWidth();
     const [, height] = projection.getSize();
+    const labels: AxisLabel[] = [];
 
-    context.font = getAxesFont(context);
-    context.textAlign = 'left';
-    context.textBaseline = 'bottom';
     context.lineWidth = 1;
 
     context.beginPath();
 
-    percentValues.forEach((value) => {
+    PERCENT_VALUES.forEach((value) => {
       const yPx = height - height * value + PLOT_TOP_PADDING;
 
-      context.fillStyle = getCssColor(this.#colors, 'y-axis-text', 1);
-      context.fillText(`${value * 100}%`, GUTTER, yPx - GUTTER / 4);
+      labels.push({
+        text: formatPercentLabel(value),
+        x: this.#getMainLabelX(labelColumnWidth),
+        y: this.#data.areLabelsContrast ? yPx : yPx - GUTTER / 4,
+        colorKey: 'y-axis-text',
+        opacity: 1,
+      });
 
-      context.moveTo(GUTTER, yPx);
+      context.moveTo(getPlotStart(labelColumnWidth), yPx);
       context.strokeStyle = getCssColor(this.#colors, 'grid-lines', 1);
       context.lineTo(plotSize.width - GUTTER, yPx);
     });
 
     context.stroke();
+
+    this.#fillAxisLabels(labels, labelColumnWidth !== undefined ? 'right' : 'left');
   }
 
   #drawSecondaryYAxis(
@@ -277,25 +344,81 @@ export class Axes {
     opacity = 1,
     secondaryYAxis: SecondaryYAxisConfig,
   ) {
-    const context = this.#context;
     const { multiplier, prefix = '', suffix = '' } = secondaryYAxis;
     const step = yScaleLevelToStep(scaleLevel);
     const [firstVisibleValue, lastVisibleValue] = getVisibleYTicks(yMin, yMax, step);
-
-    context.font = getAxesFont(context);
-    context.textAlign = 'right';
-    context.textBaseline = 'bottom';
+    const labels: AxisLabel[] = [];
 
     for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
       const [, yPx] = projection.toPixels(0, value);
-      const textOpacity = applyXEdgeOpacity(opacity, yPx);
-      const secondaryValue = value * multiplier;
 
-      context.fillStyle = getCssColor(this.#colors, 'y-axis-text', textOpacity);
-      context.fillText(
-        `${prefix}${humanize(secondaryValue)}${suffix}`, this.#plotSize.width - GUTTER, yPx - GUTTER / 2,
-      );
+      labels.push({
+        text: `${prefix}${humanize(value * multiplier)}${suffix}`,
+        x: this.#getSecondaryLabelX(),
+        y: this.#getLabelY(yPx),
+        colorKey: 'y-axis-text',
+        opacity: applyXEdgeOpacity(opacity, yPx),
+      });
     }
+
+    this.#fillAxisLabels(labels, 'right');
+  }
+
+  #getMainLabelX(labelColumnWidth: number | undefined): number {
+    return labelColumnWidth !== undefined ? GUTTER + labelColumnWidth : GUTTER + this.#getLabelPadding();
+  }
+
+  #getSecondaryLabelX(): number {
+    return this.#plotSize.width - GUTTER - this.#getLabelPadding();
+  }
+
+  // A contrast label masks the grid line under it, which keeps showing at the plot edge
+  #getLabelPadding(): number {
+    return this.#data.areLabelsContrast ? CONTRAST_LABEL_PADDING : 0;
+  }
+
+  #getLabelY(tickY: number): number {
+    return this.#data.areLabelsContrast ? tickY : tickY - GUTTER / 2;
+  }
+
+  // Drawn after the grid, so a label centered on its tick sits over the line, its halo masking it
+  #fillAxisLabels(labels: AxisLabel[], textAlign: CanvasTextAlign) {
+    const context = this.#context;
+    const shouldDrawHalo = this.#data.areLabelsContrast || this.#data.backgroundColor !== undefined;
+
+    context.font = getAxesFont(context, this.#data.axisFontSize);
+    context.textAlign = textAlign;
+    context.textBaseline = this.#data.areLabelsContrast ? 'middle' : 'bottom';
+
+    labels.forEach(({ text, x, y, colorKey, opacity }) => {
+      if (shouldDrawHalo) {
+        drawHalo(context, text, x, y, getCssColor(this.#colors, 'background', opacity));
+      }
+
+      context.fillStyle = getCssColor(this.#colors, colorKey, opacity);
+      context.fillText(text, x, y);
+    });
+  }
+
+  // The widest label the data can put on the main axis, so the column holds still whatever the reader does
+  #measureWidestYLabel(): number {
+    const context = this.#context;
+    const texts = this.#data.isPercentage
+      ? PERCENT_VALUES.map(formatPercentLabel)
+      : [...new Set(listYAxisValues(this.#data, this.#plotSize.height))].map((value) => (
+        this.#formatPrimaryAxisLabel(value)
+      ));
+
+    context.save();
+    context.font = getAxesFont(context, this.#data.axisFontSize);
+    // Large data brings labels by the thousand, none wider than its shape with the widest digit in every place
+    const digitWidths = [...DIGITS].map((digit) => context.measureText(digit).width);
+    const widestDigit = DIGITS[digitWidths.indexOf(Math.max(...digitWidths))];
+    const shapes = new Set(texts.map((text) => text.replace(DIGIT_PATTERN, widestDigit)));
+    const width = [...shapes].reduce((widest, shape) => Math.max(widest, context.measureText(shape).width), 0);
+    context.restore();
+
+    return Math.ceil(width);
   }
 
   #formatPrimaryAxisLabel(value: number): string {
@@ -307,6 +430,10 @@ export class Axes {
     }
     return `${prefix}${formatted}${suffix}`;
   }
+}
+
+function formatPercentLabel(value: number): string {
+  return `${value * 100}%`;
 }
 
 // A constant range has one label, its value, which the projection puts at the middle height
@@ -340,7 +467,8 @@ function shiftIntoView(
   return xPx;
 }
 
-function getAxesFont(context: CanvasRenderingContext2D): string {
+function getAxesFont(context: CanvasRenderingContext2D, fontSize?: number): string {
   const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
-  return `${AXES_FONT_STYLE} ${fontFamily}`;
+  const style = fontSize !== undefined && fontSize > 0 ? `${AXES_FONT_WEIGHT} ${fontSize}px` : AXES_FONT_STYLE;
+  return `${style} ${fontFamily}`;
 }

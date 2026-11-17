@@ -4,7 +4,7 @@ import type {
 } from './types.js';
 
 import { clearCanvas, setupCanvas } from './canvas.js';
-import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, X_AXIS_HEIGHT } from './constants.js';
+import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, SPARKLINE_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { formatDayHourFull, formatInteger, getLabelDate, getLabelTime } from './format.js';
 import { getCircleRadius } from './formulas.js';
 import { addEventListener, createElement, removeEventListener } from './minifiers.js';
@@ -274,7 +274,8 @@ export class Tooltip {
         this.#drawCircles(statistics, labelIndex);
       }
 
-      this.#drawTail(xPx, this.#plotSize.height - X_AXIS_HEIGHT, getCssColor(this.#colors, 'grid-lines'));
+      const plotBottom = this.#plotSize.height - (this.#data.isSparkline ? SPARKLINE_PADDING : X_AXIS_HEIGHT);
+      this.#drawTail(xPx, plotBottom, getCssColor(this.#colors, 'grid-lines'));
     }
   }
 

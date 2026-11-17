@@ -1,6 +1,7 @@
-import type { ChartColors, ColorChannels } from './types.js';
+import type { ChartColors, ColorChannels, ThemedColor } from './types.js';
 
 const COLOR_CLOSENESS_THRESHOLD = 70;
+const MASK_OPACITY = 0.5;
 // The label colours of a checked legend button, as `_buttons.scss` sets them
 const DARK_CONTENT_COLOR = '#222222';
 const LIGHT_CONTENT_COLOR = '#FFFFFF';
@@ -16,6 +17,7 @@ const SRGB_OFFSET = 0.055;
 const SRGB_GAMMA = 2.4;
 const CONTRAST_FLARE = 0.05;
 const CHANNEL_MAX = 255;
+const SKIN_SCHEMES = { 'skin-day': 'light', 'skin-night': 'dark' } as const;
 
 function detectSkin() {
   return document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
@@ -86,7 +88,10 @@ function ensureInited() {
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 }
 
-export function createColors(datasetColors: Record<string, string>): ChartColors {
+export function createColors(
+  datasetColors: Record<string, string>,
+  { axisTextColor, backgroundColor }: { axisTextColor?: ThemedColor; backgroundColor?: ThemedColor } = {},
+): ChartColors {
   ensureInited();
 
   const colors: ChartColors = {};
@@ -98,6 +103,18 @@ export function createColors(datasetColors: Record<string, string>): ChartColors
     Object.entries(COLORS[skin]).forEach(([prop, value]) => {
       colors[skin][prop] = hexToChannels(value);
     });
+
+    if (axisTextColor) {
+      const axisText = hexToChannels(pickSchemeColor(axisTextColor, SKIN_SCHEMES[skin]));
+      colors[skin]['x-axis-text'] = axisText;
+      colors[skin]['y-axis-text'] = axisText;
+    }
+
+    if (backgroundColor) {
+      const background = hexToChannels(pickSchemeColor(backgroundColor, SKIN_SCHEMES[skin]));
+      colors[skin].background = background;
+      colors[skin].mask = [background[0], background[1], background[2], background[3]! * MASK_OPACITY];
+    }
 
     Object.entries(datasetColors).forEach(([key, color]) => {
       const colorSuffix = color.slice(1);
@@ -120,6 +137,10 @@ export function createColors(datasetColors: Record<string, string>): ChartColors
   });
 
   return colors;
+}
+
+function pickSchemeColor(color: ThemedColor, scheme: 'light' | 'dark') {
+  return typeof color === 'string' ? color : color[scheme];
 }
 
 export function getCssColor(colors: ChartColors, key: string, opacity?: number): string {

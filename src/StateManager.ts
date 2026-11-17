@@ -3,27 +3,19 @@ import type { AnalyzedData, ChartState, Filter, FocusOn, PointerVector, Range, S
 import {
   ANIMATE_PROPS,
   AXES_MAX_COLUMN_WIDTH,
-  AXES_MAX_ROW_HEIGHT,
   CIRCLE_STATIC_PROPS,
   GAP,
-  GUTTER,
   NO_FOCUS,
   PLOT_CIRCLE_RADIUS_FACTOR,
   PLOT_TOP_PADDING,
   TRANSITION_DEFAULT_DURATION,
   X_AXIS_HEIGHT,
-  Y_AXIS_ZERO_BASED_THRESHOLD,
 } from './constants.js';
 import {
-  floorToStep, isConstantRange, xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel,
+  calculateYAxisScale, floorToStep, getYRangeBottom, isConstantRange, xStepToScaleLevel, yScaleLevelToStep,
 } from './formulas.js';
 import { TransitionManager } from './TransitionManager.js';
 import { getMaxMin, mergeProxied, throttleWithRaf } from './utils.js';
-
-const MIN_LEGIBLE_Y_LABELS = 2;
-const MIN_INTEGER_Y_SCALE_LEVEL = yStepToScaleLevel(1);
-// Height of the band under the plot top where the axis labels fade out (`applyXEdgeOpacity`)
-const Y_AXIS_TOP_FADE_HEIGHT = GUTTER * 3 - PLOT_TOP_PADDING;
 
 interface StateUpdate {
   range?: Partial<Range>;
@@ -205,9 +197,9 @@ function calculateState(
     viewportSize.height, yRanges.yMinViewportSecond!, yRanges.yMaxViewportSecond!, data.noFloatSteps,
   );
 
-  // A constant range keeps its one value for the axis to label at the middle height, so it does not round its bottom
-  // down to a step
-  if (!isConstantRange(yRanges.yMinViewport, yRanges.yMaxViewport)) {
+  // A sparkline has no axis to align its bottom to, and a constant range keeps its one value for the axis to label
+  // at the middle height, so neither rounds its bottom down to a step
+  if (!data.isSparkline && !isConstantRange(yRanges.yMinViewport, yRanges.yMaxViewport)) {
     yRanges.yMinViewport = floorToStep(yRanges.yMinViewport, yScaleLevelToStep(yAxisScale));
   }
 
@@ -356,9 +348,7 @@ function calculateYRangesForGroup(
 ): YRanges {
   const { min: yMinMinimapReal = prevState.yMinMinimap, max: yMaxMinimap = prevState.yMaxMinimap }
     = getMaxMin(datasets.flatMap(({ yMax, yMin }) => [yMax, yMin]));
-  const yMinMinimap = yMinMinimapReal < 0
-    ? yMinMinimapReal
-    : (yMinMinimapReal / yMaxMinimap > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinMinimapReal : 0);
+  const yMinMinimap = getYRangeBottom(yMinMinimapReal, yMaxMinimap);
 
   let yMinViewport;
   let yMaxViewport;
@@ -372,9 +362,7 @@ function calculateYRangesForGroup(
     const viewportMaxMin = getMaxMin(viewportValues.flat());
     const yMinViewportReal: number = viewportMaxMin.min !== undefined ? viewportMaxMin.min : prevState.yMinViewport;
     yMaxViewport = viewportMaxMin.max !== undefined ? viewportMaxMin.max : prevState.yMaxViewport;
-    yMinViewport = yMinViewportReal < 0
-      ? yMinViewportReal
-      : (yMinViewportReal / yMaxViewport > Y_AXIS_ZERO_BASED_THRESHOLD ? yMinViewportReal : 0);
+    yMinViewport = getYRangeBottom(yMinViewportReal, yMaxViewport);
   }
 
   return {
@@ -428,19 +416,4 @@ function calculateXAxisScale(plotWidth: number, labelFromIndex: number, labelToI
   const maxColumns = Math.floor(plotWidth / AXES_MAX_COLUMN_WIDTH);
 
   return xStepToScaleLevel(viewportLabelsCount / maxColumns);
-}
-
-function calculateYAxisScale(plotHeight: number, yMin: number, yMax: number, noFloatSteps = false): number {
-  const availableHeight = plotHeight - X_AXIS_HEIGHT;
-  const viewportLabelsCount = yMax - yMin;
-  const maxRows = Math.max(1, Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT));
-  const level = yStepToScaleLevel(viewportLabelsCount / maxRows);
-
-  // Labels in the band under the top edge fade out, so a coarse step that leaves a short plot fewer than
-  // two legible labels takes the next finer one
-  const plotSpan = availableHeight - PLOT_TOP_PADDING;
-  const legibleCount = viewportLabelsCount * (plotSpan - Y_AXIS_TOP_FADE_HEIGHT) / plotSpan;
-  const legibleLevel = level > 0 && legibleCount / yScaleLevelToStep(level) < MIN_LEGIBLE_Y_LABELS ? level - 1 : level;
-
-  return noFloatSteps ? Math.max(legibleLevel, MIN_INTEGER_Y_SCALE_LEVEL) : legibleLevel;
 }

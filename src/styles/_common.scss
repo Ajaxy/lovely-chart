@@ -44,6 +44,23 @@
   }
 }
 
+// A sparkline is the plot alone: no caption, legend or axis margin
+.lovely-chart--container-sparkline {
+  .lovely-chart--header,
+  .lovely-chart--tools {
+    display: none;
+  }
+
+  .lovely-chart--tooltip {
+    top: 0;
+  }
+
+  > canvas,
+  .lovely-chart--tooltip canvas {
+    margin-top: 0;
+  }
+}
+
 .lovely-chart--container-type-circle {
   &.lovely-chart--state-animating {
     > canvas {

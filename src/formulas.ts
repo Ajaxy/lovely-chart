@@ -1,13 +1,19 @@
 import type { Projection } from './Projection.js';
-import type { AnalyzedDataset, LinePattern, XLabel } from './types.js';
+import type { AnalyzedDataset, LinePattern, Rect, XLabel } from './types.js';
 
-import { GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, SIMPLIFIER_MIN_POINTS } from './constants.js';
+import {
+  AXES_MAX_ROW_HEIGHT, GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, PLOT_TOP_PADDING, SIMPLIFIER_MIN_POINTS,
+  X_AXIS_HEIGHT, Y_AXIS_LABEL_GAP, Y_AXIS_ZERO_BASED_THRESHOLD,
+} from './constants.js';
 
 const EDGE_FADE_DISTANCE = GUTTER * 4;
 const EDGE_PIN_DISTANCE = GUTTER * 2;
 const CONSTANT_RANGE_EPSILONS = 4;
 // A value within this fraction of a step from a step multiple counts as on it, so float error never moves it a step
 const STEP_EPSILON = 1e-9;
+const MIN_LEGIBLE_Y_LABELS = 2;
+// Height of the band under the plot top where the axis labels fade out (`applyXEdgeOpacity`)
+const Y_AXIS_TOP_FADE_HEIGHT = GUTTER * 3 - PLOT_TOP_PADDING;
 
 export function xScaleLevelToStep(scaleLevel: number): number {
   return Math.pow(2, scaleLevel);
@@ -28,6 +34,7 @@ const SCALE_LEVELS = [
 const LAST_SCALE_LEVEL = SCALE_LEVELS.length - 1;
 const LAST_SCALE_STEP = SCALE_LEVELS[LAST_SCALE_LEVEL];
 const EXTENDED_SCALE_FACTORS = [1, 2.5, 5];
+const MIN_INTEGER_Y_SCALE_LEVEL = yStepToScaleLevel(1);
 
 export function yScaleLevelToStep(scaleLevel: number): number {
   if (!(scaleLevel > LAST_SCALE_LEVEL)) {
@@ -60,6 +67,29 @@ export function yStepToScaleLevel(neededStep: number): number {
     + (factorIndex === -1 ? EXTENDED_SCALE_FACTORS.length : factorIndex);
 }
 
+export function calculateYAxisScale(plotHeight: number, yMin: number, yMax: number, noFloatSteps = false): number {
+  const availableHeight = plotHeight - X_AXIS_HEIGHT;
+  const viewportLabelsCount = yMax - yMin;
+  const level = yStepToScaleLevel(viewportLabelsCount / getYAxisRowCount(plotHeight));
+
+  // Labels in the band under the top edge fade out, so a coarse step that leaves a short plot fewer than
+  // two legible labels takes the next finer one
+  const plotSpan = availableHeight - PLOT_TOP_PADDING;
+  const legibleCount = viewportLabelsCount * (plotSpan - Y_AXIS_TOP_FADE_HEIGHT) / plotSpan;
+  const legibleLevel = level > 0 && legibleCount / yScaleLevelToStep(level) < MIN_LEGIBLE_Y_LABELS ? level - 1 : level;
+
+  return noFloatSteps ? Math.max(legibleLevel, MIN_INTEGER_Y_SCALE_LEVEL) : legibleLevel;
+}
+
+export function getYAxisRowCount(plotHeight: number): number {
+  return Math.max(1, Math.floor((plotHeight - X_AXIS_HEIGHT) / AXES_MAX_ROW_HEIGHT));
+}
+
+// A range of positive values starts at 0, unless its lowest value is more than three quarters of its highest
+export function getYRangeBottom(yMin: number, yMax: number): number {
+  return yMin < 0 || yMin / yMax > Y_AXIS_ZERO_BASED_THRESHOLD ? yMin : 0;
+}
+
 // A range whose ends differ by machine-precision noise around one value draws as constant: stretched to the full
 // height, that noise would draw as a trend
 export function isConstantRange(yMin: number, yMax: number): boolean {
@@ -82,11 +112,12 @@ export function getEdgePin(hiddenPx: number): number {
 export function applyYEdgeOpacity(
   opacity: number,
   xPx: number,
+  plotStart: number,
   plotWidth: number,
   startPin: number,
   endPin: number,
 ): number {
-  const startOpacity = fadeTowardEdge(opacity, xPx + GUTTER, startPin);
+  const startOpacity = fadeTowardEdge(opacity, xPx - plotStart + GUTTER * 2, startPin);
   const endOpacity = fadeTowardEdge(opacity, plotWidth - xPx, endPin);
   return Math.min(opacity, startOpacity, endOpacity);
 }
@@ -115,8 +146,21 @@ export function getDrawnPattern({ type, isDashed, isDotted }: AnalyzedDataset): 
   return isDashed ? 'dashed' : undefined;
 }
 
+// The plot begins after the label column when the Y-axis labels have one
+export function getPlotStart(labelColumnWidth: number | undefined): number {
+  return labelColumnWidth !== undefined ? GUTTER + labelColumnWidth + Y_AXIS_LABEL_GAP : GUTTER;
+}
+
 export function getCircleRadius(projection: Projection): number {
   return Math.max(0, Math.min(...projection.getSize())) * PLOT_CIRCLE_RADIUS_FACTOR;
+}
+
+// The square around the circle of a pie or a donut
+export function getCircleArea(projection: Projection): Rect {
+  const [xCenter, yCenter] = projection.getCenter();
+  const radius = getCircleRadius(projection);
+
+  return { left: xCenter - radius, top: yCenter - radius, width: radius * 2, height: radius * 2 };
 }
 
 export function getCircleTextSize(percent: number, radius: number): number {
