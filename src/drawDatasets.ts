@@ -1,12 +1,12 @@
-import type { Projection } from './Projection';
-import type { AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, LabelRange, Pixel, Point } from './types';
+import type { Projection } from './Projection.js';
+import type { AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, LabelRange, Pixel, Point } from './types.js';
 
 import {
   CIRCLE_MINIMUM_VISIBLE_PERCENT, DONUT_INNER_RADIUS_FACTOR, NO_FOCUS, PLOT_BARS_WIDTH_SHIFT, PLOT_CIRCLE_SHIFT,
-} from './constants';
-import { getCircleRadius, getCircleTextShift, getCircleTextSize } from './formulas';
-import { simplify } from './simplify';
-import { getCssColor } from './skin';
+} from './constants.js';
+import { getCircleRadius, getCircleTextShift, getCircleTextSize } from './formulas.js';
+import { simplify } from './simplify.js';
+import { getCssColor } from './skin.js';
 
 interface DrawOptions {
   color: string;

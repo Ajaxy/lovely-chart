@@ -3,5 +3,5 @@
 // resolve in consumer projects
 import './styles/index.scss';
 
-export * from './LovelyChart';
-export { default } from './LovelyChart';
+export * from './LovelyChart.js';
+export { default } from './LovelyChart.js';

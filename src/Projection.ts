@@ -1,6 +1,6 @@
-import type { Pixel, ProjectionParams } from './types';
+import type { Pixel, ProjectionParams } from './types.js';
 
-import { mergeProxied } from './utils';
+import { mergeProxied } from './utils.js';
 
 export class Projection {
   readonly #params: ProjectionParams;

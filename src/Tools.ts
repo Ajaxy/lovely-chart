@@ -1,8 +1,8 @@
-import type { AnalyzedData, Filter } from './types';
+import type { AnalyzedData, Filter } from './types.js';
 
-import { captureEvents } from './captureEvents';
-import { createElement } from './minifiers';
-import { isColorCloseToWhite } from './skin';
+import { captureEvents } from './captureEvents.js';
+import { createElement } from './minifiers.js';
+import { isColorCloseToWhite } from './skin.js';
 
 // Matches the fade-out transition of the replaced controls
 const HIDE_TIMEOUT = 500;

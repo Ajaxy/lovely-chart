@@ -24,9 +24,10 @@
     "dev": "npm run demo && vite docs",
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "typecheck:consumer": "tsc -p test/nodenext",
     "lint": "eslint .",
     "lint:css": "stylelint \"src/**/*.scss\"",
-    "test": "npm run typecheck && npm run lint && npm run lint:css && npm run build && node test/e2e.js",
+    "test": "npm run typecheck && npm run lint && npm run lint:css && npm run build && npm run typecheck:consumer && node test/e2e.js",
     "prepublishOnly": "npm run build",
     "demo": "npm run build && cp ./dist/LovelyChart.js ./dist/LovelyChart.css docs/",
     "prepare": "(husky || true) && npm run build"

@@ -1,8 +1,8 @@
-import type { CaptureEvent } from './captureEvents';
-import type { AnalyzedData, ChartColors, ChartState, Point, ProjectionParams, Range, Size } from './types';
+import type { CaptureEvent } from './captureEvents.js';
+import type { AnalyzedData, ChartColors, ChartState, Point, ProjectionParams, Range, Size } from './types.js';
 
-import { clearCanvas, setupCanvas } from './canvas';
-import { captureEvents } from './captureEvents';
+import { clearCanvas, setupCanvas } from './canvas.js';
+import { captureEvents } from './captureEvents.js';
 import {
   DEFAULT_RANGE,
   MINIMAP_EAR_WIDTH,
@@ -12,13 +12,13 @@ import {
   MINIMAP_MAX_ANIMATED_DATASETS,
   NO_FOCUS,
   SIMPLIFIER_MINIMAP_FACTOR,
-} from './constants';
-import { drawDatasets } from './drawDatasets';
-import { getSimplificationDelta } from './formulas';
-import { createElement } from './minifiers';
-import { preparePoints } from './preparePoints';
-import { Projection } from './Projection';
-import { mergeProxied, throttleWithRaf } from './utils';
+} from './constants.js';
+import { drawDatasets } from './drawDatasets.js';
+import { getSimplificationDelta } from './formulas.js';
+import { createElement } from './minifiers.js';
+import { preparePoints } from './preparePoints.js';
+import { Projection } from './Projection.js';
+import { mergeProxied, throttleWithRaf } from './utils.js';
 
 export class Minimap {
   readonly #container: HTMLElement;

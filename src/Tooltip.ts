@@ -1,15 +1,15 @@
-import type { Projection } from './Projection';
+import type { Projection } from './Projection.js';
 import type {
   AnalyzedData, ChartColors, ChartState, FocusOn, Pixel, Point, PointerVector, Size, StatisticsItem,
-} from './types';
+} from './types.js';
 
-import { clearCanvas, setupCanvas } from './canvas';
-import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, X_AXIS_HEIGHT } from './constants';
-import { formatDayHourFull, formatInteger, getLabelDate, getLabelTime } from './format';
-import { getCircleRadius } from './formulas';
-import { addEventListener, createElement, removeEventListener } from './minifiers';
-import { getCssColor, isColorCloseToBackground } from './skin';
-import { throttle, throttleWithRaf } from './utils';
+import { clearCanvas, setupCanvas } from './canvas.js';
+import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, X_AXIS_HEIGHT } from './constants.js';
+import { formatDayHourFull, formatInteger, getLabelDate, getLabelTime } from './format.js';
+import { getCircleRadius } from './formulas.js';
+import { addEventListener, createElement, removeEventListener } from './minifiers.js';
+import { getCssColor, isColorCloseToBackground } from './skin.js';
+import { throttle, throttleWithRaf } from './utils.js';
 
 const CONTENT_THROTTLE_MS = 100;
 const CIRCLE_RADIUS = 4;

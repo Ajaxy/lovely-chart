@@ -1,7 +1,7 @@
-import type { Projection } from './Projection';
-import type { XLabel } from './types';
+import type { Projection } from './Projection.js';
+import type { XLabel } from './types.js';
 
-import { GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, SIMPLIFIER_MIN_POINTS } from './constants';
+import { GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, SIMPLIFIER_MIN_POINTS } from './constants.js';
 
 const EDGE_FADE_DISTANCE = GUTTER * 4;
 const EDGE_PIN_DISTANCE = GUTTER * 2;

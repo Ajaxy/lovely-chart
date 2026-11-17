@@ -1,4 +1,4 @@
-import { GAP } from './constants';
+import { GAP } from './constants.js';
 
 // Manual loop keeps this hot path allocation-free and safe for huge arrays
 export function getMaxMin(array: (number | null | undefined)[]): { max?: number; min?: number } {

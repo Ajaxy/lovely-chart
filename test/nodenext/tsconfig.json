@@ -1,0 +1,14 @@
+{
+  // A consumer project on NodeNext resolution, type-checked against the built package by `npm test`
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022", "dom"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": false,
+    "noEmit": true
+  },
+  "files": ["consumer.ts"]
+}

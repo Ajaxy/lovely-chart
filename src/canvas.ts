@@ -1,7 +1,7 @@
-import type { Size } from './types';
+import type { Size } from './types.js';
 
-import { DPR } from './constants';
-import { createElement } from './minifiers';
+import { DPR } from './constants.js';
+import { createElement } from './minifiers.js';
 
 export function setupCanvas(container: HTMLElement, { width, height }: Size) {
   const canvas = createElement<HTMLCanvasElement>('canvas');

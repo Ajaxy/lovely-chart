@@ -1,4 +1,4 @@
-import type { AnalyzedData, ChartState, Filter, FocusOn, PointerVector, Range, Size } from './types';
+import type { AnalyzedData, ChartState, Filter, FocusOn, PointerVector, Range, Size } from './types.js';
 
 import {
   ANIMATE_PROPS,
@@ -12,10 +12,10 @@ import {
   TRANSITION_DEFAULT_DURATION,
   X_AXIS_HEIGHT,
   Y_AXIS_ZERO_BASED_THRESHOLD,
-} from './constants';
-import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas';
-import { TransitionManager } from './TransitionManager';
-import { getMaxMin, mergeProxied, throttleWithRaf } from './utils';
+} from './constants.js';
+import { xStepToScaleLevel, yScaleLevelToStep, yStepToScaleLevel } from './formulas.js';
+import { TransitionManager } from './TransitionManager.js';
+import { getMaxMin, mergeProxied, throttleWithRaf } from './utils.js';
 
 interface StateUpdate {
   range?: Partial<Range>;

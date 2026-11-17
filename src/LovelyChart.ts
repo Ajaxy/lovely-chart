@@ -1,9 +1,9 @@
 import type {
   AnalyzedData, ChartColors, ChartState, Filter, FocusOn, LovelyChartParams, Point, ProjectionParams, Range, Size,
-} from './types';
+} from './types.js';
 
-import { Axes } from './Axes';
-import { clearCanvas, setupCanvas } from './canvas';
+import { Axes } from './Axes.js';
+import { clearCanvas, setupCanvas } from './canvas.js';
 import {
   GUTTER,
   PLOT_HEIGHT,
@@ -11,26 +11,26 @@ import {
   PLOT_TOP_PADDING,
   SIMPLIFIER_PLOT_FACTOR,
   X_AXIS_HEIGHT,
-} from './constants';
-import { analyzeData } from './data';
-import { drawDatasets } from './drawDatasets';
-import { getRangeCaption, getZoomCaption } from './format';
-import { getSimplificationDelta, isDataRange } from './formulas';
-import { Header } from './Header';
-import { createElement } from './minifiers';
-import { Minimap } from './Minimap';
-import { preparePoints } from './preparePoints';
-import { Projection } from './Projection';
-import { createColors } from './skin';
-import { StateManager } from './StateManager';
-import { Tools } from './Tools';
-import { Tooltip } from './Tooltip';
-import { debounce } from './utils';
-import { Zoomer } from './Zoomer';
+} from './constants.js';
+import { analyzeData } from './data.js';
+import { drawDatasets } from './drawDatasets.js';
+import { getRangeCaption, getZoomCaption } from './format.js';
+import { getSimplificationDelta, isDataRange } from './formulas.js';
+import { Header } from './Header.js';
+import { createElement } from './minifiers.js';
+import { Minimap } from './Minimap.js';
+import { preparePoints } from './preparePoints.js';
+import { Projection } from './Projection.js';
+import { createColors } from './skin.js';
+import { StateManager } from './StateManager.js';
+import { Tools } from './Tools.js';
+import { Tooltip } from './Tooltip.js';
+import { debounce } from './utils.js';
+import { Zoomer } from './Zoomer.js';
 
 export type {
   ChartType, LabelType, LovelyChartDatasetParams, LovelyChartParams, SecondaryYAxisConfig,
-} from './types';
+} from './types.js';
 
 const REDRAW_DEBOUNCE_MS = 500;
 

@@ -1,15 +1,15 @@
-import type { Header } from './Header';
-import type { Minimap } from './Minimap';
-import type { StateManager } from './StateManager';
-import type { Tools } from './Tools';
-import type { Tooltip } from './Tooltip';
-import type { AnalyzedData, ChartColors, ChartState, Filter, LovelyChartParams, Range, XLabel } from './types';
+import type { Header } from './Header.js';
+import type { Minimap } from './Minimap.js';
+import type { StateManager } from './StateManager.js';
+import type { Tools } from './Tools.js';
+import type { Tooltip } from './Tooltip.js';
+import type { AnalyzedData, ChartColors, ChartState, Filter, LovelyChartParams, Range, XLabel } from './types.js';
 
-import { MILLISECONDS_IN_DAY, NO_FOCUS, ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants';
-import { analyzeData } from './data';
-import { getZoomCaption } from './format';
-import { getLabelFraction } from './formulas';
-import { createColors } from './skin';
+import { MILLISECONDS_IN_DAY, NO_FOCUS, ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants.js';
+import { analyzeData } from './data.js';
+import { getZoomCaption } from './format.js';
+import { getLabelFraction } from './formulas.js';
+import { createColors } from './skin.js';
 
 const ZOOM_ANIMATING_TIMEOUT = 1_000;
 // Days taken around the zoomed label to build the circle data

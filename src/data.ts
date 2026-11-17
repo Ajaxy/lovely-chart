@@ -1,12 +1,12 @@
-import type { AnalyzedData, AnalyzedDataset, LabelType, LovelyChartParams, Range, XLabel } from './types';
+import type { AnalyzedData, AnalyzedDataset, LabelType, LovelyChartParams, Range, XLabel } from './types.js';
 
-import { MILLISECONDS_IN_DAY } from './constants';
+import { MILLISECONDS_IN_DAY } from './constants.js';
 import {
   formatDay, formatDayHour, formatMin, formatMonth,
   formatText, formatWeek, formatYear,
-} from './format';
-import { getLabelFraction } from './formulas';
-import { getMaxMin } from './utils';
+} from './format.js';
+import { getLabelFraction } from './formulas.js';
+import { getMaxMin } from './utils.js';
 
 const DEFAULT_COLORS = [
   '#3497ED', '#2373DB', '#9ED448', '#5FB641',

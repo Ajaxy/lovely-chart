@@ -1,10 +1,10 @@
-import type { Projection } from './Projection';
-import type { AnalyzedData, ChartColors, ChartState, SecondaryYAxisConfig, Size } from './types';
+import type { Projection } from './Projection.js';
+import type { AnalyzedData, ChartColors, ChartState, SecondaryYAxisConfig, Size } from './types.js';
 
-import { AXES_FONT_STYLE, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants';
-import { humanize } from './format';
-import { applyXEdgeOpacity, applyYEdgeOpacity, getEdgePin, xScaleLevelToStep, yScaleLevelToStep } from './formulas';
-import { getCssColor } from './skin';
+import { AXES_FONT_STYLE, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT, X_AXIS_SHIFT_START } from './constants.js';
+import { humanize } from './format.js';
+import { applyXEdgeOpacity, applyYEdgeOpacity, getEdgePin, xScaleLevelToStep, yScaleLevelToStep } from './formulas.js';
+import { getCssColor } from './skin.js';
 
 export class Axes {
   readonly #context: CanvasRenderingContext2D;

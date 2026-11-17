@@ -1,4 +1,4 @@
-import type { Pixel } from './types';
+import type { Pixel } from './types.js';
 
 // Iterative Ramer–Douglas–Peucker polyline simplification with a memoized
 // subdivision tree: `simplify(points)` precalculates per-point distances once,

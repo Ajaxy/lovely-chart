@@ -1,4 +1,4 @@
-import { createElement } from './minifiers';
+import { createElement } from './minifiers.js';
 
 export function toggleText(element: HTMLElement, newText: string, className = '', inverse = false): HTMLElement {
   const container = element.parentNode as HTMLElement;

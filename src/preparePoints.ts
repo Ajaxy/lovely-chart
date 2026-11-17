@@ -1,7 +1,7 @@
-import type { AnalyzedData, AnalyzedDataset, LabelRange, Point } from './types';
+import type { AnalyzedData, AnalyzedDataset, LabelRange, Point } from './types.js';
 
-import { GAP } from './constants';
-import { sumArrays } from './utils';
+import { GAP } from './constants.js';
+import { sumArrays } from './utils.js';
 
 export function preparePoints(
   data: AnalyzedData,

@@ -1,8 +1,8 @@
-import type { DateLocale, LabelType, XLabel } from './types';
+import type { DateLocale, LabelType, XLabel } from './types.js';
 
 import {
   MILLISECONDS_IN_DAY, MILLISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT,
-} from './constants';
+} from './constants.js';
 
 export function formatDayHour(labels: number[], dateLocale?: DateLocale): XLabel[] {
   const months = dateLocale?.months ?? MONTHS;

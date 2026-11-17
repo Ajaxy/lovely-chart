@@ -1,4 +1,4 @@
-import type { NO_FOCUS } from './constants';
+import type { NO_FOCUS } from './constants.js';
 
 export type ChartType = 'line' | 'bar' | 'step' | 'area' | 'pie' | 'donut';
 

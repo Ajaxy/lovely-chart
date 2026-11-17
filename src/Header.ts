@@ -1,6 +1,6 @@
-import { addEventListener, createElement } from './minifiers';
-import { toggleText } from './toggleText';
-import { throttle } from './utils';
+import { addEventListener, createElement } from './minifiers.js';
+import { toggleText } from './toggleText.js';
+import { throttle } from './utils.js';
 
 const CAPTION_THROTTLE_MS = 100;
 // Matches the title slide-in transition, so the link is not clickable mid-animation

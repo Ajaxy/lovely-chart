@@ -1,5 +1,5 @@
-import { LONG_PRESS_TIMEOUT } from './constants';
-import { addEventListener, removeEventListener } from './minifiers';
+import { LONG_PRESS_TIMEOUT } from './constants.js';
+import { addEventListener, removeEventListener } from './minifiers.js';
 
 // Touch events get `pageX` grafted onto them (see the StackOverflow link
 // below), so handlers see a unified shape

@@ -1,4 +1,4 @@
-import { SPEED_TEST_FAST_FPS, SPEED_TEST_INTERVAL, TRANSITION_DEFAULT_DURATION } from './constants';
+import { SPEED_TEST_FAST_FPS, SPEED_TEST_INTERVAL, TRANSITION_DEFAULT_DURATION } from './constants.js';
 
 // A detected slow device is re-tested after this cooldown
 const SLOW_FPS_COOLDOWN = 5_000;

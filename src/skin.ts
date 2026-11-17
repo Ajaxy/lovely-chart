@@ -1,4 +1,4 @@
-import type { ChartColors, ColorChannels } from './types';
+import type { ChartColors, ColorChannels } from './types.js';
 
 const COLOR_CLOSENESS_THRESHOLD = 70;
 
