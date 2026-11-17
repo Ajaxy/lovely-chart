@@ -194,13 +194,6 @@ export class Zoomer {
       Object.assign(this.#colors, createColors(newRawData.colors));
     }
 
-    if (shouldZoomToLines) {
-      this.#minimap?.toggle(this.#isZoomed);
-      this.#tools.redraw();
-      this.#container.style.width = `${this.#container.scrollWidth}px`;
-      this.#container.style.height = `${this.#container.scrollHeight}px`;
-    }
-
     const daysCount = this.#isZoomed || this.#data.shouldZoomToShares
       ? this.#data.xLabels.length
       : this.#data.xLabels.length / 24;
@@ -237,6 +230,13 @@ export class Zoomer {
             ?? centeredDayRange;
         filter = this.#stateBeforeZoomIn!.filter;
       }
+    }
+
+    if (shouldZoomToLines) {
+      this.#minimap?.toggle(this.#isZoomed);
+      this.#tools.redraw(filter);
+      this.#container.style.width = `${this.#container.scrollWidth}px`;
+      this.#container.style.height = `${this.#container.scrollHeight}px`;
     }
 
     if (isInstant) {

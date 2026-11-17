@@ -23,21 +23,22 @@ export class Tools {
     this.#updateFilter();
   }
 
-  redraw() {
+  // Rebuilds the buttons for the datasets of a zoomed or restored view, checked as `filter` shows them
+  redraw(filter: Filter) {
     const oldElement = this.#element;
     oldElement.classList.add('lovely-chart--state-hidden');
     setTimeout(() => {
       oldElement.parentNode!.removeChild(oldElement);
     }, HIDE_TIMEOUT);
 
-    this.#setupLayout();
+    this.#setupLayout(filter);
     this.#element.classList.add('lovely-chart--state-transparent');
     requestAnimationFrame(() => {
       this.#element.classList.remove('lovely-chart--state-transparent');
     });
   }
 
-  #setupLayout() {
+  #setupLayout(filter?: Filter) {
     this.#element = createElement();
     this.#element.className = 'lovely-chart--tools';
 
@@ -51,8 +52,9 @@ export class Tools {
       control.href = '#';
       control.dataset.key = key;
       const darkContent = isLightContentTooFaint(color) ? ' lovely-chart--dark-content' : '';
-      control.className = `lovely-chart--button lovely-chart--color-${color.slice(1)}`
-        + ` lovely-chart--state-checked${darkContent}`;
+      const isChecked = filter?.[key] ?? true;
+      const checked = isChecked ? ' lovely-chart--state-checked' : '';
+      control.className = `lovely-chart--button lovely-chart--color-${color.slice(1)}${checked}${darkContent}`;
 
       const check = createElement<HTMLSpanElement>('span');
       check.className = 'lovely-chart--button-check';
