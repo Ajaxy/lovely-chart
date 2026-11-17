@@ -41,7 +41,7 @@ const LABEL_TYPE_TO_FORMATTER: Record<LabelType, string | undefined> = {
 export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelType): AnalyzedData {
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage,
-    percentPrecision, secondaryYAxis,
+    percentPrecision, secondaryYAxis, noFloatSteps,
     hasSecondYAxis, onZoom, noZoom, zoomType, zoomToShares, circleLabelsAround,
     withMinimap, minimapRange, noCaption, zoomOutLabel,
     valuePrefix, valueSuffix, isCurrencyPrefix, limitDate, onLimitedRangeClick, initialZoom,
@@ -117,6 +117,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
     isPercentage,
     percentPrecision,
     isShares: Boolean(isPercentage) || isCircle,
+    noFloatSteps,
     secondaryYAxis,
     hasSecondYAxis,
     valuePrefix,

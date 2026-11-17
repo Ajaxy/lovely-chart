@@ -19,6 +19,7 @@ import { TransitionManager } from './TransitionManager.js';
 import { getMaxMin, mergeProxied, throttleWithRaf } from './utils.js';
 
 const MIN_LEGIBLE_Y_LABELS = 2;
+const MIN_INTEGER_Y_SCALE_LEVEL = yStepToScaleLevel(1);
 // Height of the band under the plot top where the axis labels fade out (`applyXEdgeOpacity`)
 const Y_AXIS_TOP_FADE_HEIGHT = GUTTER * 3 - PLOT_TOP_PADDING;
 
@@ -190,9 +191,12 @@ function calculateState(
     ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState)
     : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
 
-  const yAxisScale = calculateYAxisScale(viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport);
-  const yAxisScaleSecond = data.hasSecondYAxis
-    && calculateYAxisScale(viewportSize.height, yRanges.yMinViewportSecond!, yRanges.yMaxViewportSecond!);
+  const yAxisScale = calculateYAxisScale(
+    viewportSize.height, yRanges.yMinViewport, yRanges.yMaxViewport, data.noFloatSteps,
+  );
+  const yAxisScaleSecond = data.hasSecondYAxis && calculateYAxisScale(
+    viewportSize.height, yRanges.yMinViewportSecond!, yRanges.yMaxViewportSecond!, data.noFloatSteps,
+  );
 
   const yStep = yScaleLevelToStep(yAxisScale);
   yRanges.yMinViewport = Math.floor(yRanges.yMinViewport / yStep) * yStep;
@@ -413,7 +417,7 @@ function calculateXAxisScale(plotWidth: number, labelFromIndex: number, labelToI
   return xStepToScaleLevel(viewportLabelsCount / maxColumns);
 }
 
-function calculateYAxisScale(plotHeight: number, yMin: number, yMax: number): number {
+function calculateYAxisScale(plotHeight: number, yMin: number, yMax: number, noFloatSteps = false): number {
   const availableHeight = plotHeight - X_AXIS_HEIGHT;
   const viewportLabelsCount = yMax - yMin;
   const maxRows = Math.max(1, Math.floor(availableHeight / AXES_MAX_ROW_HEIGHT));
@@ -423,5 +427,7 @@ function calculateYAxisScale(plotHeight: number, yMin: number, yMax: number): nu
   // two legible labels takes the next finer one
   const plotSpan = availableHeight - PLOT_TOP_PADDING;
   const legibleCount = viewportLabelsCount * (plotSpan - Y_AXIS_TOP_FADE_HEIGHT) / plotSpan;
-  return level > 0 && legibleCount / yScaleLevelToStep(level) < MIN_LEGIBLE_Y_LABELS ? level - 1 : level;
+  const legibleLevel = level > 0 && legibleCount / yScaleLevelToStep(level) < MIN_LEGIBLE_Y_LABELS ? level - 1 : level;
+
+  return noFloatSteps ? Math.max(legibleLevel, MIN_INTEGER_Y_SCALE_LEVEL) : legibleLevel;
 }

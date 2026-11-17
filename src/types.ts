@@ -78,6 +78,11 @@ export interface LovelyChartParams {
    */
   percentPrecision?: number;
   withGradient?: boolean;
+  /**
+   * Steps both Y axes in whole numbers, 1 at the finest, for counts that have no fractions: a range of 0 to 2
+   * labels 0, 1 and 2.
+   */
+  noFloatSteps?: boolean;
   hasSecondYAxis?: boolean;
   secondaryYAxis?: SecondaryYAxisConfig;
   onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
@@ -131,6 +136,7 @@ export interface AnalyzedData {
   isPercentage?: boolean;
   percentPrecision?: number;
   isShares: boolean;
+  noFloatSteps?: boolean;
   secondaryYAxis?: SecondaryYAxisConfig;
   hasSecondYAxis?: boolean;
   valuePrefix?: string;
