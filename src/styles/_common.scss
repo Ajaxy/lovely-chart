@@ -8,6 +8,8 @@
   --tooltip-background: #ffffff;
   --tooltip-arrow: #D2D5D7;
   --minimap-limit-color: #616770;
+  --tooltip-change-positive: #108BE3;
+  --tooltip-change-negative: #E65850;
 
   -webkit-user-select: none;
   user-select: none;
@@ -32,6 +34,8 @@
     --tooltip-background: #1c2533;
     --tooltip-arrow: #D2D5D7;
     --minimap-limit-color: #BFC0C2;
+    --tooltip-change-positive: #48AAF0;
+    --tooltip-change-negative: #F07068;
   }
 
   // &.lovely-chart--state-invisible > * {

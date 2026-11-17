@@ -7,13 +7,14 @@ import { clearCanvas, setupCanvas } from './canvas.js';
 import { getComparisonValues } from './comparison.js';
 import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, SPARKLINE_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { formatDayHourFull, formatInteger, getLabelDate, getLabelTime } from './format.js';
-import { getCircleRadius } from './formulas.js';
+import { getCircleRadius, getDrawnPattern } from './formulas.js';
 import { addEventListener, createElement, removeEventListener } from './minifiers.js';
-import { getCssColor, isColorCloseToBackground } from './skin.js';
+import { getCssColor } from './skin.js';
 import { throttle, throttleWithRaf } from './utils.js';
 
 const CONTENT_THROTTLE_MS = 100;
 const NO_VALUE = '—';
+const WEEK_OF = 'Week of';
 const CIRCLE_RADIUS = 4;
 const CIRCLE_LINE_WIDTH = 2;
 
@@ -46,7 +47,9 @@ export class Tooltip {
 
   readonly #selectLabelOnRaf = throttleWithRaf((isExternal?: boolean) => this.#selectLabel(isExternal));
   readonly #throttledUpdateContent = throttle(
-    (title: string | undefined, statistics: StatisticsItem[]) => this.#updateContent(title, statistics),
+    (title: string | undefined, statistics: StatisticsItem[], resolvedTotal?: number | null) => (
+      this.#updateContent(title, statistics, resolvedTotal)
+    ),
     CONTENT_THROTTLE_MS,
     true,
   );
@@ -136,8 +139,10 @@ export class Tooltip {
 
   #setupBalloon() {
     this.#balloon = createElement();
-    this.#balloon.className
-      = `lovely-chart--tooltip-balloon${!this.#data.isZoomable ? ' lovely-chart--state-inactive' : ''}`;
+    this.#balloon.className = 'lovely-chart--tooltip-balloon';
+    if (!this.#data.isZoomable) {
+      this.#balloon.classList.add('lovely-chart--state-inactive');
+    }
     this.#balloon.innerHTML = `
       <div class="lovely-chart--tooltip-title"></div>
       <div class="lovely-chart--tooltip-legend"></div>
@@ -344,8 +349,11 @@ export class Tooltip {
   }
 
   #updateBalloon(datasetStatistics: StatisticsItem[], labelIndex: number) {
+    const resolvedTotal = this.#data.isCircle ? undefined : this.#data.resolveTooltipTotal?.(
+      this.#data.xLabels[labelIndex].value, datasetStatistics.map(({ originalIndex }) => originalIndex),
+    );
     const statistics = this.#data.comparison
-      ? [this.#buildComparisonItem(datasetStatistics, labelIndex), ...datasetStatistics]
+      ? [this.#buildComparisonItem(datasetStatistics, labelIndex, resolvedTotal), ...datasetStatistics]
       : datasetStatistics;
 
     this.#balloon.style.transform
@@ -355,17 +363,19 @@ export class Tooltip {
     if (this.#data.isCircle) {
       this.#updateContent(undefined, statistics);
     } else {
-      this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics);
+      this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics, resolvedTotal);
     }
   }
 
-  #buildComparisonItem(statistics: StatisticsItem[], labelIndex: number): StatisticsItem {
+  #buildComparisonItem(
+    statistics: StatisticsItem[], labelIndex: number, resolvedTotal: number | null | undefined,
+  ): StatisticsItem {
     const { comparison, datasets } = this.#data;
     const visibilities = datasets.map(({ key }) => (this.#state!.filter[key] ? 1 : 0));
     const value = getComparisonValues(this.#data, visibilities)[labelIndex];
-    const current = statistics.reduce((sum, { value: itemValue, hasOwnYAxis }) => (
-      hasOwnYAxis ? sum : sum + (itemValue ?? 0)
-    ), 0);
+    const current = resolvedTotal !== undefined
+      ? resolvedTotal
+      : statistics.reduce((sum, { value: itemValue, hasOwnYAxis }) => (hasOwnYAxis ? sum : sum + (itemValue ?? 0)), 0);
 
     return {
       key: 'comparison',
@@ -374,7 +384,7 @@ export class Tooltip {
       hasOwnYAxis: false,
       originalIndex: -1,
       isComparison: true,
-      comparisonChange: value !== GAP && value > 0 ? (current / value - 1) * 100 : undefined,
+      comparisonChange: value !== GAP && value > 0 && current !== GAP ? (current / value - 1) * 100 : undefined,
     };
   }
 
@@ -384,6 +394,8 @@ export class Tooltip {
         return formatDayHourFull(data.xLabels[labelIndex].value, data.dateLocale);
       case 'statsTooltipFormat(\'day\')':
         return getLabelDate(data.xLabels[labelIndex], { withYear: true }, data.dateLocale);
+      case 'statsTooltipFormat(\'week\')':
+        return `${data.dateLocale?.weekOf ?? WEEK_OF} ${getLabelDate(data.xLabels[labelIndex], {}, data.dateLocale)}`;
       case 'statsTooltipFormat(\'hour\')':
       case 'statsTooltipFormat(\'5min\')':
         return getLabelTime(data.xLabels[labelIndex]);
@@ -437,24 +449,24 @@ export class Tooltip {
 
   #insertNewDataSet(dataSetContainer: HTMLElement, statItem: StatisticsItem, totalValue: number) {
     const { key, value, isComparison, comparisonChange } = statItem;
-    const colorHex = this.#data.colors[key];
-    const colorClass = isColorCloseToBackground(this.#colors, colorHex)
-      ? ''
-      : ` lovely-chart--color-${colorHex.slice(1)}`;
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right${colorClass}`;
     const newDataSet = createElement();
     newDataSet.className
       = `lovely-chart--tooltip-dataset${isComparison ? ' lovely-chart--tooltip-dataset-comparison' : ''}`;
     newDataSet.setAttribute('data-present', 'true');
     newDataSet.setAttribute('data-key', key);
+
+    const swatchElement = createElement<HTMLSpanElement>('span');
+    swatchElement.className = 'lovely-chart--tooltip-swatch';
+    newDataSet.appendChild(swatchElement);
+
     const titleElement = createElement<HTMLSpanElement>('span');
     titleElement.className = 'lovely-chart--dataset-title';
     newDataSet.appendChild(titleElement);
     this.#fillDataSetIdentity(newDataSet, statItem);
 
     const valueElement = createElement<HTMLSpanElement>('span');
-    valueElement.className = className;
-    valueElement.textContent = this.#formatValue(value, comparisonChange);
+    valueElement.className = 'lovely-chart--tooltip-dataset-value lovely-chart--position-right';
+    this.#fillValue(valueElement, value, comparisonChange);
     newDataSet.appendChild(valueElement);
 
     this.#renderPercentageValue(newDataSet, value!, totalValue);
@@ -467,31 +479,50 @@ export class Tooltip {
     currentDataSet.setAttribute('data-present', 'true');
     this.#fillDataSetIdentity(currentDataSet, statItem);
 
-    const valueElement = currentDataSet.querySelector(`.lovely-chart--tooltip-dataset-value`);
+    const valueElement = currentDataSet.querySelector<HTMLElement>(`.lovely-chart--tooltip-dataset-value`);
 
     if (valueElement) {
-      valueElement.textContent = this.#formatValue(value, comparisonChange);
+      this.#fillValue(valueElement, value, comparisonChange);
     }
 
     this.#renderPercentageValue(currentDataSet, value!, totalValue);
   }
 
-  // A zoom swaps the datasets under the same keys, names included
-  #fillDataSetIdentity(dataSet: HTMLElement, { name }: StatisticsItem) {
+  // A zoom swaps the datasets under the same keys, names, colours, dashes and dots included
+  #fillDataSetIdentity(dataSet: HTMLElement, { key, name, isComparison }: StatisticsItem) {
+    const swatchElement = dataSet.querySelector<HTMLElement>('.lovely-chart--tooltip-swatch')!;
+    const dataset = this.#data.datasets.find((item) => item.key === key);
+    const pattern = dataset && getDrawnPattern(dataset);
+    // The comparison line is dashed, like the lines and steps of dashed datasets
+    const isDashed = Boolean(isComparison) || pattern === 'dashed';
+
     dataSet.setAttribute('data-name', name);
     dataSet.querySelector('.lovely-chart--dataset-title')!.textContent = name;
+    swatchElement.style.setProperty('--lovely-chart-series-color', this.#data.colors[key]);
+    swatchElement.toggleAttribute('data-dashed', isDashed);
+    swatchElement.toggleAttribute('data-dotted', pattern === 'dotted');
   }
 
-  #formatValue(value: number | null, change?: number): string {
+  #fillValue(valueElement: HTMLElement, value: number | null, change?: number) {
+    if (value === GAP || change === undefined) {
+      valueElement.textContent = this.#formatValue(value);
+      return;
+    }
+
+    const rounded = Math.round(change);
+    const changeElement = createElement<HTMLSpanElement>('span');
+    changeElement.className = 'lovely-chart--tooltip-change';
+    changeElement.dataset.tone = rounded > 0 ? 'positive' : rounded < 0 ? 'negative' : 'neutral';
+    changeElement.textContent = `${rounded > 0 ? '+' : ''}${rounded}%`;
+    valueElement.replaceChildren(`${this.#formatValue(value)} · `, changeElement);
+  }
+
+  #formatValue(value: number | null): string {
     if (value === GAP) {
       return NO_VALUE;
     }
 
-    if (change !== undefined) {
-      return `${this.#formatValue(value)} · ${formatChange(change)}`;
-    }
-
-    const formatted = formatInteger(value);
+    const formatted = this.#data.formatTooltipValue ? this.#data.formatTooltipValue(value) : formatInteger(value);
     const prefix = this.#data.valuePrefix || '';
     const suffix = this.#data.valueSuffix || '';
     if (this.#data.isCurrencyPrefix && prefix && formatted.charCodeAt(0) === 45) {
@@ -528,7 +559,7 @@ export class Tooltip {
     }
   }
 
-  #updateDataSets(statistics: StatisticsItem[]) {
+  #updateDataSets(statistics: StatisticsItem[], resolvedTotal?: number | null) {
     const dataSetContainer = this.#balloon.children[1] as HTMLElement;
     if (this.#data.isCircle) {
       dataSetContainer.classList.add('lovely-chart--tooltip-legend-circle');
@@ -552,6 +583,12 @@ export class Tooltip {
       Number(Boolean(b.isComparison)) - Number(Boolean(a.isComparison)) || b.value! - a.value!
     ));
     const limitedStatistics = sortedStatistics.slice(0, MAX_TOOLTIP_ITEMS);
+    // A fixed order lists the largest rows, the ones that fit, in the order of the legend
+    if (this.#data.isTooltipOrderFixed) {
+      limitedStatistics.sort((a, b) => (
+        Number(Boolean(b.isComparison)) - Number(Boolean(a.isComparison)) || a.originalIndex - b.originalIndex
+      ));
+    }
     const finalStatistics = this.#data.isCircle
       ? limitedStatistics.filter(
         (statItem) => this.#isCircleSectorSelected(statistics, statItem, totalValue, pointerVector),
@@ -570,13 +607,16 @@ export class Tooltip {
       }
     });
 
-    const { isBars, isSteps, isAreas, isStacked, isShares } = this.#data;
-    if ((isBars || isSteps || isAreas) && (isStacked || isShares)) {
-      this.#renderTotal(dataSetContainer, this.#formatValue(totalValue));
+    const { isBars, isSteps, isAreas, isStacked, isShares, isTooltipTotalInTitle } = this.#data;
+    const total = resolvedTotal !== undefined ? resolvedTotal : totalValue;
+    const totalText = (isBars || isSteps || isAreas) && (isStacked || isShares) ? this.#formatValue(total) : undefined;
+    if (totalText !== undefined && !isTooltipTotalInTitle) {
+      this.#renderTotal(dataSetContainer, totalText);
     }
+    this.#renderTitleTotal(isTooltipTotalInTitle ? totalText : undefined);
 
     if (this.#data.secondaryYAxis) {
-      this.#renderSecondaryTotal(dataSetContainer, totalValue);
+      this.#renderSecondaryTotal(dataSetContainer, total);
     }
 
     // Re-append total rows to keep them at the bottom after sort reordering
@@ -589,9 +629,28 @@ export class Tooltip {
       });
   }
 
-  #updateContent(title: string | undefined, statistics: StatisticsItem[]) {
+  #updateContent(title: string | undefined, statistics: StatisticsItem[], resolvedTotal?: number | null) {
     this.#updateTitle(title);
-    this.#updateDataSets(statistics);
+    this.#updateDataSets(statistics, resolvedTotal);
+  }
+
+  #renderTitleTotal(totalText: string | undefined) {
+    const titleContainer = this.#balloon.children[0] as HTMLElement;
+    let totalElement = titleContainer.querySelector('.lovely-chart--tooltip-title-total');
+
+    // Data a zoom swaps in can have no title total, which takes away the one on screen
+    if (totalText === undefined) {
+      totalElement?.remove();
+      return;
+    }
+
+    if (!totalElement) {
+      totalElement = createElement<HTMLSpanElement>('span');
+      totalElement.className = 'lovely-chart--tooltip-title-total';
+      titleContainer.appendChild(totalElement);
+    }
+
+    totalElement.textContent = totalText;
   }
 
   #renderTotal(dataSetContainer: HTMLElement, totalValue: string) {
@@ -622,12 +681,12 @@ export class Tooltip {
     }
   }
 
-  #renderSecondaryTotal(dataSetContainer: HTMLElement, totalValue: number) {
+  #renderSecondaryTotal(dataSetContainer: HTMLElement, total: number | null) {
     const { label, multiplier, prefix = '', suffix = '' } = this.#data.secondaryYAxis!;
     const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
     const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
 
-    const secondaryValue = (totalValue * multiplier).toFixed(2);
+    const secondaryValue = total === GAP ? NO_VALUE : `${prefix}${(total * multiplier).toFixed(2)}${suffix}`;
 
     if (!totalText) {
       const newTotalText = createElement();
@@ -640,7 +699,7 @@ export class Tooltip {
 
       const valueElement = createElement<HTMLSpanElement>('span');
       valueElement.className = className;
-      valueElement.textContent = `${prefix}${secondaryValue}${suffix}`;
+      valueElement.textContent = secondaryValue;
       newTotalText.appendChild(valueElement);
 
       dataSetContainer.appendChild(newTotalText);
@@ -650,7 +709,7 @@ export class Tooltip {
       const valueElement = totalText.querySelector(
         `.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`,
       )!;
-      valueElement.textContent = `${prefix}${secondaryValue}${suffix}`;
+      valueElement.textContent = secondaryValue;
     }
   }
 
@@ -682,9 +741,4 @@ export class Tooltip {
   #getPageOffset(element: HTMLElement): DOMRect {
     return element.getBoundingClientRect();
   }
-}
-
-function formatChange(change: number): string {
-  const rounded = Math.round(change);
-  return `${rounded > 0 ? '+' : ''}${rounded}%`;
 }

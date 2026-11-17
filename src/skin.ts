@@ -1,6 +1,5 @@
 import type { ChartColors, ColorChannels, ThemedColor } from './types.js';
 
-const COLOR_CLOSENESS_THRESHOLD = 70;
 const MASK_OPACITY = 0.5;
 // The label colours of a checked legend button, as `_buttons.scss` sets them
 const DARK_CONTENT_COLOR = '#222222';
@@ -122,11 +121,6 @@ export function createColors(
 
       addCssRule(
         styleSheet!,
-        `.lovely-chart--tooltip-dataset-value${baseClass}-${colorSuffix}`,
-        `color: ${color}`,
-      );
-      addCssRule(
-        styleSheet!,
         `.lovely-chart--button${baseClass}-${colorSuffix}`,
         `border-color: ${color}; color: ${color}`,
       );
@@ -167,12 +161,6 @@ function buildCssColor([r, g, b, a = 1]: ColorChannels, opacity = 1): string {
   return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
 }
 
-export function isColorCloseToBackground(colors: ChartColors, hex: string): boolean {
-  const background = colors[skin!]['tooltip-background'];
-  const foreground = hexToChannels(hex);
-  return getColorDistance(background, foreground) < COLOR_CLOSENESS_THRESHOLD;
-}
-
 // A checked legend button keeps its light label while that reaches `MIN_LIGHT_CONTENT_CONTRAST` on the fill
 export function isLightContentTooFaint(hex: string): boolean {
   const luminance = getRelativeLuminance(hexToChannels(hex));
@@ -195,10 +183,6 @@ function getContrastRatio(luminance: number, otherLuminance: number): number {
   const lighter = Math.max(luminance, otherLuminance);
   const darker = Math.min(luminance, otherLuminance);
   return (lighter + CONTRAST_FLARE) / (darker + CONTRAST_FLARE);
-}
-
-function getColorDistance([r1, g1, b1]: ColorChannels, [r2, g2, b2]: ColorChannels): number {
-  return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
 }
 
 function addCssRule(sheet: CSSStyleSheet, selector: string, rule: string) {

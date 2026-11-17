@@ -43,6 +43,15 @@
     }
   }
 
+  // The title total keeps clear of the chevron of a zoomable balloon and the spinner of a loading one, which sit at
+  // the end of the title
+  &:not(.lovely-chart--state-inactive),
+  &.lovely-chart--state-loading {
+    .lovely-chart--tooltip-title-total {
+      margin-inline-end: 16px;
+    }
+  }
+
   &.lovely-chart--state-loading {
     .lovely-chart--spinner {
       display: block;
@@ -59,7 +68,13 @@
 
 .lovely-chart--tooltip-title {
   position: relative;
+
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+
   padding-bottom: 6px;
+
   font-size: 12px;
   font-weight: bold;
 
@@ -87,18 +102,19 @@
 }
 
 .lovely-chart--tooltip-dataset {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
   height: 20px;
+
   line-height: 20px;
   color: var(--text-color);
 
   .lovely-chart--tooltip-dataset-value {
-    float: right;
-    margin-inline-start: 12px;
+    margin-inline-start: auto;
     font-weight: bold;
-  }
-
-  [dir='rtl'] & .lovely-chart--tooltip-dataset-value {
-    float: left;
+    font-variant-numeric: tabular-nums;
   }
 
   &.lovely-chart--tooltip-dataset-total {
@@ -107,20 +123,78 @@
   }
 }
 
+.lovely-chart--tooltip-dataset-comparison {
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--grid-lines);
+  opacity: 0.7;
+
+  // The value and its change read left to right, signs first, in a right-to-left page too, so the margin that keeps
+  // the value at the end of the row is a physical one
+  .lovely-chart--tooltip-dataset-value {
+    direction: ltr;
+    unicode-bidi: isolate;
+    margin-left: auto;
+    font-weight: normal;
+  }
+
+  [dir='rtl'] & .lovely-chart--tooltip-dataset-value {
+    margin-right: auto;
+    margin-left: 0;
+  }
+}
+
 .lovely-chart--percentage-title {
   display: inline-block;
-
   width: var(--lovely-chart-percentage-width, 35px);
-  margin-inline-end: 5px;
-
   font-weight: bold;
   text-align: end;
-
-  &.lovely-chart--transition ~ .lovely-chart--dataset-title {
-    padding-inline-start: 30px;
-  }
 }
 
 html.theme-dark .lovely-chart--tooltip-balloon {
   box-shadow: none;
+}
+
+.lovely-chart--tooltip-title-total {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
+
+// The ring keeps a swatch in the colour of the tooltip background visible
+.lovely-chart--tooltip-swatch {
+  flex: none;
+
+  box-sizing: border-box;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+
+  background: var(--lovely-chart-series-color);
+  box-shadow: inset 0 0 0 1px var(--grid-lines);
+
+  // A dashed or dotted line draws its swatch as a dashed or dotted outline
+  &[data-dashed] {
+    border: 1px dashed var(--lovely-chart-series-color);
+    background: none;
+    box-shadow: none;
+  }
+
+  &[data-dotted] {
+    border: 1px dotted var(--lovely-chart-series-color);
+    background: none;
+    box-shadow: none;
+  }
+}
+
+.lovely-chart--tooltip-change {
+  font-weight: bold;
+
+  &[data-tone='positive'] {
+    color: var(--tooltip-change-positive);
+  }
+
+  &[data-tone='negative'] {
+    color: var(--tooltip-change-negative);
+  }
 }

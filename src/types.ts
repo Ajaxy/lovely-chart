@@ -97,6 +97,7 @@ export interface DateLocale {
   monthsFull?: readonly string[]; // Full month names, 12 entries (January..December)
   weekDays?: readonly string[]; // Full weekday names, 7 entries starting Sunday
   weekDaysShort?: readonly string[]; // Short weekday names, 7 entries starting Sunday
+  weekOf?: string; // Words before the start date of a week in a tooltip title, as in "Week of 21 Oct"
 }
 
 /** Raw data accepted by the `LovelyChart` constructor and `onZoom` callbacks. */
@@ -161,6 +162,24 @@ export interface LovelyChartParams {
   comparison?: Comparison;
   /** Dashed rules at fixed values, drawn over the datasets; ignored on pie and donut charts. */
   referenceLines?: ReferenceLine[];
+  /**
+   * Lists the tooltip rows in the order of the legend, after the comparison row, rather than from the largest
+   * value down. When more rows would show than the tooltip holds, the largest values still decide which do.
+   */
+  isTooltipOrderFixed?: boolean;
+  /**
+   * Puts the total of a stacked or percentage bar, step or area chart beside the tooltip title, in place of a
+   * Total row.
+   */
+  isTooltipTotalInTitle?: boolean;
+  /** Formats a number of the tooltip; `valuePrefix` and `valueSuffix` still wrap the result. */
+  formatTooltipValue?: (value: number) => string;
+  /**
+   * The total of a tooltip, for the label's value (its timestamp, or the index of a text label) and the indexes
+   * of the datasets on screen. `undefined` keeps the sum of the rows and `null` shows "—". The comparison change
+   * reads this total too.
+   */
+  resolveTooltipTotal?: (labelValue: number, datasetIndexes: number[]) => number | null | undefined;
   /** Draws line datasets as monotone curves through their values, never overshooting a value. */
   areLinesSmooth?: boolean;
   /** Opacity of an area fill, 0 to 1; the area's outline and dots keep full opacity. */
@@ -237,6 +256,10 @@ export interface AnalyzedData {
   backgroundColor?: ThemedColor;
   referenceLines: ReferenceLine[];
   comparison?: Comparison & { color: string };
+  isTooltipOrderFixed?: boolean;
+  isTooltipTotalInTitle?: boolean;
+  formatTooltipValue?: LovelyChartParams['formatTooltipValue'];
+  resolveTooltipTotal?: LovelyChartParams['resolveTooltipTotal'];
   areLinesSmooth?: boolean;
   areaOpacity?: number;
   areaBorderColor?: LovelyChartParams['areaBorderColor'];
