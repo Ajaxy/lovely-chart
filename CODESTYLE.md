@@ -55,17 +55,46 @@ if (a) func(a);    // Incorrect — do not guard when the value is guaranteed
 
 ## Commit Messages
 
+Commits and PRs follow this title format and the rules below:
+
 ```
 [Tag] Component / Area: Imperative description
 ```
 
-- **Tag** (optional): `[Refactoring]`, `[Perf]`, `[Size]`, `[Dev]`, `[CI]`, `[Security]`.
-- **Component or domain area** — capitalized, followed by a colon and an imperative-mood description starting with a capital letter.
-- Use backticks when referencing programmatic names; separate multiple tasks with a semicolon; no trailing period.
+- **Tag** (optional): `[Refactoring]`, `[Perf]`, `[Size]`, `[Dev]`, `[CI]`, `[Security]`, followed by a space.
+- **Component or domain area**: capitalized, followed by a colon.
+- **Description**: imperative, starting with a capital letter, as does each sentence in it.
+- Prefer plain text; wrap programmatic names in backticks.
+- Separate multiple tasks with semicolons.
+- No trailing period or semicolon.
+- No Conventional Commits prefixes such as `fix:` or `feat:`, and no past tense.
+- Link an issue with `Closes #<issue_number>` in the PR description.
 
 Examples:
 
 ```
-Minimap: Fix edge margin fade at bounds
+Tooltip: Add `percentPrecision` for the share printed beside each value
+Zoom: Add `zoomToShares` and `circleLabelsAround`
+[Dev] Lint: Run Stylelint in the test suite and on pre-commit
 [Refactoring] Tooltip: Extract balloon positioning
+```
+
+### Bug Fixes
+
+A bug fix starts its description with `Fix`, followed by the problem as a user or developer sees it. How the code now avoids the problem goes in the PR description, or in the commit body for a commit without a PR. A title is change history, so the rule against history framing in [comments](#comments) does not apply to it.
+
+`Fix` opening the description is the only fix marker: no `fix/`, `fix:` or `Fixed`.
+
+```
+Minimap: Fix edge margin fade at bounds
+Zoom: Fix the range a zoomed circle aggregates and selects
+```
+
+Not:
+
+```
+Zoom: Sum a zoomed circle over the labels of its window only
+fix/Zoom: Make a zoomed circle aggregate the right range
+fix: wrong range of a zoomed circle
+Zoom: Fixed the range a zoomed circle aggregates
 ```
