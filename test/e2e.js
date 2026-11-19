@@ -240,6 +240,37 @@ const AXIS_UNITS = { '': 1, K: 1e3, M: 1e6, B: 1e9, T: 1e12 };
 const TRAILING_ZERO_PATTERN = /\.\d*0\D*$/;
 // The float error two steps of a pass of exact labels can differ by, relative to the step
 const EVEN_STEP_TOLERANCE = 1e-9;
+// The least space between two neighbouring X-axis labels, and how far an edge label may stand past the plot area by
+// float error
+const X_LABEL_GAP = 8;
+const X_LABEL_EDGE_TOLERANCE = 0.01;
+// Weekly dates on the X axis of a chart too narrow to label each one, from 5 Aug 2026, and the text of the newest
+const WEEK_DATE_COUNT = 12;
+const WEEKS_PROBE_WIDTH = 330;
+const NEWEST_WEEK_TEXT = '21 Oct';
+// Months of a column chart with room for a label each
+const MONTH_LABELS = ['August', 'September', 'October', 'November'];
+const MONTHS_PROBE_WIDTH = 340;
+// Two-digit labels of a column chart whose grid steps every other label at its width. In the wide font, whose digits
+// are 1.5em wide, the labels of the first axis font size fit that grid, and those of the second would crowd the
+// neighbours of the edge labels, which the grid pins inside the plot, so it steps every fourth label.
+const WEEK_NUMBER_LABELS = Array.from({ length: 13 }, (_, i) => String(34 + i));
+const WEEK_NUMBERS_PROBE_WIDTH = 348;
+const FITTING_DIGITS_FONT_SIZE = 12;
+const CROWDING_DIGITS_FONT_SIZE = 13;
+// A compact chart of percentages, its plot height, axis font size and width, and the fewest pixels of its zero label
+// that a contrast label shows below its grid line, over the X-axis band. The halo of a label reaches half its 3px
+// stroke past the text.
+const COMPACT_PLOT_HEIGHT = 130;
+const COMPACT_AXIS_FONT_SIZE = 11.5;
+const COMPACT_PROBE_WIDTH = 320;
+const MIN_ZERO_LABEL_HALF_PIXELS = 4;
+const HALO_REACH = 1.5;
+// How far a 1px grid line reaches past its y
+const GRID_LINE_REACH = 0.5;
+// The pixels of a label in the magenta probe colour over its halo, antialiased edges and the grey of a GPU-less canvas
+// included
+const MAGENTA_TEXT_PIXEL = { red: [150, 255], green: [0, 110], blue: [150, 255], alpha: [60, 255] };
 
 // A sloped series that a window of a fifth of its labels pans across, the steps of the pan, the first of which settle
 // the window, and how far the pattern may move at one point of the series as the window pans, a smooth line's curves
@@ -297,6 +328,15 @@ const LINES_ZOOM_LAST_LABEL_INDEX = 9;
 // The labels of the balloon placement probe, the newest of them at the right edge of the plot
 const EDGE_LABEL_COUNT = 8;
 const HOUR_MS = 3_600_000;
+// The colours of three datasets sharing a name, the last of which starts hidden
+const SHARED_NAME_COLORS = ['#FF0000', '#00FF00', '#0000FF'];
+// The labels of a selection bounds probe, the indexes `selectLabel()` ignores there, before the first label, past the
+// last, between two and none at all, the labels it selects before them, the last of which no clamping or rounding of an
+// ignored index lands on, and how far the hover line may stand from the label it marks
+const BOUNDS_LABEL_COUNT = 6;
+const IGNORED_LABEL_INDEXES = [-1, BOUNDS_LABEL_COUNT, 1.5, NaN, Infinity];
+const PRESELECTED_LABEL_INDEXES = [1, 3];
+const HOVER_LINE_TOLERANCE = 1;
 // The band in px a page keeps for a header with nothing to show, and the time a zoom in or out takes to settle
 const EMPTY_HEADER_BAND = 20;
 const ZOOM_SETTLE_MS = 1500;
@@ -1165,6 +1205,30 @@ function readPlotAreaLeft(page) {
     const canvasLeft = canvas.getBoundingClientRect().left - host.getBoundingClientRect().left - host.clientLeft;
     return parseFloat(host.style.getPropertyValue('--lovely-chart-plot-area-left')) - canvasLeft;
   });
+}
+
+// The selections the probe chart reported, the x of its hover line, read from the top row of the hover canvas, which
+// the line alone crosses, and the x of each of its `labelCount` labels, all in px from the left of the canvas
+function readProbeHoverLine(page, labelCount) {
+  return page.evaluate((count) => {
+    const host = document.getElementById('probe');
+    const canvas = host.querySelector('.lovely-chart--tooltip canvas');
+    const row = canvas.getContext('2d').getImageData(0, 0, canvas.width, 1).data;
+    let alphaSum = 0;
+    let xSum = 0;
+    for (let x = 0; x < canvas.width; x++) {
+      alphaSum += row[x * 4 + 3];
+      xSum += row[x * 4 + 3] * (x + 0.5);
+    }
+    const plot = host.querySelector('.lovely-chart--container > canvas');
+    const plotLeft = plot.getBoundingClientRect().left - host.getBoundingClientRect().left - host.clientLeft;
+    const areaLeft = parseFloat(host.style.getPropertyValue('--lovely-chart-plot-area-left')) - plotLeft;
+    return {
+      log: [...window.probeLog],
+      lineX: alphaSum ? xSum / alphaSum / (canvas.width / canvas.clientWidth) : undefined,
+      labelXs: Array.from({ length: count }, (_, i) => areaLeft + window.probeChart.getLabelX(i)),
+    };
+  }, labelCount);
 }
 
 // The tops of the probe's header, plot canvas, hover canvas and balloon and the bottom of its header, in px from the
@@ -4263,6 +4327,236 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && JSON.stringify(outwardSecondInsets) === JSON.stringify([contrastInset]),
     `column ends at ${outwardContrastColumn.end} after ${outwardColumn.end}, `
     + `second axis ${JSON.stringify(outwardSecondInsets)} in from the right`);
+
+  // --- The X-axis grid counts from the newest label and steps coarser where labels would crowd, and the X-axis band
+  // clears around a contrast zero label ---
+  // The X-axis labels the last frame of the probe printed, left to right, whether each stays inside the plot area, and
+  // whether each stands clear of the one before it
+  const readXAxisLabels = async () => {
+    const labels = getLastFrameTexts(await readProbeTexts(page)).filter(({ align }) => align === 'center');
+    const plotStart = await readPlotAreaLeft(page);
+    const plotEnd = plotStart + await page.evaluate(() => parseFloat(
+      document.getElementById('probe').style.getPropertyValue('--lovely-chart-plot-area-width'),
+    ));
+    const ends = labels.map(({ x, width }) => [x - width / 2, x + width / 2]);
+    return {
+      texts: labels.map(({ text }) => text),
+      isInPlot: ends.every(([start, end]) => (
+        start >= plotStart - X_LABEL_EDGE_TOLERANCE && end <= plotEnd + X_LABEL_EDGE_TOLERANCE
+      )),
+      isClear: ends.every(([start], i) => !i || start - ends[i - 1][1] >= X_LABEL_GAP),
+    };
+  };
+  const weekDates = Array.from({ length: WEEK_DATE_COUNT }, (_, i) => Date.UTC(2026, 7, 5 + i * 7));
+  await recordProbeNumbers(page);
+  await mountProbe(page, {
+    config: {
+      type: 'area',
+      title: 'Probe — Weekly dates on the X axis',
+      isStacked: true,
+      labelType: 'day',
+      isUtc: true,
+      isYAxisOutward: true,
+      areLabelsContrast: true,
+      labels: weekDates,
+      datasets: [{ name: 'Sessions', values: weekDates.map((_, i) => i + 1) }],
+    },
+    width: WEEKS_PROBE_WIDTH,
+  });
+  const weekAxis = await readXAxisLabels();
+  await unmountProbe(page);
+  check('the X axis of dates ends on the newest, its labels inside the plot and clear of each other',
+    weekAxis.texts.length >= 3 && weekAxis.texts.at(-1) === NEWEST_WEEK_TEXT && weekAxis.isInPlot && weekAxis.isClear,
+    JSON.stringify(weekAxis));
+
+  await recordProbeNumbers(page);
+  await mountProbe(page, {
+    config: {
+      type: 'bar',
+      title: 'Probe — A label for each month',
+      labels: MONTH_LABELS,
+      datasets: [{ name: 'MAU', values: [270, 310, 400, 280] }],
+    },
+    width: MONTHS_PROBE_WIDTH,
+  });
+  const monthAxis = await readXAxisLabels();
+  await unmountProbe(page);
+  check('a column chart with room for every label shows each one, the oldest included',
+    JSON.stringify(monthAxis.texts) === JSON.stringify(MONTH_LABELS) && monthAxis.isInPlot && monthAxis.isClear,
+    JSON.stringify(monthAxis));
+
+  const gridFontFamily = `${WIDE_FONT_FAMILY}Grid`;
+  await page.evaluate(async ({ family, bytes }) => {
+    window.probeGridFont = new FontFace(family, Uint8Array.from(atob(bytes), (char) => char.charCodeAt(0)));
+    await window.probeGridFont.load();
+    document.fonts.add(window.probeGridFont);
+  }, { family: gridFontFamily, bytes: buildWideFont().toString('base64') });
+  const weekNumberAxes = [];
+  for (const axisFontSize of [FITTING_DIGITS_FONT_SIZE, CROWDING_DIGITS_FONT_SIZE]) {
+    await recordProbeNumbers(page);
+    await mountProbe(page, {
+      config: {
+        type: 'bar',
+        title: `Probe — Week numbers at ${axisFontSize}px`,
+        axisFontSize,
+        labels: WEEK_NUMBER_LABELS,
+        datasets: [{ name: 'WAU', values: WEEK_NUMBER_LABELS.map((_, i) => 90 + i * 5) }],
+      },
+      hostStyle: `--lovely-chart-font-family: ${gridFontFamily}`,
+      width: WEEK_NUMBERS_PROBE_WIDTH,
+    });
+    weekNumberAxes.push(await readXAxisLabels());
+    await unmountProbe(page);
+  }
+  await page.evaluate(() => document.fonts.delete(window.probeGridFont));
+  const [fittingWeekAxis, crowdingWeekAxis] = weekNumberAxes;
+  const pickWeekNumbers = (step) => WEEK_NUMBER_LABELS.filter((_, i) => (
+    (WEEK_NUMBER_LABELS.length - 1 - i) % step === 0
+  ));
+  check('the X-axis grid steps evenly back from the newest label, coarser where the edge labels would crowd',
+    JSON.stringify(fittingWeekAxis.texts) === JSON.stringify(pickWeekNumbers(2))
+    && JSON.stringify(crowdingWeekAxis.texts) === JSON.stringify(pickWeekNumbers(4))
+    && [fittingWeekAxis, crowdingWeekAxis].every(({ isInPlot, isClear }) => isInPlot && isClear),
+    JSON.stringify({ fittingWeekAxis, crowdingWeekAxis }));
+
+  // A compact chart of percentages, its range pinned from 0 to 100 by transparent reference lines, its axis labels in
+  // the probe colour
+  const compactDays = [8, 15, 22].map((day) => Date.UTC(2026, 9, day));
+  const readCompactAxis = async (areLabelsContrast) => {
+    await mountProbe(page, {
+      config: {
+        type: 'line',
+        title: `Probe — Compact axis${areLabelsContrast ? ', contrast labels' : ''}`,
+        labels: compactDays,
+        labelType: 'day',
+        isUtc: true,
+        plotHeight: COMPACT_PLOT_HEIGHT,
+        axisFontSize: COMPACT_AXIS_FONT_SIZE,
+        valueSuffix: '%',
+        areLabelsContrast,
+        axisTextColor: PROBE_MAGENTA,
+        backgroundColor: { light: '#FFFFFF', dark: '#242F3E' },
+        referenceLines: [{ value: 0, color: 'transparent' }, { value: 100, color: 'transparent' }],
+        datasets: [
+          { name: 'Current period', color: '#3497ED', values: [0, 55, 100] },
+          { name: 'Previous period', color: '#F79E39', values: [100, 55, 0] },
+        ],
+      },
+      width: COMPACT_PROBE_WIDTH,
+    });
+    // What a redraw of the plot draws after it clears the canvas: the points of each path it strokes, each text with
+    // its place, baseline, font, colour and depth under its baseline, each halo and each clear of a part of the canvas,
+    // in order. Then the pixels of the zero label from under its grid line to the clear of the X-axis band.
+    const redraw = await page.evaluate(async ({ bounds, lineReach }) => {
+      const canvas = document.querySelector('#probe .lovely-chart--container > canvas');
+      const context = canvas.getContext('2d');
+      const calls = [];
+      let points = [];
+      const methods = {
+        beginPath() {
+          points = [];
+        },
+        moveTo(x, y) {
+          points.push([x, y]);
+        },
+        lineTo(x, y) {
+          points.push([x, y]);
+        },
+        stroke() {
+          calls.push({ kind: 'path', points });
+        },
+        fillText(text, x, y) {
+          const { width, actualBoundingBoxDescent: descent } = this.measureText(text);
+          const { textBaseline: baseline, font, fillStyle: color } = this;
+          calls.push({ kind: 'text', text, x, y, baseline, font, color, width, descent });
+        },
+        strokeText(text, x, y) {
+          calls.push({ kind: 'halo', text, x, y });
+        },
+        clearRect(x, y, width, height) {
+          calls.push({ kind: 'clear', x, y, width, height });
+        },
+      };
+      Object.entries(methods).forEach(([name, record]) => {
+        context[name] = function (...args) {
+          record.apply(this, args);
+          return CanvasRenderingContext2D.prototype[name].apply(this, args);
+        };
+      });
+      window.probeChart.refreshColors();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      Object.keys(methods).forEach((name) => delete context[name]);
+
+      const frame = calls.slice(calls.findLastIndex(({ kind, y }) => kind === 'clear' && y === 0) + 1);
+      const zeroLabel = frame.find(({ kind, text }) => kind === 'text' && text === '0%');
+      const band = frame.find(({ kind, y }) => kind === 'clear' && y > 0);
+      const zeroLineY = frame.filter(({ kind }) => kind === 'path').at(-1).points[0][1];
+      const scale = canvas.width / canvas.clientWidth;
+      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+      let zeroLabelPixelsBelow = 0;
+      for (let y = Math.ceil((zeroLineY + lineReach) * scale); y < band.y * scale; y++) {
+        for (let x = Math.floor(zeroLabel.x * scale); x < (zeroLabel.x + zeroLabel.width) * scale; x++) {
+          const j = (y * canvas.width + x) * 4;
+          if (bounds.every(([min, max], k) => data[j + k] >= min && data[j + k] <= max)) zeroLabelPixelsBelow++;
+        }
+      }
+      return { frame, canvasWidth: canvas.clientWidth, canvasHeight: canvas.clientHeight, zeroLabelPixelsBelow };
+    }, {
+      bounds: ['red', 'green', 'blue', 'alpha'].map((channel) => MAGENTA_TEXT_PIXEL[channel]),
+      lineReach: GRID_LINE_REACH,
+    });
+    await unmountProbe(page);
+
+    const { frame } = redraw;
+    const labels = frame.filter(({ kind, text }) => kind === 'text' && text.endsWith('%'));
+    const firstLabelIndex = frame.indexOf(labels[0]);
+    // The Y-axis pass strokes the grid in one path, before the labels and after the datasets
+    const paths = frame.filter(({ kind }, i) => kind === 'path' && i < firstLabelIndex);
+    const gridYs = paths.at(-1).points.map(([, y]) => y);
+    const [datasetPath] = paths;
+    const topLabel = labels.find(({ text }) => text === '100%');
+    const zeroLabel = labels.find(({ text }) => text === '0%');
+    const band = frame.find(({ kind, y }) => kind === 'clear' && y > 0);
+    return {
+      areOnGridLines: labels.length > 1 && labels.every(({ y, baseline }) => (
+        areLabelsContrast
+          ? baseline === 'middle' && gridYs.includes(y)
+          : baseline === 'bottom' && gridYs.includes(y + GUTTER / 2)
+      )),
+      areHaloed: labels.every((label) => {
+        const halo = frame[frame.indexOf(label) - 1];
+        return halo.kind === 'halo' && halo.text === label.text && halo.x === label.x && halo.y === label.y;
+      }),
+      isInAxisFont: labels.every(({ font }) => font.includes(`${COMPACT_AXIS_FONT_SIZE}px`)),
+      // The first dataset runs from 0 to 100
+      areValuesOnLabels: datasetPath.points[0][1] === gridYs[0] && datasetPath.points.at(-1)[1] === gridYs.at(-1)
+        && gridYs[0] === zeroLabel.y + (areLabelsContrast ? 0 : GUTTER / 2)
+        && gridYs.at(-1) === topLabel.y + (areLabelsContrast ? 0 : GUTTER / 2),
+      topLabel: { y: topLabel.y, color: topLabel.color },
+      zeroLabelBottom: zeroLabel.y + zeroLabel.descent + HALO_REACH,
+      zeroLineY: gridYs[0],
+      band,
+      isBandToCanvasEnd: band.x === 0 && band.width >= redraw.canvasWidth
+        && band.y + band.height >= redraw.canvasHeight,
+      zeroLabelPixelsBelow: redraw.zeroLabelPixelsBelow,
+    };
+  };
+  const contrastCompactAxis = await readCompactAxis(true);
+  const standardCompactAxis = await readCompactAxis(false);
+  const compactAxes = [contrastCompactAxis, standardCompactAxis];
+  check('a compact axis prints its labels after the grid, in the axis font and halos, a contrast one on its line',
+    compactAxes.every(({ areOnGridLines, areHaloed, isInAxisFont }) => areOnGridLines && areHaloed && isInAxisFont),
+    JSON.stringify(compactAxes));
+  check('a compact axis plots 0 and 100 on the lines of their labels, the top contrast label whole at the plot top',
+    compactAxes.every(({ areValuesOnLabels }) => areValuesOnLabels) && contrastCompactAxis.topLabel.y === PLOT_TOP
+    && contrastCompactAxis.topLabel.color === PROBE_MAGENTA.toLowerCase(),
+    JSON.stringify(compactAxes));
+  check('the X-axis band clears below the zero label, its halo and its line, a contrast one showing under the line',
+    compactAxes.every(({ zeroLabelBottom, zeroLineY, band, isBandToCanvasEnd }) => (
+      band.y >= zeroLabelBottom && band.y >= zeroLineY + GRID_LINE_REACH && isBandToCanvasEnd
+    ))
+    && contrastCompactAxis.zeroLabelPixelsBelow >= MIN_ZERO_LABEL_HALF_PIXELS,
+    JSON.stringify(compactAxes));
 
   // --- A sparkline has no axes, so no column either ---
   await recordProbeNumbers(page);
@@ -7447,6 +7741,264 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       JSON.stringify({ calledEmpty, calledWider, hovered }));
   }
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
+
+  // --- Datasets sharing a name keep a tooltip row and a legend button each, and the datasets that start hidden go
+  // unreported ---
+  // Two datasets of one name and a third of the comparison's name, then with the first and the third hidden
+  const sharedNameRows = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const reports = [];
+    window.probeChart = new LovelyChart(element, {
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Tooltip rows of datasets sharing a name',
+      labels: [1, 2].map((day) => Date.UTC(2026, 9, day)),
+      datasets: [
+        { name: 'No channel', values: [10, 20] },
+        { name: 'No channel', values: [100, 200] },
+        { name: 'Previous period', values: [1000, 2000] },
+      ],
+      comparison: { name: 'Previous period', values: [[5, 10], [50, 100], [500, 1000]] },
+      onTooltipChange: (tooltip) => reports.push(tooltip),
+    });
+    await wait(1200);
+    // The name and the value of each row the balloon shows, and the rows the last report lists
+    const readRows = () => ({
+      shown: [...element.querySelectorAll('.lovely-chart--tooltip-dataset')].map((row) => [
+        row.dataset.name ?? row.firstElementChild.textContent,
+        row.querySelector('.lovely-chart--tooltip-dataset-value').textContent,
+      ]),
+      reported: reports.at(-1)?.rows,
+    });
+    window.probeChart.selectLabel(0);
+    await wait(300);
+    const allShown = readRows();
+    const buttons = element.querySelectorAll('.lovely-chart--button');
+    buttons[0].click();
+    buttons[2].click();
+    await wait(800);
+    const someHidden = readRows();
+    window.probeChart.destroy();
+    element.remove();
+    return { allShown, someHidden };
+  });
+  check('datasets sharing a name, the comparison\'s included, keep a tooltip row each, reported by their indexes',
+    JSON.stringify(sharedNameRows.allShown) === JSON.stringify({
+      shown: [
+        ['Previous period', '555 · +100%'], ['Previous period', '1 000'], ['No channel', '100'], ['No channel', '10'],
+        ['Total', '1 110'],
+      ],
+      reported: [
+        { datasetIndex: 0, name: 'No channel', value: 10 },
+        { datasetIndex: 1, name: 'No channel', value: 100 },
+        { datasetIndex: 2, name: 'Previous period', value: 1000 },
+      ],
+    }),
+    JSON.stringify(sharedNameRows.allShown));
+  check('hiding a dataset of a shared name leaves the row of the other, and of the comparison of the same name',
+    JSON.stringify(sharedNameRows.someHidden) === JSON.stringify({
+      shown: [['Previous period', '50 · +100%'], ['No channel', '100'], ['Total', '100']],
+      reported: [{ datasetIndex: 1, name: 'No channel', value: 100 }],
+    }),
+    JSON.stringify(sharedNameRows.someHidden));
+
+  // Three datasets of one name, the last of which starts hidden, through toggles, two resizes and `update()`
+  await page.evaluate(async (colors) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeLog = [];
+    window.probeParams = {
+      type: 'line',
+      title: 'Probe — Legend of datasets sharing a name',
+      labels: [1, 2, 3].map((day) => Date.UTC(2026, 9, day)),
+      datasets: colors.map((color, i) => ({
+        name: 'No channel', color, values: [10, 20, 15].map((value) => value + i * 30), isInitiallyHidden: i === 2,
+      })),
+      onHiddenSeriesChange: (names, indexes) => window.probeLog.push(`${names.join()}@${indexes.join()}`),
+    };
+    window.probeChart = new LovelyChart(element, window.probeParams);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }, SHARED_NAME_COLORS);
+  const sharedNameChart = page.locator('#probe .lovely-chart--container');
+  await sharedNameChart.scrollIntoViewIfNeeded();
+  const sharedNameButtons = sharedNameChart.locator('.lovely-chart--button');
+  // The pressed state of each button, the colours on the plot and the reports so far
+  const readSharedNameLegend = async () => {
+    const painted = [];
+    for (const color of SHARED_NAME_COLORS) {
+      if ((await findColor(sharedNameChart, parseHex(color))).count > MIN_DATASET_PIXELS) painted.push(color);
+    }
+    return {
+      pressed: (await sharedNameButtons.evaluateAll((buttons) => (
+        buttons.map((button) => button.getAttribute('aria-pressed'))
+      ))).join(),
+      painted: painted.join(),
+      log: await page.evaluate(() => window.probeLog.join(' ')),
+    };
+  };
+  const resizeAndBack = async () => {
+    const viewport = page.viewportSize();
+    await page.setViewportSize({ width: viewport.width - 20, height: viewport.height });
+    await sleep(1200);
+    await page.setViewportSize(viewport);
+    await sleep(1200);
+  };
+  const sharedNameLegend = { built: await readSharedNameLegend() };
+  await sharedNameButtons.nth(0).click();
+  // The legend keeps the last dataset on screen
+  await sharedNameButtons.nth(1).click();
+  await sleep(600);
+  sharedNameLegend.firstHidden = await readSharedNameLegend();
+  await resizeAndBack();
+  sharedNameLegend.firstHiddenResized = await readSharedNameLegend();
+  await sharedNameButtons.nth(2).click();
+  await sleep(600);
+  sharedNameLegend.lastShown = await readSharedNameLegend();
+  await resizeAndBack();
+  sharedNameLegend.lastShownResized = await readSharedNameLegend();
+  await page.evaluate(() => window.probeChart.update(window.probeParams));
+  await sleep(600);
+  sharedNameLegend.updated = await readSharedNameLegend();
+  await unmountProbe(page);
+  const [firstColor, secondColor, lastColor] = SHARED_NAME_COLORS;
+  const builtLegend = { pressed: 'true,true,false', painted: `${firstColor},${secondColor}`, log: '' };
+  const firstHiddenLegend = { pressed: 'false,true,false', painted: secondColor, log: 'No channel,No channel@0,2' };
+  const lastShownLegend = {
+    pressed: 'false,true,true', painted: `${secondColor},${lastColor}`, log: `${firstHiddenLegend.log} No channel@0`,
+  };
+  check('a dataset that starts hidden goes unreported as the chart builds and as update() rebuilds it',
+    JSON.stringify(sharedNameLegend.built) === JSON.stringify(builtLegend)
+    && JSON.stringify(sharedNameLegend.updated) === JSON.stringify({ ...builtLegend, log: lastShownLegend.log }),
+    JSON.stringify(sharedNameLegend));
+  check('the legend buttons of datasets sharing a name keep the datasets they hide through a resize, unreported',
+    [sharedNameLegend.firstHidden, sharedNameLegend.firstHiddenResized].every((legend) => (
+      JSON.stringify(legend) === JSON.stringify(firstHiddenLegend)
+    ))
+    && [sharedNameLegend.lastShown, sharedNameLegend.lastShownResized].every((legend) => (
+      JSON.stringify(legend) === JSON.stringify(lastShownLegend)
+    )),
+    JSON.stringify(sharedNameLegend));
+
+  // A lone dataset that starts hidden keeps its legend, whose button shows it
+  await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeLog = [];
+    window.probeChart = new LovelyChart(element, {
+      type: 'line',
+      title: 'Probe — A lone dataset that starts hidden',
+      labels: [1, 2, 3].map((day) => Date.UTC(2026, 9, day)),
+      datasets: [{ name: 'No channel', color: '#FF0000', values: [10, 20, 15], isInitiallyHidden: true }],
+      onHiddenSeriesChange: (names, indexes) => window.probeLog.push(`${names.join()}@${indexes.join()}`),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  });
+  const loneChart = page.locator('#probe .lovely-chart--container');
+  await loneChart.scrollIntoViewIfNeeded();
+  const readLoneLegend = async () => ({
+    isLegendShown: await loneChart.locator('.lovely-chart--tools')
+      .evaluate((legend) => !legend.classList.contains('lovely-chart--state-hidden')),
+    pressed: await loneChart.locator('.lovely-chart--button').getAttribute('aria-pressed'),
+    paint: (await findColor(loneChart, [255, 0, 0])).count,
+    log: await page.evaluate(() => window.probeLog.join(' ')),
+  });
+  const loneBuilt = await readLoneLegend();
+  await loneChart.locator('.lovely-chart--button').click();
+  await sleep(600);
+  const loneShown = await readLoneLegend();
+  await unmountProbe(page);
+  check('a lone dataset that starts hidden keeps its legend, unreported, and its button shows it',
+    loneBuilt.isLegendShown && loneBuilt.pressed === 'false' && loneBuilt.paint === 0 && loneBuilt.log === ''
+    && loneShown.pressed === 'true' && loneShown.paint > MIN_DATASET_PIXELS && loneShown.log === '@',
+    JSON.stringify({ loneBuilt, loneShown }));
+
+  // --- `selectLabel()`, the keys and a touch select the labels alone, and a touch beyond the first or the last label of
+  // the plot selects the label a key does there ---
+  const boundsConfig = {
+    type: 'line',
+    title: 'Probe — Selection bounds',
+    isKeyboardSelectable: true,
+    labels: Array.from({ length: BOUNDS_LABEL_COUNT }, (_, i) => Date.UTC(2026, 9, 1 + i)),
+    datasets: [{ name: 'Count', values: [10, 30, 0, 20, 5, 15] }],
+  };
+  const mountBoundsProbe = (targetPage) => targetPage.evaluate(async (config) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    (document.getElementById('container') ?? document.body).appendChild(element);
+    window.probeLog = [];
+    window.probeChart = new LovelyChart(element, {
+      ...config, onSelectedIndexChange: (index) => window.probeLog.push(index ?? 'none'),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }, boundsConfig);
+  // Whether the reports so far are `log` and the hover line marks the label at `labelIndex`
+  const isLineOnLabel = (selection, log, labelIndex) => JSON.stringify(selection.log) === JSON.stringify(log)
+    && Math.abs(selection.lineX - selection.labelXs[labelIndex]) <= HOVER_LINE_TOLERANCE;
+  const lastBoundsIndex = BOUNDS_LABEL_COUNT - 1;
+
+  await mountBoundsProbe(page);
+  const ignoredIndexErrors = await page.evaluate(async ({ preselectedIndexes, ignoredIndexes }) => {
+    preselectedIndexes.forEach((index) => window.probeChart.selectLabel(index));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return ignoredIndexes.flatMap((index) => {
+      try {
+        window.probeChart.selectLabel(index);
+        return [];
+      } catch (err) {
+        return [err.message];
+      }
+    });
+  }, { preselectedIndexes: PRESELECTED_LABEL_INDEXES, ignoredIndexes: IGNORED_LABEL_INDEXES });
+  await sleep(300);
+  const ignoredIndexSelection = await readProbeHoverLine(page, BOUNDS_LABEL_COUNT);
+  const isKeptBalloonShown = await page.locator('#probe .lovely-chart--tooltip-balloon')
+    .evaluate((balloon) => balloon.classList.contains('lovely-chart--state-shown'));
+  await unmountProbe(page);
+  check('selectLabel() ignores an index before the first label, past the last, between two or not a number at all',
+    ignoredIndexErrors.length === 0 && isKeptBalloonShown
+    && isLineOnLabel(ignoredIndexSelection, PRESELECTED_LABEL_INDEXES, PRESELECTED_LABEL_INDEXES.at(-1)),
+    JSON.stringify({ ignoredIndexErrors, isKeptBalloonShown, ignoredIndexSelection }));
+
+  // A page of its own, which a touch screen gives touch events in place of mouse ones
+  const touchPage = await browser.newPage({ viewport: { width: 900, height: 1200 }, hasTouch: true });
+  touchPage.on('pageerror', (err) => errors.push(`[touch pageerror] ${err.message}`));
+  await touchPage.goto(`${url}isolated`);
+  await touchPage.addStyleTag({ url: `${url}LovelyChart.css` });
+  await mountBoundsProbe(touchPage);
+  const touchLayer = touchPage.locator('#probe .lovely-chart--tooltip');
+  await touchLayer.scrollIntoViewIfNeeded();
+  const touchPlot = await touchLayer.locator('canvas').boundingBox();
+  const touchY = touchPlot.y + touchPlot.height / 2;
+  const touchSelections = {};
+  await touchPage.touchscreen.tap(touchPlot.x + 1, touchY);
+  await sleep(300);
+  touchSelections.tappedFirst = await readProbeHoverLine(touchPage, BOUNDS_LABEL_COUNT);
+  await touchLayer.focus();
+  await touchPage.keyboard.press('End');
+  await sleep(300);
+  touchSelections.keyedLast = await readProbeHoverLine(touchPage, BOUNDS_LABEL_COUNT);
+  await touchPage.keyboard.press('Home');
+  await sleep(300);
+  touchSelections.keyedFirst = await readProbeHoverLine(touchPage, BOUNDS_LABEL_COUNT);
+  await touchPage.touchscreen.tap(touchPlot.x + touchPlot.width - 1, touchY);
+  await sleep(300);
+  touchSelections.tappedLast = await readProbeHoverLine(touchPage, BOUNDS_LABEL_COUNT);
+  await touchPage.close();
+  check('a touch beyond the first or the last label of the plot selects it, its hover line where a key puts it',
+    isLineOnLabel(touchSelections.tappedFirst, [0], 0)
+    && isLineOnLabel(touchSelections.keyedLast, [0, lastBoundsIndex], lastBoundsIndex)
+    && isLineOnLabel(touchSelections.keyedFirst, [0, lastBoundsIndex, 0], 0)
+    && isLineOnLabel(touchSelections.tappedLast, [0, lastBoundsIndex, 0, lastBoundsIndex], lastBoundsIndex),
+    JSON.stringify(touchSelections));
 
   // --- The header, the tooltip and the legend left out, the band of an empty header, and `zoomOut()` ---
   // The plot, its hover layer and the plot area start under the header: at the top of a chart without the band or with
