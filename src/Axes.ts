@@ -265,7 +265,7 @@ export class Axes {
     const plotSize = this.#plotSize;
     const labelColumnWidth = this.getLabelColumnWidth();
     const step = yScaleLevelToStep(scaleLevel);
-    const [firstVisibleValue, lastVisibleValue] = getVisibleYTicks(yMin, yMax, step);
+    const ticks = this.#listYTicks(yMin, yMax, step);
     const labelX = isSecondary ? this.#getSecondaryLabelX() : this.#getMainLabelX(labelColumnWidth);
     const labels: AxisLabel[] = [];
 
@@ -273,7 +273,7 @@ export class Axes {
 
     context.beginPath();
 
-    for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
+    ticks.forEach((value) => {
       const [, yPx] = projection.toPixels(0, value);
       // A contrast label is centered on its tick, so it stays whole under the top edge and needs no fade there
       const textOpacity = this.#data.areLabelsContrast ? opacity : applyXEdgeOpacity(opacity, yPx);
@@ -296,7 +296,7 @@ export class Axes {
         context.strokeStyle = getCssColor(this.#colors, 'grid-lines', opacity);
         context.lineTo(plotSize.width - GUTTER, yPx);
       }
-    }
+    });
 
     context.stroke();
 
@@ -346,10 +346,10 @@ export class Axes {
   ) {
     const { multiplier, prefix = '', suffix = '' } = secondaryYAxis;
     const step = yScaleLevelToStep(scaleLevel);
-    const [firstVisibleValue, lastVisibleValue] = getVisibleYTicks(yMin, yMax, step);
+    const ticks = this.#listYTicks(yMin, yMax, step);
     const labels: AxisLabel[] = [];
 
-    for (let value = firstVisibleValue; value <= lastVisibleValue; value += step) {
+    ticks.forEach((value) => {
       const [, yPx] = projection.toPixels(0, value);
 
       labels.push({
@@ -359,9 +359,22 @@ export class Axes {
         colorKey: 'y-axis-text',
         opacity: applyXEdgeOpacity(opacity, yPx),
       });
-    }
+    });
 
     this.#fillAxisLabels(labels, 'right');
+  }
+
+  // A constant range has one tick, its value, which the projection puts at the middle height. Every other tick is a
+  // whole number of steps, so a tick at 0 carries no float error.
+  #listYTicks(yMin: number, yMax: number, step: number): number[] {
+    if (isConstantRange(yMin, yMax)) {
+      return [yMin];
+    }
+
+    const firstIndex = Math.round(ceilToStep(yMin, step) / step);
+    const count = Math.round(floorToStep(yMax, step) / step) - firstIndex + 1;
+
+    return Array.from({ length: Math.max(0, count) }, (_, i) => (firstIndex + i) * step);
   }
 
   #getMainLabelX(labelColumnWidth: number | undefined): number {
@@ -434,11 +447,6 @@ export class Axes {
 
 function formatPercentLabel(value: number): string {
   return `${value * 100}%`;
-}
-
-// A constant range has one label, its value, which the projection puts at the middle height
-function getVisibleYTicks(yMin: number, yMax: number, step: number): [number, number] {
-  return isConstantRange(yMin, yMax) ? [yMin, yMin] : [ceilToStep(yMin, step), floorToStep(yMax, step)];
 }
 
 function isCrowdedLabel(label: PlacedLabel, index: number, labels: PlacedLabel[]): boolean {

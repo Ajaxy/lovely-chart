@@ -85,6 +85,15 @@ const PLOT_BOTTOM = 290;
 // The minimap plots its 40px canvas under a 1px top padding
 const MINIMAP_PLOT_TOP = 1;
 const MINIMAP_PLOT_BOTTOM = 40;
+// The finest Y-axis step, below which a label could only be float noise
+const FINEST_Y_STEP = 0.0001;
+// A value in the trillions, past which a Y-axis step of a ten-thousandth adds nothing, the `T` its label abbreviates it
+// by, and how far the label may round it
+const TRILLION_VALUE = 1.234e12;
+const TRILLION = 1e12;
+const TRILLION_LABEL_TOLERANCE = 0.05;
+// How long a page that draws no frame takes to count as frozen
+const FREEZE_TIMEOUT_MS = 15_000;
 // A sparkline insets its plot from every edge of the canvas
 const SPARKLINE_INSET = 2;
 // The least contrast of a white legend label on its fill, below which the dark label takes over, so every label
@@ -1495,6 +1504,59 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       `${plotFill.count}px, ${middleFill.count}px of them mid-plot, X-axis labels at ${JSON.stringify(xLabelXs)} `
       + `of ${singleTexts.canvasWidth}px, minimap masks ${JSON.stringify(maskWidths)}`);
   }
+
+  // --- A Y-axis tick at 0 reads 0, never float noise ---
+  await recordProbeNumbers(page);
+  await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Ticks through 0',
+      labels: [1, 2, 3, 4, 5, 6].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [{ name: 'P&L', values: [-0.9, -0.5, 0.05, -0.3, -0.7, 0.02] }],
+    },
+  });
+  const tickValues = await readProbeNumbers(page);
+  await unmountProbe(page);
+  check('a Y-axis tick at 0 reads 0', tickValues.includes(0) && tickValues.every((value) => value === 0
+    || Math.abs(value) >= FINEST_Y_STEP), JSON.stringify(tickValues));
+
+  // --- A single label in the trillions labels its value instead of freezing the page ---
+  // A page of its own, so a freeze holds up none of the checks after it
+  const trillionPage = await browser.newPage({ viewport: { width: 900, height: 1200 } });
+  await trillionPage.goto(`${url}isolated`);
+  const trillionTexts = await Promise.race([
+    trillionPage.evaluate(async ({ types, value }) => {
+      const { default: LovelyChart } = await import('./LovelyChart.js');
+      const texts = [];
+      const { fillText } = CanvasRenderingContext2D.prototype;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+        texts.push(String(text));
+        return fillText.call(this, text, ...args);
+      };
+      const textsByType = {};
+      for (const type of types) {
+        texts.length = 0;
+        const element = document.createElement('div');
+        document.body.appendChild(element);
+        const chart = new LovelyChart(element, {
+          type, labels: [Date.UTC(2026, 10, 1)], datasets: [{ name: 'Huge', values: [value] }],
+        });
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        textsByType[type] = [...new Set(texts)];
+        chart.destroy();
+        element.remove();
+      }
+      return textsByType;
+    }, { types: ['line', 'bar'], value: TRILLION_VALUE }),
+    sleep(FREEZE_TIMEOUT_MS).then(() => undefined),
+  ]);
+  await trillionPage.close();
+  check('a single label in the trillions labels its value',
+    trillionTexts !== undefined && Object.values(trillionTexts).every((texts) => texts.some((text) => (
+      text.endsWith('T')
+      && Math.abs(parseFloat(text) * TRILLION - TRILLION_VALUE) <= TRILLION_VALUE * TRILLION_LABEL_TOLERANCE
+    ))),
+    trillionTexts ? JSON.stringify(trillionTexts) : `no frame in ${FREEZE_TIMEOUT_MS}ms`);
 
   // --- A dashed or dotted line or step draws its pattern, on the plot and the minimap, and outlines its legend button
   // and tooltip swatch in it; a dataset both dashed and dotted draws dots, and an area or bars draw neither ---
