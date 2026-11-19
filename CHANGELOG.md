@@ -6,6 +6,13 @@
 
 - `hatchedRanges`: runs of labels whose values are estimated, partial, still accruing or forecast, hatched across the plot and the minimap, `[{ from, to, label?, color?, hasEdge?, isAccruing? }]`. Bar and step charts hatch the columns of a range; line and area charts start the hatch at the point before it, or halfway from it with `isAccruing`, and end it halfway to the next label. The hatch goes under lines and over fills, and ranges of one colour that touch hatch as one band. Each range keeps its own `label`, drawn at the bottom left of its hatch where it fits, and `hasEdge`, a dashed rule where its hatch starts.
 - `HatchedRange` type.
+- `--tooltip-muted-text-color`, `--tooltip-separator-color` and `--tooltip-border`: the colour of the tooltip's `comparison` row, a mix of 70% `--text-color` and 30% `--tooltip-background` by default, the colour of the rule under it, `--grid-lines` by default, and a border of the balloon, `none` by default.
+- The README lists the classes of the tooltip that stay stable for the rules of a page: `.lovely-chart--tooltip-balloon`, `-title`, `-title-total`, `-dataset`, `-dataset-value`, `-dataset-comparison`, `-swatch` and `-change[data-tone]`.
+
+### Changed
+
+- The `comparison` row of the tooltip takes `--tooltip-muted-text-color` in place of an opacity of 0.7. Its text keeps the shade the opacity gave it, on a page's own skin too, while its swatch and the tone of a rise or a fall keep their full colours. In the day and the night skin the text reaches a contrast of 4.5:1 on the tooltip background.
+- A `comparison` change that rounds to 0% keeps the weight of its value, normal by default, in place of bold; a rise or a fall stays bold.
 
 ## 2.1.0
 

@@ -24,6 +24,10 @@
   --minimap-limit-color: #616770;
   --tooltip-change-positive: #108BE3;
   --tooltip-change-negative: #E65850;
+  // These two resolve on the container, so they follow the skin colours that the night skin or a page sets there
+  --tooltip-muted-text-color: color-mix(in srgb, var(--text-color) 70%, var(--tooltip-background));
+  --tooltip-separator-color: var(--grid-lines);
+  --tooltip-border: none;
 
   -webkit-user-select: none;
   user-select: none;

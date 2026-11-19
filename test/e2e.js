@@ -200,6 +200,8 @@ const TOOLTIP_ROW_COLORS = [
 const DEFAULT_COMPARISON_COLOR = '#6B7280';
 // Text labels too long for the tooltip title to fit on one line beside the zoom chevron
 const LONG_TITLE_LABELS = Array.from({ length: 8 }, (_, i) => `A rather long text label number ${i}`);
+// The least contrast of the muted text of a tooltip on its background, the AA level of body text
+const MIN_MUTED_TOOLTIP_CONTRAST = 4.5;
 
 // The first colour of the default palette, which the first dataset without a colour of its own takes
 const DEFAULT_PALETTE_COLOR = '#3497ED';
@@ -769,9 +771,11 @@ function readProbeTooltip(page, labelIndex) {
       dottedSwatches: swatchedRows
         .filter((row) => row.querySelector('.lovely-chart--tooltip-swatch[data-dotted]'))
         .map((row) => row.dataset.name),
-      areValuesInTextColor: rows.every((row) => (
-        getComputedStyle(row.querySelector('.lovely-chart--tooltip-dataset-value')).color === textColor
-      )),
+      areValuesInTextColor: rows
+        .filter((row) => !row.matches('.lovely-chart--tooltip-dataset-comparison'))
+        .every((row) => (
+          getComputedStyle(row.querySelector('.lovely-chart--tooltip-dataset-value')).color === textColor
+        )),
       titleTotal: balloon.querySelector('.lovely-chart--tooltip-title-total')?.textContent,
       change: {
         text: change?.textContent,
@@ -3690,6 +3694,112 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('a sparkline draws the plot alone at its height',
     sparklineLayout.header === 'none' && sparklineLayout.tools === 'none' && sparklineLayout.height === 64,
     JSON.stringify(sparklineLayout));
+
+  // --- The tooltip look: the muted comparison row, the rule under it, a neutral change and the balloon border ---
+  await mountProbe(page, {
+    config: {
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Tooltip look',
+      labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [{ name: 'A', values: [10, 20, 30] }, { name: 'B', values: [5, 10, 15] }],
+      // The second label holds the previous total, and the third rises a quarter over it
+      comparison: { name: 'Before', values: [[10, 20, 24], [5, 10, 12]] },
+      noZoom: true,
+    },
+  });
+  const readTooltipLook = (labelIndex) => page.evaluate(async (index) => {
+    window.probeChart.selectLabel(index);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    const comparisonRow = balloon.querySelector('.lovely-chart--tooltip-dataset-comparison');
+    const change = comparisonRow.querySelector('.lovely-chart--tooltip-change');
+    const resolveColor = (variable) => {
+      const element = document.createElement('span');
+      element.style.color = `var(${variable})`;
+      balloon.appendChild(element);
+      const color = getComputedStyle(element).color;
+      element.remove();
+      return color;
+    };
+    // A `color-mix()` serializes as `color(srgb r g b)`, with channels from 0 to 1
+    const getLuminance = (color) => color.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number)
+      .map((channel) => (color.startsWith('color(') ? channel : channel / 255))
+      .map((value) => (value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, value, i) => sum + [0.2126, 0.7152, 0.0722][i] * value, 0);
+    const rowStyle = getComputedStyle(comparisonRow);
+    const balloonStyle = getComputedStyle(balloon);
+    const background = getLuminance(balloonStyle.backgroundColor);
+    const text = getLuminance(rowStyle.color);
+    return {
+      rowColor: rowStyle.color,
+      rowOpacity: rowStyle.opacity,
+      mutedColor: resolveColor('--tooltip-muted-text-color'),
+      contrast: Math.round(((Math.max(background, text) + 0.05) / (Math.min(background, text) + 0.05)) * 100) / 100,
+      datasetRowColor: getComputedStyle(balloon.querySelector('.lovely-chart--tooltip-dataset[data-name="A"]')).color,
+      textColor: balloonStyle.color,
+      ruleColor: rowStyle.borderBottomColor,
+      gridColor: resolveColor('--grid-lines'),
+      changeTone: change.dataset.tone,
+      changeWeight: getComputedStyle(change).fontWeight,
+      valueWeight: getComputedStyle(change.parentElement).fontWeight,
+      border: `${balloonStyle.borderTopWidth} ${balloonStyle.borderTopStyle} ${balloonStyle.borderTopColor}`,
+    };
+  }, labelIndex);
+  const setLookDark = (isDark) => page.evaluate((value) => {
+    document.documentElement.classList.toggle('theme-dark', value);
+  }, isDark);
+  const wasLookDark = await page.evaluate(() => document.documentElement.classList.contains('theme-dark'));
+  await setLookDark(false);
+  const dayLook = await readTooltipLook(1);
+  const risingLook = await readTooltipLook(2);
+  await setLookDark(true);
+  const nightLook = await readTooltipLook(1);
+  await setLookDark(wasLookDark);
+  const lookStyle = await page.evaluateHandle(() => {
+    const style = document.createElement('style');
+    style.textContent = '#probe .lovely-chart--container { --tooltip-muted-text-color: rgb(7, 8, 9);'
+      + ' --tooltip-separator-color: rgb(1, 2, 3); --tooltip-border: 2px solid rgb(4, 5, 6); }';
+    document.head.appendChild(style);
+    return style;
+  });
+  const customLook = await readTooltipLook(1);
+  await lookStyle.evaluate((style) => style.remove());
+  // A page's own skin, a dark balloon by day, without a muted colour of its own
+  const skinStyle = await page.evaluateHandle(() => {
+    const style = document.createElement('style');
+    style.textContent = '#probe .lovely-chart--container { --text-color: rgb(249, 250, 251);'
+      + ' --tooltip-background: rgb(31, 41, 55); }';
+    document.head.appendChild(style);
+    return style;
+  });
+  const reskinnedLook = await readTooltipLook(1);
+  await skinStyle.evaluate((style) => style.remove());
+  await unmountProbe(page);
+  check('the comparison row of the tooltip takes --tooltip-muted-text-color at full opacity, a page\'s own one too',
+    [dayLook, nightLook].every((look) => (
+      look.rowOpacity === '1' && look.rowColor === look.mutedColor && look.datasetRowColor === look.textColor
+    ))
+    && dayLook.mutedColor !== nightLook.mutedColor && customLook.rowColor === 'rgb(7, 8, 9)',
+    JSON.stringify({ dayLook, nightLook, customLook }));
+  check('the muted tooltip text reaches 4.5:1 on the tooltip background in both skins and in a page\'s own skin',
+    [dayLook, nightLook, reskinnedLook].every((look) => look.contrast >= MIN_MUTED_TOOLTIP_CONTRAST)
+    && reskinnedLook.rowColor !== dayLook.rowColor,
+    JSON.stringify([dayLook, nightLook, reskinnedLook].map(({ rowColor, contrast }) => ({ rowColor, contrast }))));
+  check('the rule under the comparison row takes --tooltip-separator-color, --grid-lines by default',
+    dayLook.ruleColor === dayLook.gridColor && nightLook.ruleColor === nightLook.gridColor
+    && dayLook.ruleColor !== nightLook.ruleColor && customLook.ruleColor === 'rgb(1, 2, 3)',
+    JSON.stringify([dayLook.ruleColor, nightLook.ruleColor, customLook.ruleColor]));
+  check('a neutral comparison change keeps the weight of its value, and a rise is bold',
+    dayLook.changeTone === 'neutral' && dayLook.changeWeight === dayLook.valueWeight
+    && risingLook.changeTone === 'positive' && Number(risingLook.changeWeight) >= 700
+    && Number(risingLook.valueWeight) < 700,
+    JSON.stringify([dayLook, risingLook].map(({ changeTone, changeWeight, valueWeight }) => (
+      { changeTone, changeWeight, valueWeight }
+    ))));
+  check('the tooltip balloon takes --tooltip-border, none by default',
+    dayLook.border.startsWith('0px none') && customLook.border === '2px solid rgb(4, 5, 6)',
+    JSON.stringify([dayLook.border, customLook.border]));
 
   // --- Smooth lines, a dataset that starts hidden and the axis font (demo chart) ---
   const smoothDemoChart = charts.nth(SMOOTH_CHART);

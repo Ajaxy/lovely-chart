@@ -123,7 +123,7 @@ Parameter | Description |
 
 #### Tooltip parameters
 
-The tooltip lists each dataset on screen with a non-zero value at the label: a swatch of its colour, its name and its value in the text colour, from the largest value down. The swatch of a dashed or dotted line is a dashed or dotted outline. A `comparison` row comes first, set apart from the rest, beside a dashed swatch of its colour, with its change tinted by `--tooltip-change-positive` and `--tooltip-change-negative`. Stacked and percentage `bar`, `step` and `area` charts add a Total row. A pie or donut lists the sector under the pointer alone.
+The tooltip lists each dataset on screen with a non-zero value at the label: a swatch of its colour, its name and its value in the text colour, from the largest value down. The swatch of a dashed or dotted line is a dashed or dotted outline. A `comparison` row comes first, beside a dashed swatch of its colour, in `--tooltip-muted-text-color` with its value in the normal weight, and set apart from the rest by a rule in `--tooltip-separator-color`. Its change is bold and tinted by `--tooltip-change-positive` or `--tooltip-change-negative`, unless it rounds to 0%, which keeps the colour and weight of its value. Stacked and percentage `bar`, `step` and `area` charts add a Total row. A pie or donut lists the sector under the pointer alone.
 
 Parameter | Description |
 ---------|----|
@@ -213,10 +213,28 @@ requestAnimationFrame(() => chart.selectLabel(labels.length - 1));
 Variable | Description |
 ---------|----|
 `--lovely-chart-plot-height`| Plot canvas height, read from the chart element or an ancestor, ahead of `plotHeight`: a unitless number of px, `px` or `rem`.
-`--lovely-chart-series-color`| Set by the chart on each legend button and on the comparison legend entry: the colour of its dataset or line.
+`--lovely-chart-series-color`| Set by the chart on each legend button, on the comparison legend entry and on each tooltip swatch: the colour of its dataset or line.
 `--background-color`, `--text-color`, `--grid-lines`, `--tooltip-background` and the other variables on `.lovely-chart--container`| The colours of the day and the night skin. Night colours of your own go under `html.theme-dark .lovely-chart--container:not(.lovely-chart--container-scheme-system)` for the default `colorScheme`, and under `.lovely-chart--container-scheme-system` inside `@media (prefers-color-scheme: dark)` for `'system'`, so neither reaches a chart of the other scheme.
 `--tooltip-change-positive`, `--tooltip-change-negative`| Colours of a rise and a fall of the `comparison` change in the tooltip.
+`--tooltip-muted-text-color`| Colour of the `comparison` row of the tooltip. Defaults to a mix of 70% `--text-color` and 30% `--tooltip-background`, which follows a skin of your own and reaches a contrast of 4.5:1 on the tooltip background in the day and the night skin. A colour of your own goes per skin, as the colours above.
+`--tooltip-separator-color`| Colour of the rule under the `comparison` row of the tooltip. Defaults to `--grid-lines`.
+`--tooltip-border`| Border of the tooltip balloon, as `1px solid #D2D5D7`. Default `none`.
 `--lovely-chart-plot-area-left`, `--lovely-chart-plot-area-top`, `--lovely-chart-plot-area-width`, `--lovely-chart-plot-area-height`| Set by the chart on `element`, as px lengths from the inside of its border: the data area of the plot, where a window over every label and the Y range draw. It runs from the start of the plot, after an `isYAxisOutward` column, to its end, and from the top of the Y range to the X-axis baseline. A pie or donut sets the square around its circle, and a sparkline its plot inset by 2px. The chart sets them from its first paint, the frame after it is created, and rewrites them when the area changes: on `update()`, a resize or an orientation change, a zoom into data of another label column or into a pie, when a web font of the page changes the axis font, and when a style of the page moves the plot by resizing the chart's layout, as a header folded while its caption is empty. `destroy()` removes them.
+
+#### Styling the tooltip
+
+The tooltip keeps these classes from release to release, for the rules of a page; its other classes are internal. Its text takes `--text-color`, and its background, the `comparison` row, the rule under it, the tones of the change and the border of the balloon take the `--tooltip-*` variables above.
+
+Class | Element |
+---------|----|
+`.lovely-chart--tooltip-balloon`| The balloon: its shadow, padding and radius. A night rule of your own under `html.theme-dark .lovely-chart--tooltip-balloon` is as specific as the library's.
+`.lovely-chart--tooltip-title`| The title: the date or the label, and at its far end the total of `isTooltipTotalInTitle`.
+`.lovely-chart--tooltip-title-total`| The total beside the title, with `isTooltipTotalInTitle`.
+`.lovely-chart--tooltip-dataset`| A row: a swatch, a name and a value. The `comparison` row is a row too, and the Total row and the `secondaryYAxis` row are rows with a name and a value but no swatch.
+`.lovely-chart--tooltip-dataset-value`| The value at the end of a row, in bold tabular figures; that of the `comparison` row is in the normal weight.
+`.lovely-chart--tooltip-dataset-comparison`| The `comparison` row, in `--tooltip-muted-text-color` above a rule in `--tooltip-separator-color`.
+`.lovely-chart--tooltip-swatch`| The swatch of a row, in `--lovely-chart-series-color`, the colour of its dataset or line. With `data-dashed` or `data-dotted` it is a dashed or dotted outline.
+`.lovely-chart--tooltip-change[data-tone]`| The change of the `comparison` row, inside its value. `data-tone` is `positive` or `negative` for a rise or a fall, bold in `--tooltip-change-positive` or `--tooltip-change-negative`, and `neutral` for a change that rounds to 0%, which keeps the colour and weight of its value.
 
 #### Placing elements over the plot
 
