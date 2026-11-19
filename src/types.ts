@@ -207,6 +207,10 @@ export interface DateLocale {
 /** Raw data accepted by the `LovelyChart` constructor and `onZoom` callbacks. */
 export interface LovelyChartParams {
   type: ChartType;
+  /**
+   * UNIX timestamps in milliseconds, or strings for text labels. A pie or donut of one total per dataset takes a single
+   * text label, as `['Total']`, each dataset's `values` holding its total, so the header shows no caption of dates.
+   */
   labels: (number | string)[];
   datasets: LovelyChartDatasetParams[];
   title?: string;
@@ -220,6 +224,14 @@ export interface LovelyChartParams {
   /** In data that `onZoom` returns, dataset colours by key (`y0` for the first) over each dataset's `color`. */
   colors?: Record<string, ThemedColor>;
   labelType?: LabelType;
+  /**
+   * The format of the X-axis labels of timestamps, over the one of `labelType`: `'statsFormatYear'`,
+   * `'statsFormatMonth'`, `'statsFormatWeek'`, `"statsFormat('day')"`, `"statsFormat('hour')"`, `"statsFormat('5min')"`
+   * or `'statsFormatDayHour'`. The tooltip title takes it too unless `tooltipFormatter` sets one, while the header
+   * caption keeps the granularity of `labelType`. The day, hour and day-hour formats follow the reader's time zone
+   * unless `isUtc` is set, while the year, month and week formats read UTC: with `isUtc` for labels at UTC midnight,
+   * `"statsFormat('day')"` labels weekly data by the date each week starts on.
+   */
   labelFormatter?: string;
   tooltipFormatter?: string;
   dateLocale?: DateLocale;
@@ -232,6 +244,10 @@ export interface LovelyChartParams {
    * same number.
    */
   percentPrecision?: number;
+  /**
+   * Shades each sector of a pie or donut, the one a zoom into shares opens included, from 10% lighter at its inner
+   * edge, the centre of a pie, to 10% darker at its outer edge.
+   */
   withGradient?: boolean;
   /**
    * Plot canvas height in px; defaults to 320. A `--lovely-chart-plot-height` custom property on the chart
@@ -426,6 +442,10 @@ export interface LovelyChartParams {
    * folds to `--lovely-chart-empty-header-height`.
    */
   noCaption?: boolean;
+  /**
+   * Text of the zoom-out control, which takes the place of the title while zoomed, or floats over the plot with
+   * `noHeader` or from a header with nothing to show; defaults to `'Zoom out'`.
+   */
   zoomOutLabel?: string;
   /** Leaves out the zoom-out control, for a page that zooms out with `zoomOut()` from a control of its own. */
   noZoomOutControl?: boolean;
@@ -436,7 +456,14 @@ export interface LovelyChartParams {
    * the `prefix` of `secondaryYAxis` on its labels and its tooltip total.
    */
   isCurrencyPrefix?: boolean;
+  /**
+   * A timestamp that locks the labels before it: the minimap covers them with a mask, and its window starts no earlier
+   * than the first label at or after it, wherever the reader drags. A `minimapRange` that starts before that label
+   * starts there and keeps its width within the axis. Ignored without `withMinimap`, and when it falls at or before the
+   * first label or after the label before the last.
+   */
   limitDate?: number;
+  /** Called when the reader clicks the mask of `limitDate`, which lets the pointer through without it. */
   onLimitedRangeClick?: () => void;
 }
 

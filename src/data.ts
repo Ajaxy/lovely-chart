@@ -126,7 +126,8 @@ export function analyzeData(
   let limitBegin: number | undefined;
   if (limitDate !== undefined) {
     const index = labels.findIndex((label) => (label as number) >= limitDate);
-    if (index > 0) {
+    // A limit at the last label leaves the window no span of labels to select
+    if (index > 0 && index < labels.length - 1) {
       limitBegin = getLabelFraction(index, labels.length - 1);
     }
   }

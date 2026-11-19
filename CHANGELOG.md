@@ -46,6 +46,7 @@
 - `isLoading`: shows the chart as loading, its element and its legend `inert`. Data with labels dims on the plot, the minimap and the legend, and data with none draws a skeleton of them in the chart's own geometry, so the chart its data builds takes the same place: a block over the data area of the plot, or the circle of a pie and the ring of a donut, the box of the minimap and a pill for each legend entry, sized by its name. The skeleton pulses unless the reader prefers reduced motion.
 - `setLoading(isLoading)`: shows the chart as loading, as `isLoading` does, or as loaded, in place, so the data on screen keeps its zoom, range, hidden datasets and selected label.
 - `--skeleton-color`: the colour of the skeleton of a loading chart, one in each skin.
+- The README documents options the chart took with no word there: `noCaption`, `zoomOutLabel`, `labelFormatter`, `withGradient`, `limitDate` and `onLimitedRangeClick`. It also gives a pie or donut of one total per dataset a single text label, `labels: ['Total']`, which shows no caption of dates.
 
 ### Changed
 
@@ -70,6 +71,7 @@
 - The `--lovely-chart-plot-area-*` variables follow the plot when a style of the page folds or resizes the header in a chart element that keeps its size, as one of fixed height.
 - A chart with no labels, as `labels: []`, draws its empty plot, in place of throwing an error on each frame it draws.
 - A header caption of a range of days whose ends fall in different years gives each end its year, as `1 Jan 2026 — 18 Feb 2027`, in place of leaving out the year of the end in the current year, which read as a span of the other end's year, `1 Jan — 18 Feb 2027`.
+- A `minimapRange` that starts before the first label `limitDate` leaves open starts at that label and keeps its width within the axis, so one that ends before it selects the open labels in place of a window that ends before it starts, with an empty plot and a caption of reversed dates. A `limitDate` after the label before the last locks no label, in place of leaving the window no span of labels to select, past the right end of the minimap.
 
 ## 2.1.0
 

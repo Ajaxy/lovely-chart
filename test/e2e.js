@@ -303,6 +303,24 @@ const ZOOM_SETTLE_MS = 1500;
 // The distance in px from the left of the plot at which the pointer opens the balloon of a label left of the middle
 // over the floating zoom-out control
 const FLOATING_CONTROL_HOVER_X = 40;
+// The text a page gives the zoom-out control, and the one it has by default
+const ZOOM_OUT_LABEL = 'Back to trend';
+const DEFAULT_ZOOM_OUT_LABEL = 'Zoom out';
+// The grey channels of the sector a gradient probe reads, the fractions of the radius at which it reads a pie and the
+// ring of a donut near their inner and their outer edge, the least a shaded pixel there stands from the grey, about 7
+// inside and 10 outside, and the most a plain one does
+const GRADIENT_GREY = 128;
+const PIE_RADIUS_FRACTIONS = [0.25, 0.9];
+const DONUT_RADIUS_FRACTIONS = [0.6, 0.95];
+const MIN_GRADIENT_SHADE = 4;
+const PLAIN_SECTOR_TOLERANCE = 2;
+// The daily labels of a limit probe, the index of the first one its `limitDate` leaves open, and how far the share of
+// the minimap the mask covers, or the window's start, may stand from that of the labels before it
+const LIMIT_LABEL_COUNT = 20;
+const LIMIT_LABEL_INDEX = 10;
+const LIMIT_MASK_TOLERANCE = 0.02;
+// The last label of a `minimapRange` that a limit probe asks of the labels its `limitDate` locks
+const LOCKED_RANGE_LAST_INDEX = 4;
 // The opacity a loading chart dims its data to, and the width of the elements the loading probes are built in
 const LOADING_OPACITY = 0.4;
 const LOADING_PROBE_WIDTH = 600;
@@ -7711,6 +7729,260 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('the floating zoom-out control sits on a backdrop of --background-color',
     stacking.background === stacking.skinBackground && stacking.background !== 'rgba(0, 0, 0, 0)',
     JSON.stringify(stacking));
+
+  // --- `zoomOutLabel`, `labelFormatter`, `withGradient`, `limitDate` and `onLimitedRangeClick`, and a pie of totals ---
+  // The pointer stays off the probes, so no hover focuses a sector or a label
+  await page.mouse.move(0, 0);
+  const limitLabels = Array.from({ length: LIMIT_LABEL_COUNT }, (_, i) => Date.UTC(2026, 10, 1 + i));
+  const sharesConfig = {
+    type: 'area',
+    isPercentage: true,
+    isStacked: true,
+    labels: limitLabels,
+    datasets: [
+      { name: 'A', color: '#808080', values: limitLabels.map(() => 30) },
+      { name: 'B', values: limitLabels.map(() => 10) },
+    ],
+  };
+
+  // The zoom-out control reads `zoomOutLabel` in the header and floating over the plot, and `Zoom out` by default
+  const zoomOutTexts = [];
+  for (const config of [{ zoomOutLabel: ZOOM_OUT_LABEL }, { zoomOutLabel: ZOOM_OUT_LABEL, noHeader: true }, {}]) {
+    await mountProbe(page, {
+      config: { ...sharesConfig, title: 'Probe — Zoom-out label', initialZoom: 'last', ...config },
+    });
+    zoomOutTexts.push(await page.evaluate(() => document.querySelector(
+      '#probe .lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)',
+    )?.textContent));
+    await unmountProbe(page);
+  }
+  check('the zoom-out control reads zoomOutLabel in the header and floating over the plot, and Zoom out by default',
+    JSON.stringify(zoomOutTexts) === JSON.stringify([ZOOM_OUT_LABEL, ZOOM_OUT_LABEL, DEFAULT_ZOOM_OUT_LABEL]),
+    JSON.stringify(zoomOutTexts));
+
+  // `labelFormatter` formats the X-axis labels over `labelType`, and the tooltip title unless `tooltipFormatter` sets
+  // one, while the caption keeps the granularity of the labels: weekly labels by the date each week starts on
+  const weekLabels = Array.from({ length: 8 }, (_, i) => Date.UTC(2026, 8, 7 + i * 7));
+  const formatSpecs = {
+    weeks: {},
+    days: { labelFormatter: 'statsFormat(\'day\')' },
+    weekTitles: { labelFormatter: 'statsFormat(\'day\')', tooltipFormatter: 'statsTooltipFormat(\'week\')' },
+  };
+  const formats = {};
+  for (const [name, config] of Object.entries(formatSpecs)) {
+    const formatChart = await mountProbe(page, {
+      config: {
+        type: 'bar',
+        title: 'Probe — Label format',
+        labels: weekLabels,
+        isUtc: true,
+        datasets: [{ name: 'A', values: weekLabels.map((_, i) => 10 + i) }],
+        ...config,
+      },
+    });
+    await startCanvasRecording(formatChart);
+    await page.evaluate(() => window.probeChart.refreshColors());
+    await sleep(300);
+    const { texts } = await stopCanvasRecording(page);
+    formats[name] = await page.evaluate(async (axisTexts) => {
+      window.probeChart.selectLabel(2);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const host = document.getElementById('probe');
+      return {
+        xLabels: axisTexts.filter((text) => !/^\d+$/.test(text)),
+        title: host.querySelector('.lovely-chart--tooltip-title').textContent,
+        caption: host.querySelector('.lovely-chart--header-caption').textContent,
+      };
+    }, [...new Set(texts.map(({ text }) => text))]);
+    await unmountProbe(page);
+  }
+  const { weeks, days, weekTitles } = formats;
+  check('labelFormatter formats the X-axis labels and the tooltip title over labelType, keeping the caption',
+    weeks.xLabels.length > 0 && weeks.xLabels.every((text) => /^Week \d+$/.test(text)) && weeks.title === 'Week 39'
+    && days.xLabels.includes('14 Sep') && days.xLabels.every((text) => /^\d{1,2} [A-Z][a-z]{2}$/.test(text))
+    && days.title === '21 Sep' && days.caption === weeks.caption,
+    JSON.stringify(formats));
+  check('tooltipFormatter sets the tooltip title over labelFormatter',
+    weekTitles.title === 'Week of 21 Sep' && JSON.stringify(weekTitles.xLabels) === JSON.stringify(days.xLabels),
+    JSON.stringify(weekTitles));
+
+  // `withGradient` shades a sector from lighter than its colour at the inner edge to darker at the outer edge, in a pie,
+  // the ring of a donut and the pie of a zoom into shares. A pie of one total per dataset takes a single text label, so
+  // its header shows the title alone.
+  const readCircleRadius = (fractions) => page.evaluate((radiusFractions) => {
+    const host = document.getElementById('probe');
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    const canvasBox = canvas.getBoundingClientRect();
+    const hostBox = host.getBoundingClientRect();
+    const readProperty = (name) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${name}`));
+    const scale = canvas.width / canvas.clientWidth;
+    const radius = readProperty('width') / 2;
+    const centerX = hostBox.left + readProperty('left') + radius - canvasBox.left;
+    const centerY = hostBox.top + readProperty('top') + radius - canvasBox.top;
+    // Up and to the right, clear of the shares the sectors print at their middles
+    const angle = -Math.PI / 4;
+    return {
+      title: host.querySelector('.lovely-chart--header-title').textContent,
+      caption: host.querySelector('.lovely-chart--header-caption').textContent,
+      isHeaderFolded: host.querySelector('.lovely-chart--container').classList
+        .contains('lovely-chart--container-empty-header'),
+      name: canvas.getAttribute('aria-label'),
+      pixels: radiusFractions.map((fraction) => [...canvas.getContext('2d').getImageData(
+        Math.round((centerX + Math.cos(angle) * radius * fraction) * scale),
+        Math.round((centerY + Math.sin(angle) * radius * fraction) * scale),
+        1,
+        1,
+      ).data]),
+    };
+  }, fractions);
+  const totals = {};
+  for (const [name, type, withGradient, fractions] of [
+    ['plainPie', 'pie', false, PIE_RADIUS_FRACTIONS],
+    ['pie', 'pie', true, PIE_RADIUS_FRACTIONS],
+    ['donut', 'donut', true, DONUT_RADIUS_FRACTIONS],
+  ]) {
+    await mountProbe(page, {
+      config: {
+        type,
+        title: 'Probe — Totals',
+        labels: ['Total'],
+        datasets: sharesConfig.datasets.map((dataset) => ({ ...dataset, values: dataset.values.slice(0, 1) })),
+        withGradient,
+      },
+    });
+    totals[name] = await readCircleRadius(fractions);
+    await unmountProbe(page);
+  }
+  await mountProbe(page, {
+    config: { ...sharesConfig, title: 'Probe — Gradient zoom', initialZoom: 'last', withGradient: true },
+  });
+  const zoomedGradient = await readCircleRadius(PIE_RADIUS_FRACTIONS);
+  await unmountProbe(page);
+  const isOpaqueGrey = (pixels, isInRange) => pixels.every(([red, green, blue, alpha]) => (
+    alpha === 255 && red === green && green === blue && isInRange(red - GRADIENT_GREY)
+  ));
+  const isShaded = ({ pixels: [inner, outer] }) => (
+    isOpaqueGrey([inner], (shade) => shade >= MIN_GRADIENT_SHADE)
+    && isOpaqueGrey([outer], (shade) => shade <= -MIN_GRADIENT_SHADE)
+  );
+  check('withGradient shades a pie, a donut ring and a zoom into shares lighter inside and darker outside',
+    isOpaqueGrey(totals.plainPie.pixels, (shade) => Math.abs(shade) <= PLAIN_SECTOR_TOLERANCE)
+    && isShaded(totals.pie) && isShaded(totals.donut) && isShaded(zoomedGradient),
+    JSON.stringify({ ...totals, zoomedGradient }));
+  check('a pie or donut of one total in a text label shows its title with no caption of dates',
+    Object.values(totals).every(({ title, caption, isHeaderFolded }) => (
+      title === 'Probe — Totals' && caption === '' && !isHeaderFolded
+    )) && totals.donut.name === 'Donut chart, Total: A, B',
+    JSON.stringify(Object.values(totals).map(({ title, caption, isHeaderFolded, name }) => (
+      { title, caption, isHeaderFolded, name }
+    ))));
+
+  // `limitDate` locks the labels before the first label at or after it: the minimap masks them, and its window starts
+  // at that label, as `minimapRange: 'full'` asks and after a drag of the slider past it. The mask takes a click with
+  // `onLimitedRangeClick`, and lets the pointer through without it. A date at or before the first label or after the
+  // label before the last, or a chart without the minimap, locks none.
+  const mountLimitProbe = (config, hasClickHandler) => page.evaluate(async ([probeConfig, labels, hasHandler]) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeLog = [];
+    window.probeChart = new LovelyChart(element, {
+      type: 'line',
+      title: 'Probe — Limit',
+      labels,
+      datasets: [{ name: 'A', values: labels.map((_, i) => 10 + (i % 5)) }],
+      isUtc: true,
+      withMinimap: true,
+      minimapRange: 'full',
+      onLimitedRangeClick: hasHandler ? () => window.probeLog.push('click') : undefined,
+      ...probeConfig,
+    });
+    element.scrollIntoView({ block: 'center' });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }, [config, limitLabels, hasClickHandler]);
+  const readLimit = () => page.evaluate(() => {
+    const host = document.getElementById('probe');
+    const minimap = host.querySelector('.lovely-chart--minimap')?.getBoundingClientRect();
+    const mask = host.querySelector('.lovely-chart--minimap-limit-mask');
+    const slider = host.querySelector('.lovely-chart--minimap-slider')?.getBoundingClientRect();
+    return {
+      caption: host.querySelector('.lovely-chart--header-caption').textContent,
+      maskShare: mask ? mask.getBoundingClientRect().width / minimap.width : undefined,
+      window: slider && [(slider.left - minimap.left) / minimap.width, (slider.right - minimap.left) / minimap.width],
+      maskPointer: mask ? getComputedStyle(mask).pointerEvents : undefined,
+      clicks: window.probeLog.length,
+    };
+  });
+  const readDay = (index) => `${new Date(limitLabels[index]).getUTCDate()} Nov`;
+  const firstOpenDay = `${readDay(LIMIT_LABEL_INDEX)} `;
+  const firstDay = `${readDay(0)} `;
+  await mountLimitProbe({ limitDate: limitLabels[LIMIT_LABEL_INDEX] - HOUR_MS }, true);
+  const limited = await readLimit();
+  const limitSlider = await page.locator('#probe .lovely-chart--minimap-slider-inner').boundingBox();
+  const limitMinimap = await page.locator('#probe .lovely-chart--minimap').boundingBox();
+  const limitSliderY = limitSlider.y + limitSlider.height / 2;
+  await drag(page, limitSlider.x + limitSlider.width / 2, limitSliderY, -limitMinimap.width, 0);
+  await sleep(600);
+  const limitDragged = await readLimit();
+  const limitMask = await page.locator('#probe .lovely-chart--minimap-limit-mask').boundingBox();
+  await page.mouse.click(limitMask.x + limitMask.width / 2, limitMask.y + limitMask.height / 2);
+  await sleep(200);
+  const limitClicked = await readLimit();
+  await unmountProbe(page);
+  await page.mouse.move(0, 0);
+  check('limitDate masks the labels before the first label at or after it, and the window starts at that label',
+    limited.caption.startsWith(firstOpenDay)
+    && Math.abs(limited.maskShare - LIMIT_LABEL_INDEX / (LIMIT_LABEL_COUNT - 1)) <= LIMIT_MASK_TOLERANCE
+    && limitDragged.caption === limited.caption,
+    JSON.stringify({ limited, limitDragged }));
+  check('onLimitedRangeClick is called by a click on the mask, which takes the pointer',
+    limited.maskPointer === 'auto' && !limited.clicks && limitClicked.clicks === 1, JSON.stringify(limitClicked));
+
+  // A `minimapRange` of locked labels starts at the first open label, keeping its width, and a limit at the label
+  // before the last leaves the window the last two labels, a span of one day the caption names by its later label
+  const movedWindows = {};
+  for (const [name, config] of Object.entries({
+    lockedRange: { limitDate: limitLabels[LIMIT_LABEL_INDEX], minimapRange: { from: 0, to: LOCKED_RANGE_LAST_INDEX } },
+    beforeLastLabel: { limitDate: limitLabels[LIMIT_LABEL_COUNT - 2] },
+  })) {
+    await mountLimitProbe(config, false);
+    movedWindows[name] = await readLimit();
+    await unmountProbe(page);
+  }
+  const isWindowAtMask = ({ maskShare, window: [begin, end] }) => (
+    Math.abs(begin - maskShare) <= LIMIT_MASK_TOLERANCE && end > begin && end <= 1 + LIMIT_MASK_TOLERANCE
+  );
+  const { lockedRange, beforeLastLabel } = movedWindows;
+  check('a minimapRange of the labels limitDate locks starts at the first open label, keeping its width',
+    lockedRange.caption.startsWith(firstOpenDay)
+    && lockedRange.caption.includes(readDay(LIMIT_LABEL_INDEX + LOCKED_RANGE_LAST_INDEX))
+    && isWindowAtMask(lockedRange),
+    JSON.stringify(lockedRange));
+  check('limitDate at the label before the last leaves the window the last two labels',
+    beforeLastLabel.caption.includes(readDay(LIMIT_LABEL_COUNT - 1))
+    && Math.abs(beforeLastLabel.maskShare - (LIMIT_LABEL_COUNT - 2) / (LIMIT_LABEL_COUNT - 1)) <= LIMIT_MASK_TOLERANCE
+    && isWindowAtMask(beforeLastLabel) && Math.abs(beforeLastLabel.window[1] - 1) <= LIMIT_MASK_TOLERANCE,
+    JSON.stringify(beforeLastLabel));
+
+  const unlocked = {};
+  for (const [name, config] of Object.entries({
+    noHandler: { limitDate: limitLabels[LIMIT_LABEL_INDEX] },
+    firstLabel: { limitDate: limitLabels[0] },
+    lastLabel: { limitDate: limitLabels[LIMIT_LABEL_COUNT - 1] },
+    pastLastLabel: { limitDate: limitLabels[LIMIT_LABEL_COUNT - 1] + HOUR_MS },
+    noMinimap: { limitDate: limitLabels[LIMIT_LABEL_INDEX], withMinimap: false },
+  })) {
+    await mountLimitProbe(config, false);
+    unlocked[name] = await readLimit();
+    await unmountProbe(page);
+  }
+  const { noHandler, ...unlimited } = unlocked;
+  check('the mask of limitDate lets the pointer through without onLimitedRangeClick',
+    noHandler.maskPointer === 'none' && noHandler.caption.startsWith(firstOpenDay), JSON.stringify(noHandler));
+  check('limitDate at or before the first label or after the label before the last, or with no minimap, locks none',
+    Object.values(unlimited).every(({ caption, maskShare }) => caption.startsWith(firstDay) && maskShare === undefined),
+    JSON.stringify(unlimited));
 
   // --- A loading chart: a skeleton in the chart's own geometry in place of data with no labels, or its data dimmed ---
   // The skeleton of a line chart takes the boxes of the chart its data builds: the plot, the minimap and a pill for

@@ -347,7 +347,12 @@ export class Minimap {
     }
 
     if (this.#limitBegin !== undefined && nextRange.begin < this.#limitBegin) {
-      nextRange.begin = this.#limitBegin;
+      // The window keeps its width within the axis, so one that ends before the open labels moves onto them
+      const width = nextRange.end - nextRange.begin;
+      nextRange = {
+        begin: this.#limitBegin,
+        end: Math.min(1, Math.max(nextRange.end, this.#limitBegin + width)),
+      };
     }
 
     if (nextRange.begin === this.#range.begin && nextRange.end === this.#range.end) {
