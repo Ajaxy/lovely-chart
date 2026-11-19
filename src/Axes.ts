@@ -407,6 +407,8 @@ export class Axes {
     context.font = getAxesFont(context, this.#data.axisFontSize);
     context.textAlign = textAlign;
     context.textBaseline = this.#data.areLabelsContrast ? 'middle' : 'bottom';
+    // Numbers read left to right, signs first, on a right-to-left page too, while the X-axis labels follow the page
+    context.direction = 'ltr';
 
     labels.forEach(({ text, x, y, colorKey, opacity }) => {
       if (shouldDrawHalo) {
@@ -416,6 +418,8 @@ export class Axes {
       context.fillStyle = getCssColor(this.#colors, colorKey, opacity);
       context.fillText(text, x, y);
     });
+
+    context.direction = 'inherit';
   }
 
   // The widest label the data can put on the main axis, so the column holds still whatever the reader does

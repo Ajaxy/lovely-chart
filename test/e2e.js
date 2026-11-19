@@ -530,7 +530,7 @@ async function mountProbe(page, {
 }
 
 // Collects the numbers the probe chart prints on its canvas, its Y-axis labels among them, with their heights, and
-// every text it prints, with its position, alignment, width and the animation frame that drew it
+// every text it prints, with its position, alignment, width, direction and the animation frame that drew it
 async function recordProbeNumbers(page) {
   await page.evaluate(() => {
     window.probeNumbers = [];
@@ -553,6 +553,7 @@ async function recordProbeNumbers(page) {
           width: this.measureText(text).width,
           frame: window.probeFrame,
           color: typeof this.fillStyle === 'string' ? this.fillStyle : '',
+          direction: this.direction,
         });
         if (/^-?\d+(\.\d+)?$/.test(String(text))) {
           window.probeNumbers.push({ value: Number(text), y, baseline: this.textBaseline });
@@ -4031,6 +4032,34 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && nestedColumns.shareInsets.length === 3 && nestedColumns.shareInsets.every((inset) => inset === 0),
     JSON.stringify(nestedColumns));
   await unmountProbe(page);
+  // The Y-axis labels of both axes and of `secondaryYAxis` draw left to right, while the X-axis labels, dates in the
+  // words of `dateLocale`, inherit the direction of the page
+  await recordProbeNumbers(page);
+  const rtlAxisTexts = [];
+  const rtlAxisConfigs = [
+    {
+      type: 'line', hasSecondYAxis: true,
+      datasets: [{ name: 'A', values: [-450_000, -3_000, 2_000] }, { name: 'B', values: [-50, 10, -40] }],
+    },
+    {
+      type: 'bar', isStacked: true, datasets: [{ name: 'A', values: [-450, 300, 1_000] }],
+      secondaryYAxis: { label: 'USD ≈', multiplier: 2.5, prefix: '$' },
+    },
+  ];
+  for (const config of rtlAxisConfigs) {
+    await mountProbe(page, { config: { ...config, labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)) } });
+    rtlAxisTexts.push(...(await readProbeTexts(page)).texts);
+    await unmountProbe(page);
+  }
+  const negativeLabels = [...new Set(rtlAxisTexts
+    .filter(({ text }) => /^\$?-\d/.test(text))
+    .map(({ text, direction }) => `${text} ${direction}`))];
+  const xLabelDirections = [...new Set(rtlAxisTexts.filter(({ text }) => text.endsWith(' Nov'))
+    .map(({ direction }) => direction))];
+  check('rtl Y-axis labels put the signs of their numbers before the digits',
+    [/^-\d+K /, /^-\d+ /, /^\$-/].every((pattern) => negativeLabels.some((label) => pattern.test(label)))
+    && negativeLabels.every((label) => label.endsWith(' ltr')) && JSON.stringify(xLabelDirections) === '["inherit"]',
+    JSON.stringify({ negativeLabels, xLabelDirections }));
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
   await sleep(300);
 
