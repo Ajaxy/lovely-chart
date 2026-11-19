@@ -5545,6 +5545,139 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && Math.abs(zoomedLegend.movedInGrowth - zoomedLegend.legendHeight) <= SPACING_TOLERANCE
     && zoomedLegend.legendOverhang <= SPACING_TOLERANCE, JSON.stringify(zoomedLegend));
 
+  // --- The accessible name of the plot, and the legend left exposed ---
+  // The role and the name of the plot canvas, whether the chart's element or its host carries a role or a name, and
+  // the images and the buttons a role query finds in the host
+  const readPlotNaming = async (chart) => ({
+    ...await chart.evaluate((container) => {
+      const plot = container.querySelector(':scope > canvas');
+      return {
+        role: plot.getAttribute('role') ?? '',
+        label: plot.getAttribute('aria-label') ?? '',
+        isHidden: plot.getAttribute('aria-hidden') === 'true',
+        isElementNamed: [container, container.parentElement]
+          .some((element) => element.hasAttribute('role') || element.hasAttribute('aria-label')),
+      };
+    }),
+    images: await page.locator('#probe').getByRole('img')
+      .evaluateAll((elements) => elements.map((element) => element.getAttribute('aria-label'))),
+    buttons: await page.locator('#probe').getByRole('button').allTextContents(),
+  });
+  const namedDays = {
+    type: 'line',
+    title: 'Probe — Accessible name',
+    labels: [1, 2, 3, 4, 5].map((day) => Date.UTC(2025, 10, day)),
+    datasets: [{ name: 'Desktop', values: [1, 2, 3, 2, 1] }, { name: 'Mobile', values: [2, 1, 2, 3, 2] }],
+  };
+  const namedChart = await mountProbe(page, { config: namedDays });
+  const summarized = await readPlotNaming(namedChart);
+  const summary = 'Line chart, 1 Nov 2025 — 5 Nov 2025: Desktop, Mobile';
+  check('the plot is an image named by the type, the span of the dates and the datasets, the element takes no role',
+    summarized.role === 'img' && summarized.label === summary && !summarized.isHidden && !summarized.isElementNamed
+    && JSON.stringify(summarized.images) === JSON.stringify([summary])
+    && JSON.stringify(summarized.buttons) === '["Desktop","Mobile"]',
+    JSON.stringify(summarized));
+
+  // Each step updates the chart, which names its plot from the data of the step
+  const namingSteps = [
+    {
+      params: {
+        ...namedDays, type: 'bar', labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Sun'], datasets: [namedDays.datasets[0]],
+      },
+      label: 'Bar chart, Mon — Sun: Desktop',
+    },
+    {
+      params: {
+        ...namedDays,
+        type: 'area',
+        labels: [0, 1, 2].map((month) => Date.UTC(2025, month, 1)),
+        datasets: [{ name: 'Ventas', values: [1, 2, 3] }, { name: 'Devoluciones', values: [3, 2, 1] }],
+        dateLocale: { monthsFull: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto',
+          'septiembre', 'octubre', 'noviembre', 'diciembre'] },
+      },
+      label: 'Area chart, enero — marzo 2025: Ventas, Devoluciones',
+    },
+    {
+      params: { ...namedDays, labels: [namedDays.labels[4]], datasets: [{ name: 'Desktop', values: [1] }] },
+      label: 'Line chart, Wednesday, 5 Nov 2025: Desktop',
+    },
+    {
+      params: { ...namedDays, type: 'pie', ariaLabel: 'Visits by platform' },
+      label: 'Visits by platform',
+    },
+  ];
+  const namings = [];
+  for (const { params } of namingSteps) {
+    await page.evaluate((stepParams) => window.probeChart.update(stepParams), params);
+    namings.push(await readPlotNaming(namedChart));
+  }
+  check('the summary spans text labels and months in `dateLocale`, names a single day, and `ariaLabel` replaces it',
+    namings.every(({ role, label, images }, i) => role === 'img' && label === namingSteps[i].label
+      && JSON.stringify(images) === JSON.stringify([label])),
+    JSON.stringify(namings.map(({ label }) => label)));
+
+  await page.evaluate((params) => window.probeChart.update({ ...params, ariaLabel: '' }), namedDays);
+  const unnamed = await readPlotNaming(namedChart);
+  check('an empty `ariaLabel` leaves the plot out of the accessibility tree and the legend in it',
+    unnamed.isHidden && !unnamed.role && !unnamed.label && !unnamed.images.length
+    && JSON.stringify(unnamed.buttons) === '["Desktop","Mobile"]',
+    JSON.stringify(unnamed));
+
+  // The current year is left out of a span only when both of its ends are in it
+  const thisYear = new Date().getUTCFullYear();
+  await page.evaluate((params) => window.probeChart.update(params), {
+    ...namedDays,
+    labels: [[thisYear, 11, 30], [thisYear, 11, 31], [thisYear + 1, 0, 1], [thisYear + 1, 0, 2]]
+      .map(([year, month, day]) => Date.UTC(year, month, day)),
+    datasets: [{ name: 'Desktop', values: [1, 2, 3, 2] }],
+  });
+  await sleep(600);
+  const yearSpan = `30 Dec ${thisYear} — 2 Jan ${thisYear + 1}`;
+  const crossYear = {
+    ...await readPlotNaming(namedChart),
+    caption: (await namedChart.locator('.lovely-chart--header-caption').textContent()).trim(),
+  };
+  check('a span from the current year into the next gives each end its year, in the name and the header caption',
+    crossYear.label === `Line chart, ${yearSpan}: Desktop` && crossYear.caption === yearSpan,
+    JSON.stringify(crossYear));
+  await unmountProbe(page);
+
+  // A zoom in or out names the plot from the data it brings, and leaves out an `ariaLabel` of the zoomed data
+  const zoomOverview = [{ name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }];
+  const zoomDatasets = [{ name: 'Blue', color: '#0000FF' }, { name: 'Magenta', color: '#FF00FF' }];
+  const summaryZoom = await mountLinesZoom(page, {
+    overview: zoomOverview, zoomed: zoomDatasets, config: { initialZoom: 'last' }, zoomConfig: { ariaLabel: 'Zoomed' },
+  });
+  const zoomedSummary = await readPlotNaming(summaryZoom);
+  await page.evaluate(() => window.probeChart.zoomOut());
+  await sleep(ZOOM_SETTLE_MS);
+  const overviewSummary = await readPlotNaming(summaryZoom);
+  await unmountProbe(page);
+  const sharesZoom = await mountProbe(page, {
+    config: { ...namedDays, type: 'area', isStacked: true, isPercentage: true, initialZoom: 'last' },
+  });
+  const sharesSummary = await readPlotNaming(sharesZoom);
+  await unmountProbe(page);
+  check('a zoom names the plot from the zoomed data, a pie of shares included, and a zoom out from the chart\'s own',
+    /^Line chart, Tuesday, 10 Nov( 2026)?: Blue, Magenta$/.test(zoomedSummary.label)
+    && JSON.stringify(zoomedSummary.buttons) === '["Blue","Magenta"]'
+    && /^Line chart, 1 Nov( 2026)? — 10 Nov( 2026)?: Red, Green$/.test(overviewSummary.label)
+    && JSON.stringify(overviewSummary.buttons) === '["Red","Green"]'
+    && sharesSummary.label === 'Pie chart, 2 Nov 2025 — 5 Nov 2025: Desktop, Mobile',
+    JSON.stringify({ zoomedSummary, overviewSummary, sharesSummary }));
+
+  const namedZoom = await mountLinesZoom(page, {
+    overview: zoomOverview,
+    zoomed: zoomDatasets,
+    config: { initialZoom: 'last', ariaLabel: 'Visits by day' },
+    zoomConfig: { ariaLabel: 'Zoomed' },
+  });
+  const zoomedNaming = await readPlotNaming(namedZoom);
+  check('a zoom keeps the chart\'s `ariaLabel`, over an `ariaLabel` of the zoomed data',
+    zoomedNaming.label === 'Visits by day' && JSON.stringify(zoomedNaming.buttons) === '["Blue","Magenta"]',
+    JSON.stringify(zoomedNaming));
+  await unmountProbe(page);
+
   // --- Dashed and dotted datasets, comparison and its tooltip (demo charts) ---
   const limitChart = charts.nth(LIMIT_CHART);
   const legendOutlines = await limitChart.locator('.lovely-chart--button')

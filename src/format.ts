@@ -198,7 +198,9 @@ export function getRangeCaption(
     return `${start} — ${monthsFull[toDate.getUTCMonth()]} ${toYear}`;
   }
 
-  const options = { withYear: true, omitCurrentYear: true };
+  // Leaving out the current year of one end alone would read as a span of the other end's year
+  const isSameYear = new Date(from.value).getUTCFullYear() === new Date(to.value).getUTCFullYear();
+  const options = { withYear: true, omitCurrentYear: isSameYear };
 
   return `${getLabelDate(from, options, dateLocale)} — ${getLabelDate(to, options, dateLocale)}`;
 }

@@ -177,6 +177,7 @@ export function analyzeData(
     valueSuffix,
     isCurrencyPrefix,
     onZoom,
+    type: data.type,
     isLines: data.type === 'line',
     isBars: data.type === 'bar',
     isSteps: data.type === 'step',

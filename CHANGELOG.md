@@ -42,6 +42,7 @@
 - `--lovely-chart-font-family`: the font family of the chart's text, the labels the canvas draws included, read from the chart element or an ancestor.
 - `--lovely-chart-font-weight`: the regular weight of the chart's text, 300 by default: the legend, the names in the tooltip and the axis labels.
 - `--lovely-chart-font-weight-bold`: the weight of the chart's bold text, `bold` by default: the header, the tooltip title and its total, the values, the Total row, a rise or a fall against the `comparison` and the shares of a percentage chart.
+- `ariaLabel`: the accessible name of the plot, which takes `role="img"` while the chart element takes no role, so the legend buttons stay exposed. An empty string leaves the plot out of the accessibility tree.
 
 ### Changed
 
@@ -53,6 +54,7 @@
 - The legend sets its entries `--lovely-chart-legend-gap` apart in a wrapping flex row, in place of a margin after and under each entry. A row fits entries up to its end, so a legend can take a row fewer, and the 24px under its last row are its own padding. A `text-align` of the page no longer places the entries, and margins of the page on them add to the gap. A negative bottom margin on `.lovely-chart--tools` that offset the 8px under the entries now clips their last row; `--lovely-chart-legend-padding-bottom: 0` in its place ends the chart at that row.
 - The axis labels take the regular weight of the chart's text, `--lovely-chart-font-weight`, as they take its family, in place of a fixed 300, so a page style that sets the weight of the chart's text reaches them too.
 - A header with nothing to show, with no `title` and no caption because of `noCaption` or text labels, folds to `--lovely-chart-empty-header-height`, 0 by default, in place of its 30px band, and the hover layer follows the plot up. While zoomed, its zoom-out control floats over the top inline-start corner of the plot, on a backdrop of `--background-color` and without a caption.
+- The plot takes `role="img"` and an English summary of the data it shows as its accessible name unless `ariaLabel` gives one: its type, the span of its labels and the names of its datasets, as `Line chart, 1 Nov 2025 — 5 Nov 2025: Desktop, Mobile`. A zoom in or out renews the summary from the data it brings.
 
 ### Fixed
 
@@ -63,6 +65,7 @@
 - A resize or an orientation change of a chart zoomed into its own datasets, as into a pie or a donut, keeps in the overview it opens the datasets the reader hid or showed in the zoomed legend.
 - The hover line and dots of the tooltip stay on the plot when a style of the page moves the plot canvas by resizing the chart's layout or its header, as by folding or restyling the header or changing the plot canvas's margin. The chart places the hover layer, `.lovely-chart--tooltip`, from the plot canvas whenever the plot area, the chart's layout or its header changes, ahead of a `top` the page sets on the layer and a margin it sets on the hover canvas: a page that set a margin on both canvases to move the plot needs it on `.lovely-chart--container > canvas` alone.
 - The `--lovely-chart-plot-area-*` variables follow the plot when a style of the page folds or resizes the header in a chart element that keeps its size, as one of fixed height.
+- A header caption of a range of days whose ends fall in different years gives each end its year, as `1 Jan 2026 — 18 Feb 2027`, in place of leaving out the year of the end in the current year, which read as a span of the other end's year, `1 Jan — 18 Feb 2027`.
 
 ## 2.1.0
 

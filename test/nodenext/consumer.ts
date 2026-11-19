@@ -33,6 +33,7 @@ const readTooltip = (tooltip: TooltipContent | undefined) => [
 
 const params: LovelyChartParams = {
   type,
+  ariaLabel: 'Orders by platform',
   isStacked: true,
   labels,
   labelType,

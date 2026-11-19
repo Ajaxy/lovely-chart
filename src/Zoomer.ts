@@ -32,6 +32,7 @@ export class Zoomer {
   readonly #tools: Tools;
   readonly #onZoomStart: () => void;
   readonly #onZoomChange: (labelValue: number | undefined, labelIndex: number | undefined) => void;
+  readonly #onDataChange: () => void;
 
   #isZoomed = false;
   #isZoomedIntoShares = false;
@@ -58,6 +59,7 @@ export class Zoomer {
     tools: Tools,
     onZoomStart: () => void,
     onZoomChange: (labelValue: number | undefined, labelIndex: number | undefined) => void,
+    onDataChange: () => void,
   ) {
     this.#data = data;
     this.#overviewData = overviewData;
@@ -71,6 +73,7 @@ export class Zoomer {
     this.#tools = tools;
     this.#onZoomStart = onZoomStart;
     this.#onZoomChange = onZoomChange;
+    this.#onDataChange = onDataChange;
   }
 
   zoomIn(state: ChartState, labelIndex: number, isInstant = false) {
@@ -266,6 +269,7 @@ export class Zoomer {
     this.#stateManager.refreshTransitionConfig();
     // The datasets of either view, and its comparison, take their own colours in the chart's skin
     recreateColors(this.#colors, newData.colors, this.#data);
+    this.#onDataChange();
 
     const daysCount = this.#isZoomed || this.#data.shouldZoomToShares
       ? this.#data.xLabels.length

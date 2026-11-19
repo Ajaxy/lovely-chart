@@ -1,6 +1,6 @@
 import type {
-  AnalyzedData, AnalyzedDataset, ChartColors, ChartState, Filter, FocusOn, LovelyChartParams, LovelyChartUpdateOptions,
-  Pixel, Point, ProjectionParams, Range, Rect, Size, TooltipContent,
+  AnalyzedData, AnalyzedDataset, ChartColors, ChartState, ChartType, Filter, FocusOn, LovelyChartParams,
+  LovelyChartUpdateOptions, Pixel, Point, ProjectionParams, Range, Rect, Size, TooltipContent,
 } from './types.js';
 
 import { Axes } from './Axes.js';
@@ -54,6 +54,14 @@ const PLOT_AREA_PROPERTIES: [keyof Rect, string][] = [
   ['height', '--lovely-chart-plot-area-height'],
 ];
 const PLOT_PADDING_TOP_PROPERTY = '--lovely-chart-plot-padding-top';
+const CHART_TYPE_NAMES: Record<ChartType, string> = {
+  line: 'Line chart',
+  bar: 'Bar chart',
+  step: 'Step chart',
+  area: 'Area chart',
+  pie: 'Pie chart',
+  donut: 'Donut chart',
+};
 
 interface KeptSelection {
   labelIndex: number;
@@ -323,7 +331,7 @@ export default class LovelyChart {
       ? new Zoomer(
         this.#data, this.#originalData, this.#colors, this.#stateManager,
         this.#element!, this.#plotSize!, this.#header, this.#minimap, this.#tooltip, this.#tools, this.#onZoomStart,
-        this.#onZoomChange,
+        this.#onZoomChange, this.#onZoomDataChange,
       )
       : undefined;
   }
@@ -372,11 +380,25 @@ export default class LovelyChart {
 
     this.#plot = canvas;
     this.#context = context;
+    this.#labelPlot();
 
     this.#plotSize = {
       width: this.#plot.offsetWidth,
       height: this.#plot.offsetHeight,
     };
+  }
+
+  // The `img` role makes the content of its element presentational, so the plot takes it and the element, which holds
+  // the legend buttons, does not
+  #labelPlot() {
+    const { ariaLabel } = this.#originalData;
+    if (ariaLabel === '') {
+      this.#plot!.setAttribute('aria-hidden', 'true');
+      return;
+    }
+
+    this.#plot!.setAttribute('role', 'img');
+    this.#plot!.setAttribute('aria-label', ariaLabel ?? getPlotSummary(this.#data));
   }
 
   #readPlotHeightProperty() {
@@ -695,6 +717,10 @@ export default class LovelyChart {
     this.#originalData.onPlotAreaChange?.({ ...this.#placedPlotArea! });
   };
 
+  readonly #onZoomDataChange = () => {
+    this.#labelPlot();
+  };
+
   readonly #onSystemSchemeChange = () => {
     if (this.#data.colorScheme !== 'system') return;
     this.refreshColors();
@@ -912,4 +938,24 @@ function isMotionReduced() {
 
 function hasCaption({ noCaption, labelType }: AnalyzedData) {
   return !noCaption && labelType !== 'text';
+}
+
+function getPlotSummary(data: AnalyzedData) {
+  const span = data.xLabels.length ? getLabelSpan(data) : '';
+  const names = data.datasets.map(({ name }) => name).join(', ');
+
+  return CHART_TYPE_NAMES[data.type] + (span && `, ${span}`) + (names && `: ${names}`);
+}
+
+// The first and the last label, dates as the caption names a range of them
+function getLabelSpan({ xLabels, labelType, dateLocale }: AnalyzedData) {
+  const first = xLabels[0];
+  const last = xLabels[xLabels.length - 1];
+  if (labelType === 'text') {
+    return first === last ? first.text : `${first.text} — ${last.text}`;
+  }
+
+  return isDataRange(first, last)
+    ? getRangeCaption(first, last, labelType, dateLocale)
+    : getZoomCaption(first, labelType, dateLocale);
 }

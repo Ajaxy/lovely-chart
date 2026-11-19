@@ -210,6 +210,13 @@ export interface LovelyChartParams {
   labels: (number | string)[];
   datasets: LovelyChartDatasetParams[];
   title?: string;
+  /**
+   * The accessible name of the plot, which takes the `img` role while the chart element takes none, so the legend
+   * buttons stay exposed. Defaults to an English summary of the data the plot shows, renewed by a zoom: its type, the
+   * span of its labels and the names of its datasets, as `'Line chart, 1 Nov 2025 — 5 Nov 2025: Desktop, Mobile'`. A
+   * zoom keeps a given name, and an empty string leaves the plot out of the accessibility tree.
+   */
+  ariaLabel?: string;
   /** In data that `onZoom` returns, dataset colours by key (`y0` for the first) over each dataset's `color`. */
   colors?: Record<string, ThemedColor>;
   labelType?: LabelType;
@@ -518,6 +525,7 @@ export interface AnalyzedData {
   valueSuffix?: string;
   isCurrencyPrefix?: boolean;
   onZoom?: LovelyChartParams['onZoom'];
+  type: ChartType;
   isLines: boolean;
   isBars: boolean;
   isSteps: boolean;
