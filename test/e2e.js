@@ -215,6 +215,25 @@ const HOST_SCALE = 0.75;
 const PLOT_AREA_SCALE_TOLERANCE = 0.01;
 // How far an edge of the minimap slider may stand from where its range puts it, as a fraction of the minimap
 const MINIMAP_SLIDER_TOLERANCE = 0.002;
+// A compact header a page sets through the variables: a 16px band 6px down the chart, and the plot right under it
+const COMPACT_HEADER = { height: 16, marginTop: 6, plotMarginTop: 0 };
+const COMPACT_HEADER_STYLE = `--lovely-chart-header-height: ${COMPACT_HEADER.height}px; `
+  + `--lovely-chart-header-margin-top: ${COMPACT_HEADER.marginTop}px; `
+  + `--lovely-chart-plot-margin-top: ${COMPACT_HEADER.plotMarginTop}px`;
+// The default header band and the margin under it, the space between the header and the top of the balloon, and how
+// far the middle of a hover dot may stand from that of the line it marks
+const HEADER_HEIGHT = 30;
+const PLOT_MARGIN_TOP = 10;
+const BALLOON_HEADER_GAP = 5;
+const HOVER_DOT_TOLERANCE = 1;
+// The half width of the band of the plot around a hover dot where its line is measured
+const HOVER_DOT_BAND = 4;
+// A taller header a style of the page sets with no variables
+const RESTYLED_HEADER = { height: 48, marginTop: 4 };
+// The margin a style of the page sets on both canvases, as 2.1 needed to move the plot
+const PAGE_CANVAS_MARGIN_TOP = 20;
+// The height a style of the page fixes the chart element at, which a folded or taller header leaves unchanged
+const FIXED_CHART_HEIGHT = 480;
 // The units an axis label abbreviates its value in
 const AXIS_UNITS = { '': 1, K: 1e3, M: 1e6, B: 1e9, T: 1e12 };
 // A digit after the point that adds nothing, as `6.10K` or `6.0K` shows
@@ -1083,6 +1102,63 @@ function readPlotAreaLeft(page) {
     const canvasLeft = canvas.getBoundingClientRect().left - host.getBoundingClientRect().left - host.clientLeft;
     return parseFloat(host.style.getPropertyValue('--lovely-chart-plot-area-left')) - canvasLeft;
   });
+}
+
+// The tops of the probe's header, plot canvas, hover canvas and balloon and the bottom of its header, in px from the
+// top of the chart, the line height of its title, the middles of the hover dots of `hex` and of the line of `hex` on
+// the plot across them, in px from the top of the chart, and the top of the data area the chart sets on the probe, in
+// px from the top of the plot canvas
+function readHoverAlignment(page, hex) {
+  return page.evaluate(([color, band]) => {
+    const host = document.getElementById('probe');
+    const chart = host.querySelector('.lovely-chart--container');
+    const chartTop = chart.getBoundingClientRect().top;
+    const readTop = (element) => element.getBoundingClientRect().top - chartTop;
+    const header = chart.querySelector('.lovely-chart--header');
+    const plot = chart.querySelector(':scope > canvas');
+    const hover = chart.querySelector('.lovely-chart--tooltip canvas');
+    const rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+    const findMiddle = (canvas, xBand = [-Infinity, Infinity]) => {
+      const scale = canvas.width / canvas.clientWidth;
+      const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      let count = 0;
+      let xSum = 0;
+      let ySum = 0;
+      for (let j = 0; j < data.length; j += 4) {
+        const x = ((j / 4) % canvas.width + 0.5) / scale;
+        const isMatch = data[j + 3] > 100 && rgb.every((channel, k) => Math.abs(data[j + k] - channel) < 24)
+          && x >= xBand[0] && x <= xBand[1];
+        if (!isMatch) continue;
+        count++;
+        xSum += x;
+        ySum += (Math.floor(j / 4 / canvas.width) + 0.5) / scale;
+      }
+      return { count, x: xSum / count, y: ySum / count + readTop(canvas) };
+    };
+    const dot = findMiddle(hover);
+    return {
+      headerTop: readTop(header),
+      headerBottom: header.getBoundingClientRect().bottom - chartTop,
+      titleLineHeight: getComputedStyle(header.querySelector('.lovely-chart--header-title')).lineHeight,
+      plotTop: readTop(plot),
+      hoverTop: readTop(hover),
+      balloonTop: readTop(chart.querySelector('.lovely-chart--tooltip-balloon')),
+      dot,
+      line: findMiddle(plot, [dot.x - band, dot.x + band]),
+      plotAreaTop: parseFloat(host.style.getPropertyValue('--lovely-chart-plot-area-top'))
+        - (plot.getBoundingClientRect().top - host.getBoundingClientRect().top - host.clientTop),
+    };
+  }, [hex, HOVER_DOT_BAND]);
+}
+
+// Whether the hover canvas stands on the plot canvas, and the hover dot on its line
+function isHoverAligned({ plotTop, hoverTop, dot, line }) {
+  return hoverTop === plotTop && dot.count > 0 && line.count > 0 && Math.abs(dot.y - line.y) <= HOVER_DOT_TOLERANCE;
+}
+
+function formatHoverAlignment({ plotTop, hoverTop, dot, line }) {
+  return `plot canvas at ${plotTop}, hover canvas at ${hoverTop}, dot at ${dot.y?.toFixed(2)} of ${dot.count}px, `
+    + `line at ${line.y?.toFixed(2)} of ${line.count}px`;
 }
 
 async function unmountProbe(page) {
@@ -4747,6 +4823,126 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     hourZoom?.value === geometryLabels[5] && hourBefore === undefined && hourAfter === undefined
     && isNearX(hourFrom, hourInterval / 2 - GUTTER) && isNearX(hourTo, hourWidth + GUTTER - hourInterval / 2),
     `zoomed into ${hourZoom?.value}, ${JSON.stringify(zoomedWindow.xs)} across ${hourWidth}`);
+
+  // --- The hover line and dots stay on the plot wherever the header variables or a style of the page put it ---
+  // A flat line, whose middle across the hover dot is the dot's own height
+  const hoverConfig = {
+    type: 'line',
+    title: 'Probe — Hover layer',
+    labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 0, day)),
+    datasets: [{ name: 'Flat', color: '#FF0000', values: [40, 40, 40, 40] }],
+  };
+  const selectHoverLabel = async () => {
+    await page.evaluate(() => window.probeChart.selectLabel(1));
+    await sleep(300);
+  };
+  await mountProbe(page, { config: hoverConfig });
+  await selectHoverLabel();
+  const defaultHover = await readHoverAlignment(page, '#FF0000');
+  await unmountProbe(page);
+  check('the hover dots sit on the line, the hover canvas on the plot canvas',
+    isHoverAligned(defaultHover) && defaultHover.plotTop === HEADER_HEIGHT + PLOT_MARGIN_TOP,
+    formatHoverAlignment(defaultHover));
+  check('the balloon opens 5px under the header',
+    defaultHover.balloonTop === defaultHover.headerBottom + BALLOON_HEADER_GAP,
+    `header ends at ${defaultHover.headerBottom}, balloon at ${defaultHover.balloonTop}`);
+
+  await mountProbe(page, { config: hoverConfig, hostStyle: COMPACT_HEADER_STYLE });
+  await selectHoverLabel();
+  const compactHover = await readHoverAlignment(page, '#FF0000');
+  await unmountProbe(page);
+  const compactPlotTop = COMPACT_HEADER.marginTop + COMPACT_HEADER.height + COMPACT_HEADER.plotMarginTop;
+  check('the header variables size and space the header and move the plot',
+    compactHover.headerTop === COMPACT_HEADER.marginTop
+    && compactHover.headerBottom === COMPACT_HEADER.marginTop + COMPACT_HEADER.height
+    && compactHover.titleLineHeight === `${COMPACT_HEADER.height}px` && compactHover.plotTop === compactPlotTop,
+    `header from ${compactHover.headerTop} to ${compactHover.headerBottom}, title line height `
+    + `${compactHover.titleLineHeight}, plot canvas at ${compactHover.plotTop}`);
+  check('under the header variables the hover dots sit on the line, and the balloon opens 5px under the header',
+    isHoverAligned(compactHover) && compactHover.balloonTop === compactHover.headerBottom + BALLOON_HEADER_GAP,
+    `${formatHoverAlignment(compactHover)}, balloon at ${compactHover.balloonTop}`);
+
+  // Sets a stylesheet of the page for the probe, added on the first call
+  const setProbeStyle = (css) => page.evaluate((text) => {
+    let style = document.getElementById('probe-hover-style');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'probe-hover-style';
+      document.head.appendChild(style);
+    }
+    style.textContent = text;
+  }, css);
+  const removeProbeStyle = () => page.evaluate(() => document.getElementById('probe-hover-style').remove());
+
+  // A style of the page that restyles the header and sets a place of its own for the hover layer, then folds the
+  // header, after the chart is built
+  await mountProbe(page, { config: hoverConfig });
+  await setProbeStyle(`#probe .lovely-chart--header { height: ${RESTYLED_HEADER.height}px; `
+    + `margin-top: ${RESTYLED_HEADER.marginTop}px; } #probe .lovely-chart--tooltip { top: 0; }`);
+  await sleep(200);
+  await selectHoverLabel();
+  const restyledHover = await readHoverAlignment(page, '#FF0000');
+  await setProbeStyle('#probe .lovely-chart--header { display: none; }');
+  await sleep(200);
+  await selectHoverLabel();
+  const foldedHover = await readHoverAlignment(page, '#FF0000');
+  await removeProbeStyle();
+  await unmountProbe(page);
+  check('the hover dots follow the plot down a header a style of the page makes taller, over its place for them',
+    isHoverAligned(restyledHover)
+    && restyledHover.plotTop === RESTYLED_HEADER.marginTop + RESTYLED_HEADER.height + PLOT_MARGIN_TOP,
+    formatHoverAlignment(restyledHover));
+  check('the hover dots follow the plot up when a style of the page folds the header',
+    isHoverAligned(foldedHover) && foldedHover.plotTop === PLOT_MARGIN_TOP, formatHoverAlignment(foldedHover));
+
+  // A style of the page, there before the build, that sets one margin on both canvases
+  await setProbeStyle('#probe .lovely-chart--container > canvas, #probe .lovely-chart--tooltip canvas '
+    + `{ margin-top: ${PAGE_CANVAS_MARGIN_TOP}px; }`);
+  await mountProbe(page, { config: hoverConfig });
+  await selectHoverLabel();
+  const marginHover = await readHoverAlignment(page, '#FF0000');
+  await removeProbeStyle();
+  await unmountProbe(page);
+  check('a margin a style of the page sets on both canvases moves the plot, and the hover dots with it alone',
+    isHoverAligned(marginHover) && marginHover.plotTop === HEADER_HEIGHT + PAGE_CANVAS_MARGIN_TOP,
+    formatHoverAlignment(marginHover));
+
+  // A chart element of fixed height, whose size a style of the page that folds the header, then makes it taller,
+  // leaves unchanged
+  await mountProbe(page, { config: hoverConfig });
+  await setProbeStyle(`#probe .lovely-chart--container { height: ${FIXED_CHART_HEIGHT}px; }`);
+  await sleep(200);
+  await selectHoverLabel();
+  const fixedHover = await readHoverAlignment(page, '#FF0000');
+  await setProbeStyle(`#probe .lovely-chart--container { height: ${FIXED_CHART_HEIGHT}px; }
+    #probe .lovely-chart--header { display: none; }`);
+  await sleep(200);
+  await selectHoverLabel();
+  const fixedFoldedHover = await readHoverAlignment(page, '#FF0000');
+  await setProbeStyle(`#probe .lovely-chart--container { height: ${FIXED_CHART_HEIGHT}px; }
+    #probe .lovely-chart--header { height: ${RESTYLED_HEADER.height}px; }`);
+  await sleep(200);
+  await selectHoverLabel();
+  const fixedTallHover = await readHoverAlignment(page, '#FF0000');
+  await removeProbeStyle();
+  await unmountProbe(page);
+  check('in a chart of fixed height the hover dots and the data area follow the plot up a folded header',
+    isHoverAligned(fixedFoldedHover) && fixedFoldedHover.plotTop === PLOT_MARGIN_TOP
+    && fixedFoldedHover.plotAreaTop === fixedHover.plotAreaTop,
+    `${formatHoverAlignment(fixedFoldedHover)}, data area ${fixedFoldedHover.plotAreaTop} under the plot top, `
+    + `${fixedHover.plotAreaTop} before the fold`);
+  check('in a chart of fixed height the hover dots and the data area follow the plot down a taller header',
+    isHoverAligned(fixedTallHover) && fixedTallHover.plotTop === RESTYLED_HEADER.height + PLOT_MARGIN_TOP
+    && fixedTallHover.plotAreaTop === fixedHover.plotAreaTop,
+    `${formatHoverAlignment(fixedTallHover)}, data area ${fixedTallHover.plotAreaTop} under the plot top, `
+    + `${fixedHover.plotAreaTop} before`);
+
+  await mountProbe(page, { config: { ...hoverConfig, isSparkline: true, plotHeight: 64 } });
+  await selectHoverLabel();
+  const sparklineHover = await readHoverAlignment(page, '#FF0000');
+  await unmountProbe(page);
+  check('a sparkline\'s hover dots sit on its line, at the top of the chart',
+    isHoverAligned(sparklineHover) && sparklineHover.plotTop === 0, formatHoverAlignment(sparklineHover));
 
   // --- A web font that loads after the build widens the outward column to fit, and moves the plot area ---
   await page.evaluate(({ family, fontPath }) => {

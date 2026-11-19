@@ -182,6 +182,14 @@ export class Tooltip {
     this.#element.focus({ preventScroll: true });
   }
 
+  // The layer spans the margin above the plot canvas, where the pointer selects too and the balloon opens, and its
+  // padding sets the hover canvas on the plot
+  placeLayer(plotTop: number, plotMarginTop: number) {
+    const paddingTop = Math.max(0, plotMarginTop);
+    this.#element.style.top = `${plotTop - paddingTop}px`;
+    this.#element.style.paddingTop = `${paddingTop}px`;
+  }
+
   destroy() {
     this.#isDestroyed = true;
     removeEventListener(document, this.#documentMoveEvent!, this.#onDocumentMove);
@@ -219,6 +227,8 @@ export class Tooltip {
 
   #setupCanvas() {
     const { canvas, context } = setupCanvas(this.#element, this.#plotSize);
+    // The padding of the layer alone sets the canvas on the plot, ahead of a margin a style of the page sets on it
+    canvas.style.marginTop = '0';
 
     this.#canvas = canvas;
     this.#context = context;
@@ -906,7 +916,7 @@ export class Tooltip {
 
   #getPointerVector(): PointerVector {
     // #offsetX/Y are relative to the element, while the chart is drawn on the
-    // canvas, which sits lower within it (margin-top) — translate the pointer
+    // canvas, which sits lower within it (padding-top) — translate the pointer
     // into canvas space and measure from the projection's center, where the    // pie is actually drawn
     const elementRect = this.#element.getBoundingClientRect();
     const canvasRect = this.#canvas.getBoundingClientRect();

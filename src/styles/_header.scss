@@ -1,11 +1,11 @@
 .lovely-chart--header {
   display: flex;
-  height: 30px;
-  margin: 0 var(--lovely-chart-inset, 10px);
+  height: var(--lovely-chart-header-height, 30px);
+  margin: var(--lovely-chart-header-margin-top, 0) var(--lovely-chart-inset, 10px) 0;
   font-weight: bold;
 
   &-title, &-caption {
-    line-height: 30px;
+    line-height: var(--lovely-chart-header-height, 30px);
     color: var(--text-color);
     // transition: color 300ms ease;
 

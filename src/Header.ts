@@ -30,6 +30,10 @@ export class Header {
     this.#setupLayout();
   }
 
+  getElement(): HTMLElement {
+    return this.#element;
+  }
+
   zoom(caption: string) {
     this.#zoomOutElement = toggleText(
       this.#titleElement, this.#zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control',

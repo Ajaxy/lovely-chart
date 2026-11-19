@@ -284,6 +284,9 @@ export default class LovelyChart {
     this.#setupContainer(nextSiblings?.chart);
     this.#colors = createColors(this.#data.colors, this.#data, this.#setupColorProbe());
     this.#header = new Header(this.#element!, this.#data.title!, this.#data.zoomOutLabel, this.#onZoomOut);
+    // A style of the page that folds or resizes the header moves the plot in an element that keeps its size, as one of
+    // fixed height
+    this.#layoutObserver?.observe(this.#header.getElement());
     this.#setupPlotCanvas();
     this.#stateManager = new StateManager(this.#data, this.#plotSize!, this.#onStateUpdate);
     this.#axes = new Axes(this.#context!, this.#data, this.#plotSize!, this.#colors);
@@ -490,8 +493,9 @@ export default class LovelyChart {
     };
   }
 
-  // The element carries the data area for overlays of the page, measured only when it changes, as on a build or a
-  // zoom into data of another label column, or when the layout of the chart resizes
+  // The element carries the data area for overlays of the page, and the hover layer stands over the plot canvas, both
+  // measured only when the area changes, as on a build or a zoom into data of another label column, or when the layout
+  // of the chart or its header resizes
   #updatePlotArea(area: Rect) {
     const previousArea = this.#plotArea;
     if (previousArea && isSameArea(area, previousArea)) return;
@@ -501,6 +505,8 @@ export default class LovelyChart {
   }
 
   #placePlotArea() {
+    const plot = this.#plot!;
+    this.#tooltip!.placeLayer(plot.offsetTop, parseFloat(getComputedStyle(plot).marginTop));
     const area = this.#plotArea!;
     const [offsetLeft, offsetTop] = this.#measurePlotOffset();
     const placedArea = { ...area, left: offsetLeft + area.left, top: offsetTop + area.top };
@@ -729,6 +735,7 @@ export default class LovelyChart {
 
     const element = this.#element!;
     this.#layoutObserver?.unobserve(element);
+    this.#layoutObserver?.unobserve(this.#header!.getElement());
     const legend = this.#tools?.getElement();
     const legendNextSibling = legend?.nextSibling ?? undefined;
     let nextSibling: Node | undefined;

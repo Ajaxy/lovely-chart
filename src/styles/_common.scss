@@ -53,9 +53,8 @@
   //   display: none;
   // }
 
-  > canvas,
-  .lovely-chart--tooltip canvas {
-    margin-top: 10px;
+  > canvas {
+    margin-top: var(--lovely-chart-plot-margin-top, 10px);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -86,12 +85,7 @@
     display: none;
   }
 
-  .lovely-chart--tooltip {
-    top: 0;
-  }
-
-  > canvas,
-  .lovely-chart--tooltip canvas {
+  > canvas {
     margin-top: 0;
   }
 }
