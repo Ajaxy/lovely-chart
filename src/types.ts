@@ -438,8 +438,9 @@ export interface LovelyChartParams {
    */
   minimapRange?: [number, number] | 'full' | { from: number; to: number };
   /**
-   * Leaves out the caption of the header, the dates on screen; with no `title`, the header has nothing to show and
-   * folds to `--lovely-chart-empty-header-height`.
+   * Leaves out the caption of the header, the dates on screen, also while zoomed, with no need for `noCaption` in the
+   * data `onZoom` returns; with no `title`, the header has nothing to show and folds to
+   * `--lovely-chart-empty-header-height`.
    */
   noCaption?: boolean;
   /**

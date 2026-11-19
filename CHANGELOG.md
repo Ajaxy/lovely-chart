@@ -72,6 +72,7 @@
 - A chart with no labels, as `labels: []`, draws its empty plot, in place of throwing an error on each frame it draws.
 - A header caption of a range of days whose ends fall in different years gives each end its year, as `1 Jan 2026 — 18 Feb 2027`, in place of leaving out the year of the end in the current year, which read as a span of the other end's year, `1 Jan — 18 Feb 2027`.
 - A `minimapRange` that starts before the first label `limitDate` leaves open starts at that label and keeps its width within the axis, so one that ends before it selects the open labels in place of a window that ends before it starts, with an empty plot and a caption of reversed dates. A `limitDate` after the label before the last locks no label, in place of leaving the window no span of labels to select, past the right end of the minimap.
+- `noCaption` leaves out the caption of the header while zoomed too, into shares or into the data `onZoom` returns, as by a click, `initialZoom` or an `update()` that keeps the zoom, and once zoomed out, in place of naming the zoomed day, as `Friday, 6 Nov`, and keeping that name in the overview. A chart of text labels, which shows no caption, shows none while zoomed into data of dates either.
 
 ## 2.1.0
 

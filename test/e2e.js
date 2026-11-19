@@ -8212,30 +8212,83 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && JSON.stringify(controlless.log) === '["in"]' && JSON.stringify(controllessLog) === '["in","out"]',
     JSON.stringify({ ...controlless, log: controllessLog }));
 
+  // A titled header names the day a click zooms into and the dates on screen again after the zoom out, while
+  // `noCaption` leaves its caption out all along, also through a zoom into data `onZoom` returns without `noCaption`,
+  // as do text labels zoomed into dates
+  const mountHourlyZoomProbe = (config, hasTextLabels = false) => page.evaluate(
+    async ([probeConfig, hasProbeTextLabels, hourMs]) => {
+      const { default: LovelyChart } = await import('./LovelyChart.js');
+      const element = document.createElement('div');
+      element.id = 'probe';
+      document.getElementById('container').appendChild(element);
+      window.probeLog = [];
+      const buildValues = (length) => Array.from({ length }, (_, i) => 50 + ((i * 37) % 101));
+      const days = Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 10, 1 + i));
+      window.probeChart = new LovelyChart(element, {
+        type: 'line',
+        labels: hasProbeTextLabels ? days.map((_, i) => `Item ${i}`) : days,
+        datasets: [{ name: 'A', values: buildValues(10) }],
+        // `onZoom` takes the index of a text label
+        onZoom: (labelValue) => Promise.resolve({
+          type: 'line',
+          labels: Array.from({ length: 24 }, (_, hour) => (
+            (hasProbeTextLabels ? days[labelValue] : labelValue) + hour * hourMs
+          )),
+          datasets: [{ name: 'A', values: buildValues(24) }],
+        }),
+        onZoomChange: (labelValue) => window.probeLog.push(labelValue === undefined ? 'out' : 'in'),
+        ...probeConfig,
+      });
+      element.scrollIntoView({ block: 'center' });
+    },
+    [config, hasTextLabels, HOUR_MS],
+  );
+  // The caption in the overview, while zoomed in by a click, and after the zoom out by the zoom-out control or by
+  // `zoomOut()`
+  const readZoomCaptions = async (mount, config, isZoomedOutByApi = false) => {
+    const readCaption = () => page.locator('#probe .lovely-chart--header-caption').textContent();
+    await mount(config);
+    await sleep(1200);
+    const overview = await readCaption();
+    await clickProbeMiddle('#probe .lovely-chart--tooltip');
+    await sleep(ZOOM_SETTLE_MS);
+    await page.mouse.move(0, 0);
+    const zoomed = await readCaption();
+    if (isZoomedOutByApi) {
+      await page.evaluate(() => window.probeChart.zoomOut());
+    } else {
+      await page.locator('#probe .lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').click();
+    }
+    await sleep(ZOOM_SETTLE_MS);
+    const zoomedOut = await readCaption();
+    const log = await page.evaluate(() => window.probeLog);
+    await unmountProbe(page);
+    return { overview, zoomed, zoomedOut, log };
+  };
+  const isZoomedInAndOut = ({ log }) => JSON.stringify(log) === '["in","out"]';
+  const captionlessZooms = {
+    onZoom: await readZoomCaptions(mountHourlyZoomProbe, { title: 'Probe — Zoom with no caption', noCaption: true }),
+    shares: await readZoomCaptions(mountZoomProbe, { title: 'Probe — Shares with no caption', noCaption: true }, true),
+    textLabels: await readZoomCaptions(
+      (config) => mountHourlyZoomProbe(config, true), { title: 'Probe — Text labels zoomed into dates' }, true,
+    ),
+  };
+  const captionedZoom = await readZoomCaptions(mountHourlyZoomProbe, { title: 'Probe — Zoom with a caption' });
+  check('noCaption and text labels leave a titled header no caption, zoomed by onZoom or into shares and zoomed out',
+    Object.values(captionlessZooms).every((captions) => (
+      isZoomedInAndOut(captions) && !captions.overview && !captions.zoomed && !captions.zoomedOut
+    )),
+    JSON.stringify(captionlessZooms));
+  check('a titled header names the zoomed day while zoomed, and the dates on screen of the overview once zoomed out',
+    isZoomedInAndOut(captionedZoom) && captionedZoom.overview.includes('—')
+    && Boolean(captionedZoom.zoomed) && !captionedZoom.zoomed.includes('—')
+    && captionedZoom.zoomedOut === captionedZoom.overview,
+    JSON.stringify(captionedZoom));
+
   // While zoomed into a day, the balloon of a label left of the middle stacks over the floating zoom-out control, and the
   // control beside the balloon takes a click. The control sits on a backdrop of `--background-color` over the top label
   // of the main axis.
-  await page.evaluate(async (hourMs) => {
-    const { default: LovelyChart } = await import('./LovelyChart.js');
-    const element = document.createElement('div');
-    element.id = 'probe';
-    document.getElementById('container').appendChild(element);
-    window.probeLog = [];
-    const buildValues = (length) => Array.from({ length }, (_, i) => 50 + ((i * 37) % 101));
-    window.probeChart = new LovelyChart(element, {
-      type: 'line',
-      noHeader: true,
-      labels: Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 10, 1 + i)),
-      datasets: [{ name: 'A', values: buildValues(10) }],
-      onZoom: (day) => Promise.resolve({
-        type: 'line',
-        labels: Array.from({ length: 24 }, (_, hour) => day + hour * hourMs),
-        datasets: [{ name: 'A', values: buildValues(24) }],
-      }),
-      onZoomChange: (labelValue) => window.probeLog.push(labelValue === undefined ? 'out' : 'in'),
-    });
-    element.scrollIntoView({ block: 'center' });
-  }, HOUR_MS);
+  await mountHourlyZoomProbe({ noHeader: true });
   await sleep(1200);
   await clickProbeMiddle('#probe .lovely-chart--tooltip');
   await sleep(ZOOM_SETTLE_MS);

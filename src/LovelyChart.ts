@@ -322,9 +322,10 @@ export default class LovelyChart {
     this.#overviewLabels = [...this.#originalData.labels];
     this.#setupContainer(nextSiblings?.chart);
     this.#colors = createColors(this.#data.colors, this.#data, this.#setupColorProbe());
+    // The overview's data decides whether the zoomed views, whose data a zoom swaps into `#data`, show a caption
     this.#header = new Header(
       this.#element!, this.#data.noHeader ? '' : this.#data.title!, this.#data.zoomOutLabel, this.#onZoomOut,
-      this.#data.noZoomOutControl,
+      this.#data.noZoomOutControl, !hasCaption(this.#data),
     );
     // A style of the page that folds or resizes the header moves the plot in an element that keeps its size, as one of
     // fixed height

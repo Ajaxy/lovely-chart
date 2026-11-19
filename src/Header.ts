@@ -12,6 +12,7 @@ export class Header {
   readonly #zoomOutLabel: string;
   readonly #zoomOutCallback: () => void;
   readonly #noZoomOutControl: boolean;
+  readonly #noCaption: boolean;
 
   #element!: HTMLElement;
   #titleElement!: HTMLElement;
@@ -25,13 +26,14 @@ export class Header {
 
   constructor(
     container: HTMLElement, title: string, zoomOutLabel = 'Zoom out', zoomOutCallback: () => void,
-    noZoomOutControl = false,
+    noZoomOutControl = false, noCaption = false,
   ) {
     this.#container = container;
     this.#title = title;
     this.#zoomOutLabel = zoomOutLabel;
     this.#zoomOutCallback = zoomOutCallback;
     this.#noZoomOutControl = noZoomOutControl;
+    this.#noCaption = noCaption;
 
     this.#setupLayout();
   }
@@ -86,7 +88,7 @@ export class Header {
   }
 
   #setCaption(caption: string) {
-    if (this.#isZooming) {
+    if (this.#noCaption || this.#isZooming) {
       return;
     }
 
