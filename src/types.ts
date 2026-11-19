@@ -406,6 +406,30 @@ export interface LovelyChartParams {
   onLimitedRangeClick?: () => void;
 }
 
+/** What `update()` keeps of the view the reader has; each resets by default. */
+export interface LovelyChartUpdateOptions {
+  /**
+   * Keeps the datasets the reader showed or hid, matched by their place in `datasets`, or by `name` once the count of
+   * datasets changes. A dataset with no match starts as its `isInitiallyHidden` says, as does every dataset where the
+   * match would hide them all. `onHiddenSeriesChange` is called when the hidden datasets differ from those before.
+   */
+  shouldKeepFilter?: boolean;
+  /**
+   * Keeps the minimap window and a zoom while the labels are unchanged: a zoomed chart opens zoomed into the same label
+   * with no transition, as `initialZoom` opens it, `onZoom` called again for it. `onZoomChange` goes uncalled for a
+   * zoom it already reported, is called with the label's value and index once a zoom on its way in shows, and with
+   * `undefined` when the zoom ends: on other labels, on data that cannot zoom, or when the zoom fails.
+   */
+  shouldKeepZoom?: boolean;
+  /**
+   * Keeps a selected label of the overview, at the index of a label of the same value, while one exists and shows in
+   * the window the chart opens on. A selection of the pointer or a touch still ends as the pointer leaves the chart or
+   * a touch lands elsewhere, and one of `selectLabel()` holds. `onSelectedIndexChange` is called only when the index
+   * changes or the selection ends.
+   */
+  shouldKeepSelection?: boolean;
+}
+
 export type LinePattern = 'dashed' | 'dotted';
 
 export interface AnalyzedDataset {

@@ -1,6 +1,6 @@
 import type {
-  AnalyzedData, ChartColors, ChartState, Filter, FocusOn, LovelyChartParams, Pixel, Point, ProjectionParams, Range,
-  Rect, Size, TooltipContent,
+  AnalyzedData, AnalyzedDataset, ChartColors, ChartState, Filter, FocusOn, LovelyChartParams, LovelyChartUpdateOptions,
+  Pixel, Point, ProjectionParams, Range, Rect, Size, TooltipContent,
 } from './types.js';
 
 import { Axes } from './Axes.js';
@@ -38,7 +38,7 @@ import { Zoomer } from './Zoomer.js';
 
 export type {
   ChartType, Comparison, DateLocale, EventLine, HatchedRange, LabelType, LovelyChartDatasetParams, LovelyChartParams,
-  ReferenceLine, SecondaryYAxisConfig, ThemedColor, TooltipContent, TooltipNotes,
+  LovelyChartUpdateOptions, ReferenceLine, SecondaryYAxisConfig, ThemedColor, TooltipContent, TooltipNotes,
 } from './types.js';
 export { DEFAULT_COLORS, DEFAULT_COMPARISON_COLOR, getDefaultColors } from './data.js';
 
@@ -52,6 +52,11 @@ const PLOT_AREA_PROPERTIES: [keyof Rect, string][] = [
   ['height', '--lovely-chart-plot-area-height'],
 ];
 const PLOT_PADDING_TOP_PROPERTY = '--lovely-chart-plot-padding-top';
+
+interface KeptSelection {
+  labelIndex: number;
+  isByPointer: boolean;
+}
 
 export default class LovelyChart {
   readonly #container: HTMLElement;
@@ -81,9 +86,14 @@ export default class LovelyChart {
   // Where each rebuild puts the legend: the `legendContainer` of the params, or the element `setLegendContainer()` gave
   #legendContainer?: HTMLElement;
   #isDestroyed = false;
-  #initialZoomPending = false;
+  // The label the first frame zooms into, as `initialZoom` asks or a zoom `update()` keeps
+  #pendingZoomIndex?: number;
   #selectedLabelIndex?: number;
   #tooltipKey?: string;
+  // The selection `update()` keeps, which the first frame of the rebuilt chart selects again
+  #keptSelection?: KeptSelection;
+  // The value of the label `onZoomChange` last reported, while the page knows the chart as zoomed
+  #zoomedLabelValue?: number;
   #hiddenDatasetsKey?: string;
 
   #themeObserver?: MutationObserver;
@@ -95,6 +105,10 @@ export default class LovelyChart {
 
   // Each rebuild analyzes the data into a new object, out of reach of the components it destroyed
   #data: AnalyzedData;
+  // The datasets of the overview the chart was last built with, which a zoom swaps out of `#data` for its own
+  #overviewDatasets?: AnalyzedDataset[];
+  // A copy of the labels the chart was last built with, as the page can reassign those of the params it passes again
+  #overviewLabels?: LovelyChartParams['labels'];
   #colors!: ChartColors;
   readonly #redrawDebounced = debounce(() => this.#redraw(), REDRAW_DEBOUNCE_MS, false, true);
 
@@ -104,7 +118,7 @@ export default class LovelyChart {
     this.#legendContainer = originalData.legendContainer;
 
     this.#data = analyzeData(this.#originalData);
-    this.#initialZoomPending = this.#data.initialZoomIndex !== undefined;
+    this.#pendingZoomIndex = this.#data.initialZoomIndex;
 
     // The page can move the plot inside the element with the data area unchanged, as by folding the header while its
     // caption is empty. DOM emulations such as jsdom leave out `ResizeObserver`.
@@ -115,24 +129,57 @@ export default class LovelyChart {
     this.#setupGlobalListeners();
   }
 
-  update(newData: LovelyChartParams) {
+  /**
+   * Replaces the data and rebuilds the chart, which keeps a reference to `newData`. The zoom, the minimap window, the
+   * datasets the reader hid and the selection reset, unless `options` keeps them.
+   */
+  update(newData: LovelyChartParams, options: LovelyChartUpdateOptions = {}) {
     if (this.#isDestroyed) return;
-    this.#initialZoomPending = false;
-    this.#reportSelectedLabel(undefined);
-    this.#reportTooltip(undefined);
-    this.#reportZoomOut();
+    const { shouldKeepFilter, shouldKeepZoom, shouldKeepSelection } = options;
+    const data = analyzeData(newData);
+    const isViewKept = shouldKeepZoom && areSameLabels(this.#overviewLabels!, newData.labels);
+    const zoomedLabelIndex = isViewKept && data.isZoomable ? this.#getZoomedLabelIndex() : undefined;
+    const overviewState = this.#zoomer?.getOverviewState();
+    const selection = shouldKeepSelection && zoomedLabelIndex === undefined && !overviewState
+      ? this.#findKeptSelection(newData.labels)
+      : undefined;
+    this.#pendingZoomIndex = undefined;
+    if (!selection) {
+      this.#reportSelectedLabel(undefined);
+      this.#reportTooltip(undefined);
+    }
+    if (zoomedLabelIndex === undefined) {
+      this.#reportZoomOut();
+    }
     // A callback of the reports can destroy the chart
     if (this.#isDestroyed) return;
+    const filter = overviewState?.filter ?? this.#stateManager!.getFilter();
+    const { begin, end } = overviewState ?? this.#stateManager!.getRange();
+    const hiddenDatasetsKey = this.#hiddenDatasetsKey;
     this.#hiddenDatasetsKey = undefined;
     this.#originalData = newData;
     this.#legendContainer = newData.legendContainer;
     const nextSibling = this.#element!.nextSibling ?? undefined;
     const isPlotFocused = this.#tooltip!.isFocused();
     this.#destroyComponents();
-    this.#data = analyzeData(this.#originalData);
+    this.#data = data;
+    if (shouldKeepFilter) {
+      this.#keepFilter(filter);
+    }
+    if (isViewKept) {
+      this.#data.minimapRange = { begin, end };
+    }
+    this.#pendingZoomIndex = zoomedLabelIndex;
+    this.#keptSelection = selection;
     this.#setupComponents(nextSibling);
     if (isPlotFocused) {
       this.#tooltip!.focus();
+    }
+
+    // The legend's first filter goes unreported, so a kept filter that hides other datasets is reported last
+    if (shouldKeepFilter && this.#hiddenDatasetsKey !== hiddenDatasetsKey) {
+      this.#hiddenDatasetsKey = hiddenDatasetsKey;
+      this.#reportHiddenDatasets(this.#stateManager!.getFilter());
     }
   }
 
@@ -215,6 +262,8 @@ export default class LovelyChart {
   }
 
   #setupComponents(nextSibling?: Node) {
+    this.#overviewDatasets = this.#data.datasets;
+    this.#overviewLabels = [...this.#originalData.labels];
     this.#setupContainer(nextSibling);
     this.#colors = createColors(this.#data.colors, this.#data, this.#setupColorProbe());
     this.#header = new Header(this.#element!, this.#data.title!, this.#data.zoomOutLabel, this.#onZoomOut);
@@ -237,6 +286,7 @@ export default class LovelyChart {
       ? new Zoomer(
         this.#data, this.#originalData, this.#colors, this.#stateManager,
         this.#element!, this.#plotSize!, this.#header, this.#minimap, this.#tooltip, this.#tools, this.#onZoomStart,
+        this.#onZoomChange,
       )
       : undefined;
   }
@@ -390,9 +440,20 @@ export default class LovelyChart {
 
     // The state callback is rAF-deferred, so this is the earliest point where both
     // `this.#state` and `this.#zoomer` exist — the start-zoom fires here, not in setup
-    if (this.#initialZoomPending && this.#zoomer && this.#data.initialZoomIndex !== undefined) {
-      this.#initialZoomPending = false;
-      this.#zoomer.zoomIn(state, this.#data.initialZoomIndex, true);
+    if (this.#pendingZoomIndex !== undefined && this.#zoomer) {
+      const labelIndex = this.#pendingZoomIndex;
+      this.#pendingZoomIndex = undefined;
+      this.#zoomer.zoomIn(state, labelIndex, true);
+    }
+
+    if (this.#keptSelection) {
+      const { labelIndex, isByPointer } = this.#keptSelection;
+      this.#keptSelection = undefined;
+      // A label outside the window the chart opens on ends the selection
+      if (!this.#tooltip!.selectLabel(labelIndex, isByPointer)) {
+        this.#reportSelectedLabel(undefined);
+        this.#reportTooltip(undefined);
+      }
     }
   };
 
@@ -478,14 +539,15 @@ export default class LovelyChart {
   // The legend reports its first filter while it sets up, which is the one the params ask for
   #reportHiddenDatasets(filter: Filter) {
     const hiddenIndexes = this.#data.datasets.flatMap(({ key }, i) => (filter[key] === false ? [i] : []));
-    const key = hiddenIndexes.join();
+    const hiddenNames = hiddenIndexes.map((i) => this.#data.datasets[i].name);
+    const key = JSON.stringify([hiddenNames, hiddenIndexes]);
     const isFirstReport = this.#hiddenDatasetsKey === undefined;
     if (key === this.#hiddenDatasetsKey) return;
 
     this.#hiddenDatasetsKey = key;
     if (isFirstReport) return;
 
-    this.#originalData.onHiddenSeriesChange?.(hiddenIndexes.map((i) => this.#data.datasets[i].name), hiddenIndexes);
+    this.#originalData.onHiddenSeriesChange?.(hiddenNames, hiddenIndexes);
   }
 
   #reportSelectedLabel(labelIndex: number | undefined) {
@@ -507,12 +569,57 @@ export default class LovelyChart {
     onTooltipChange(content);
   };
 
-  // A rebuild opens the overview, so a zoom the reader saw ends
+  // A rebuild opens the overview, so a zoom the reader saw ends, unless the rebuilt chart opens zoomed again
   #reportZoomOut() {
-    if (this.#zoomer?.isZoomed()) {
-      this.#originalData.onZoomChange?.(undefined, undefined);
+    if (this.#pendingZoomIndex === undefined) {
+      this.#onZoomChange(undefined, undefined);
     }
   }
+
+  // The label of a zoom that shows, is on its way in, or opens on the first frame
+  #getZoomedLabelIndex() {
+    return this.#pendingZoomIndex ?? this.#zoomer?.getZoomedLabelIndex();
+  }
+
+  // The selected label of the overview, at the index of a label of the same value among `labels`
+  #findKeptSelection(labels: LovelyChartParams['labels']): KeptSelection | undefined {
+    let selection = this.#keptSelection;
+    if (!selection && this.#selectedLabelIndex !== undefined) {
+      selection = { labelIndex: this.#selectedLabelIndex, isByPointer: this.#tooltip!.isSelectionByPointer() };
+    }
+    if (!selection) return undefined;
+
+    const value = this.#overviewLabels![selection.labelIndex];
+    const labelIndex = labels[selection.labelIndex] === value ? selection.labelIndex : labels.indexOf(value);
+    return labelIndex !== -1 ? { labelIndex, isByPointer: selection.isByPointer } : undefined;
+  }
+
+  // The rebuilt chart keeps the datasets the reader hid, matched by key, or by name once the count of datasets
+  // changes. A dataset with no match keeps its own `isInitiallyHidden`, as does every dataset where the match would
+  // hide them all, which the legend never lets the reader do.
+  #keepFilter(filter: Filter) {
+    const { datasets } = this.#data;
+    const previousDatasets = this.#overviewDatasets!;
+    const isSameCount = datasets.length === previousDatasets.length;
+    const shownStates = datasets.map(({ key, name, isInitiallyHidden }) => {
+      const previousKey = isSameCount ? key : previousDatasets.find((dataset) => dataset.name === name)?.key;
+      const isShown = previousKey !== undefined ? filter[previousKey] : undefined;
+      return isShown ?? !isInitiallyHidden;
+    });
+    if (!shownStates.includes(true)) return;
+
+    datasets.forEach((dataset, i) => {
+      dataset.isInitiallyHidden = !shownStates[i];
+    });
+  }
+
+  // A zoom `update()` keeps opens again on the rebuilt chart, which the page already knows as zoomed
+  readonly #onZoomChange = (labelValue: number | undefined, labelIndex: number | undefined) => {
+    if (labelValue === this.#zoomedLabelValue) return;
+
+    this.#zoomedLabelValue = labelValue;
+    this.#originalData.onZoomChange?.(labelValue, labelIndex);
+  };
 
   // The report goes last, as its callback can update or destroy the chart
   readonly #onFocus = (focusOn: FocusOn) => {
@@ -617,6 +724,7 @@ export default class LovelyChart {
     this.#tools = undefined;
     this.#zoomer = undefined;
     this.#stateManager = undefined;
+    this.#keptSelection = undefined;
   }
 
   #redraw() {
@@ -626,17 +734,12 @@ export default class LovelyChart {
     this.#reportZoomOut();
     // A callback of the reports can destroy the chart
     if (this.#isDestroyed) return;
-    const filter = this.#zoomer?.getOverviewFilter() ?? this.#stateManager?.getFilter() ?? {};
+    const filter = this.#zoomer?.getOverviewState()?.filter ?? this.#stateManager?.getFilter() ?? {};
     const nextSibling = this.#element!.nextSibling ?? undefined;
     const isPlotFocused = this.#tooltip!.isFocused();
     this.#destroyComponents();
     this.#data = analyzeData(this.#originalData);
-    // The rebuilt chart keeps the datasets the reader hid
-    this.#data.datasets.forEach((dataset) => {
-      if (filter[dataset.key] !== undefined) {
-        dataset.isInitiallyHidden = !filter[dataset.key];
-      }
-    });
+    this.#keepFilter(filter);
     this.#setupComponents(nextSibling);
     if (isPlotFocused) {
       this.#tooltip!.focus();
@@ -676,4 +779,8 @@ export type LovelyChartInstance = Pick<LovelyChart, 'update' | 'destroy'>;
 
 function isSameArea(area: Rect, otherArea: Rect) {
   return PLOT_AREA_PROPERTIES.every(([key]) => area[key] === otherArea[key]);
+}
+
+function areSameLabels(labels: LovelyChartParams['labels'], otherLabels: LovelyChartParams['labels']) {
+  return labels.length === otherLabels.length && labels.every((label, i) => label === otherLabels[i]);
 }

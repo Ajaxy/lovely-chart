@@ -30,6 +30,8 @@
 - `eventLines`: dashed vertical rules at moments of the labels, `[{ labelIndex, offset?, label?, color? }]`, from the bottom of the Y range through the room above it, over the datasets, following the range and the zoom. `offset` places a rule through its label's interval as `getLabelX()` maps it, and the last point of a `line` or `area` chart, with no interval after it, keeps its rule at the point. Each rule's `label` reads bottom to top from its top, before the rule, or after it where it would cover the Y-axis labels or leave the plot area, and gives way to the label of a later rule that crowds it.
 - `EventLine` type.
 - `minimapRange` takes `{ from, to }`, inclusive label indexes, rounded and clamped to the labels as in `hatchedRanges`: a bar or step chart opens on the columns of those labels, a pie or donut sums them, and a line or area chart opens on their points and half an interval past either end, within the axis. A range of no labels takes the default.
+- `update(newData, options)`: `shouldKeepFilter` keeps the datasets the reader hid, matched by their place or, once the number of datasets changes, by name; `shouldKeepZoom` keeps the minimap window and the zoom while the labels are unchanged, reopening a zoomed chart zoomed into its label; `shouldKeepSelection` keeps the selected label while a label of its value shows. Callbacks follow what changes: `onHiddenSeriesChange` when the hidden datasets differ, `onZoomChange` when a zoom still on its way in shows or the zoom ends, and `onSelectedIndexChange` when the index moves or the selection ends.
+- `LovelyChartUpdateOptions` type.
 
 ### Changed
 
@@ -45,6 +47,7 @@
 - English dates read left to right on a right-to-left page, on the X axis, in the header caption and in the tooltip title: each of these, a text label included, reads in the direction of its first letter, so dates in Hebrew or Arabic words read right to left on a left-to-right page. One with no letter, such as the caption `2022 — 2026` of a year chart, reads left to right, the way the X axis runs.
 - `isCurrencyPrefix` puts the minus sign in front of the `prefix` of `secondaryYAxis` too, on its axis labels and its tooltip total: `-$1.3K` rather than `$-1.3K`.
 - A stacked chart with `hasSecondYAxis` keeps the last dataset out of the stack, on a Y axis of its own: the dataset draws its own values on that axis, which labels them, and fades when hidden, while the stack, the main Y axis, its `isYAxisOutward` column and the tooltip's total leave it out. The main Y-axis labels of the stack keep the axis text colour rather than the first dataset's, and a percentage chart's tooltip prints no share on the row of the dataset on its own axis.
+- A resize or an orientation change of a chart zoomed into its own datasets, as into a pie or a donut, keeps in the overview it opens the datasets the reader hid or showed in the zoomed legend.
 
 ## 2.1.0
 

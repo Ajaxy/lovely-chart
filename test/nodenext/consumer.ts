@@ -3,8 +3,8 @@
 import LovelyChart, {
   type ChartType, type Comparison, type DateLocale, DEFAULT_COLORS, DEFAULT_COMPARISON_COLOR, type EventLine,
   getDefaultColors, type HatchedRange, type LabelType, type LovelyChartDatasetParams, type LovelyChartInstance,
-  type LovelyChartParams, type ReferenceLine, type SecondaryYAxisConfig, type ThemedColor, type TooltipContent,
-  type TooltipNotes,
+  type LovelyChartParams, type LovelyChartUpdateOptions, type ReferenceLine, type SecondaryYAxisConfig,
+  type ThemedColor, type TooltipContent, type TooltipNotes,
 } from 'lovely-chart';
 
 declare const element: HTMLElement;
@@ -84,8 +84,12 @@ chart.setLegendContainer(element);
 chart.setLegendContainer(undefined);
 const labelX: number | undefined = chart.getLabelX(1, 0.5) ?? chart.getLabelX(1);
 
+const keptView: LovelyChartUpdateOptions = { shouldKeepFilter: true, shouldKeepZoom: true, shouldKeepSelection: false };
+chart.update(params, keptView);
+
 const handle: LovelyChartInstance = chart;
 handle.update({ ...params, colorScheme: 'htmlClassName' });
+handle.update(params, { shouldKeepSelection: true });
 
 // @ts-expect-error A misspelled option fails, so the params are typed rather than `any`
 const misspelled: LovelyChartParams = { type: 'line', labels, datasets, sparkline: true };

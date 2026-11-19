@@ -326,6 +326,13 @@ const INTERRUPTED_LABELS = 30;
 const INTERRUPTING_LABELS = 7;
 // The colours of the two datasets of an interrupted chart
 const INTERRUPTED_COLORS = ['#3497ED', '#F34C44'];
+// The minimap window of a chart whose view `update()` keeps, the window its next data asks for, and that of data with
+// other labels
+const KEPT_RANGE = [0.2, 0.5];
+const UPDATE_RANGE = [0.6, 0.9];
+const OTHER_LABELS_RANGE = [0.1, 0.4];
+// The label a chart whose selection `update()` keeps selects
+const KEPT_SELECTED_INDEX = 5;
 // How far a focused sector of a pie or donut moves out of the circle
 const CIRCLE_SHIFT = 10;
 // The colour a probe paints over its whole plot canvas, to show what a clip leaves of it
@@ -1954,6 +1961,315 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('destroy() ends a drag and leaves no frame or timer running',
     !destroyed.htmlClass.includes('cursor-') && destroyed.lateCallbacks === 0,
     `html: "${destroyed.htmlClass}", callbacks after destroy(): ${destroyed.lateCallbacks}`);
+
+  // --- update() keeps the hidden datasets, the window, the zoom and the selection its options ask it to ---
+  const keptFilter = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const log = [];
+    const buildParams = (names) => ({
+      type: 'line',
+      title: 'Probe — Kept filter',
+      labels: [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day)),
+      datasets: names.map((name, i) => ({
+        name, values: [1, 2, 3, 4, 5].map((value) => value * (i + 1)), isInitiallyHidden: name === 'D',
+      })),
+      onHiddenSeriesChange: (hiddenNames, indexes) => log.push(`${hiddenNames.join()}@${indexes.join()}`),
+    });
+    const hideSecond = async () => {
+      element.querySelectorAll('.lovely-chart--button')[1].click();
+      await wait(300);
+    };
+    const chart = new LovelyChart(element, buildParams(['A', 'B', 'C']));
+    const readUpdate = async (names, options) => {
+      chart.update(buildParams(names), options);
+      await wait(300);
+      const hidden = [...element.querySelectorAll('.lovely-chart--button')]
+        .filter((button) => !button.classList.contains('lovely-chart--state-checked'))
+        .map((button) => button.textContent);
+      return { hidden: hidden.join(), log: log.join(' ') };
+    };
+    await wait(300);
+    await hideSecond();
+    const byPlace = await readUpdate(['A', 'B', 'C'], { shouldKeepFilter: true });
+    // D starts hidden of its own
+    const byName = await readUpdate(['C', 'B', 'D', 'A'], { shouldKeepFilter: true });
+    const allHidden = await readUpdate(['B'], { shouldKeepFilter: true });
+    await readUpdate(['A', 'B', 'C'], { shouldKeepFilter: true });
+    await hideSecond();
+    const reset = await readUpdate(['A', 'B', 'C'], {});
+    chart.destroy();
+    element.remove();
+    return { byPlace, byName, allHidden, reset };
+  });
+  check('update() with shouldKeepFilter keeps the hidden datasets by place, unreported',
+    keptFilter.byPlace.hidden === 'B' && keptFilter.byPlace.log === 'B@1', JSON.stringify(keptFilter.byPlace));
+  check('update() with shouldKeepFilter matches the hidden datasets by name once their count changes, and reports them',
+    keptFilter.byName.hidden === 'B,D' && keptFilter.byName.log === 'B@1 B,D@1,2', JSON.stringify(keptFilter.byName));
+  check('update() with shouldKeepFilter shows the datasets of a match that would hide them all, and reports it',
+    keptFilter.allHidden.hidden === '' && keptFilter.allHidden.log === 'B@1 B,D@1,2 @',
+    JSON.stringify(keptFilter.allHidden));
+  check('update() without shouldKeepFilter shows the hidden datasets again, unreported',
+    keptFilter.reset.hidden === '' && keptFilter.reset.log === 'B@1 B,D@1,2 @ B@1', JSON.stringify(keptFilter.reset));
+
+  const keptWindow = await page.evaluate(async ({ keptRange, updateRange, otherLabelsRange }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const buildParams = (firstDay, minimapRange) => ({
+      type: 'line',
+      title: 'Probe — Kept window',
+      labels: Array.from({ length: 20 }, (_, i) => Date.UTC(2026, 0, firstDay + i)),
+      datasets: [{ name: 'A', values: Array.from({ length: 20 }, (_, i) => i % 5) }],
+      withMinimap: true,
+      minimapRange,
+    });
+    const chart = new LovelyChart(element, buildParams(1, keptRange));
+    const readUpdate = async (params, options) => {
+      chart.update(params, options);
+      await wait(300);
+      const [mask, slider] = element.querySelector('.lovely-chart--minimap-ruler').children;
+      const begin = parseFloat(mask.style.width);
+      return [begin, begin + parseFloat(slider.style.width)].map((edge) => Math.round(edge) / 100);
+    };
+    await wait(300);
+    const kept = await readUpdate(buildParams(1, updateRange), { shouldKeepZoom: true });
+    const otherLabels = await readUpdate(buildParams(2, otherLabelsRange), { shouldKeepZoom: true });
+    const reset = await readUpdate(buildParams(2, updateRange), {});
+    chart.destroy();
+    element.remove();
+    return { kept, otherLabels, reset };
+  }, { keptRange: KEPT_RANGE, updateRange: UPDATE_RANGE, otherLabelsRange: OTHER_LABELS_RANGE });
+  check('update() with shouldKeepZoom keeps the minimap window over the one of the data',
+    JSON.stringify(keptWindow.kept) === JSON.stringify(KEPT_RANGE), JSON.stringify(keptWindow.kept));
+  check('update() with shouldKeepZoom opens on the window of data with other labels',
+    JSON.stringify(keptWindow.otherLabels) === JSON.stringify(OTHER_LABELS_RANGE),
+    JSON.stringify(keptWindow.otherLabels));
+  check('update() without shouldKeepZoom opens on the window of the data',
+    JSON.stringify(keptWindow.reset) === JSON.stringify(UPDATE_RANGE), JSON.stringify(keptWindow.reset));
+
+  const keptZoom = await page.evaluate(async (keptRange) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const data = await fetch('./data/bars.json').then((response) => response.json());
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const log = [];
+    const params = {
+      ...data,
+      title: 'Probe — Kept zoom',
+      zoomToShares: true,
+      minimapRange: keptRange,
+      onZoomChange: (labelValue) => log.push(labelValue === undefined ? 'out' : 'in'),
+    };
+    const otherParams = {
+      ...params,
+      labels: data.labels.slice(1),
+      datasets: data.datasets.map((dataset) => ({ ...dataset, values: dataset.values.slice(1) })),
+    };
+    const readView = () => {
+      const [mask, slider] = element.querySelector('.lovely-chart--minimap-ruler').children;
+      const begin = parseFloat(mask.style.width);
+      const { classList } = element.querySelector('.lovely-chart--container');
+      return {
+        isZoomedIn: classList.contains('lovely-chart--state-zoomed-in'),
+        window: [begin, begin + parseFloat(slider.style.width)].map((edge) => Math.round(edge) / 100),
+        log: log.join(),
+      };
+    };
+    let chart = new LovelyChart(element, { ...params, initialZoom: 'last' });
+    await wait(1800);
+    chart.update({ ...params, minimapRange: 'full' }, { shouldKeepZoom: true });
+    await wait(1800);
+    const kept = readView();
+    element.querySelector('.lovely-chart--header-zoom-out-control').click();
+    await wait(1800);
+    const zoomedOut = readView();
+    chart.destroy();
+    log.length = 0;
+    chart = new LovelyChart(element, { ...params, initialZoom: 'last' });
+    await wait(1800);
+    chart.update(otherParams, { shouldKeepZoom: true });
+    await wait(1800);
+    const otherLabels = readView();
+    chart.destroy();
+    element.remove();
+    return { kept, zoomedOut, otherLabels };
+  }, KEPT_RANGE);
+  check('update() with shouldKeepZoom keeps a zoom, unreported',
+    keptZoom.kept.isZoomedIn && keptZoom.kept.log === 'in', JSON.stringify(keptZoom.kept));
+  check('a zoom out of a zoom update() kept returns to the window before the zoom',
+    !keptZoom.zoomedOut.isZoomedIn && JSON.stringify(keptZoom.zoomedOut.window) === JSON.stringify(KEPT_RANGE)
+    && keptZoom.zoomedOut.log === 'in,out', JSON.stringify(keptZoom.zoomedOut));
+  check('update() with shouldKeepZoom ends the zoom on other labels, and reports it',
+    !keptZoom.otherLabels.isZoomedIn && keptZoom.otherLabels.log === 'in,out', JSON.stringify(keptZoom.otherLabels));
+
+  const zoomedFilter = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const data = await fetch('./data/bars.json').then((response) => response.json());
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const log = [];
+    const params = {
+      ...data,
+      title: 'Probe — Kept filter of a zoom',
+      zoomToShares: true,
+      onHiddenSeriesChange: (hiddenNames) => log.push(hiddenNames.join()),
+    };
+    const readView = () => ({
+      isZoomedIn: element.querySelector('.lovely-chart--container').classList.contains('lovely-chart--state-zoomed-in'),
+      hidden: [...element.querySelectorAll('.lovely-chart--button')]
+        .filter((button) => !button.classList.contains('lovely-chart--state-checked'))
+        .map((button) => button.textContent)
+        .join(),
+      log: log.join(' '),
+    });
+    // A chart opened zoomed, whose second dataset the reader hides in the pie
+    const mountZoomed = async () => {
+      log.length = 0;
+      const chart = new LovelyChart(element, { ...params, initialZoom: 'last' });
+      await wait(1800);
+      element.querySelectorAll('.lovely-chart--button')[1].click();
+      await wait(600);
+      return chart;
+    };
+    let chart = await mountZoomed();
+    chart.update({ ...params }, { shouldKeepFilter: true, shouldKeepZoom: true });
+    await wait(1800);
+    const zoomed = readView();
+    // The zoom out on its way clears the live filter, which it carries back to the overview
+    element.querySelector('.lovely-chart--header-zoom-out-control').click();
+    chart.update({ ...params }, { shouldKeepFilter: true });
+    await wait(1800);
+    const zoomingOut = readView();
+    chart.destroy();
+    chart = await mountZoomed();
+    chart.update({ ...params }, { shouldKeepFilter: true });
+    await wait(1800);
+    const overview = readView();
+    chart.destroy();
+    element.remove();
+    return { zoomed, zoomingOut, overview };
+  });
+  check('update() with shouldKeepFilter and shouldKeepZoom keeps a dataset hidden in a zoomed pie, unreported',
+    zoomedFilter.zoomed.isZoomedIn && zoomedFilter.zoomed.hidden === 'Oranges' && zoomedFilter.zoomed.log === 'Oranges',
+    JSON.stringify(zoomedFilter.zoomed));
+  check('update() with shouldKeepFilter keeps a dataset hidden in a zoomed pie through a zoom out on its way',
+    !zoomedFilter.zoomingOut.isZoomedIn && zoomedFilter.zoomingOut.hidden === 'Oranges'
+    && zoomedFilter.zoomingOut.log === 'Oranges', JSON.stringify(zoomedFilter.zoomingOut));
+  check('update() with shouldKeepFilter keeps a dataset hidden in a zoomed pie in the overview it opens, unreported',
+    !zoomedFilter.overview.isZoomedIn && zoomedFilter.overview.hidden === 'Oranges'
+    && zoomedFilter.overview.log === 'Oranges', JSON.stringify(zoomedFilter.overview));
+
+  const keptSelection = await page.evaluate(async (selectedIndex) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const log = [];
+    // Ten days of January from `firstDay`, of which the chart first selects the day `2 + selectedIndex`
+    const buildParams = (firstDay) => ({
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Kept selection',
+      labels: Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 0, firstDay + i)),
+      datasets: [
+        { name: 'A', values: Array.from({ length: 10 }, (_, i) => 1 + (i % 3)) },
+        { name: 'B', values: Array.from({ length: 10 }, (_, i) => 3 - (i % 3)) },
+      ],
+      onSelectedIndexChange: (index) => log.push(index ?? 'none'),
+    });
+    const readSelection = () => ({
+      isShown: element.querySelector('.lovely-chart--tooltip-balloon').classList.contains('lovely-chart--state-shown'),
+      log: log.join(),
+    });
+    const moveOutside = async () => {
+      document.body.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+      await wait(300);
+      return readSelection();
+    };
+    const chart = new LovelyChart(element, buildParams(2));
+    const readUpdate = async (firstDay) => {
+      chart.update(buildParams(firstDay), { shouldKeepSelection: true });
+      await wait(300);
+      return readSelection();
+    };
+    await wait(300);
+    chart.selectLabel(selectedIndex);
+    await wait(300);
+    const kept = await readUpdate(2);
+    const moved = await readUpdate(1);
+    const held = await moveOutside();
+    const gone = await readUpdate(selectedIndex + 3);
+    const plot = element.querySelector('.lovely-chart--tooltip');
+    const { left, top, width, height } = plot.getBoundingClientRect();
+    plot.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true, clientX: left + width / 2, clientY: top + height / 2,
+    }));
+    await wait(300);
+    const hovered = readSelection();
+    const pointerKept = await readUpdate(selectedIndex + 3);
+    const pointerLeft = await moveOutside();
+    chart.destroy();
+    element.remove();
+    return { kept, moved, held, gone, hovered, pointerKept, pointerLeft };
+  }, KEPT_SELECTED_INDEX);
+  check('update() with shouldKeepSelection keeps a selected label, unreported',
+    keptSelection.kept.isShown && keptSelection.kept.log === `${KEPT_SELECTED_INDEX}`,
+    JSON.stringify(keptSelection.kept));
+  check('update() with shouldKeepSelection follows the label to its new index, and reports it',
+    keptSelection.moved.isShown && keptSelection.moved.log === `${KEPT_SELECTED_INDEX},${KEPT_SELECTED_INDEX + 1}`,
+    JSON.stringify(keptSelection.moved));
+  check('a selection of selectLabel() that update() kept holds while the pointer moves elsewhere',
+    keptSelection.held.isShown && keptSelection.held.log === keptSelection.moved.log,
+    JSON.stringify(keptSelection.held));
+  check('update() with shouldKeepSelection ends a selection whose label is gone, and reports it',
+    !keptSelection.gone.isShown && keptSelection.gone.log === `${keptSelection.moved.log},none`,
+    JSON.stringify(keptSelection.gone));
+  check('a selection of the pointer that update() kept stays, unreported, and clears as the pointer leaves the chart',
+    keptSelection.hovered.isShown && keptSelection.pointerKept.isShown
+    && keptSelection.pointerKept.log === keptSelection.hovered.log && !keptSelection.pointerLeft.isShown
+    && keptSelection.pointerLeft.log === `${keptSelection.hovered.log},none`,
+    JSON.stringify([keptSelection.hovered, keptSelection.pointerKept, keptSelection.pointerLeft]));
+
+  const reassignedLabels = await page.evaluate(async (selectedIndex) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const log = [];
+    const buildLabels = (firstDay) => Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 0, firstDay + i));
+    // The page passes `update()` the params it created the chart with, their labels reassigned three days on
+    const params = {
+      type: 'bar',
+      title: 'Probe — Reassigned labels',
+      labels: buildLabels(1),
+      datasets: [{ name: 'A', values: Array.from({ length: 10 }, (_, i) => 1 + (i % 3)) }],
+      onSelectedIndexChange: (index) => log.push(index ?? 'none'),
+    };
+    const chart = new LovelyChart(element, params);
+    await wait(300);
+    chart.selectLabel(selectedIndex);
+    await wait(300);
+    params.labels = buildLabels(4);
+    chart.update(params, { shouldKeepSelection: true });
+    await wait(300);
+    chart.destroy();
+    element.remove();
+    return log.join();
+  }, KEPT_SELECTED_INDEX);
+  check('update() with shouldKeepSelection follows the label to its new index in params the page reassigned',
+    reassignedLabels === `${KEPT_SELECTED_INDEX},${KEPT_SELECTED_INDEX - 3}`, reassignedLabels);
 
   // --- Minimap: a drag holds its cursor over the page until the release ---
   const cursorConfig = {

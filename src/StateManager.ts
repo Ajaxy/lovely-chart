@@ -117,6 +117,10 @@ export class StateManager {
     return this.#state;
   }
 
+  getRange(): Range {
+    return { ...this.#range };
+  }
+
   hasAnimations(): boolean {
     return this.#transitions.isFast();
   }

@@ -118,28 +118,35 @@ export class Tooltip {
     this.#selectLabel(true);
   }
 
-  // Selects a label as a pointer over it would, so a keyboard or another view can drive the selection
-  selectLabel(labelIndex: number | undefined) {
+  // Selects a label as a pointer over it would, so a keyboard or another view can drive the selection, and tells
+  // whether it did. The selection holds while the pointer moves elsewhere, unless `isByPointer` makes it one the
+  // pointer leaving the chart ends.
+  selectLabel(labelIndex: number | undefined, isByPointer = false): boolean {
     if (!this.#state || this.#data.isCircle) {
-      return;
+      return false;
     }
 
     if (labelIndex === undefined) {
       if (this.#offsetX !== undefined) {
         this.#clear();
       }
-      return;
+      return false;
     }
 
     if (!Number.isInteger(labelIndex) || !this.#isLabelVisible(labelIndex)) {
-      return;
+      return false;
     }
 
-    this.#calledLabelIndex = labelIndex;
+    this.#calledLabelIndex = isByPointer ? undefined : labelIndex;
     this.#offsetX = this.#projection!.toPixels(labelIndex, 0)[0];
     this.#offsetY = 0;
     this.#isZooming = false;
     this.#selectLabel();
+    return true;
+  }
+
+  isSelectionByPointer(): boolean {
+    return this.#offsetX !== undefined && this.#calledLabelIndex === undefined;
   }
 
   toggleLoading(isLoading: boolean) {

@@ -31,10 +31,15 @@ export class Zoomer {
   readonly #tooltip: Tooltip;
   readonly #tools: Tools;
   readonly #onZoomStart: () => void;
+  readonly #onZoomChange: (labelValue: number | undefined, labelIndex: number | undefined) => void;
 
   #isZoomed = false;
   #isZoomedIntoShares = false;
   #isDestroyed = false;
+  // The label of the zoomed view, while it shows or is on its way in
+  #zoomedLabelIndex?: number;
+  // Whether the zoom went to datasets of its own, which leave the overview's filter as the zoom in saved it
+  #isZoomedToLines = false;
   #stateBeforeZoomIn?: ChartState;
   #stateBeforeZoomOut?: ChartState;
   #swapDataTimeout?: number;
@@ -52,6 +57,7 @@ export class Zoomer {
     tooltip: Tooltip,
     tools: Tools,
     onZoomStart: () => void,
+    onZoomChange: (labelValue: number | undefined, labelIndex: number | undefined) => void,
   ) {
     this.#data = data;
     this.#overviewData = overviewData;
@@ -64,6 +70,7 @@ export class Zoomer {
     this.#tooltip = tooltip;
     this.#tools = tools;
     this.#onZoomStart = onZoomStart;
+    this.#onZoomChange = onZoomChange;
   }
 
   zoomIn(state: ChartState, labelIndex: number, isInstant = false) {
@@ -71,6 +78,7 @@ export class Zoomer {
       return;
     }
 
+    this.#zoomedLabelIndex = labelIndex;
     const label = this.#data.xLabels[labelIndex];
 
     this.#stateBeforeZoomIn = state;
@@ -108,6 +116,7 @@ export class Zoomer {
       return;
     }
 
+    this.#zoomedLabelIndex = undefined;
     this.#stateBeforeZoomOut = state;
     this.#header.toggleIsZooming(true);
     this.#tooltip.toggleLoading(true);
@@ -122,8 +131,8 @@ export class Zoomer {
     this.#replaceData(this.#overviewData, labelIndex);
   }
 
-  isZoomed(): boolean {
-    return this.#isZoomed;
+  getZoomedLabelIndex(): number | undefined {
+    return this.#zoomedLabelIndex;
   }
 
   // A zoom into lines fixes the size of the chart with the legend where it was, so a move of the legend releases it
@@ -137,9 +146,19 @@ export class Zoomer {
     return this.#isZoomedIntoShares;
   }
 
-  // While a zoomed view shows, or one is on its way in, the overview's filter lives only in the saved state
-  getOverviewFilter(): Filter | undefined {
-    return this.#isZoomed || this.#swapDataTimeout !== undefined ? this.#stateBeforeZoomIn?.filter : undefined;
+  // While a zoomed view shows, or one is on its way in or out, the overview's range lives only in the state saved before
+  // the zoom in. So does its filter, unless the zoomed view shares the overview's datasets: the legend drives the live
+  // filter while that view shows, and a zoom out on its way saves it as it clears it.
+  getOverviewState(): (Range & { filter: Filter }) | undefined {
+    if (!this.#isZoomed && this.#swapDataTimeout === undefined) return undefined;
+
+    const { begin, end, filter } = this.#stateBeforeZoomIn!;
+    if (!this.#isZoomed || this.#isZoomedToLines) return { begin, end, filter };
+
+    const zoomedFilter = this.#swapDataTimeout !== undefined
+      ? this.#stateBeforeZoomOut!.filter
+      : this.#stateManager.getFilter();
+    return { begin, end, filter: zoomedFilter };
   }
 
   destroy() {
@@ -169,6 +188,7 @@ export class Zoomer {
     if (this.#isDestroyed) return;
 
     if (!newRawData) {
+      this.#zoomedLabelIndex = undefined;
       this.#tooltip.toggleLoading(false);
       this.#tooltip.toggleIsZoomed(false);
       this.#header.toggleIsZooming(false);
@@ -177,6 +197,8 @@ export class Zoomer {
         this.#container.style.visibility = '';
       }
 
+      // A page that knows the chart as zoomed, after `update()` kept the zoom, learns that the overview stays
+      this.#onZoomChange(undefined, undefined);
       return;
     }
 
@@ -257,6 +279,7 @@ export class Zoomer {
     let range: Range;
     let filter: Filter;
 
+    this.#isZoomedToLines = shouldZoomToLines;
     if (this.#isZoomed) {
       range = {
         begin: this.#stateBeforeZoomIn!.begin,
@@ -332,9 +355,9 @@ export class Zoomer {
 
     // The report goes last, as its callback can update or destroy the chart
     if (zoomInLabel) {
-      this.#overviewData.onZoomChange?.(zoomInLabel.value, labelIndex);
+      this.#onZoomChange(zoomInLabel.value, labelIndex);
     } else {
-      this.#overviewData.onZoomChange?.(undefined, undefined);
+      this.#onZoomChange(undefined, undefined);
     }
   }
 
