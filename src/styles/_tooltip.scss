@@ -131,6 +131,11 @@
   &.lovely-chart--tooltip-dataset-total {
     margin-top: 6px;
     font-weight: bold;
+
+    // The secondary axis total sits right under the Total it scales
+    & + & {
+      margin-top: 0;
+    }
   }
 }
 

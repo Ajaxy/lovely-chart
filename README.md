@@ -80,6 +80,7 @@ Parameter | Description |
 `percentPrecision`| Digits after the point of the share a percentage chart's tooltip prints beside each value. Default `0`.
 `isStacked`| `true` for values stacking on top of each other
 `hasSecondYAxis`| `true` for charts with 2 Y axes
+`secondaryYAxis`| Optional scale of the main Y axis in another unit: `{ label, multiplier, prefix?, suffix? }`. Each main Y-axis label times `multiplier`, between `prefix` and `suffix`, stands at the right of the plot, apart from a percentage chart's. The tooltip adds a row of `label` and its total times `multiplier` to two decimals, between `prefix` and `suffix`: under the Total row of a stacked or percentage `bar`, `step` or `area` chart, and under the dataset rows of any other chart or one with `isTooltipTotalInTitle`.
 `valuePrefix`| Optional string prepended to every formatted value (e.g. `$`)
 `valueSuffix`| Optional string appended to every formatted value
 `isCurrencyPrefix`| When `true`, a negative value is rendered with the minus sign in front of `valuePrefix` (`-$9.1` instead of `$-9.1`). Use with currency-like prefixes. Default `false`.

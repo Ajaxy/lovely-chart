@@ -3228,6 +3228,55 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && JSON.stringify(resolvedSecondaryRows.missing) === '["A 200","B 20","USD ≈ —"]',
     JSON.stringify(resolvedSecondaryRows));
 
+  // The total on the scale of `secondaryYAxis` takes a row of its own under the Total row, or under the datasets
+  const readSecondaryTotals = async (config) => {
+    await mountProbe(page, {
+      config: {
+        isStacked: true,
+        labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)),
+        datasets: [{ name: 'A', values: [100, 200, 300] }, { name: 'B', values: [10, 20, 30] }],
+        secondaryYAxis: { label: 'USD ≈', multiplier: 2.5, prefix: '$' },
+        ...config,
+      },
+    });
+    const totals = await page.evaluate(async () => {
+      window.probeChart.selectLabel(1);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+      return {
+        rows: [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset')].map((row) => [
+          row.dataset.name ?? row.firstElementChild.textContent,
+          row.querySelector('.lovely-chart--tooltip-dataset-value').textContent,
+        ].join(' ')),
+        titleTotal: balloon.querySelector('.lovely-chart--tooltip-title-total')?.textContent,
+      };
+    });
+    await unmountProbe(page);
+    return totals;
+  };
+  const secondaryTotals = {
+    bar: await readSecondaryTotals({ type: 'bar' }),
+    step: await readSecondaryTotals({ type: 'step' }),
+    area: await readSecondaryTotals({ type: 'area' }),
+    inTitle: await readSecondaryTotals({ type: 'bar', isTooltipTotalInTitle: true }),
+    percentage: await readSecondaryTotals({ type: 'area', isPercentage: true }),
+    resolved: await readResolvedSecondaryRows({ type: 'bar', isStacked: true }, 500),
+    // `resolveTooltipTotal` marks a missing total with `null`
+    // eslint-disable-next-line no-null/no-null
+    missing: await readResolvedSecondaryRows({ type: 'bar', isStacked: true }, null),
+  };
+  const rowsWithTotal = '["A 200","B 20","Total 220","USD ≈ $550.00"]';
+  check('a stacked chart with secondaryYAxis shows its total and the scaled total on rows of their own',
+    JSON.stringify(secondaryTotals.bar.rows) === rowsWithTotal
+    && JSON.stringify(secondaryTotals.step.rows) === rowsWithTotal
+    && JSON.stringify(secondaryTotals.area.rows) === rowsWithTotal
+    && JSON.stringify(secondaryTotals.percentage.rows) === rowsWithTotal
+    && secondaryTotals.inTitle.titleTotal === '220'
+    && JSON.stringify(secondaryTotals.inTitle.rows) === '["A 200","B 20","USD ≈ $550.00"]'
+    && JSON.stringify(secondaryTotals.resolved) === '["A 200","B 20","Total 500","USD ≈ $1250.00"]'
+    && JSON.stringify(secondaryTotals.missing) === '["A 200","B 20","Total —","USD ≈ —"]',
+    JSON.stringify(secondaryTotals));
+
   const sparkline = charts.nth(SPARKLINE_CHART);
   const sparklineLayout = await sparkline.evaluate((el) => ({
     header: getComputedStyle(el.querySelector('.lovely-chart--header')).display,

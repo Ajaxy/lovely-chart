@@ -15,6 +15,7 @@ import { throttle, throttleWithRaf } from './utils.js';
 const CONTENT_THROTTLE_MS = 100;
 const NO_VALUE = '—';
 const WEEK_OF = 'Week of';
+const TOTAL_TITLE = 'Total';
 const CIRCLE_RADIUS = 4;
 const CIRCLE_LINE_WIDTH = 2;
 
@@ -676,17 +677,13 @@ export class Tooltip {
     const total = resolvedTotal !== undefined ? resolvedTotal : totalValue;
     const totalText = (isBars || isSteps || isAreas) && (isStacked || isShares) ? this.#formatValue(total) : undefined;
     if (totalText !== undefined && !isTooltipTotalInTitle) {
-      this.#renderTotal(dataSetContainer, totalText);
+      this.#renderTotalRow(dataSetContainer, 'true', TOTAL_TITLE, totalText);
     }
     this.#renderTitleTotal(isTooltipTotalInTitle ? totalText : undefined);
 
     if (this.#data.secondaryYAxis) {
       this.#renderSecondaryTotal(dataSetContainer, total);
     }
-
-    // Re-append total rows to keep them at the bottom after sort reordering
-    Array.from(dataSetContainer.querySelectorAll('[data-total="true"]'))
-      .forEach((element) => dataSetContainer.appendChild(element));
 
     Array.from(dataSetContainer.querySelectorAll('[data-present="false"]'))
       .forEach((dataSet) => {
@@ -718,64 +715,32 @@ export class Tooltip {
     totalElement.textContent = totalText;
   }
 
-  #renderTotal(dataSetContainer: HTMLElement, totalValue: string) {
-    const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
-    if (!totalText) {
-      const newTotalText = createElement();
-      newTotalText.className = 'lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total';
-      newTotalText.setAttribute('data-present', 'true');
-      newTotalText.setAttribute('data-total', 'true');
-      const titleElement = createElement<HTMLSpanElement>('span');
-      titleElement.textContent = 'Total';
-      newTotalText.appendChild(titleElement);
-
-      const valueElement = createElement<HTMLSpanElement>('span');
-      valueElement.className = className;
-      valueElement.textContent = totalValue;
-      newTotalText.appendChild(valueElement);
-
-      dataSetContainer.appendChild(newTotalText);
-    } else {
-      totalText.setAttribute('data-present', 'true');
-
-      const valueElement = totalText.querySelector(
-        `.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`,
-      )!;
-      valueElement.textContent = totalValue;
-    }
-  }
-
   #renderSecondaryTotal(dataSetContainer: HTMLElement, total: number | null) {
     const { label, multiplier, prefix = '', suffix = '' } = this.#data.secondaryYAxis!;
-    const totalText = dataSetContainer.querySelector(`[data-total="true"]`);
-    const className = `lovely-chart--tooltip-dataset-value lovely-chart--position-right`;
+    this.#renderTotalRow(
+      dataSetContainer, 'secondary', label,
+      total === GAP ? NO_VALUE : `${prefix}${(total * multiplier).toFixed(2)}${suffix}`,
+    );
+  }
 
-    const secondaryValue = total === GAP ? NO_VALUE : `${prefix}${(total * multiplier).toFixed(2)}${suffix}`;
-
-    if (!totalText) {
-      const newTotalText = createElement();
-      newTotalText.className = 'lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total';
-      newTotalText.setAttribute('data-present', 'true');
-      newTotalText.setAttribute('data-total', 'true');
-      const titleElement = createElement<HTMLSpanElement>('span');
-      titleElement.textContent = label;
-      newTotalText.appendChild(titleElement);
+  // Appending each row after the dataset rows keeps the total rows at the bottom, in the order they render
+  #renderTotalRow(dataSetContainer: HTMLElement, totalKind: 'true' | 'secondary', title: string, valueText: string) {
+    let row = dataSetContainer.querySelector<HTMLElement>(`[data-total="${totalKind}"]`);
+    if (!row) {
+      row = createElement();
+      row.className = 'lovely-chart--tooltip-dataset lovely-chart--tooltip-dataset-total';
+      row.setAttribute('data-total', totalKind);
+      row.appendChild(createElement<HTMLSpanElement>('span'));
 
       const valueElement = createElement<HTMLSpanElement>('span');
-      valueElement.className = className;
-      valueElement.textContent = secondaryValue;
-      newTotalText.appendChild(valueElement);
-
-      dataSetContainer.appendChild(newTotalText);
-    } else {
-      totalText.setAttribute('data-present', 'true');
-
-      const valueElement = totalText.querySelector(
-        `.lovely-chart--tooltip-dataset-value:not(.lovely-chart--state-hidden)`,
-      )!;
-      valueElement.textContent = secondaryValue;
+      valueElement.className = 'lovely-chart--tooltip-dataset-value lovely-chart--position-right';
+      row.appendChild(valueElement);
     }
+
+    row.setAttribute('data-present', 'true');
+    row.firstElementChild!.textContent = title;
+    row.lastElementChild!.textContent = valueText;
+    dataSetContainer.appendChild(row);
   }
 
   #hideBalloon() {
