@@ -333,6 +333,14 @@ const UPDATE_RANGE = [0.6, 0.9];
 const OTHER_LABELS_RANGE = [0.1, 0.4];
 // The label a chart whose selection `update()` keeps selects
 const KEPT_SELECTED_INDEX = 5;
+// The colour of the chart `update()` cross-fades from and that of the data it fades into, the time into the 400ms fade
+// when a probe reads both charts, and a time after it ends
+const FADE_FROM_COLOR = '#FF0000';
+const FADE_TO_COLOR = '#0000FF';
+const MID_FADE_MS = 200;
+const PAST_FADE_MS = 700;
+// How far the opacity a chart fades out from can sit above the one it had reached fading in
+const FADE_OPACITY_TOLERANCE = 0.01;
 // How far a focused sector of a pie or donut moves out of the circle
 const CIRCLE_SHIFT = 10;
 // The colour a probe paints over its whole plot canvas, to show what a clip leaves of it
@@ -2270,6 +2278,265 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   }, KEPT_SELECTED_INDEX);
   check('update() with shouldKeepSelection follows the label to its new index in params the page reassigned',
     reassignedLabels === `${KEPT_SELECTED_INDEX},${KEPT_SELECTED_INDEX - 3}`, reassignedLabels);
+
+  // --- update() with isAnimated cross-fades the chart into the new data ---
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const crossFade = await page.evaluate(async ({ fromColor, toColor, midFadeMs, pastFadeMs, tolerance }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const buildParams = (color, count) => ({
+      type: 'line',
+      title: 'Probe — Cross-fade',
+      labels: Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+      datasets: Array.from({ length: count }, (_, j) => ({
+        name: `Dataset ${j}`, color, values: Array.from({ length: 10 }, (_, i) => 1 + (i % 3) + j),
+      })),
+    });
+    // The pixels of a colour on the plot canvas of a chart, which its own opacity leaves as they are
+    const countPixels = (chartElement, color) => {
+      const rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+      const canvas = chartElement.querySelector(':scope > canvas');
+      const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      let count = 0;
+      for (let j = 0; j < data.length; j += 4) {
+        if (data[j + 3] > 100 && rgb.every((channel, k) => Math.abs(data[j + k] - channel) < tolerance)) count++;
+      }
+      return count;
+    };
+    const chart = new LovelyChart(element, buildParams(fromColor, 2));
+    element.scrollIntoView({ behavior: 'instant', block: 'center' });
+    await wait(300);
+    chart.update(buildParams(toColor, 3), { isAnimated: true });
+    const [replaced, rebuilt] = element.children;
+    const replacedBox = replaced.getBoundingClientRect();
+    const rebuiltBox = rebuilt.getBoundingClientRect();
+    const replacedStyle = getComputedStyle(replaced);
+    const start = {
+      count: element.children.length,
+      isAside: replaced.inert && replacedStyle.position === 'absolute' && replacedStyle.pointerEvents === 'none',
+      isInPlace: ['left', 'top', 'width'].every((key) => Math.abs(replacedBox[key] - rebuiltBox[key]) < 1),
+      isOutOfFlow: Math.abs(element.getBoundingClientRect().height - rebuiltBox.height) < 1,
+      legendButtons: replaced.querySelectorAll('.lovely-chart--button').length,
+    };
+    await wait(midFadeMs);
+    const plotBox = rebuilt.querySelector('.lovely-chart--tooltip').getBoundingClientRect();
+    const hit = document.elementFromPoint(plotBox.left + plotBox.width / 2, plotBox.top + plotBox.height / 2);
+    const mid = {
+      opacities: [replaced, rebuilt].map((child) => Number(getComputedStyle(child).opacity)),
+      replacedPixels: countPixels(replaced, fromColor),
+      rebuiltPixels: countPixels(rebuilt, toColor),
+      isHitOnRebuilt: rebuilt.contains(hit),
+    };
+    await wait(pastFadeMs);
+    const end = [...element.children].map((child) => child.className).join(' | ');
+    const readOpacities = () => [...element.children].map((child) => Number(getComputedStyle(child).opacity));
+    chart.update(buildParams(fromColor, 2), { isAnimated: true });
+    await wait(midFadeMs);
+    const restartedFrom = readOpacities();
+    chart.update(buildParams(toColor, 3), { isAnimated: true });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const restarted = { from: restartedFrom, to: readOpacities() };
+    chart.destroy();
+    element.remove();
+    return { start, mid, end, restarted };
+  }, {
+    fromColor: FADE_FROM_COLOR,
+    toColor: FADE_TO_COLOR,
+    midFadeMs: MID_FADE_MS,
+    pastFadeMs: PAST_FADE_MS,
+    tolerance: COLOR_TOLERANCE,
+  });
+  check('update() with isAnimated holds the replaced chart and its legend in the place of the new one, out of reach',
+    crossFade.start.count === 2 && crossFade.start.isAside && crossFade.start.isInPlace && crossFade.start.isOutOfFlow
+    && crossFade.start.legendButtons === 2, JSON.stringify(crossFade.start));
+  check('the replaced chart fades out with its data as the new one fades in with the new data and takes the pointer',
+    crossFade.mid.opacities.every((opacity) => opacity > 0 && opacity < 1)
+    && crossFade.mid.replacedPixels > MIN_DATASET_PIXELS && crossFade.mid.rebuiltPixels > MIN_DATASET_PIXELS
+    && crossFade.mid.isHitOnRebuilt, JSON.stringify(crossFade.mid));
+  check('the replaced chart leaves once the cross-fade ends', crossFade.end === 'lovely-chart--container',
+    crossFade.end);
+  const { from: restartedFrom, to: restartedTo } = crossFade.restarted;
+  check('an animated update() mid-fade fades the chart out from where it is, as the one before it goes on fading out',
+    restartedFrom.length === 2 && restartedTo.length === 3 && restartedTo[0] > 0
+    && restartedTo[0] <= restartedFrom[0] && restartedTo[1] > 0
+    && restartedTo[1] <= restartedFrom[1] + FADE_OPACITY_TOLERANCE,
+    JSON.stringify(crossFade.restarted));
+
+  const legendCrossFade = await page.evaluate(async ({ midFadeMs, pastFadeMs }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const legend = document.createElement('div');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').append(legend, element);
+    const buildParams = (names) => ({
+      type: 'line',
+      title: 'Probe — Cross-faded legend',
+      labels: Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+      datasets: names.map((name, j) => ({ name, values: Array.from({ length: 10 }, (_, i) => 1 + (i % 3) + j) })),
+      legendContainer: legend,
+    });
+    const readClassNames = (parent) => [...parent.children].map((child) => child.className).join(' | ');
+    const chart = new LovelyChart(element, buildParams(['A', 'B']));
+    // An element of the page after the legend, which the legend keeps its place before
+    const chip = document.createElement('div');
+    chip.className = 'probe-chip';
+    chip.style.height = '30px';
+    legend.appendChild(chip);
+    legend.scrollIntoView({ behavior: 'instant', block: 'center' });
+    await wait(300);
+    chart.update(buildParams(['C', 'D', 'E']), { isAnimated: true });
+    const [replaced, rebuilt] = legend.children;
+    const replacedBox = replaced.getBoundingClientRect();
+    const rebuiltBox = rebuilt.getBoundingClientRect();
+    const start = {
+      classNames: readClassNames(legend),
+      isAside: replaced.inert && getComputedStyle(replaced).pointerEvents === 'none',
+      isInPlace: ['left', 'top', 'width'].every((key) => Math.abs(replacedBox[key] - rebuiltBox[key]) < 1),
+      labels: [replaced, rebuilt].map((tools) => tools.textContent).join(),
+    };
+    await wait(midFadeMs);
+    const buttonBox = rebuilt.querySelector('.lovely-chart--button').getBoundingClientRect();
+    const hit = document.elementFromPoint(buttonBox.left + buttonBox.width / 2, buttonBox.top + buttonBox.height / 2);
+    const isHitOnRebuilt = rebuilt.contains(hit);
+    await wait(pastFadeMs);
+    const end = readClassNames(legend);
+    chart.update(buildParams(['A', 'B']), { isAnimated: true });
+    chart.update(buildParams(['C', 'D']), { isAnimated: true });
+    const restarted = [readClassNames(element), readClassNames(legend)];
+    chart.update(buildParams(['A', 'B']));
+    const ended = [readClassNames(element), readClassNames(legend)];
+    chart.update(buildParams(['C', 'D']), { isAnimated: true });
+    chart.destroy();
+    const destroyed = element.children.length + legend.querySelectorAll('.lovely-chart--tools').length;
+    element.remove();
+    legend.remove();
+    return { start, isHitOnRebuilt, end, restarted, ended, destroyed };
+  }, { midFadeMs: MID_FADE_MS, pastFadeMs: PAST_FADE_MS });
+  const fadingOut = (className) => `${className} lovely-chart--state-fading-out`;
+  const fadingPair = (className) => `${fadingOut(className)} | ${className} lovely-chart--state-fading-in`;
+  check('update() with isAnimated keeps the replaced legend of legendContainer where the new one stands, out of reach',
+    legendCrossFade.start.classNames === `${fadingPair('lovely-chart--tools')} | probe-chip`
+    && legendCrossFade.start.isAside && legendCrossFade.start.isInPlace && legendCrossFade.start.labels === 'AB,CDE',
+    JSON.stringify(legendCrossFade.start));
+  check('the new legend takes the pointer during the cross-fade, and the replaced one leaves once it ends',
+    legendCrossFade.isHitOnRebuilt && legendCrossFade.end === 'lovely-chart--tools | probe-chip',
+    JSON.stringify([legendCrossFade.isHitOnRebuilt, legendCrossFade.end]));
+  check('an animated update() mid-fade keeps the earlier fades going, and a plain one or destroy() ends them at once',
+    JSON.stringify(legendCrossFade.restarted) === JSON.stringify([
+      `${fadingOut('lovely-chart--container')} | ${fadingPair('lovely-chart--container')}`,
+      `${fadingOut('lovely-chart--tools')} | ${fadingPair('lovely-chart--tools')} | probe-chip`,
+    ])
+    && JSON.stringify(legendCrossFade.ended) === '["lovely-chart--container","lovely-chart--tools | probe-chip"]'
+    && legendCrossFade.destroyed === 0,
+    JSON.stringify([legendCrossFade.restarted, legendCrossFade.ended, legendCrossFade.destroyed]));
+
+  const sharedCrossFade = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    element.style.position = 'relative';
+    document.getElementById('container').appendChild(element);
+    const buildParams = (names) => ({
+      type: 'line',
+      title: 'Probe — Legend in the element',
+      labels: Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+      datasets: names.map((name, j) => ({ name, values: Array.from({ length: 10 }, (_, i) => 1 + (i % 3) + j) })),
+      legendContainer: element,
+    });
+    const readOrder = () => [...element.children]
+      .map((child) => child.className.replace(/lovely-chart--(state-)?/g, '')).join(' | ');
+    const chart = new LovelyChart(element, buildParams(['A', 'B']));
+    const overlay = document.createElement('div');
+    overlay.className = 'probe-overlay';
+    overlay.style.cssText = 'position: absolute; inset: 0; pointer-events: none';
+    element.appendChild(overlay);
+    await wait(300);
+    chart.update(buildParams(['C', 'D']), { isAnimated: true });
+    chart.update(buildParams(['A', 'B']), { isAnimated: true });
+    const [rebuiltChart, rebuiltLegend] = ['container', 'tools'].map((kind) => (
+      element.querySelector(`:scope > .lovely-chart--${kind}.lovely-chart--state-fading-in`)
+    ));
+    const isInPlace = [...element.querySelectorAll(':scope > .lovely-chart--state-fading-out')].every((child) => {
+      const rebuilt = child.classList.contains('lovely-chart--tools') ? rebuiltLegend : rebuiltChart;
+      return Math.abs(child.getBoundingClientRect().top - rebuilt.getBoundingClientRect().top) < 1;
+    });
+    const fading = { order: readOrder(), isInPlace };
+    chart.update(buildParams(['C', 'D']));
+    const ended = readOrder();
+    chart.destroy();
+    element.remove();
+    return { fading, ended };
+  });
+  const sharedFadingOrder = ['container', 'tools']
+    .map((kind) => `${kind} fading-out | ${kind} fading-out | ${kind} fading-in`).join(' | ');
+  check('with legendContainer as element, fading charts and legends stand where the new ones do, ahead of an overlay',
+    sharedCrossFade.fading.order === `${sharedFadingOrder} | probe-overlay` && sharedCrossFade.fading.isInPlace,
+    JSON.stringify(sharedCrossFade.fading));
+  check('update() keeps the chart and the legend of legendContainer as element before the page overlay',
+    sharedCrossFade.ended === 'container | tools | probe-overlay', sharedCrossFade.ended);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const reducedMotionUpdate = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const params = {
+      type: 'line',
+      title: 'Probe — Reduced motion',
+      labels: Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+      datasets: [{ name: 'A', values: Array.from({ length: 10 }, (_, i) => 1 + (i % 3)) }],
+    };
+    const chart = new LovelyChart(element, params);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    chart.update({ ...params }, { isAnimated: true });
+    const classNames = [...element.children].map((child) => child.className).join(' | ');
+    chart.destroy();
+    element.remove();
+    return classNames;
+  });
+  // Playwright restores the system preference on `null` alone
+  // eslint-disable-next-line no-null/no-null
+  await page.emulateMedia({ reducedMotion: null });
+  check('update() with isAnimated swaps the chart at once while the system asks for reduced motion',
+    reducedMotionUpdate === 'lovely-chart--container', reducedMotionUpdate);
+
+  // A page of its own counts every frame and timer, which the demo charts would add to
+  const fadePage = await browser.newPage({ viewport: { width: 900, height: 1200 } });
+  await fadePage.goto(`${url}isolated`);
+  await fadePage.addStyleTag({ url: `${url}LovelyChart.css` });
+  await countLateCallbacks(fadePage);
+  const destroyedMidFade = await fadePage.evaluate(async (pastFadeMs) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => window.realSetTimeout(resolve, ms));
+    const element = document.createElement('div');
+    document.body.appendChild(element);
+    const params = {
+      type: 'line',
+      title: 'Probe — Destroyed mid-fade',
+      labels: Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+      datasets: [{ name: 'A', values: Array.from({ length: 10 }, (_, i) => 1 + (i % 3)) }],
+    };
+    const chart = new LovelyChart(element, params);
+    await wait(300);
+    chart.update({ ...params }, { isAnimated: true });
+    const fadingCount = element.children.length;
+    chart.destroy();
+    window.lateCallbacks = 0;
+    window.isCountingLateCallbacks = true;
+    await wait(pastFadeMs);
+    window.isCountingLateCallbacks = false;
+    return { fadingCount, count: element.children.length, lateCallbacks: window.lateCallbacks };
+  }, PAST_FADE_MS);
+  await fadePage.close();
+  check('destroy() mid-fade removes both charts and leaves no frame or timer running',
+    destroyedMidFade.fadingCount === 2 && destroyedMidFade.count === 0 && destroyedMidFade.lateCallbacks === 0,
+    JSON.stringify(destroyedMidFade));
 
   // --- Minimap: a drag holds its cursor over the page until the release ---
   const cursorConfig = {

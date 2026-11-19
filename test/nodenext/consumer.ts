@@ -86,6 +86,7 @@ const labelX: number | undefined = chart.getLabelX(1, 0.5) ?? chart.getLabelX(1)
 
 const keptView: LovelyChartUpdateOptions = { shouldKeepFilter: true, shouldKeepZoom: true, shouldKeepSelection: false };
 chart.update(params, keptView);
+chart.update(params, { ...keptView, isAnimated: true });
 
 const handle: LovelyChartInstance = chart;
 handle.update({ ...params, colorScheme: 'htmlClassName' });

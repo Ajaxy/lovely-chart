@@ -32,6 +32,7 @@
 - `minimapRange` takes `{ from, to }`, inclusive label indexes, rounded and clamped to the labels as in `hatchedRanges`: a bar or step chart opens on the columns of those labels, a pie or donut sums them, and a line or area chart opens on their points and half an interval past either end, within the axis. A range of no labels takes the default.
 - `update(newData, options)`: `shouldKeepFilter` keeps the datasets the reader hid, matched by their place or, once the number of datasets changes, by name; `shouldKeepZoom` keeps the minimap window and the zoom while the labels are unchanged, reopening a zoomed chart zoomed into its label; `shouldKeepSelection` keeps the selected label while a label of its value shows. Callbacks follow what changes: `onHiddenSeriesChange` when the hidden datasets differ, `onZoomChange` when a zoom still on its way in shows or the zoom ends, and `onSelectedIndexChange` when the index moves or the selection ends.
 - `LovelyChartUpdateOptions` type.
+- `update(newData, { isAnimated })`: cross-fades the chart into the new data over 400ms within the one instance: the plot, the axes, the header, the minimap and the legend, one in `legendContainer` included. The replaced chart stays in the new one's place, under it, out of the layout and of the reader's reach, until it has faded out, and another animated update fades the chart out from the opacity it has reached. With reduced motion the data swaps at once.
 
 ### Changed
 
@@ -47,6 +48,7 @@
 - English dates read left to right on a right-to-left page, on the X axis, in the header caption and in the tooltip title: each of these, a text label included, reads in the direction of its first letter, so dates in Hebrew or Arabic words read right to left on a left-to-right page. One with no letter, such as the caption `2022 — 2026` of a year chart, reads left to right, the way the X axis runs.
 - `isCurrencyPrefix` puts the minus sign in front of the `prefix` of `secondaryYAxis` too, on its axis labels and its tooltip total: `-$1.3K` rather than `$-1.3K`.
 - A stacked chart with `hasSecondYAxis` keeps the last dataset out of the stack, on a Y axis of its own: the dataset draws its own values on that axis, which labels them, and fades when hidden, while the stack, the main Y axis, its `isYAxisOutward` column and the tooltip's total leave it out. The main Y-axis labels of the stack keep the axis text colour rather than the first dataset's, and a percentage chart's tooltip prints no share on the row of the dataset on its own axis.
+- `update()`, a resize and an orientation change keep a legend in `legendContainer` in its place among the page's elements there, and the chart in its place among them when `legendContainer` is the chart's own `element`.
 - A resize or an orientation change of a chart zoomed into its own datasets, as into a pie or a donut, keeps in the overview it opens the datasets the reader hid or showed in the zoomed legend.
 
 ## 2.1.0

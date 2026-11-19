@@ -13,6 +13,7 @@ import {
   SIMPLIFIER_PLOT_FACTOR,
   SPARKLINE_PADDING,
   SYSTEM_DARK_QUERY,
+  TRANSITION_DEFAULT_DURATION,
   X_AXIS_HEIGHT,
 } from './constants.js';
 import { analyzeData } from './data.js';
@@ -43,6 +44,7 @@ export type {
 export { DEFAULT_COLORS, DEFAULT_COMPARISON_COLOR, getDefaultColors } from './data.js';
 
 const REDRAW_DEBOUNCE_MS = 500;
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const PLOT_HEIGHT_PROPERTY = '--lovely-chart-plot-height';
 const PLOT_HEIGHT_PATTERN = /^(\d*\.?\d+)(px|rem)?$/;
 const PLOT_AREA_PROPERTIES: [keyof Rect, string][] = [
@@ -56,6 +58,12 @@ const PLOT_PADDING_TOP_PROPERTY = '--lovely-chart-plot-padding-top';
 interface KeptSelection {
   labelIndex: number;
   isByPointer: boolean;
+}
+
+// The nodes a rebuilt chart and its legend go before, each to take the place of the one it replaces
+interface NextSiblings {
+  chart: Node | undefined;
+  legend: Node | undefined;
 }
 
 export default class LovelyChart {
@@ -95,6 +103,11 @@ export default class LovelyChart {
   // The value of the label `onZoomChange` last reported, while the page knows the chart as zoomed
   #zoomedLabelValue?: number;
   #hiddenDatasetsKey?: string;
+  // The charts `update()` with `isAnimated` replaced, with legends of their own outside them, each with the timeout
+  // that removes it once it has faded out, and the rebuilt ones fading in
+  readonly #fadeOutTimeouts = new Map<HTMLElement, number>();
+  #fadingInElements: HTMLElement[] = [];
+  #fadeInTimeout?: number;
 
   #themeObserver?: MutationObserver;
   #layoutObserver?: ResizeObserver;
@@ -131,11 +144,12 @@ export default class LovelyChart {
 
   /**
    * Replaces the data and rebuilds the chart, which keeps a reference to `newData`. The zoom, the minimap window, the
-   * datasets the reader hid and the selection reset, unless `options` keeps them.
+   * datasets the reader hid and the selection reset, unless `options` keeps them, and `isAnimated` cross-fades the
+   * chart into the new data.
    */
   update(newData: LovelyChartParams, options: LovelyChartUpdateOptions = {}) {
     if (this.#isDestroyed) return;
-    const { shouldKeepFilter, shouldKeepZoom, shouldKeepSelection } = options;
+    const { shouldKeepFilter, shouldKeepZoom, shouldKeepSelection, isAnimated } = options;
     const data = analyzeData(newData);
     const isViewKept = shouldKeepZoom && areSameLabels(this.#overviewLabels!, newData.labels);
     const zoomedLabelIndex = isViewKept && data.isZoomable ? this.#getZoomedLabelIndex() : undefined;
@@ -159,9 +173,9 @@ export default class LovelyChart {
     this.#hiddenDatasetsKey = undefined;
     this.#originalData = newData;
     this.#legendContainer = newData.legendContainer;
-    const nextSibling = this.#element!.nextSibling ?? undefined;
     const isPlotFocused = this.#tooltip!.isFocused();
-    this.#destroyComponents();
+    const shouldCrossFade = isAnimated && !isMotionReduced();
+    const nextSiblings = this.#destroyComponents(shouldCrossFade);
     this.#data = data;
     if (shouldKeepFilter) {
       this.#keepFilter(filter);
@@ -171,7 +185,10 @@ export default class LovelyChart {
     }
     this.#pendingZoomIndex = zoomedLabelIndex;
     this.#keptSelection = selection;
-    this.#setupComponents(nextSibling);
+    this.#setupComponents(nextSiblings);
+    if (shouldCrossFade) {
+      this.#fadeIn();
+    }
     if (isPlotFocused) {
       this.#tooltip!.focus();
     }
@@ -261,10 +278,10 @@ export default class LovelyChart {
     }
   }
 
-  #setupComponents(nextSibling?: Node) {
+  #setupComponents(nextSiblings?: NextSiblings) {
     this.#overviewDatasets = this.#data.datasets;
     this.#overviewLabels = [...this.#originalData.labels];
-    this.#setupContainer(nextSibling);
+    this.#setupContainer(nextSiblings?.chart);
     this.#colors = createColors(this.#data.colors, this.#data, this.#setupColorProbe());
     this.#header = new Header(this.#element!, this.#data.title!, this.#data.zoomOutLabel, this.#onZoomOut);
     this.#setupPlotCanvas();
@@ -280,7 +297,7 @@ export default class LovelyChart {
       this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus, this.#reportTooltip,
     );
     this.#tools = new Tools(
-      this.#legendContainer ?? this.#element!, this.#data, this.#colors, this.#onFilterChange,
+      this.#legendContainer ?? this.#element!, this.#data, this.#colors, this.#onFilterChange, nextSiblings?.legend,
     );
     this.#zoomer = this.#data.isZoomable
       ? new Zoomer(
@@ -697,7 +714,12 @@ export default class LovelyChart {
     window.addEventListener('orientationchange', this.#onWindowOrientationChange);
   }
 
-  #destroyComponents() {
+  // Takes the chart and its legend out at once or, with `shouldFadeOut`, through a fade, which keeps those of earlier
+  // fades fading out, and returns the nodes the rebuilt ones go before
+  #destroyComponents(shouldFadeOut = false): NextSiblings {
+    if (!shouldFadeOut) {
+      this.#endCrossFades();
+    }
     this.#zoomer?.destroy();
     this.#minimap?.destroy();
     this.#tools?.destroy();
@@ -705,11 +727,20 @@ export default class LovelyChart {
     this.#header?.destroy();
     this.#stateManager?.destroy();
 
-    if (this.#element) {
-      this.#layoutObserver?.unobserve(this.#element);
-    }
-    if (this.#element?.parentNode) {
-      this.#element.remove();
+    const element = this.#element!;
+    this.#layoutObserver?.unobserve(element);
+    const legend = this.#tools?.getElement();
+    const legendNextSibling = legend?.nextSibling ?? undefined;
+    let nextSibling: Node | undefined;
+    if (shouldFadeOut) {
+      nextSibling = element.nextSibling ?? undefined;
+      this.#fadeOut();
+    } else {
+      // The legend leaves before the place of the chart is read, as it follows the chart when `legendContainer` is the
+      // chart's own container
+      legend?.remove();
+      nextSibling = element.nextSibling ?? undefined;
+      element.remove();
     }
 
     this.#element = undefined;
@@ -725,6 +756,61 @@ export default class LovelyChart {
     this.#zoomer = undefined;
     this.#stateManager = undefined;
     this.#keptSelection = undefined;
+
+    return { chart: nextSibling, legend: legendNextSibling };
+  }
+
+  // The chart a rebuild replaces, with a legend of its own outside it, stays in the place of the new one as it fades
+  // out, out of the layout and out of the reader's reach. The new chart paints over it, and the new legend under it.
+  #fadeOut() {
+    const elements = this.#getFadingElements();
+    elements.forEach((element) => {
+      const { width, opacity } = getComputedStyle(element);
+      // Out of the flow, the element keeps its width and stands where the element after it starts, and one still
+      // fading in fades out from the opacity it has reached
+      element.style.width = width;
+      element.style.opacity = opacity;
+      element.inert = true;
+    });
+    this.#endFadeIn();
+    elements.forEach((element) => {
+      element.classList.add('lovely-chart--state-fading-out');
+      this.#fadeOutTimeouts.set(element, window.setTimeout(() => {
+        this.#fadeOutTimeouts.delete(element);
+        element.remove();
+      }, TRANSITION_DEFAULT_DURATION));
+    });
+  }
+
+  #fadeIn() {
+    this.#fadingInElements = this.#getFadingElements();
+    this.#fadingInElements.forEach((element) => element.classList.add('lovely-chart--state-fading-in'));
+    this.#fadeInTimeout = window.setTimeout(() => this.#endFadeIn(), TRANSITION_DEFAULT_DURATION);
+  }
+
+  // An element hidden and shown again would run its animation again
+  #endFadeIn() {
+    clearTimeout(this.#fadeInTimeout);
+    this.#fadeInTimeout = undefined;
+    this.#fadingInElements.forEach((element) => element.classList.remove('lovely-chart--state-fading-in'));
+    this.#fadingInElements = [];
+  }
+
+  // A rebuild with no fade or `destroy()` ends the cross-fades still on their way
+  #endCrossFades() {
+    this.#endFadeIn();
+    this.#fadeOutTimeouts.forEach((timeout, element) => {
+      clearTimeout(timeout);
+      element.remove();
+    });
+    this.#fadeOutTimeouts.clear();
+  }
+
+  // The chart's element, and its legend when `legendContainer` holds it
+  #getFadingElements() {
+    const element = this.#element!;
+    const legend = this.#tools!.getElement();
+    return legend.parentNode === element ? [element] : [element, legend];
   }
 
   #redraw() {
@@ -735,12 +821,11 @@ export default class LovelyChart {
     // A callback of the reports can destroy the chart
     if (this.#isDestroyed) return;
     const filter = this.#zoomer?.getOverviewState()?.filter ?? this.#stateManager?.getFilter() ?? {};
-    const nextSibling = this.#element!.nextSibling ?? undefined;
     const isPlotFocused = this.#tooltip!.isFocused();
-    this.#destroyComponents();
+    const nextSiblings = this.#destroyComponents();
     this.#data = analyzeData(this.#originalData);
     this.#keepFilter(filter);
-    this.#setupComponents(nextSibling);
+    this.#setupComponents(nextSiblings);
     if (isPlotFocused) {
       this.#tooltip!.focus();
     }
@@ -783,4 +868,9 @@ function isSameArea(area: Rect, otherArea: Rect) {
 
 function areSameLabels(labels: LovelyChartParams['labels'], otherLabels: LovelyChartParams['labels']) {
   return labels.length === otherLabels.length && labels.every((label, i) => label === otherLabels[i]);
+}
+
+// DOM emulations such as jsdom leave out `matchMedia`
+function isMotionReduced() {
+  return typeof matchMedia === 'function' && matchMedia(REDUCED_MOTION_QUERY).matches;
 }

@@ -26,15 +26,17 @@ export class Tools {
     button.classList.add('lovely-chart--state-shake');
   });
 
+  // The legend takes the place of the one it replaces, before `nextSibling`, while `nextSibling` is in `container`
   constructor(
     container: HTMLElement, data: AnalyzedData, colors: ChartColors, filterCallback: (filter: Filter) => void,
+    nextSibling?: Node,
   ) {
     this.#container = container;
     this.#data = data;
     this.#colors = colors;
     this.#filterCallback = filterCallback;
 
-    this.#setupLayout();
+    this.#setupLayout(undefined, nextSibling);
     this.#updateFilter();
   }
 
@@ -72,15 +74,19 @@ export class Tools {
       ?.style.setProperty('--lovely-chart-series-color', getCssColor(this.#colors, 'dataset#comparison'));
   }
 
+  getElement(): HTMLElement {
+    return this.#element;
+  }
+
+  // Leaves the legend in place, for the chart to remove it or fade it out
   destroy() {
     this.#removeHiddenElement();
     this.#detachCaptures();
     this.#revealOnRaf.cancel();
     this.#shakeOnRaf.cancel();
-    this.#element.remove();
   }
 
-  #setupLayout(filter?: Filter) {
+  #setupLayout(filter?: Filter, nextSibling?: Node) {
     this.#element = createElement();
     this.#element.className = 'lovely-chart--tools';
 
@@ -151,7 +157,11 @@ export class Tools {
     }
 
     this.updateColors();
-    this.#container.appendChild(this.#element);
+    if (nextSibling?.parentNode === this.#container) {
+      this.#container.insertBefore(this.#element, nextSibling);
+    } else {
+      this.#container.appendChild(this.#element);
+    }
   }
 
   #updateFilter(button?: HTMLAnchorElement, isLongPress = false) {

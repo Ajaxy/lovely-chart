@@ -65,6 +65,20 @@
   }
 }
 
+// `update()` with `isAnimated` keeps the chart it replaces, and a legend of its own in `legendContainer`, out of the flow
+// at the width the chart sets, so it stands where the new one starts; the rule follows `.lovely-chart--container`, whose
+// `position` it overrides. Both fades last `TRANSITION_DEFAULT_DURATION`, after which the chart removes the old
+// elements, and their curves keep the plot fuller midway than linear fades would.
+.lovely-chart--state-fading-out {
+  pointer-events: none;
+  position: absolute;
+  animation: lovely-chart--animation-cross-fade-out 400ms ease-in forwards;
+}
+
+.lovely-chart--state-fading-in {
+  animation: lovely-chart--animation-cross-fade-in 400ms ease-out;
+}
+
 // A sparkline is the plot alone: no caption, legend or axis margin
 .lovely-chart--container-sparkline {
   .lovely-chart--header,

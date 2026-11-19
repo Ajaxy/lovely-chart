@@ -60,6 +60,19 @@
   }
 }
 
+@keyframes lovely-chart--animation-cross-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+// Runs from the opacity the chart sets inline, which a chart still fading in has reached
+@keyframes lovely-chart--animation-cross-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes lovely-chart--animation-spin {
   from {
     transform: rotate(0deg);

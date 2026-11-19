@@ -406,7 +406,7 @@ export interface LovelyChartParams {
   onLimitedRangeClick?: () => void;
 }
 
-/** What `update()` keeps of the view the reader has; each resets by default. */
+/** What `update()` keeps of the view the reader has, each part reset by default, and whether it animates the change. */
 export interface LovelyChartUpdateOptions {
   /**
    * Keeps the datasets the reader showed or hid, matched by their place in `datasets`, or by `name` once the count of
@@ -428,6 +428,14 @@ export interface LovelyChartUpdateOptions {
    * changes or the selection ends.
    */
   shouldKeepSelection?: boolean;
+  /**
+   * Cross-fades the chart into the new data over 400ms: the replaced chart, with its plot, axes, header, minimap and
+   * legend, stays in the new one's place, under it, out of the layout and of the reader's reach, as it fades out and
+   * the new one fades in, and a legend in `legendContainer` fades out over the new one there. Another animated
+   * `update()` fades the chart out from the opacity it has reached, while one without `isAnimated`, a resize or
+   * `destroy()` ends the fades at once. Ignored while the system asks for reduced motion.
+   */
+  isAnimated?: boolean;
 }
 
 export type LinePattern = 'dashed' | 'dotted';
