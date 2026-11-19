@@ -29,6 +29,8 @@ type Skin = 'skin-day' | 'skin-night';
 let skin: Skin | undefined;
 let systemDarkQuery: MediaQueryList | undefined;
 let styleSheet: CSSStyleSheet | null | undefined;
+// Dataset colours the shared stylesheet holds rules for
+const styledColors = new Set<string>();
 
 const COLORS = {
   'skin-day': {
@@ -124,18 +126,23 @@ export function createColors(
     }
 
     Object.entries(datasetColors).forEach(([key, color]) => {
-      const colorSuffix = color.slice(1);
       colors[skin][`dataset#${key}`] = hexToChannels(color);
-
-      addCssRule(
-        styleSheet!,
-        `.lovely-chart--button${baseClass}-${colorSuffix}`,
-        `border-color: ${color}; color: ${color}`,
-      );
-
-      const checkedButtonSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${colorSuffix}`;
-      addCssRule(styleSheet!, checkedButtonSelector, `background-color: ${color}`);
     });
+  });
+
+  Object.values(datasetColors).forEach((color) => {
+    if (styledColors.has(color)) return;
+    styledColors.add(color);
+
+    const colorSuffix = color.slice(1);
+    addCssRule(
+      styleSheet!,
+      `.lovely-chart--button${baseClass}-${colorSuffix}`,
+      `border-color: ${color}; color: ${color}`,
+    );
+
+    const checkedButtonSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${colorSuffix}`;
+    addCssRule(styleSheet!, checkedButtonSelector, `background-color: ${color}`);
   });
 
   return colors;

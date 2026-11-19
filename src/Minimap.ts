@@ -1,5 +1,7 @@
 import type { CaptureEvent } from './captureEvents.js';
-import type { AnalyzedData, ChartColors, ChartState, Point, ProjectionParams, Range, Size } from './types.js';
+import type {
+  AnalyzedData, AnalyzedDataset, ChartColors, ChartState, Point, ProjectionParams, Range, Size,
+} from './types.js';
 
 import { clearCanvas, setupCanvas } from './canvas.js';
 import { captureEvents } from './captureEvents.js';
@@ -38,6 +40,8 @@ export class Minimap {
   #capturedCanvasLeft?: number;
   #range: Range = {} as Range;
   #state?: ChartState;
+  // The datasets on the canvas, which a zoom may swap for others at an unchanged state
+  #drawnDatasets?: AnalyzedDataset[];
 
   readonly #limitBegin: number | undefined;
 
@@ -65,11 +69,12 @@ export class Minimap {
       newState = newState.static!;
     }
 
-    if (!this.#isStateChanged(newState)) {
+    if (this.#drawnDatasets === this.#data.datasets && !this.#isStateChanged(newState)) {
       return;
     }
 
     this.#state = mergeProxied(newState, { focusOn: NO_FOCUS });
+    this.#drawnDatasets = this.#data.datasets;
     clearCanvas(this.#canvas, this.#context);
 
     this.#drawDatasets(this.#state);

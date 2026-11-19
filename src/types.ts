@@ -106,6 +106,7 @@ export interface LovelyChartParams {
   labels: (number | string)[];
   datasets: LovelyChartDatasetParams[];
   title?: string;
+  /** In data that `onZoom` returns, dataset colours by key (`y0` for the first) over each dataset's `color`. */
   colors?: Record<string, string>;
   labelType?: LabelType;
   labelFormatter?: string;

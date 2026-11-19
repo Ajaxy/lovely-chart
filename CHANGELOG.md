@@ -53,6 +53,7 @@
 - A line run of one or two points between gaps draws its points as dots.
 - The type declarations resolve under `moduleResolution` `node16` and `nodenext`, so the parameters type-check there.
 - Tooltip values, totals and shares read left to right on a right-to-left page, each sign before its digits.
+- A zoom draws the zoomed datasets in the colours the zoomed data gives them, by `colors` or each dataset's `color`: on the plot, in the legend and in the tooltip, and in the minimap when the zoomed data has as many datasets as the chart. That holds when the zoomed data has more datasets than the chart, past whose datasets one with no colour takes a default colour; within them, one with no colour keeps the chart's colour at its place. A zoom out, and a resize or an orientation change while zoomed, redraw the plot, the legend and the minimap in the chart's colours.
 
 ## 2.0.6
 

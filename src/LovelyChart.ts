@@ -483,6 +483,7 @@ export default class LovelyChart {
     const nextSibling = this.#element!.nextSibling ?? undefined;
     this.#destroyComponents();
     Object.assign(this.#data, analyzeData(this.#originalData));
+    Object.assign(this.#colors, createColors(this.#data.colors, this.#data));
     // The rebuilt chart keeps the datasets the reader hid
     this.#data.datasets.forEach((dataset) => {
       if (filter[dataset.key] !== undefined) {

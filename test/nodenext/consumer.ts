@@ -49,6 +49,7 @@ const params: LovelyChartParams = {
   legendContainer: element,
   dateLocale,
   secondaryYAxis,
+  onZoom: (labelValue) => Promise.resolve({ type: 'line', labels: [labelValue], datasets, colors: { y0: '#3497ED' } }),
   onZoomChange: (labelValue) => labelValue?.toFixed(),
   onHiddenSeriesChange: (names, datasetIndexes) => names.length + datasetIndexes.length,
   onSelectedIndexChange: (labelIndex) => labelIndex?.toFixed(),

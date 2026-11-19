@@ -8,7 +8,7 @@ import type { AnalyzedData, ChartColors, ChartState, Filter, LovelyChartParams, 
 import { MILLISECONDS_IN_DAY, NO_FOCUS, ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants.js';
 import { analyzeData } from './data.js';
 import { getZoomCaption } from './format.js';
-import { getLabelFraction } from './formulas.js';
+import { getDrawnPattern, getLabelFraction } from './formulas.js';
 import { createColors } from './skin.js';
 
 const ZOOM_ANIMATING_TIMEOUT = 1_000;
@@ -149,11 +149,16 @@ export class Zoomer {
 
     this.#tooltip.toggleLoading(false);
 
-    const newData = analyzeData(newRawData, this.#isZoomed || this.#data.shouldZoomToShares ? 'day' : 'hour');
+    // Only data that `onZoom` returns colours its datasets by `colors`, and a dataset of it with no colour of its own
+    // keeps the colour of the chart's dataset of its key
+    const isOnZoomData = !this.#isZoomed && !this.#data.shouldZoomToShares;
+    const newData = isOnZoomData
+      ? analyzeData(newRawData, 'hour', newRawData.colors, this.#data.colors)
+      : analyzeData(newRawData, 'day');
     const shouldZoomToLines = Object.keys(this.#data.datasets).length !== Object.keys(newData.datasets).length;
 
     if (isInstant) {
-      this.#applyZoomData(newData, newRawData, shouldZoomToLines, zoomInLabel, true);
+      this.#applyZoomData(newData, shouldZoomToLines, zoomInLabel, true);
       this.#container.style.visibility = '';
 
       return;
@@ -174,7 +179,7 @@ export class Zoomer {
 
     this.#swapDataTimeout = window.setTimeout(() => {
       this.#swapDataTimeout = undefined;
-      this.#applyZoomData(newData, newRawData, shouldZoomToLines, zoomInLabel, false);
+      this.#applyZoomData(newData, shouldZoomToLines, zoomInLabel, false);
     }, this.#stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
 
     this.#stateAnimatingTimeout = window.setTimeout(() => {
@@ -187,7 +192,6 @@ export class Zoomer {
 
   #applyZoomData(
     newData: AnalyzedData,
-    newRawData: LovelyChartParams,
     shouldZoomToLines: boolean,
     zoomInLabel: XLabel | undefined,
     isInstant: boolean,
@@ -197,17 +201,8 @@ export class Zoomer {
     const { axisTextColor, backgroundColor, colorScheme } = this.#overviewData;
     Object.assign(this.#data, newData, { axisTextColor, backgroundColor, colorScheme });
     this.#stateManager.refreshTransitionConfig();
-
-    if (shouldZoomToLines && newRawData.colors) {
-      Object.assign(this.#colors, createColors(newRawData.colors, this.#data));
-    }
-    if (newData.comparison) {
-      // The comparison of the zoomed data takes its colour beside the colours of the datasets on screen
-      const comparisonColors = createColors({ comparison: newData.comparison.color }, this.#data);
-      Object.keys(comparisonColors).forEach((skin) => {
-        this.#colors[skin]['dataset#comparison'] = comparisonColors[skin]['dataset#comparison'];
-      });
-    }
+    // The datasets of either view, and its comparison, take their own colours in the chart's skin
+    Object.assign(this.#colors, createColors(newData.colors, this.#data));
 
     const daysCount = this.#isZoomed || this.#data.shouldZoomToShares
       ? this.#data.xLabels.length
@@ -354,7 +349,10 @@ export class Zoomer {
   }
 }
 
-// What the legend shows of the data: the comparison's name and colour
-function describeLegend({ comparison }: AnalyzedData): string {
-  return JSON.stringify(comparison && [comparison.name, comparison.color]);
+// What the legend shows of the data: the name, colour and pattern of each dataset, and the comparison's name and colour
+function describeLegend({ datasets, colors, comparison }: AnalyzedData): string {
+  return JSON.stringify([
+    datasets.map((dataset) => [dataset.name, colors[dataset.key], getDrawnPattern(dataset)]),
+    comparison && [comparison.name, comparison.color],
+  ]);
 }

@@ -40,7 +40,12 @@ const LABEL_TYPE_TO_FORMATTER: Record<LabelType, string | undefined> = {
   text: undefined,
 };
 
-export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelType): AnalyzedData {
+export function analyzeData(
+  data: LovelyChartParams,
+  fallbackLabelType?: LabelType,
+  datasetColors?: Record<string, string>,
+  fallbackColors?: Record<string, string>,
+): AnalyzedData {
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage,
     percentPrecision, secondaryYAxis, areLinesSmooth, areaOpacity, areaBorderColor,
@@ -57,7 +62,7 @@ export function analyzeData(data: LovelyChartParams, fallbackLabelType?: LabelTy
   const isCircle = isPie || isDonut;
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : undefined);
-  const { datasets, labels } = prepareDatasets(data);
+  const { datasets, labels } = prepareDatasets(data, datasetColors, fallbackColors);
 
   const isShares = Boolean(isPercentage) || isCircle;
   const analyzedComparison = comparison && !isShares
@@ -262,7 +267,11 @@ function resolveInitialZoomIndex(
   return Math.max(0, Math.min(Math.round(initialZoom), labelsCount - 1));
 }
 
-function prepareDatasets(data: LovelyChartParams): { labels: (number | string)[]; datasets: AnalyzedDataset[] } {
+function prepareDatasets(
+  data: LovelyChartParams,
+  datasetColors: Record<string, string> | undefined,
+  fallbackColors: Record<string, string> | undefined,
+): { labels: (number | string)[]; datasets: AnalyzedDataset[] } {
   const { type, labels, datasets, hasSecondYAxis } = data;
 
   const defaultColors = getDefaultColors(datasets.length);
@@ -271,13 +280,18 @@ function prepareDatasets(data: LovelyChartParams): { labels: (number | string)[]
   return {
     labels: [...labels],
     datasets: datasets.map(({ name, color, values, isInitiallyHidden, isDashed, isDotted }, i) => {
+      const key = `y${i}`;
       const { min: yMin, max: yMax } = getMaxMin(values);
+      const ownColor = datasetColors?.[key] || color;
+      // A dataset with no colour of its own holds its place among the default colours under a fallback colour, so
+      // the next one takes a default colour apart from those the fallback colours took
+      const defaultColor = ownColor ? undefined : defaultColors[nextDefaultColor++ % defaultColors.length];
 
       return {
         type,
-        key: `y${i}`,
+        key,
         name,
-        color: color || defaultColors[nextDefaultColor++ % defaultColors.length],
+        color: ownColor || fallbackColors?.[key] || defaultColor!,
         values: [...values],
         isInitiallyHidden,
         isDashed,

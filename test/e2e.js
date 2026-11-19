@@ -141,6 +141,8 @@ const TOOLTIP_ROW_COLORS = [
 ];
 const DEFAULT_COMPARISON_COLOR = '#6B7280';
 
+// The first colour of the default palette, which the first dataset without a colour of its own takes
+const DEFAULT_PALETTE_COLOR = '#3497ED';
 // An axis text colour of the chart, which a zoom keeps
 const ZOOM_AXIS_TEXT_COLOR = '#FF8800';
 // The last of the 10 labels of a `mountLinesZoom` overview, in the window the minimap opens on
@@ -670,6 +672,34 @@ async function mountLinesZoom(page, { overview, zoomed, config = {}, zoomConfig 
 
 function parseHex(hex) {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+}
+
+// Counts the pixels of each colour on the plot and the minimap, and reads the outline colours of the legend buttons
+async function readDatasetPaint(chart, colors) {
+  const minimap = chart.locator('.lovely-chart--minimap');
+  const paint = { plot: {}, minimap: {} };
+  for (const color of colors) {
+    paint.plot[color] = (await findColor(chart, parseHex(color))).count;
+    paint.minimap[color] = (await findColor(minimap, parseHex(color))).count;
+  }
+  paint.legend = await chart.locator('.lovely-chart--button')
+    .evaluateAll((buttons) => buttons.map((button) => getComputedStyle(button).borderTopColor));
+  paint.isMinimapShown = await minimap.evaluate((element) => getComputedStyle(element).display !== 'none');
+
+  return paint;
+}
+
+// The plot and the legend show the colours, the minimap too unless the view hides it, and none shows the absent ones
+function isPaintedWith(paint, shownColors, absentColors, isMinimapShown = true) {
+  const legendColors = shownColors.map(hexToRgb);
+  const isMinimapPainted = paint.isMinimapShown === isMinimapShown && (!isMinimapShown || (
+    shownColors.every((color) => paint.minimap[color] > MIN_DATASET_PIXELS)
+    && absentColors.every((color) => paint.minimap[color] === 0)
+  ));
+  return isMinimapPainted
+    && shownColors.every((color) => paint.plot[color] > MIN_DATASET_PIXELS)
+    && absentColors.every((color) => paint.plot[color] === 0)
+    && JSON.stringify(paint.legend) === JSON.stringify(legendColors);
 }
 
 // Narrows the probe chart's window to the narrowest the minimap selects, then pans it across the data, `stepPx` a frame
@@ -1274,22 +1304,20 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   }
   await unmountProbe(page);
 
-  // --- A zoom names the zoomed datasets as their own, and a zoom out the overview's ---
+  // --- A zoom paints the zoomed datasets in their own colours, names them, and a zoom out restores the overview ---
   const linesZoomCases = [
     {
       name: 'more',
       overview: [{ name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }],
       zoomed: [{ name: 'Blue', color: '#0000FF' }, { name: 'Magenta', color: '#FF00FF' }, { name: 'Palette' }],
       config: { axisTextColor: ZOOM_AXIS_TEXT_COLOR },
-      // A zoom into more datasets than the chart draws them in the colours of `colors`
-      zoomConfig: { colors: { y0: '#0000FF', y1: '#FF00FF', y2: '#3497ED' } },
     },
     {
       name: 'fewer',
       overview: [
         { name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }, { name: 'Blue', color: '#0000FF' },
       ],
-      zoomed: [{ name: 'Magenta', color: '#FF00FF' }, { name: 'Palette' }],
+      zoomed: [{ name: 'Magenta', color: '#FF00FF' }, { name: 'Uncoloured' }],
       config: { initialZoom: 'last' },
     },
     {
@@ -1297,6 +1325,11 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       overview: [{ name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }],
       zoomed: [{ name: 'Blue', color: '#0000FF' }, { name: 'Magenta', color: '#FF00FF' }],
       config: { initialZoom: 'last' },
+    },
+    {
+      name: 'as many, of no colours,',
+      overview: [{ name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }],
+      zoomed: [{ name: 'Blue' }, { name: 'Magenta' }],
     },
     {
       name: 'as many, with a comparison,',
@@ -1311,6 +1344,14 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const toSortedNames = (datasets) => datasets.map(({ name }) => name).sort();
   for (const { name, overview, zoomed, config = {}, zoomConfig } of linesZoomCases) {
     const pageErrorsBefore = countPageErrors();
+    const overviewColors = overview.map(({ color }) => color ?? DEFAULT_PALETTE_COLOR);
+    // A zoomed dataset with no colour keeps the colour of the overview's dataset at its place, past which it takes one
+    // of the palette
+    const zoomedColors = zoomed.map(({ color }, i) => color ?? overview[i]?.color ?? DEFAULT_PALETTE_COLOR);
+    const overviewOnlyColors = overviewColors.filter((color) => !zoomedColors.includes(color));
+    const zoomedOnlyColors = zoomedColors.filter((color) => !overviewColors.includes(color));
+    const allColors = [...new Set([...overviewColors, ...zoomedColors, DEFAULT_COMPARISON_COLOR])];
+    const isLinesView = zoomed.length !== overview.length;
     await recordProbeNumbers(page);
     const linesZoom = await mountLinesZoom(page, { overview, zoomed, config, zoomConfig });
     await linesZoom.scrollIntoViewIfNeeded();
@@ -1321,7 +1362,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       await sleep(2000);
     }
     const zoomedTexts = getLastFrameTexts(await readProbeTexts(page));
-    const comparisonPixels = (await findColor(linesZoom, parseHex(DEFAULT_COMPARISON_COLOR))).count;
+    const zoomedPaint = await readDatasetPaint(linesZoom, allColors);
     const zoomedNames = await readTooltipNames(1);
     // Rows the tooltip makes while zoomed take the overview's names after a zoom out
     await linesZoom.locator('.lovely-chart--button').first().click();
@@ -1330,24 +1371,81 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     await sleep(500);
     const reshownNames = await readTooltipNames(1);
     await page.evaluate(() => window.probeChart.selectLabel(undefined));
-    check(`a zoom into ${name} datasets than the overview names them as their own`,
+    check(`a zoom into ${name} datasets ${isLinesView ? 'than' : 'as'} the overview paints and names them as their own`,
       countPageErrors() === pageErrorsBefore
-      && (!zoomConfig?.comparison || comparisonPixels > MIN_DATASET_PIXELS)
+      && isPaintedWith(zoomedPaint, zoomedColors, overviewOnlyColors, !isLinesView)
+      && (!zoomConfig?.comparison || zoomedPaint.plot[DEFAULT_COMPARISON_COLOR] > MIN_DATASET_PIXELS)
       && JSON.stringify(zoomedNames) === JSON.stringify(toSortedNames(zoomed))
       && JSON.stringify(reshownNames) === JSON.stringify(toSortedNames(zoomed))
       && (!config.axisTextColor || zoomedTexts.every(({ color }) => isTextColor(color, config.axisTextColor))),
-      `comparison ${comparisonPixels}px, tooltip ${zoomedNames} then ${reshownNames}, `
+      `${JSON.stringify(zoomedPaint)}, tooltip ${zoomedNames} then ${reshownNames}, `
       + `text colours ${JSON.stringify([...new Set(zoomedTexts.map(({ color }) => color))])}`);
 
     await linesZoom.locator('.lovely-chart--header-zoom-out-control').first().click();
     await sleep(2000);
+    const overviewPaint = await readDatasetPaint(linesZoom, allColors);
     const overviewNames = await readTooltipNames(LINES_ZOOM_LAST_LABEL_INDEX);
-    check(`a zoom out of ${name} datasets names the overview's as before`,
+    check(`a zoom out of ${name} datasets paints and names the overview's as before`,
       countPageErrors() === pageErrorsBefore
+      && isPaintedWith(overviewPaint, overviewColors, [...zoomedOnlyColors, DEFAULT_COMPARISON_COLOR])
       && JSON.stringify(overviewNames) === JSON.stringify(toSortedNames(overview)),
-      `tooltip ${overviewNames}`);
+      `${JSON.stringify(overviewPaint)}, tooltip ${overviewNames}`);
     await unmountProbe(page);
   }
+
+  // --- A lines zoom draws its datasets in the `colors` its data gives them, over their own ---
+  const keyedColors = ['#00FFFF', '#FF00FF', '#FFFF00'];
+  const unkeyedColors = ['#0000FF', DEFAULT_PALETTE_COLOR];
+  const keyedOverviewColors = ['#FF0000', '#00FF00'];
+  const keyedPaintColors = [...keyedColors, ...unkeyedColors, ...keyedOverviewColors];
+  const keyedZoom = await mountLinesZoom(page, {
+    overview: [{ name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }],
+    zoomed: [{ name: 'Blue', color: '#0000FF' }, { name: 'Magenta', color: '#FF00FF' }, { name: 'Palette' }],
+    zoomConfig: { colors: { y0: '#00FFFF', y2: '#FFFF00' } },
+  });
+  await keyedZoom.scrollIntoViewIfNeeded();
+  const keyedZoomPlot = await keyedZoom.locator('.lovely-chart--tooltip').boundingBox();
+  await hoverWiggle(page, keyedZoomPlot, 0.5, 0.5);
+  await page.mouse.click(keyedZoomPlot.x + keyedZoomPlot.width / 2, keyedZoomPlot.y + keyedZoomPlot.height / 2);
+  await sleep(2000);
+  const keyedPaint = await readDatasetPaint(keyedZoom, keyedPaintColors);
+  const keyedSwatches = (await readProbeTooltip(page, 1)).swatchColors.sort();
+  await page.evaluate(() => window.probeChart.selectLabel(undefined));
+  check('a lines zoom draws its datasets in the colors its data gives them, over their own',
+    isPaintedWith(keyedPaint, keyedColors, [...unkeyedColors, ...keyedOverviewColors], false)
+    && JSON.stringify(keyedSwatches) === JSON.stringify(keyedColors.map(hexToRgb).sort()),
+    `${JSON.stringify(keyedPaint)}, tooltip swatches ${JSON.stringify(keyedSwatches)}`);
+
+  await keyedZoom.locator('.lovely-chart--header-zoom-out-control').first().click();
+  await sleep(2000);
+  const keyedOverviewPaint = await readDatasetPaint(keyedZoom, keyedPaintColors);
+  await unmountProbe(page);
+  check('a zoom out of a lines view of colors paints the overview in its own colours',
+    isPaintedWith(keyedOverviewPaint, keyedOverviewColors, [...keyedColors, ...unkeyedColors]),
+    JSON.stringify(keyedOverviewPaint));
+
+  // --- A resize returns a chart zoomed into datasets of other colours to the overview, in the overview's colours ---
+  const resizedOverviewColors = ['#FF0000', '#00FF00'];
+  const resizedZoomColors = ['#0000FF', '#FF00FF'];
+  const resizedZoom = await mountLinesZoom(page, {
+    overview: [{ name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }],
+    zoomed: [{ name: 'Blue', color: '#0000FF' }, { name: 'Magenta', color: '#FF00FF' }],
+  });
+  await resizedZoom.scrollIntoViewIfNeeded();
+  const resizedZoomPlot = await resizedZoom.locator('.lovely-chart--tooltip').boundingBox();
+  await hoverWiggle(page, resizedZoomPlot, 0.5, 0.5);
+  await page.mouse.click(resizedZoomPlot.x + resizedZoomPlot.width / 2, resizedZoomPlot.y + resizedZoomPlot.height / 2);
+  await sleep(2000);
+  await page.mouse.move(0, 0);
+  const resizeViewport = page.viewportSize();
+  await page.setViewportSize({ width: resizeViewport.width - 20, height: resizeViewport.height });
+  await sleep(1200);
+  await page.setViewportSize(resizeViewport);
+  await sleep(1200);
+  const resizedPaint = await readDatasetPaint(resizedZoom, [...resizedOverviewColors, ...resizedZoomColors]);
+  await unmountProbe(page);
+  check('a resize while zoomed into datasets of other colours paints the overview in its own colours',
+    isPaintedWith(resizedPaint, resizedOverviewColors, resizedZoomColors), JSON.stringify(resizedPaint));
 
   // --- Localized captions (own chart, so the demo page stays English) ---
   const localizedCaption = await page.evaluate(async (locale) => {
@@ -3049,8 +3147,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     overview: [{ name: 'A', color: '#3497ED' }, { name: 'B', color: '#E65850' }],
     zoomed: [{ name: 'C', color: '#3497ED' }, { name: 'D', color: '#E65850' }, { name: 'E', color: '#9ED448' }],
     config: { colorScheme: 'system', referenceLines: schemeReferenceLines },
-    // A zoom into more datasets than the chart draws them in the colours of `colors`
-    zoomConfig: { referenceLines: schemeReferenceLines, colors: { y0: '#3497ED', y1: '#E65850', y2: '#9ED448' } },
+    zoomConfig: { referenceLines: schemeReferenceLines },
   });
   await systemZoom.scrollIntoViewIfNeeded();
   const systemZoomPlot = await systemZoom.locator('.lovely-chart--tooltip').boundingBox();
