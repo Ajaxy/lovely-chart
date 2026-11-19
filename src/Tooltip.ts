@@ -50,9 +50,13 @@ export class Tooltip {
 
   readonly #selectLabelOnRaf = throttleWithRaf((isExternal?: boolean) => this.#selectLabel(isExternal));
   readonly #throttledUpdateContent = throttle(
-    (title: string | undefined, statistics: StatisticsItem[], resolvedTotal?: number | null) => (
-      this.#updateContent(title, statistics, resolvedTotal)
-    ),
+    (title: string, statistics: StatisticsItem[], resolvedTotal: number | null | undefined, labelIndex: number) => {
+      this.#updateContent(title, statistics, resolvedTotal);
+      // A deferred update can land after the pointer has left the chart
+      if (this.#offsetX !== undefined) {
+        this.#placeBalloon(labelIndex);
+      }
+    },
     CONTENT_THROTTLE_MS,
     true,
   );
@@ -410,15 +414,22 @@ export class Tooltip {
       ? [this.#buildComparisonItem(datasetStatistics, labelIndex, resolvedTotal), ...datasetStatistics]
       : datasetStatistics;
 
-    this.#balloon.style.transform
-      = `translate3D(${this.#getBalloonLeftOffset(labelIndex)}px, ${this.#getBalloonTopOffset()}, 0)`;
     this.#balloon.classList.add('lovely-chart--state-shown');
 
     if (this.#data.isCircle) {
       this.#updateContent(undefined, statistics);
     } else {
-      this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics, resolvedTotal);
+      this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics, resolvedTotal, labelIndex);
     }
+
+    // Placed after the content, whose width decides the place, and on each call to follow the pointer while a
+    // throttled content update waits
+    this.#placeBalloon(labelIndex);
+  }
+
+  #placeBalloon(labelIndex: number) {
+    this.#balloon.style.transform
+      = `translate3D(${this.#getBalloonLeftOffset(labelIndex)}px, ${this.#getBalloonTopOffset()}, 0)`;
   }
 
   #buildComparisonItem(

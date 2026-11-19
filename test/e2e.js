@@ -147,6 +147,8 @@ const DEFAULT_PALETTE_COLOR = '#3497ED';
 const ZOOM_AXIS_TEXT_COLOR = '#FF8800';
 // The last of the 10 labels of a `mountLinesZoom` overview, in the window the minimap opens on
 const LINES_ZOOM_LAST_LABEL_INDEX = 9;
+// The labels of the balloon placement probe, the newest of them at the right edge of the plot
+const EDGE_LABEL_COUNT = 8;
 const HOUR_MS = 3_600_000;
 // The fewest pixels of its colour that show a dataset drawn on a canvas
 const MIN_DATASET_PIXELS = 100;
@@ -3631,6 +3633,71 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('a called selection clears once its label leaves the window',
     !pannedAway.isShown && JSON.stringify(pannedAway.log) === '[80,"none"]', JSON.stringify(pannedAway));
   await unmountProbe(page);
+
+  // A balloon opened empty, or swapping narrow content for wide within one content update, sits where a pointer on
+  // its label puts it: left of the newest label, inside the chart
+  for (const dir of ['ltr', 'rtl']) {
+    await page.evaluate((value) => document.documentElement.setAttribute('dir', value), dir);
+    const edgeChart = await mountProbe(page, {
+      config: {
+        type: 'line',
+        title: 'Probe — Balloon at the edge',
+        labels: Array.from({ length: EDGE_LABEL_COUNT }, (_, i) => Date.UTC(2026, 10, 1 + i)),
+        datasets: [
+          { name: 'A dataset of a rather long name', values: [1, 2, 3, 4, 5, 6, 7, 1_234_567_890] },
+          { name: 'Another dataset of a long name', values: [1, 2, 3, 4, 5, 6, 7, 987_654_321] },
+        ],
+      },
+    });
+    await edgeChart.scrollIntoViewIfNeeded();
+    const lastIndex = EDGE_LABEL_COUNT - 1;
+    const readEdgeBalloon = () => edgeChart.evaluate((el) => {
+      const container = el.getBoundingClientRect();
+      const balloon = el.querySelector('.lovely-chart--tooltip-balloon').getBoundingClientRect();
+      // The tail runs down the tooltip canvas at the selected label
+      const canvas = el.querySelector('.lovely-chart--tooltip canvas');
+      const row = canvas.getContext('2d').getImageData(0, 0, canvas.width, 1).data;
+      let alphaSum = 0;
+      let xSum = 0;
+      for (let x = 0; x < canvas.width; x++) {
+        alphaSum += row[x * 4 + 3];
+        xSum += row[x * 4 + 3] * (x + 0.5);
+      }
+      return {
+        left: balloon.left - container.left,
+        right: balloon.right - container.left,
+        containerWidth: container.width,
+        tailX: xSum / alphaSum / (canvas.width / canvas.clientWidth),
+      };
+    });
+    await page.evaluate((index) => window.probeChart.selectLabel(index), lastIndex);
+    await sleep(300);
+    const calledEmpty = await readEdgeBalloon();
+    await page.evaluate(async (index) => {
+      window.probeChart.selectLabel(1);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      window.probeChart.selectLabel(2);
+      window.probeChart.selectLabel(index);
+    }, lastIndex);
+    await sleep(300);
+    const calledWider = await readEdgeBalloon();
+    await page.evaluate(() => window.probeChart.selectLabel(undefined));
+    const edgePlot = await edgeChart.locator('.lovely-chart--tooltip').boundingBox();
+    const edgePointerY = edgePlot.y + edgePlot.height / 2;
+    await page.mouse.move(edgePlot.x + calledEmpty.tailX - 40, edgePointerY, { steps: 5 });
+    await page.mouse.move(edgePlot.x + calledEmpty.tailX, edgePointerY, { steps: 5 });
+    await sleep(300);
+    const hovered = await readEdgeBalloon();
+    await page.mouse.move(0, 0);
+    await unmountProbe(page);
+    const isBesideLabel = ({ left, right, containerWidth }) => (
+      Math.abs(left - hovered.left) <= 1 && right <= containerWidth && right <= hovered.tailX
+    );
+    check(`${dir}: selectLabel places a balloon at the edge as a pointer on its label does`,
+      isBesideLabel(calledEmpty) && isBesideLabel(calledWider),
+      JSON.stringify({ calledEmpty, calledWider, hovered }));
+  }
+  await page.evaluate(() => document.documentElement.removeAttribute('dir'));
 
   // --- Colour schemes: the `theme-dark` class on <html>, or the system scheme, each against the other ---
   // A reference line of a colour per skin shows the skin of the canvas, and `--background-color` that of the CSS

@@ -58,6 +58,7 @@
 - `update()` and `destroy()` end the frames, timers, drags and long presses of the chart they replace or tear down, the minimap's included, so a pointer move, a drag, a held legend button or an animation in flight neither throws nor reads labels the new data lacks, and calls back nothing afterwards. A click before the first frame of new data does nothing.
 - A minimap drag holds its grabbing or resize cursor over the whole page until the release, wherever the pointer goes, through the `lovely-chart--cursor-grabbing` and `lovely-chart--cursor-ew-resize` classes on `<html>`, which leave a page's own `cursor-grabbing` and `cursor-ew-resize` classes alone. A context menu the press opens ends the drag, as does a release over an element of the page that stops its propagation, or, after a release over a frame, the next move over the page with no button pressed.
 - The transition of a zoom into or out of a pie or donut closes its clip on the circle, with room for the shift of a focused sector, at any chart width and plot height and on a sparkline: a narrow chart on a wide page shows the whole circle, and a wide or short one clips the overview tight around it.
+- The tooltip balloon takes its place from the width of the content it shows, so one opened by a tap or a single pointer move near the right edge stays inside a chart wider than it, beside its label.
 
 ## 2.0.6
 
