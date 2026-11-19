@@ -525,7 +525,7 @@ export class Tooltip {
     if (hasTooltipTotal(this.#data)) {
       content.total = resolvedTotal !== undefined
         ? resolvedTotal
-        : rows.reduce((sum, { value }) => sum + (value ?? 0), 0);
+        : statistics.reduce((sum, { value, hasOwnYAxis }) => (hasOwnYAxis ? sum : sum + (value ?? 0)), 0);
     }
 
     if (comparisonItem) {
@@ -632,7 +632,7 @@ export class Tooltip {
   }
 
   #insertNewDataSet(dataSetContainer: HTMLElement, statItem: StatisticsItem, totalValue: number) {
-    const { key, value, isComparison, comparisonChange } = statItem;
+    const { key, value, isComparison, comparisonChange, hasOwnYAxis } = statItem;
     const newDataSet = createElement();
     newDataSet.className
       = `lovely-chart--tooltip-dataset${isComparison ? ' lovely-chart--tooltip-dataset-comparison' : ''}`;
@@ -653,13 +653,13 @@ export class Tooltip {
     this.#fillValue(valueElement, value, comparisonChange);
     newDataSet.appendChild(valueElement);
 
-    this.#renderPercentageValue(newDataSet, value!, totalValue);
+    this.#renderPercentageValue(newDataSet, value!, totalValue, hasOwnYAxis);
 
     dataSetContainer.appendChild(newDataSet);
   }
 
   #updateDataSet(currentDataSet: HTMLElement, statItem: StatisticsItem, totalValue: number) {
-    const { value, comparisonChange } = statItem;
+    const { value, comparisonChange, hasOwnYAxis } = statItem;
     currentDataSet.setAttribute('data-present', 'true');
     this.#fillDataSetIdentity(currentDataSet, statItem);
 
@@ -669,7 +669,7 @@ export class Tooltip {
       this.#fillValue(valueElement, value, comparisonChange);
     }
 
-    this.#renderPercentageValue(currentDataSet, value!, totalValue);
+    this.#renderPercentageValue(currentDataSet, value!, totalValue, hasOwnYAxis);
   }
 
   // A zoom swaps the datasets under the same keys, names, colours, dashes and dots included
@@ -715,7 +715,7 @@ export class Tooltip {
     return `${prefix}${formatted}${suffix}`;
   }
 
-  #renderPercentageValue(dataSet: HTMLElement, value: number, totalValue: number) {
+  #renderPercentageValue(dataSet: HTMLElement, value: number, totalValue: number, hasOwnYAxis: boolean | undefined) {
     if (!this.#data.isPercentage) {
       return;
     }
@@ -727,6 +727,8 @@ export class Tooltip {
 
     const precision = this.#data.percentPrecision ?? 0;
     const percentageValue = totalValue ? (value / totalValue * 100).toFixed(precision) : (0).toFixed(precision);
+    // The dataset on its own Y axis is out of the total, so its row keeps the share column empty
+    const percentageText = hasOwnYAxis ? '' : `${percentageValue}%`;
     // Three digits and a sign, plus the point and the digits a precision adds
     const percentageWidth = precision > 0 ? `${4 + precision + 1}ch` : '';
     const percentageElement = dataSet.querySelector(`.lovely-chart--percentage-title:not(.lovely-chart--state-hidden)`);
@@ -735,11 +737,11 @@ export class Tooltip {
       const newPercentageTitle = createElement<HTMLSpanElement>('span');
       newPercentageTitle.className = 'lovely-chart--percentage-title lovely-chart--position-left';
       newPercentageTitle.style.setProperty('--lovely-chart-percentage-width', percentageWidth);
-      newPercentageTitle.textContent = `${percentageValue}%`;
+      newPercentageTitle.textContent = percentageText;
       dataSet.prepend(newPercentageTitle);
     } else {
       (percentageElement as HTMLElement).style.setProperty('--lovely-chart-percentage-width', percentageWidth);
-      percentageElement.textContent = `${percentageValue}%`;
+      percentageElement.textContent = percentageText;
     }
   }
 
@@ -757,7 +759,8 @@ export class Tooltip {
       }
     });
 
-    const totalValue = statistics.reduce((a, x) => (x.isComparison ? a : a + (x.value ?? 0)), 0);
+    // The total is of the main Y axis, so the dataset on its own axis stays out of it
+    const totalValue = statistics.reduce((a, x) => (x.isComparison || x.hasOwnYAxis ? a : a + (x.value ?? 0)), 0);
     const pointerVector = this.#getPointerVector();
     // The comparison row stays first, its value missing or zero included
     const filteredStatistics = statistics.filter(({ value, isComparison }) => (

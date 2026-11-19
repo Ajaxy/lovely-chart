@@ -79,19 +79,20 @@ export function drawDatasets(
     }
 
     const { key, type, hasOwnYAxis, values } = dataset;
+    const isInStack = isStack && !hasOwnYAxis;
     const pattern = getDrawnPattern(dataset);
     const options: DrawOptions = {
       color: getCssColor(colors, `dataset#${key}`),
       lineWidth,
-      opacity: isStack ? 1 : visibilities[i],
+      opacity: isInStack ? 1 : visibilities[i],
       simplification,
       dash: pattern && DATASET_DASHES[pattern],
       areLinesSmooth: data.areLinesSmooth,
       // A stack draws its sums, which the values alone do not give
-      seriesValues: isStack ? undefined : values,
+      seriesValues: isInStack ? undefined : values,
       areaOpacity: data.areaOpacity,
       areaBorderColor,
-      areaBorder,
+      areaBorder: isInStack ? areaBorder : undefined,
     };
 
     const datasetType = (type === 'pie' || type === 'donut') && isMinimap ? 'bar' : type;
@@ -105,13 +106,13 @@ export function drawDatasets(
     }
 
     if (datasetType === 'area') {
-      if (data.isStacked && !data.isShares) {
+      if (isInStack && !data.isShares) {
         datasetPoints.forEach(({ isGap }, j) => {
           isMissingInStack[j] ||= Boolean(isGap);
         });
       }
 
-      drawAreaSegments(context, datasetPoints, isMissingInStack, datasetProjection, options);
+      drawAreaSegments(context, datasetPoints, isInStack ? isMissingInStack : [], datasetProjection, options);
       return;
     }
 

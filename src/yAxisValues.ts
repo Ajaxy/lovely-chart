@@ -42,7 +42,7 @@ export function listYAxisValues(data: AnalyzedData, plotHeight: number): YAxisVa
   const { isStacked, noFloatSteps } = data;
   const length = data.xLabels.length;
   const series = data.datasets.flatMap(({ values, hasOwnYAxis }, i): Series[] => (
-    isStacked || !hasOwnYAxis ? [{ values, previousValues: data.comparison?.values[i] ?? [] }] : []
+    hasOwnYAxis ? [] : [{ values, previousValues: data.comparison?.values[i] ?? [] }]
   ));
   const dataValues = series.flatMap(({ values }) => values.filter((value): value is number => value !== GAP));
   const references = data.referenceLines.map(({ value }) => value);

@@ -277,6 +277,12 @@ export interface LovelyChartParams {
    * Canvas colour of a 1px outline around each area, and around each run of an area split at a gap, or one per skin.
    */
   areaBorderColor?: string | { light: string; dark: string };
+  /**
+   * Puts the last dataset on a Y axis of its own, labelled at the right of the plot in the dataset's colour. The main
+   * Y axis is labelled in the colour of the first dataset, apart from a stacked or percentage chart's, whose labels
+   * keep the axis text colour. The last dataset stays out of the main Y axis, the tooltip's total and, on a stacked
+   * chart, the stack, beside which it draws its own values; a percentage chart's tooltip prints no share on its row.
+   */
   hasSecondYAxis?: boolean;
   /**
    * A scale of the main Y axis in another unit, labelled at the right of the plot, apart from a percentage chart's.

@@ -188,7 +188,8 @@ export class Axes {
       yMinViewportSecond, yMinViewportSecondFrom, yMinViewportSecondTo,
       yMaxViewportSecond, yMaxViewportSecondFrom, yMaxViewportSecondTo,
     } = state;
-    const colorKey = secondaryProjection ? `dataset#${this.#data.datasets[0].key}` : undefined;
+    // A stack spans the main axis, not its first dataset, so its labels keep the axis text colour
+    const colorKey = secondaryProjection && !this.#data.isStacked ? `dataset#${this.#data.datasets[0].key}` : undefined;
     const isYChanging = yMinViewportFrom !== undefined || yMaxViewportFrom !== undefined;
 
     if (this.#data.datasets !== this.#drawnDatasets) {
@@ -464,7 +465,7 @@ export class Axes {
     if (hasSecondYAxis) {
       const ownDataset = datasets.find(({ hasOwnYAxis }) => hasOwnYAxis)!;
       const ownData = { ...this.#data, datasets: [{ ...ownDataset, hasOwnYAxis: false }], referenceLines: [] };
-      return listYAxisValues({ ...ownData, comparison: undefined }, height).map(({ value, step }) => (
+      return listYAxisValues({ ...ownData, comparison: undefined, isStacked: false }, height).map(({ value, step }) => (
         humanize(value, step)
       ));
     }

@@ -2396,6 +2396,109 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     }
   }
 
+  // --- A stacked chart keeps the dataset on its own Y axis out of the stack ---
+  // The stack of 10 and 20 spans the main axis alone, its top line at the top of the plot and its lower line a third
+  // of the way up, while the constant dataset on its own axis sits at the middle height, on the plot and the minimap
+  const ownAxisStack = [
+    { name: 'Low', color: '#0000FF', values: Array(7).fill(10) },
+    { name: 'High', color: '#00AA00', values: Array(7).fill(20) },
+  ];
+  const ownAxisConfig = {
+    isStacked: true,
+    hasSecondYAxis: true,
+    labels: Array.from({ length: 7 }, (_, i) => Date.UTC(2026, 10, 1 + i)),
+    datasets: [...ownAxisStack, { name: 'Own', color: '#FF0000', values: Array(7).fill(30_000) }],
+  };
+  await recordProbeNumbers(page);
+  const ownAxisLines = await mountProbe(page, {
+    config: {
+      ...ownAxisConfig, type: 'line', title: 'Probe — Stack beside its own axis', withMinimap: true,
+      minimapRange: 'full',
+    },
+  });
+  const ownAxisTexts = getLastFrameTexts(await readProbeTexts(page));
+  const ownAxisMinimap = ownAxisLines.locator('.lovely-chart--minimap');
+  const ownAxisPaint = {
+    high: await findColor(ownAxisLines, [0, 170, 0], CONSTANT_LINE_BAND, GRID_TINTED_COLOR_TOLERANCE),
+    low: await findColor(ownAxisLines, [0, 0, 255], CONSTANT_LINE_BAND, GRID_TINTED_COLOR_TOLERANCE),
+    own: await findColor(ownAxisLines, [255, 0, 0], CONSTANT_LINE_BAND, GRID_TINTED_COLOR_TOLERANCE),
+    minimapHigh: await findColor(ownAxisMinimap, [0, 170, 0]),
+    minimapOwn: await findColor(ownAxisMinimap, [255, 0, 0]),
+  };
+  await unmountProbe(page);
+  const isPaintAt = ({ count, meanY }, y) => count > 50 && Math.abs(meanY - y) < 3;
+  check('a stacked chart draws the dataset on its own Y axis apart from the stack, on the plot and the minimap',
+    isPaintAt(ownAxisPaint.high, PLOT_TOP)
+    && isPaintAt(ownAxisPaint.low, PLOT_TOP + (PLOT_BOTTOM - PLOT_TOP) * 2 / 3)
+    && isPaintAt(ownAxisPaint.own, (PLOT_TOP + PLOT_BOTTOM) / 2)
+    && isPaintAt(ownAxisPaint.minimapHigh, MINIMAP_PLOT_TOP)
+    && isPaintAt(ownAxisPaint.minimapOwn, (MINIMAP_PLOT_TOP + MINIMAP_PLOT_BOTTOM) / 2),
+    Object.entries(ownAxisPaint).map(([part, { count, meanY }]) => `${part} ${count}px at ${meanY?.toFixed(1)}`)
+      .join(', '));
+  // The main Y-axis labels stand at the left, the second axis's at the right
+  const listOwnAxisLabels = (align) => ownAxisTexts.filter((text) => text.align === align);
+  const ownAxisMainValues = listOwnAxisLabels('left').map(({ text }) => parseAxisLabel(text));
+  const ownAxisSecondValues = listOwnAxisLabels('right').map(({ text }) => parseAxisLabel(text));
+  check('the main Y axis of a stacked chart labels the stack alone, the second axis the dataset on it',
+    Math.max(...ownAxisMainValues) === 30 && JSON.stringify(ownAxisSecondValues) === '[30000]',
+    `main ${JSON.stringify(ownAxisMainValues)}, second ${JSON.stringify(ownAxisSecondValues)}`);
+  const ownAxisMainColors = [...new Set(listOwnAxisLabels('left').map(({ color }) => color))];
+  const ownAxisSecondColors = [...new Set(listOwnAxisLabels('right').map(({ color }) => color))];
+  check('the main Y-axis labels of a stacked chart keep the axis text colour, the second axis takes its dataset\'s',
+    ownAxisMainColors.length > 0 && ownAxisMainColors.every((color) => !isTextColor(color, '#0000FF'))
+    && ownAxisSecondColors.length > 0 && ownAxisSecondColors.every((color) => isTextColor(color, '#FF0000')),
+    `main ${ownAxisMainColors.join(' ')}, second ${ownAxisSecondColors.join(' ')}`);
+
+  await mountProbe(page, {
+    config: { ...ownAxisConfig, type: 'bar', title: 'Probe — Stacked bars beside their own axis' },
+  });
+  const ownAxisTooltip = await readProbeTooltip(page, 3);
+  const ownAxisTotal = await page.evaluate(() => (
+    document.querySelector('#probe [data-total="true"] .lovely-chart--tooltip-dataset-value')?.textContent
+  ));
+  await unmountProbe(page);
+  check('the Total row of a stacked chart leaves out the dataset on its own Y axis',
+    ownAxisTooltip.names.includes('Own') && ownAxisTotal === '30',
+    `rows ${JSON.stringify(ownAxisTooltip.names)}, total ${ownAxisTotal}`);
+
+  // A percentage chart takes the shares of the stack alone, so the row of the dataset on its own axis has none, in a
+  // share column as wide as the others
+  await mountProbe(page, {
+    config: {
+      ...ownAxisConfig, type: 'area', isStacked: false, isPercentage: true,
+      title: 'Probe — Shares beside their own axis',
+    },
+  });
+  await readProbeTooltip(page, 3);
+  const ownAxisShares = await page.evaluate(() => (
+    [...document.querySelectorAll('#probe .lovely-chart--tooltip-dataset[data-key]')].map((row) => {
+      const share = row.querySelector('.lovely-chart--percentage-title');
+      return { name: row.dataset.name, text: share?.textContent, width: share?.getBoundingClientRect().width };
+    })
+  ));
+  await unmountProbe(page);
+  const ownAxisShareTexts = Object.fromEntries(ownAxisShares.map(({ name, text }) => [name, text]));
+  check('a percentage chart prints no share on the row of the dataset on its own Y axis, its column kept',
+    ownAxisShareTexts.Own === '' && ownAxisShareTexts.Low === '33%' && ownAxisShareTexts.High === '67%'
+    && new Set(ownAxisShares.map(({ width }) => width)).size === 1,
+    ownAxisShares.map(({ name, text, width }) => `${name} "${text}" ${width}px`).join(', '));
+
+  // The outward column of a stacked chart is as wide with the dataset on its own axis as without it
+  const ownAxisColumnEnds = [];
+  for (const datasets of [ownAxisConfig.datasets, ownAxisStack]) {
+    await recordProbeNumbers(page);
+    await mountProbe(page, {
+      config: {
+        ...ownAxisConfig, datasets, hasSecondYAxis: datasets !== ownAxisStack, type: 'bar', isYAxisOutward: true,
+        title: 'Probe — Outward stack beside its own axis',
+      },
+    });
+    ownAxisColumnEnds.push(getYLabelColumn(await readProbeTexts(page)).end);
+    await unmountProbe(page);
+  }
+  check('the outward column of a stacked chart fits the stack alone, not the dataset on its own Y axis',
+    ownAxisColumnEnds[0] === ownAxisColumnEnds[1], `column ends at ${ownAxisColumnEnds.join(' and ')}`);
+
   // --- A single label draws in a column centered in the plot, its X-axis label under it, whatever window the minimap
   // opens on, which spans the whole minimap ---
   for (const type of ['line', 'area', 'bar']) {

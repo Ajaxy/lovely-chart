@@ -22,12 +22,14 @@ export function preparePoints(
     values = circleSums ? circleSums.map((sum) => [sum]) : prepareSumsByX(values);
   }
 
+  // The dataset on its own Y axis draws its own values, apart from the stack
+  const isInStack = datasets.map(({ hasOwnYAxis }) => (data.isStacked || data.isShares) && !hasOwnYAxis);
   const points = values.map((datasetValues, i) => (
     datasetValues.map((value, j) => {
       const isGap = value === GAP;
       let visibleValue = isGap ? 0 : value;
 
-      if ((data.isStacked || data.isShares) && !isGap) {
+      if (isInStack[i] && !isGap) {
         visibleValue *= visibilities[i];
       }
 
@@ -41,13 +43,15 @@ export function preparePoints(
       };
     })
   ));
+  const stackPoints = points.filter((_, i) => isInStack[i]);
 
-  if (data.isShares) {
-    preparePercentage(points, bounds);
+  // The dataset on its own Y axis, prepared alone, has no shares to take
+  if (data.isShares && stackPoints.length) {
+    preparePercentage(stackPoints, bounds);
   }
 
   if (data.isStacked || data.isShares) {
-    prepareStacked(points);
+    prepareStacked(stackPoints);
   }
 
   return points;

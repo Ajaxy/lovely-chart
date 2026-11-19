@@ -28,6 +28,7 @@
 
 - English dates read left to right on a right-to-left page, on the X axis, in the header caption and in the tooltip title: each of these, a text label included, reads in the direction of its first letter, so dates in Hebrew or Arabic words read right to left on a left-to-right page. One with no letter, such as the caption `2022 — 2026` of a year chart, reads left to right, the way the X axis runs.
 - `isCurrencyPrefix` puts the minus sign in front of the `prefix` of `secondaryYAxis` too, on its axis labels and its tooltip total: `-$1.3K` rather than `$-1.3K`.
+- A stacked chart with `hasSecondYAxis` keeps the last dataset out of the stack, on a Y axis of its own: the dataset draws its own values on that axis, which labels them, and fades when hidden, while the stack, the main Y axis, its `isYAxisOutward` column and the tooltip's total leave it out. The main Y-axis labels of the stack keep the axis text colour rather than the first dataset's, and a percentage chart's tooltip prints no share on the row of the dataset on its own axis.
 
 ## 2.1.0
 

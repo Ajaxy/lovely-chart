@@ -190,6 +190,9 @@ function calculateState(
   const yRanges = data.isStacked || data.isShares
     ? calculateYRangesStacked(data, filter, labelFromIndex, labelToIndex, prevState)
     : calculateYRanges(data, filter, labelFromIndex, labelToIndex, prevState);
+  if (data.hasSecondYAxis) {
+    Object.assign(yRanges, calculateSecondYRanges(data, labelFromIndex, labelToIndex, prevState));
+  }
   extendComparisonRanges(data, filter, labelFromIndex, labelToIndex, yRanges);
 
   const yAxisScale = calculateYAxisScale(
@@ -314,30 +317,32 @@ function calculateYRanges(
   labelToIndex: number,
   prevState: ChartState,
 ): YRanges {
-  const secondaryYAxisDataset = data.hasSecondYAxis ? data.datasets.at(-1) : undefined;
-  const filteredDatasets = data.datasets.filter((d) => filter[d.key] && d !== secondaryYAxisDataset);
+  const filteredDatasets = data.datasets.filter((d) => filter[d.key] && !d.hasOwnYAxis);
 
-  const yRanges: YRanges = calculateYRangesForGroup(
+  return calculateYRangesForGroup(
     data, labelFromIndex, labelToIndex, prevState, filteredDatasets, data.referenceLines.map(({ value }) => value),
   );
+}
 
-  if (secondaryYAxisDataset) {
-    const {
-      yMinViewport: yMinViewportSecond,
-      yMaxViewport: yMaxViewportSecond,
-      yMinMinimap: yMinMinimapSecond,
-      yMaxMinimap: yMaxMinimapSecond,
-    } = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, [secondaryYAxisDataset]);
+function calculateSecondYRanges(
+  data: AnalyzedData,
+  labelFromIndex: number,
+  labelToIndex: number,
+  prevState: ChartState,
+): Partial<YRanges> {
+  const {
+    yMinViewport: yMinViewportSecond,
+    yMaxViewport: yMaxViewportSecond,
+    yMinMinimap: yMinMinimapSecond,
+    yMaxMinimap: yMaxMinimapSecond,
+  } = calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, [data.datasets.at(-1)!]);
 
-    Object.assign(yRanges, {
-      yMinViewportSecond,
-      yMaxViewportSecond,
-      yMinMinimapSecond,
-      yMaxMinimapSecond,
-    });
-  }
-
-  return yRanges;
+  return {
+    yMinViewportSecond,
+    yMaxViewportSecond,
+    yMinMinimapSecond,
+    yMaxMinimapSecond,
+  };
 }
 
 function calculateYRangesForGroup(
@@ -382,7 +387,7 @@ function calculateYRangesStacked(
   labelToIndex: number,
   prevState: ChartState,
 ): YRanges {
-  const filteredDatasets = data.datasets.filter((d) => filter[d.key]);
+  const filteredDatasets = data.datasets.filter((d) => filter[d.key] && !d.hasOwnYAxis);
   const filteredValues = filteredDatasets.map(({ values }) => values);
 
   const length = filteredValues[0] ? filteredValues[0].length : 0;

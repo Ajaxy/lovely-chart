@@ -79,7 +79,7 @@ Parameter | Description |
 `isPercentage` | `true` for percentage based values
 `percentPrecision`| Digits after the point of the share a percentage chart's tooltip prints beside each value. Default `0`.
 `isStacked`| `true` for values stacking on top of each other
-`hasSecondYAxis`| `true` for charts with 2 Y axes
+`hasSecondYAxis`| `true` to put the last dataset on a Y axis of its own, labelled at the right of the plot in the dataset's colour. The main Y axis is labelled in the colour of the first dataset, apart from a stacked or percentage chart's, whose labels keep the axis text colour. The last dataset stays out of the main Y axis, the tooltip's total and, on a stacked chart, the stack, beside which it draws its own values; a percentage chart's tooltip prints no share on its row.
 `secondaryYAxis`| Optional scale of the main Y axis in another unit: `{ label, multiplier, prefix?, suffix? }`. Each main Y-axis label times `multiplier`, between `prefix` and `suffix`, stands at the right of the plot, apart from a percentage chart's. The tooltip adds a row of `label` and its total times `multiplier`, formatted as the dataset values are, by `formatTooltipValue` when given, between `prefix` and `suffix`: under the Total row of a stacked or percentage `bar`, `step` or `area` chart, and under the dataset rows of any other chart or one with `isTooltipTotalInTitle`.
 `valuePrefix`| Optional string prepended to every formatted value (e.g. `$`)
 `valueSuffix`| Optional string appended to every formatted value
