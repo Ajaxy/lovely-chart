@@ -1,5 +1,6 @@
 import type {
-  AnalyzedData, AnalyzedDataset, EventLine, HatchedRange, LabelType, LovelyChartParams, Range, ThemedColor, XLabel,
+  AnalyzedData, AnalyzedDataset, EventLine, HatchedRange, LabelRange, LabelType, LovelyChartParams, Range, ThemedColor,
+  XLabel,
 } from './types.js';
 
 import { AXES_FONT_SIZE, MILLISECONDS_IN_DAY } from './constants.js';
@@ -12,6 +13,7 @@ import { getMaxMin } from './utils.js';
 
 /** The colour of the `comparison` line, and of its swatches in the legend and the tooltip, when it sets none. */
 export const DEFAULT_COMPARISON_COLOR = '#6B7280';
+const HALF_LABEL = 0.5;
 
 /**
  * The eight default dataset colours, in order. A chart of fewer datasets takes a subset of them, as `getDefaultColors`
@@ -187,7 +189,7 @@ export function analyzeData(
     yMax: totalYMax,
     colors,
     withMinimap: Boolean(withMinimap),
-    minimapRange: buildMinimapRange(minimapRange),
+    minimapRange: buildMinimapRange(minimapRange, xLabels.length, hasColumns || isCircle),
     noCaption,
     zoomOutLabel,
     limitBegin,
@@ -245,9 +247,11 @@ function inferLabelType(labels: (number | string)[]): LabelType | undefined {
   return '5min';
 }
 
-// Accepts a `[begin, end]` tuple of 0..1 fractions or the 'full' keyword,
+// Accepts a `[begin, end]` tuple of 0..1 fractions, the 'full' keyword or inclusive label indexes,
 // normalized to the `{ begin, end }` shape used internally
-function buildMinimapRange(minimapRange?: [number, number] | 'full'): Range | undefined {
+function buildMinimapRange(
+  minimapRange: LovelyChartParams['minimapRange'], labelsCount: number, hasColumns: boolean,
+): Range | undefined {
   if (!minimapRange) {
     return undefined;
   }
@@ -256,8 +260,33 @@ function buildMinimapRange(minimapRange?: [number, number] | 'full'): Range | un
     return { begin: 0, end: 1 };
   }
 
-  const [begin, end] = minimapRange;
-  return { begin, end };
+  if (Array.isArray(minimapRange)) {
+    const [begin, end] = minimapRange;
+    return { begin, end };
+  }
+
+  return buildLabelWindow(minimapRange, labelsCount, hasColumns);
+}
+
+// Columns, and a single label, take the slots of their labels. Points take half an interval past either end, within
+// the axis: the end points stay off the plot edges, and the edges of the window, half a label from any label, round to
+// the end labels whatever the float error.
+function buildLabelWindow({ from, to }: LabelRange, labelsCount: number, hasColumns: boolean): Range | undefined {
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return undefined;
+
+  const first = Math.max(0, Math.round(from));
+  const last = Math.min(labelsCount - 1, Math.round(to));
+  if (first > last) return undefined;
+
+  if (hasColumns || labelsCount === 1) {
+    return { begin: first / labelsCount, end: (last + 1) / labelsCount };
+  }
+
+  const lastLabelIndex = labelsCount - 1;
+  return {
+    begin: Math.max(0, (first - HALF_LABEL) / lastLabelIndex),
+    end: Math.min(1, (last + HALF_LABEL) / lastLabelIndex),
+  };
 }
 
 // Resolves the `initialZoom` param to a clamped label index, or `undefined` when not

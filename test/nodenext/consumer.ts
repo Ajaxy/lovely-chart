@@ -63,6 +63,8 @@ const params: LovelyChartParams = {
   areaOpacity: 0.5,
   areaBorderColor: surface,
   legendContainer: element,
+  withMinimap: true,
+  minimapRange: { from: 1, to: 2 },
   dateLocale,
   secondaryYAxis,
   onZoom: (labelValue) => Promise.resolve({ type: 'line', labels: [labelValue], datasets, colors: { y0: surface } }),

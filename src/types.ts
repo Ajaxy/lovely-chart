@@ -385,7 +385,14 @@ export interface LovelyChartParams {
   circleLabelsAround?: number;
   initialZoom?: number | 'last';
   withMinimap?: boolean;
-  minimapRange?: [number, number] | 'full';
+  /**
+   * The window the chart opens on: a `[begin, end]` tuple of fractions of the axis from 0 to 1, `'full'`, or
+   * `{ from, to }`, inclusive label indexes, rounded and clamped to the labels. A bar or step chart, or one with bars or
+   * steps among its datasets, takes the columns of those labels, a pie or donut sums them, and a line or area chart
+   * takes their points and half an interval past either end, within the axis. A range of no labels takes the default:
+   * `[0.8, 1]` with the minimap, otherwise `'full'`.
+   */
+  minimapRange?: [number, number] | 'full' | { from: number; to: number };
   noCaption?: boolean;
   zoomOutLabel?: string;
   valuePrefix?: string;

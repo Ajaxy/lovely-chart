@@ -213,6 +213,8 @@ const PLOT_AREA_PATTERN = /^-?\d+(\.\d+)?px$/;
 const SCALED_HOST_WIDTH = 600;
 const HOST_SCALE = 0.75;
 const PLOT_AREA_SCALE_TOLERANCE = 0.01;
+// How far an edge of the minimap slider may stand from where its range puts it, as a fraction of the minimap
+const MINIMAP_SLIDER_TOLERANCE = 0.002;
 // The units an axis label abbreviates its value in
 const AXIS_UNITS = { '': 1, K: 1e3, M: 1e6, B: 1e9, T: 1e12 };
 // A digit after the point that adds nothing, as `6.10K` or `6.0K` shows
@@ -4013,6 +4015,155 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     pieGeometry.areaReports.length === 1 && isSameReportedArea(pieGeometry.areaReports[0], pieGeometry.area)
     && pieGeometry.xs[0] === undefined && pieGeometry.areaReports[0].xs[0] === undefined,
     `${JSON.stringify(pieGeometry.areaReports)}, ${JSON.stringify(pieGeometry.xs)}`);
+
+  // --- `minimapRange` in labels: the window by chart kind, the minimap slider over it, clamping, a pie and a zoom ---
+  // The edges of the minimap slider, as fractions of the minimap
+  const readSliderEdges = () => page.evaluate(() => {
+    const ruler = document.querySelector('#probe .lovely-chart--minimap-ruler').getBoundingClientRect();
+    const slider = document.querySelector('#probe .lovely-chart--minimap-slider').getBoundingClientRect();
+    return [slider.left, slider.right].map((x) => (x - ruler.left) / ruler.width);
+  });
+  const areSliderEdgesAt = (edges, expected) => edges.every((edge, i) => (
+    Math.abs(edge - expected[i]) < MINIMAP_SLIDER_TOLERANCE
+  ));
+  const windowConfig = {
+    title: 'Probe — A window of labels',
+    labels: geometryLabels,
+    datasets: [{ name: 'Values', color: '#FF0000', values: [3, 9, 4, 8, 5, 7, 4, 9, 3, 8, 5] }],
+    withMinimap: true,
+  };
+
+  await mountGeometryProbe({ ...windowConfig, type: 'line', minimapRange: { from: 3, to: 6 } });
+  const lineWindow = await readGeometry([[2], [3], [4], [6], [7]]);
+  const lineSliderEdges = await readSliderEdges();
+  await unmountProbe(page);
+  const [lineBefore, lineFrom, lineNext, lineTo, lineAfter] = lineWindow.xs;
+  // Four intervals, from halfway before the first label to halfway after the last, span the canvas, its gutters too
+  const lineInterval = (lineWindow.area[2] + GUTTER * 2) / 4;
+  check('a line opens on the labels minimapRange names, from halfway before the first to halfway after the last',
+    lineBefore === undefined && lineAfter === undefined && isNearX(lineFrom, lineInterval / 2 - GUTTER)
+    && isNearX(lineNext - lineFrom, lineInterval) && isNearX(lineTo, lineWindow.area[2] + GUTTER - lineInterval / 2),
+    `${JSON.stringify(lineWindow.xs)} across ${lineWindow.area[2]}`);
+  check('the minimap slider of a line spans the same labels and the halves of the intervals beside them',
+    areSliderEdgesAt(lineSliderEdges, [2.5 / 10, 6.5 / 10]), JSON.stringify(lineSliderEdges));
+
+  for (const type of ['bar', 'step']) {
+    await mountGeometryProbe({ ...windowConfig, type, minimapRange: { from: 3, to: 6 } });
+    const columnWindow = await readGeometry([[2], [3, 0], [6, 1], [7]]);
+    const columnSlider = await readSliderEdges();
+    await unmountProbe(page);
+    const [columnBefore, columnStart, columnEnd, columnAfter] = columnWindow.xs;
+    check(`a ${type} chart opens on the columns of the labels minimapRange names, the minimap slider over them`,
+      columnBefore === undefined && columnAfter === undefined && isNearX(columnStart, -GUTTER)
+      && isNearX(columnEnd, columnWindow.area[2] + GUTTER) && areSliderEdgesAt(columnSlider, [3 / 11, 7 / 11]),
+      `${JSON.stringify(columnWindow.xs)} across ${columnWindow.area[2]}, slider ${JSON.stringify(columnSlider)}`);
+  }
+
+  // Indexes rounded and clamped to the labels at either end, and ranges of no labels, which take the last 20%. A line
+  // also keeps the half intervals past its ends within the axis, so only columns show an index that runs off the
+  // labels. Each window reads labels 0, 3, 4, 7, 8 and 10.
+  const clampedRanges = [{ from: -2, to: 3.4 }, { from: 7.6, to: 50 }, { from: 7, to: 3 }, { from: 20, to: 30 }];
+  const readClampedWindows = async (type, xArgs) => {
+    const windows = [];
+    for (const minimapRange of clampedRanges) {
+      await mountGeometryProbe({ ...windowConfig, type, minimapRange });
+      windows.push({ ...await readGeometry(xArgs), slider: await readSliderEdges() });
+      await unmountProbe(page);
+    }
+    return windows;
+  };
+  const formatClampedWindow = ({ xs, area, slider }) => `${JSON.stringify(xs)} across ${area[2]}, slider ${slider}`;
+  const [clampedLineStart, clampedLineEnd, ...emptyLines] = await readClampedWindows(
+    'line', [[0], [3], [4], [7], [8], [10]],
+  );
+  check('minimapRange clamps its indexes to the labels of a line, from the first label and to the last',
+    isNearX(clampedLineStart.xs[0], 0) && clampedLineStart.xs[1] !== undefined && clampedLineStart.xs[2] === undefined
+    && clampedLineEnd.xs[3] === undefined && clampedLineEnd.xs[4] > -GUTTER
+    && isNearX(clampedLineEnd.xs[5], clampedLineEnd.area[2])
+    && areSliderEdgesAt(clampedLineStart.slider, [0, 3.5 / 10])
+    && areSliderEdgesAt(clampedLineEnd.slider, [7.5 / 10, 1]),
+    `${formatClampedWindow(clampedLineStart)}; ${formatClampedWindow(clampedLineEnd)}`);
+  const [clampedBarStart, clampedBarEnd, ...emptyBars] = await readClampedWindows(
+    'bar', [[0, 0], [3, 1], [4], [7], [8, 0], [10, 1]],
+  );
+  check('minimapRange clamps its indexes to the columns of a bar chart, from the first column and to the last',
+    clampedBarStart.xs[0] === 0 && isNearX(clampedBarStart.xs[1], clampedBarStart.area[2] + GUTTER)
+    && clampedBarStart.xs[2] === undefined && clampedBarEnd.xs[3] === undefined
+    && isNearX(clampedBarEnd.xs[4], -GUTTER) && isNearX(clampedBarEnd.xs[5], clampedBarEnd.area[2])
+    && areSliderEdgesAt(clampedBarStart.slider, [0, 4 / 11]) && areSliderEdgesAt(clampedBarEnd.slider, [8 / 11, 1]),
+    `${formatClampedWindow(clampedBarStart)}; ${formatClampedWindow(clampedBarEnd)}`);
+  const emptyWindows = [...emptyLines, ...emptyBars];
+  check('a minimapRange of no labels, reversed or past the last, opens a line or bar chart on the default last 20%',
+    emptyWindows.every(({ xs, area, slider }) => (
+      xs[3] === undefined && isNearX(xs[5], area[2]) && areSliderEdgesAt(slider, [0.8, 1])
+    )),
+    emptyWindows.map(formatClampedWindow).join('; '));
+
+  // A pie sums the months of its window alone, the first of which, far larger, the window leaves out
+  const windowPie = await mountGeometryProbe({
+    type: 'pie',
+    title: 'Probe — A pie of a window of months',
+    labels: Array.from({ length: 6 }, (_, month) => Date.UTC(2026, month, 1)),
+    datasets: [
+      { name: 'Large', color: '#3497ED', values: [500, 111, 111, 111, 500, 500] },
+      { name: 'Small', color: '#9ED448', values: [1, 1, 1, 1, 1, 1] },
+    ],
+    minimapRange: { from: 1, to: 3 },
+  });
+  await windowPie.scrollIntoViewIfNeeded();
+  const pieCaption = (await windowPie.locator('.lovely-chart--header-caption').textContent()).trim();
+  const pieCenter = await page.evaluate(() => {
+    const host = document.getElementById('probe');
+    const box = host.getBoundingClientRect();
+    const [left, top, width, height] = ['left', 'top', 'width', 'height']
+      .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+    return { x: box.left + host.clientLeft + left + width / 2, y: box.top + host.clientTop + top + height / 2 };
+  });
+  await page.mouse.move(pieCenter.x, pieCenter.y + 30, { steps: 5 });
+  await sleep(200);
+  await page.mouse.move(pieCenter.x + 20, pieCenter.y + 40, { steps: 5 });
+  await sleep(500);
+  const pieWindowText = (await windowPie.locator('.lovely-chart--tooltip-balloon').textContent())
+    .replace(/\s+/g, ' ').trim();
+  await page.mouse.move(5, 5);
+  await unmountProbe(page);
+  check('a pie opens on the months minimapRange names and sums them alone',
+    pieCaption === 'February — April 2026' && pieWindowText.includes('333'),
+    `${JSON.stringify(pieCaption)}, ${JSON.stringify(pieWindowText.slice(0, 60))}`);
+
+  // A zoom into data from `onZoom` opens on the hours its own `minimapRange` names
+  const zoomWindowArgs = [[5], [6], [11], [12]];
+  const zoomWindow = await mountGeometryProbe({
+    type: 'line',
+    title: 'Probe — A zoom into a window of hours',
+    labels: geometryLabels.slice(0, 10),
+    datasets: [{ name: 'Days', color: '#FF0000', values: [3, 9, 4, 8, 5, 7, 4, 9, 3, 8] }],
+  }, zoomWindowArgs, true);
+  await page.evaluate((hourMs) => window.probeChart.update({
+    ...window.probeParams,
+    onZoom: (day) => Promise.resolve({
+      type: 'line',
+      labels: Array.from({ length: 24 }, (_, hour) => day + hour * hourMs),
+      datasets: [{ name: 'Hours', color: '#FF0000', values: Array.from({ length: 24 }, (_, hour) => hour % 5) }],
+      minimapRange: { from: 6, to: 11 },
+    }),
+  }), HOUR_MS);
+  await sleep(1200);
+  await zoomWindow.scrollIntoViewIfNeeded();
+  await clickProbeLabel(5);
+  await sleep(2000);
+  await page.mouse.move(5, 5);
+  const zoomedWindow = await readGeometry(zoomWindowArgs);
+  await unmountProbe(page);
+  const [hourBefore, hourFrom, hourTo, hourAfter] = zoomedWindow.xs;
+  const [hourZoom] = zoomedWindow.zoomReports;
+  const hourWidth = zoomedWindow.area[2];
+  // Six intervals, from halfway before the first hour to halfway after the last, span the canvas, its gutters too
+  const hourInterval = (hourWidth + GUTTER * 2) / 6;
+  check('a zoom into data from onZoom opens on the labels of its own minimapRange',
+    hourZoom?.value === geometryLabels[5] && hourBefore === undefined && hourAfter === undefined
+    && isNearX(hourFrom, hourInterval / 2 - GUTTER) && isNearX(hourTo, hourWidth + GUTTER - hourInterval / 2),
+    `zoomed into ${hourZoom?.value}, ${JSON.stringify(zoomedWindow.xs)} across ${hourWidth}`);
 
   // --- A web font that loads after the build widens the outward column to fit, and moves the plot area ---
   await page.evaluate(({ family, fontPath }) => {

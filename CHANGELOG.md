@@ -29,6 +29,7 @@
 - `--lovely-chart-plot-padding-top`, set by the chart on its element beside the plot-area variables: the room above the Y range, 15px, or 2px on a sparkline, for marks that rise above the data.
 - `eventLines`: dashed vertical rules at moments of the labels, `[{ labelIndex, offset?, label?, color? }]`, from the bottom of the Y range through the room above it, over the datasets, following the range and the zoom. `offset` places a rule through its label's interval as `getLabelX()` maps it, and the last point of a `line` or `area` chart, with no interval after it, keeps its rule at the point. Each rule's `label` reads bottom to top from its top, before the rule, or after it where it would cover the Y-axis labels or leave the plot area, and gives way to the label of a later rule that crowds it.
 - `EventLine` type.
+- `minimapRange` takes `{ from, to }`, inclusive label indexes, rounded and clamped to the labels as in `hatchedRanges`: a bar or step chart opens on the columns of those labels, a pie or donut sums them, and a line or area chart opens on their points and half an interval past either end, within the axis. A range of no labels takes the default.
 
 ### Changed
 
