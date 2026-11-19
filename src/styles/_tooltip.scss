@@ -183,6 +183,32 @@ html.theme-dark :where(.lovely-chart--container:not(.lovely-chart--container-sch
   font-variant-numeric: tabular-nums;
 }
 
+.lovely-chart--tooltip-title-note {
+  unicode-bidi: isolate;
+  margin-inline-start: 6px;
+  font-weight: normal;
+  color: var(--tooltip-muted-text-color);
+}
+
+// The notes take the width the title and the rows give the balloon and wrap at it, never widening it
+.lovely-chart--tooltip-notes {
+  width: 0;
+  min-width: 100%;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--tooltip-separator-color);
+
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--tooltip-muted-text-color);
+  overflow-wrap: break-word;
+  white-space: normal;
+
+  &:empty {
+    display: none;
+  }
+}
+
 // The ring keeps a swatch in the colour of the tooltip background visible
 .lovely-chart--tooltip-swatch {
   flex: none;

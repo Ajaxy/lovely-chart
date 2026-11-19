@@ -202,6 +202,31 @@ const DEFAULT_COMPARISON_COLOR = '#6B7280';
 const LONG_TITLE_LABELS = Array.from({ length: 8 }, (_, i) => `A rather long text label number ${i}`);
 // The least contrast of the muted text of a tooltip on its background, the AA level of body text
 const MIN_MUTED_TOOLTIP_CONTRAST = 4.5;
+// The notes of a tooltip notes probe of five days: two hatched ranges that overlap and share a line, and the notes its
+// `resolveTooltipNotes` gives by label index, an empty line, a line of the ranges, markup and a line too long for the
+// rows among them. Then the notes and the title note each label shows.
+const NOTE_RANGES = [
+  { from: 2, to: 4, note: 'Estimated\nFrom partial data', titleNote: 'est.' },
+  { from: 3, to: 4, note: 'Today is still in progress\nEstimated', titleNote: 'partial' },
+];
+const RESOLVED_NOTES = {
+  1: { notes: ['', 'Excludes 2 unpriced swaps'] },
+  4: {
+    titleNote: 'upd. 14:05 UTC',
+    notes: ['Estimated', '<b>Excludes</b> 3 unpriced swaps, which no price source covered on the day'],
+  },
+};
+const LABEL_NOTES = [
+  [],
+  ['Excludes 2 unpriced swaps'],
+  ['Estimated', 'From partial data'],
+  ['Estimated', 'From partial data', 'Today is still in progress'],
+  [
+    'Estimated', 'From partial data', 'Today is still in progress',
+    '<b>Excludes</b> 3 unpriced swaps, which no price source covered on the day',
+  ],
+];
+const LABEL_TITLE_NOTES = [undefined, undefined, 'est.', 'est.', 'upd. 14:05 UTC'];
 
 // The first colour of the default palette, which the first dataset without a colour of its own takes
 const DEFAULT_PALETTE_COLOR = '#3497ED';
@@ -3800,6 +3825,211 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('the tooltip balloon takes --tooltip-border, none by default',
     dayLook.border.startsWith('0px none') && customLook.border === '2px solid rgb(4, 5, 6)',
     JSON.stringify([dayLook.border, customLook.border]));
+
+  // --- Tooltip notes: those of hatched ranges and `resolveTooltipNotes`, beside the title and under the rows ---
+  // A function cannot cross into the page, so the page builds the resolver from the notes it is given, and logs its calls
+  const mountNotesProbe = (config, notesByLabel) => page.evaluate(async ({ spec, resolved }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.noteCalls = [];
+    window.probeChart = new LovelyChart(element, {
+      ...spec,
+      resolveTooltipNotes: (labelValue, datasetIndexes, labelIndex) => {
+        window.noteCalls.push([labelValue, datasetIndexes, labelIndex]);
+        return resolved[labelIndex];
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 800));
+  }, { spec: config, resolved: notesByLabel });
+  const notesLabels = [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day));
+  await mountNotesProbe({
+    type: 'bar',
+    isStacked: true,
+    title: 'Probe — Tooltip notes',
+    labels: notesLabels,
+    datasets: [
+      { name: 'A', values: [10, 20, 30, 40, 50] },
+      { name: 'B', values: [5, 10, 15, 20, 25] },
+      { name: 'C', values: [1, 2, 3, 4, 5], isInitiallyHidden: true },
+    ],
+    comparison: { name: 'Before', values: [[10, 20, 30, 40, 50], [5, 10, 15, 20, 25], [1, 2, 3, 4, 5]] },
+    hatchedRanges: NOTE_RANGES,
+    isTooltipTotalInTitle: true,
+    noZoom: true,
+  }, RESOLVED_NOTES);
+  await page.locator('#probe').scrollIntoViewIfNeeded();
+  const readTooltipNotes = (labelIndex) => page.evaluate(async (index) => {
+    if (index !== undefined) {
+      window.probeChart.selectLabel(index);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    const title = balloon.querySelector('.lovely-chart--tooltip-title');
+    const date = title.firstElementChild;
+    const titleNote = date.querySelector('.lovely-chart--tooltip-title-note');
+    const total = title.querySelector('.lovely-chart--tooltip-title-total');
+    const notes = balloon.querySelector('.lovely-chart--tooltip-notes');
+    const lines = [...notes.children];
+    const dateText = document.createRange();
+    dateText.selectNode(date.firstChild);
+    const resolveColor = (variable) => {
+      const element = document.createElement('span');
+      element.style.color = `var(${variable})`;
+      balloon.appendChild(element);
+      const color = getComputedStyle(element).color;
+      element.remove();
+      return color;
+    };
+    const notesStyle = getComputedStyle(notes);
+    const longLine = lines.find((line) => line.textContent.includes('no price source'));
+    const noteBox = titleNote?.getBoundingClientRect();
+    const totalBox = total?.getBoundingClientRect();
+    return {
+      isShown: balloon.classList.contains('lovely-chart--state-shown'),
+      date: date.firstChild.data,
+      titleNote: titleNote?.textContent,
+      // The note sits in the flex item of the date, after it, and the total stays at the far end of the title
+      isTitleNoteInPlace: !titleNote || (
+        titleNote.parentElement === date && date.nextElementSibling === total
+        && noteBox.left >= dateText.getBoundingClientRect().right && totalBox.left > noteBox.right
+        && Math.abs(totalBox.right - title.getBoundingClientRect().right) <= 1
+      ),
+      notes: lines.map((line) => line.textContent),
+      hasMarkup: Boolean(notes.querySelector('b')),
+      isLastChild: balloon.lastElementChild === notes,
+      display: notesStyle.display,
+      color: notesStyle.color,
+      titleNoteColor: titleNote ? getComputedStyle(titleNote).color : undefined,
+      mutedColor: resolveColor('--tooltip-muted-text-color'),
+      rule: `${notesStyle.borderTopWidth} ${notesStyle.borderTopStyle} ${notesStyle.borderTopColor}`,
+      separatorColor: resolveColor('--tooltip-separator-color'),
+      whiteSpace: notesStyle.whiteSpace,
+      width: notes.getBoundingClientRect().width,
+      rowsWidth: balloon.querySelector('.lovely-chart--tooltip-legend').getBoundingClientRect().width,
+      longLineHeight: longLine?.getBoundingClientRect().height,
+      lineHeight: parseFloat(notesStyle.lineHeight),
+      call: window.noteCalls.at(-1),
+    };
+  }, labelIndex);
+  // From the last label down, so a label without notes or a title note follows one with them
+  const labelNotes = [];
+  for (let i = notesLabels.length - 1; i >= 0; i--) {
+    labelNotes[i] = await readTooltipNotes(i);
+  }
+  // A selection held through a content update the throttle defers shows the notes of the label it shows the rows of
+  const notesStep = await page.evaluate(async () => {
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    const readStep = () => ({
+      date: balloon.querySelector('.lovely-chart--tooltip-title').firstElementChild.firstChild.data,
+      titleNote: balloon.querySelector('.lovely-chart--tooltip-title-note')?.textContent,
+      rows: [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset-value')].map((value) => value.textContent),
+      notes: [...balloon.querySelector('.lovely-chart--tooltip-notes').children].map((line) => line.textContent),
+    });
+    window.probeChart.selectLabel(1);
+    const first = readStep();
+    window.probeChart.selectLabel(3);
+    const held = readStep();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return { first, held, settled: readStep() };
+  });
+  const notesPlot = await page.locator('#probe .lovely-chart--tooltip').boundingBox();
+  await hoverWiggle(page, notesPlot, 0.9, 0.6);
+  const hoveredNotes = await readTooltipNotes();
+  await page.mouse.move(5, 5);
+  await unmountProbe(page);
+  check('tooltip notes list those of the hatched ranges in range order, then those of resolveTooltipNotes, by line',
+    labelNotes.every(({ notes }, i) => JSON.stringify(notes) === JSON.stringify(LABEL_NOTES[i]))
+    && !labelNotes[4].hasMarkup && labelNotes.every(({ isLastChild }) => isLastChild),
+    JSON.stringify(labelNotes.map(({ notes, hasMarkup }) => ({ notes, hasMarkup }))));
+  check('the title note of resolveTooltipNotes wins over those of the ranges, of which the first wins',
+    labelNotes.every(({ titleNote }, i) => titleNote === LABEL_TITLE_NOTES[i]),
+    JSON.stringify(labelNotes.map(({ titleNote }) => titleNote)));
+  check('a tooltip title note follows the date in its flex item, and the title total keeps the far end',
+    labelNotes.every(({ isTitleNoteInPlace }) => isTitleNoteInPlace),
+    JSON.stringify(labelNotes.map(({ date, titleNote, isTitleNoteInPlace }) => (
+      { date, titleNote, isTitleNoteInPlace }
+    ))));
+  check('resolveTooltipNotes takes the label value, the indexes of the datasets on screen and the label index',
+    JSON.stringify(labelNotes[4].call) === JSON.stringify([notesLabels[4], [0, 1], 4]),
+    JSON.stringify(labelNotes[4].call));
+  const notesLook = labelNotes[4];
+  check('tooltip notes take --tooltip-muted-text-color under a rule in --tooltip-separator-color',
+    notesLook.color === notesLook.mutedColor && notesLook.titleNoteColor === notesLook.mutedColor
+    && notesLook.rule === `1px solid ${notesLook.separatorColor}`,
+    JSON.stringify(notesLook));
+  check('tooltip notes are as wide as the rows, and a long line wraps to them',
+    notesLook.whiteSpace === 'normal' && Math.abs(notesLook.width - notesLook.rowsWidth) <= 1
+    && notesLook.longLineHeight >= notesLook.lineHeight * 2,
+    JSON.stringify(notesLook));
+  check('a label without notes hides the notes and the title note',
+    labelNotes[0].isShown && labelNotes[0].display === 'none' && labelNotes[0].titleNote === undefined
+    && labelNotes[1].display !== 'none' && labelNotes[1].titleNote === undefined,
+    JSON.stringify(labelNotes.slice(0, 2)));
+  check('tooltip notes change with the rows, in one throttled step',
+    notesStep.first.date === labelNotes[1].date
+    && JSON.stringify(notesStep.first.notes) === JSON.stringify(LABEL_NOTES[1])
+    && JSON.stringify(notesStep.held) === JSON.stringify(notesStep.first)
+    && notesStep.settled.date === labelNotes[3].date && notesStep.settled.titleNote === LABEL_TITLE_NOTES[3]
+    && JSON.stringify(notesStep.settled.notes) === JSON.stringify(LABEL_NOTES[3]),
+    JSON.stringify(notesStep));
+  check('a pointer over a label shows its notes',
+    hoveredNotes.isShown && JSON.stringify(hoveredNotes.notes) === JSON.stringify(LABEL_NOTES[4]),
+    JSON.stringify(hoveredNotes.notes));
+
+  // A zoom into shares takes the notes of the bars off the balloon, and a pie asks for none
+  await mountNotesProbe({
+    type: 'bar',
+    isStacked: true,
+    isPercentage: true,
+    title: 'Probe — Tooltip notes through a zoom into shares',
+    labels: notesLabels,
+    datasets: [{ name: 'A', values: [10, 20, 30, 40, 50] }, { name: 'B', values: [5, 10, 15, 20, 25] }],
+    hatchedRanges: [{ from: 0, to: 4, note: 'Estimated' }],
+    circleLabelsAround: 0,
+  }, { 2: { notes: ['Resolved'] } });
+  await page.locator('#probe').scrollIntoViewIfNeeded();
+  const sharesPlot = await page.locator('#probe .lovely-chart--tooltip').boundingBox();
+  await hoverWiggle(page, sharesPlot, 0.5, 0.6);
+  const barNotes = await readTooltipNotes();
+  await page.mouse.click(sharesPlot.x + sharesPlot.width * 0.5, sharesPlot.y + sharesPlot.height * 0.6);
+  await sleep(2000);
+  await page.evaluate(() => window.noteCalls.splice(0));
+  await hoverWiggle(page, sharesPlot, 0.5, 0.45);
+  const pieNotes = await page.evaluate(() => {
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    return {
+      isShown: balloon.classList.contains('lovely-chart--state-shown'),
+      isCircle: document.querySelector('#probe .lovely-chart--container')
+        .classList.contains('lovely-chart--state-zoomed-in'),
+      notes: [...balloon.querySelector('.lovely-chart--tooltip-notes').children].map((line) => line.textContent),
+      titleNotes: balloon.querySelectorAll('.lovely-chart--tooltip-title-note').length,
+      calls: window.noteCalls.length,
+    };
+  });
+  await page.mouse.move(5, 5);
+  await unmountProbe(page);
+  check('a pie of shares shows no tooltip notes, and asks resolveTooltipNotes for none',
+    JSON.stringify(barNotes.notes) === '["Estimated","Resolved"]'
+    && pieNotes.isShown && pieNotes.isCircle && pieNotes.notes.length === 0 && pieNotes.titleNotes === 0
+    && pieNotes.calls === 0,
+    JSON.stringify({ barNotes: barNotes.notes, pieNotes }));
+
+  // The forecast demo chart notes its forecast days under the rows
+  const notesForecastChart = charts.nth(FORECAST_CHART);
+  await notesForecastChart.scrollIntoViewIfNeeded();
+  const notesForecastPlot = await notesForecastChart.locator('.lovely-chart--tooltip').boundingBox();
+  const readForecastNotes = () => notesForecastChart.locator('.lovely-chart--tooltip-notes')
+    .evaluate((el) => [...el.children].map((line) => line.textContent));
+  await hoverWiggle(page, notesForecastPlot, 0.95, 0.5);
+  const forecastDayNotes = await readForecastNotes();
+  await hoverWiggle(page, notesForecastPlot, 0.3, 0.5);
+  const actualDayNotes = await readForecastNotes();
+  await page.mouse.move(5, 5);
+  check('the demo forecast notes its forecast days in the tooltip, and its actual days not',
+    JSON.stringify(forecastDayNotes) === '["Forecast"]' && actualDayNotes.length === 0,
+    JSON.stringify({ forecastDayNotes, actualDayNotes }));
 
   // --- Smooth lines, a dataset that starts hidden and the axis font (demo chart) ---
   const smoothDemoChart = charts.nth(SMOOTH_CHART);

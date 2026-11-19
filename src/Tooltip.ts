@@ -1,6 +1,6 @@
 import type { Projection } from './Projection.js';
 import type {
-  AnalyzedData, ChartColors, ChartState, FocusOn, Pixel, Point, PointerVector, Size, StatisticsItem,
+  AnalyzedData, ChartColors, ChartState, FocusOn, Pixel, Point, PointerVector, Size, StatisticsItem, TooltipNotes,
 } from './types.js';
 
 import { clearCanvas, setupCanvas } from './canvas.js';
@@ -37,6 +37,7 @@ export class Tooltip {
   #canvas!: HTMLCanvasElement;
   #context!: CanvasRenderingContext2D;
   #balloon!: HTMLElement;
+  #notes!: HTMLElement;
 
   #offsetX?: number;
   #offsetY?: number;
@@ -51,8 +52,11 @@ export class Tooltip {
 
   readonly #selectLabelOnRaf = throttleWithRaf((isExternal?: boolean) => this.#selectLabel(isExternal));
   readonly #throttledUpdateContent = throttle(
-    (title: string, statistics: StatisticsItem[], resolvedTotal: number | null | undefined, labelIndex: number) => {
-      this.#updateContent(title, statistics, resolvedTotal);
+    (
+      title: string, statistics: StatisticsItem[], resolvedTotal: number | null | undefined, notes: TooltipNotes,
+      labelIndex: number,
+    ) => {
+      this.#updateContent(title, statistics, resolvedTotal, notes);
       // A deferred update can land after the pointer has left the chart
       if (this.#offsetX !== undefined) {
         this.#placeBalloon(labelIndex);
@@ -190,7 +194,9 @@ export class Tooltip {
     this.#balloon.innerHTML = `
       <div class="lovely-chart--tooltip-title"></div>
       <div class="lovely-chart--tooltip-legend"></div>
-      <div class="lovely-chart--spinner"></div>`;
+      <div class="lovely-chart--spinner"></div>
+      <div class="lovely-chart--tooltip-notes"></div>`;
+    this.#notes = this.#balloon.lastElementChild as HTMLElement;
 
     if ('ontouchstart' in window && this.#data.isZoomable) {
       addEventListener(this.#balloon, 'click', this.#onBalloonClick);
@@ -420,7 +426,11 @@ export class Tooltip {
     if (this.#data.isCircle) {
       this.#updateContent(undefined, statistics);
     } else {
-      this.#throttledUpdateContent(this.#getTitle(this.#data, labelIndex), statistics, resolvedTotal, labelIndex);
+      // The notes are resolved with the title and the rows, as a zoom can swap the data before the update lands
+      this.#throttledUpdateContent(
+        this.#getTitle(this.#data, labelIndex), statistics, resolvedTotal,
+        this.#resolveNotes(datasetStatistics, labelIndex), labelIndex,
+      );
     }
 
     // Placed after the content, whose width decides the place, and on each call to follow the pointer while a
@@ -491,7 +501,7 @@ export class Tooltip {
       && pointerVector.distance <= getCircleRadius(this.#projection!);
   }
 
-  #updateTitle(title: string | undefined) {
+  #updateTitle(title: string | undefined, titleNote: string | undefined) {
     const titleContainer = this.#balloon.children[0] as HTMLElement;
 
     if (this.#data.isCircle) {
@@ -502,15 +512,23 @@ export class Tooltip {
     if (titleContainer.style.display === 'none') {
       titleContainer.style.display = '';
     }
-    const currentTitle = titleContainer.querySelector(':not(.lovely-chart--state-hidden)');
+    let currentTitle = titleContainer.querySelector(':not(.lovely-chart--state-hidden)');
 
     if (!titleContainer.textContent || !currentTitle) {
-      const newTitle = createElement<HTMLSpanElement>('span');
-      newTitle.textContent = title!;
-      titleContainer.replaceChildren(newTitle);
-    } else {
-      currentTitle.textContent = title!;
+      currentTitle = createElement<HTMLSpanElement>('span');
+      titleContainer.replaceChildren(currentTitle);
     }
+
+    if (!titleNote) {
+      currentTitle.textContent = title!;
+      return;
+    }
+
+    // The note shares the flex item of the date, so a title total keeps the far end
+    const noteElement = createElement<HTMLSpanElement>('span');
+    noteElement.className = 'lovely-chart--tooltip-title-note';
+    noteElement.textContent = titleNote;
+    currentTitle.replaceChildren(title!, noteElement);
   }
 
   #insertNewDataSet(dataSetContainer: HTMLElement, statItem: StatisticsItem, totalValue: number) {
@@ -691,9 +709,37 @@ export class Tooltip {
       });
   }
 
-  #updateContent(title: string | undefined, statistics: StatisticsItem[], resolvedTotal?: number | null) {
-    this.#updateTitle(title);
+  // A pie or donut, which selects no label, passes no notes
+  #updateContent(
+    title: string | undefined, statistics: StatisticsItem[], resolvedTotal?: number | null, notes?: TooltipNotes,
+  ) {
+    this.#updateTitle(title, notes?.titleNote);
     this.#updateDataSets(statistics, resolvedTotal);
+    this.#renderNotes(notes?.notes ?? []);
+  }
+
+  #resolveNotes(datasetStatistics: StatisticsItem[], labelIndex: number): TooltipNotes {
+    const { hatchedRanges, resolveTooltipNotes, xLabels } = this.#data;
+    const ranges = hatchedRanges.filter(({ from, to }) => labelIndex >= from && labelIndex <= to);
+    const resolved = resolveTooltipNotes?.(
+      xLabels[labelIndex].value, datasetStatistics.map(({ originalIndex }) => originalIndex), labelIndex,
+    );
+    const lines = [...ranges.map(({ note }) => note ?? ''), ...(resolved?.notes ?? [])]
+      .flatMap((note) => note.split('\n'))
+      .filter(Boolean);
+
+    return {
+      titleNote: resolved?.titleNote || ranges.find(({ titleNote }) => titleNote)?.titleNote,
+      notes: [...new Set(lines)],
+    };
+  }
+
+  #renderNotes(notes: string[]) {
+    this.#notes.replaceChildren(...notes.map((note) => {
+      const noteElement = createElement();
+      noteElement.textContent = note;
+      return noteElement;
+    }));
   }
 
   #renderTitleTotal(totalText: string | undefined) {

@@ -118,12 +118,12 @@ Parameter | Description |
 Parameter | Description |
 ---------|----|
 `referenceLines`| Dashed rules at fixed values of the main Y axis: `[{ value, label?, color? }]`. The Y range always reaches each value, stacked charts included, so a line with `color: 'transparent'` draws nothing and only pins the range. `label` is drawn above the right end of the line, none when empty. `color` is any canvas colour or `{ light, dark }`, and defaults to the Y-axis text colour. `label` reads in the direction of the page, so on a right-to-left page a sign before a number moves after it; a number wrapped in U+2066 and U+2069, as `'\u2066-1.2K\u2069'`, keeps its sign first. On a percentage chart `value` is a percentage from 0 to 100 and the range stays 0–100%. Ignored on pie and donut charts.
-`hatchedRanges`| Runs of labels whose values are estimated, partial, still accruing or forecast, hatched across the plot and the minimap: `[{ from, to, label?, color?, hasEdge?, isAccruing? }]`, `from` and `to` inclusive label indexes, rounded and clamped to the labels. A `bar` or `step` chart hatches the columns of the range. A `line` or `area` chart starts the hatch at the point before the range, as the segment into an estimated value is estimated too, or halfway from it with `isAccruing`, for a period still filling, and ends it halfway to the label after the range. The hatch goes under the lines of a `line` or `step` chart and over the fills of a `bar` or `area` chart, under the comparison line, the mask over unfocused bars and the reference lines; ranges of one colour that touch hatch as one band. Each range keeps its own label and edge: `label` is drawn at the bottom left of the range's hatch, in the axis font size, clear of the Y-axis labels and of the next label, and dropped where it has no room. `hasEdge` draws a dashed rule where the range's hatch starts, none at the first label. `color` is any canvas colour or `{ light, dark }` for the hatch, the edge and the label, and defaults to the Y-axis text colour. The minimap draws the hatch alone, and a sparkline the hatch and the edges. Ignored on pie and donut charts, a zoom into shares included; the data `onZoom` returns sets ranges of its own.
+`hatchedRanges`| Runs of labels whose values are estimated, partial, still accruing or forecast, hatched across the plot and the minimap: `[{ from, to, label?, color?, hasEdge?, isAccruing?, note?, titleNote? }]`, `from` and `to` inclusive label indexes, rounded and clamped to the labels. A `bar` or `step` chart hatches the columns of the range. A `line` or `area` chart starts the hatch at the point before the range, as the segment into an estimated value is estimated too, or halfway from it with `isAccruing`, for a period still filling, and ends it halfway to the label after the range. The hatch goes under the lines of a `line` or `step` chart and over the fills of a `bar` or `area` chart, under the comparison line, the mask over unfocused bars and the reference lines; ranges of one colour that touch hatch as one band. Each range keeps its own label and edge: `label` is drawn at the bottom left of the range's hatch, in the axis font size, clear of the Y-axis labels and of the next label, and dropped where it has no room. `hasEdge` draws a dashed rule where the range's hatch starts, none at the first label. `color` is any canvas colour or `{ light, dark }` for the hatch, the edge and the label, and defaults to the Y-axis text colour. `note` and `titleNote` are notes of the tooltip at each label of the range, under the rows and beside the title, as `resolveTooltipNotes` gives them. The minimap draws the hatch alone, and a sparkline the hatch and the edges. Ignored on pie and donut charts, a zoom into shares included; the data `onZoom` returns sets ranges of its own.
 `comparison`| A previous period, drawn as a dashed line: `{ name, color?, values }`. `values` holds the previous values per dataset, in the order of `datasets`, each aligned with `labels`; the line draws their sum over the datasets on screen, and a `null` leaves a gap. `color` is a hex colour, `#6B7280` by default. The legend names it beside a dashed swatch, and the tooltip lists it first with the change of the current total in percent. Ignored on percentage, pie and donut charts.
 
 #### Tooltip parameters
 
-The tooltip lists each dataset on screen with a non-zero value at the label: a swatch of its colour, its name and its value in the text colour, from the largest value down. The swatch of a dashed or dotted line is a dashed or dotted outline. A `comparison` row comes first, beside a dashed swatch of its colour, in `--tooltip-muted-text-color` with its value in the normal weight, and set apart from the rest by a rule in `--tooltip-separator-color`. Its change is bold and tinted by `--tooltip-change-positive` or `--tooltip-change-negative`, unless it rounds to 0%, which keeps the colour and weight of its value. Stacked and percentage `bar`, `step` and `area` charts add a Total row. A pie or donut lists the sector under the pointer alone.
+The tooltip lists each dataset on screen with a non-zero value at the label: a swatch of its colour, its name and its value in the text colour, from the largest value down. The swatch of a dashed or dotted line is a dashed or dotted outline. A `comparison` row comes first, beside a dashed swatch of its colour, in `--tooltip-muted-text-color` with its value in the normal weight, and set apart from the rest by a rule in `--tooltip-separator-color`. Its change is bold and tinted by `--tooltip-change-positive` or `--tooltip-change-negative`, unless it rounds to 0%, which keeps the colour and weight of its value. Stacked and percentage `bar`, `step` and `area` charts add a Total row. Notes of `hatchedRanges` and `resolveTooltipNotes` stand beside the title and under the rows, in `--tooltip-muted-text-color`. A pie or donut lists the sector under the pointer alone.
 
 Parameter | Description |
 ---------|----|
@@ -131,6 +131,7 @@ Parameter | Description |
 `isTooltipTotalInTitle`| `true` to put the total of a stacked or percentage `bar`, `step` or `area` chart beside the tooltip title, in place of the Total row. Default `false`.
 `formatTooltipValue`| Optional function formatting a number of the tooltip; `valuePrefix` and `valueSuffix` still wrap the result.
 `resolveTooltipTotal`| Optional function `(labelValue, datasetIndexes) => number \| null \| undefined` giving the total of a stacked chart's tooltip, for the label's value (its timestamp, or the index of a text label) and the indexes of the datasets on screen. `undefined` keeps the sum of the rows, `null` shows `—`. The comparison change and the total on the `secondaryYAxis` scale read this total too.
+`resolveTooltipNotes`| Optional function `(labelValue, datasetIndexes, labelIndex) => { titleNote?, notes? } \| undefined` giving the notes of the tooltip at a label, for its value and the indexes of the datasets on screen, as `resolveTooltipTotal` takes them, and its index. `titleNote` stands after the date, before the total of `isTooltipTotalInTitle`. `notes` are lines below the rows, under a rule in `--tooltip-separator-color`, as wide as the rows and wrapped to them. The notes of the `hatchedRanges` that hold the label come first, in their order, then these; each note splits into lines at `\n`, a line shown already is left out, and the text shows as it is, never as HTML. This `titleNote` wins over those of the ranges, of which the first one wins. The notes change with the rows, for a pointer, a touch or `selectLabel()`. Ignored on pie and donut charts.
 `onSelectedIndexChange`| Optional function called when the selected label changes, by pointer, touch or `selectLabel()`, with its index, and with `undefined` once nothing is selected: the pointer leaves the chart, `selectLabel(undefined)`, `update()`, a resize, or the selected label leaving the visible range.
 `onHiddenSeriesChange`| Optional function called when the reader shows or hides a dataset in the legend, with the names and the indexes of the hidden datasets.
 
@@ -155,7 +156,7 @@ new LovelyChart(element, {
 });
 ```
 
-A forecast after the actuals, hatched from the last actual day and labelled inside the band:
+A forecast after the actuals, hatched from the last actual day, labelled inside the band and noted under the tooltip rows:
 
 ```js
 new LovelyChart(element, {
@@ -168,6 +169,7 @@ new LovelyChart(element, {
     label: 'Forecast',
     hasEdge: true,
     color: { light: '#108BE3', dark: '#48AAF0' },
+    note: 'Forecast',
   }],
 });
 ```
@@ -216,25 +218,27 @@ Variable | Description |
 `--lovely-chart-series-color`| Set by the chart on each legend button, on the comparison legend entry and on each tooltip swatch: the colour of its dataset or line.
 `--background-color`, `--text-color`, `--grid-lines`, `--tooltip-background` and the other variables on `.lovely-chart--container`| The colours of the day and the night skin. Night colours of your own go under `html.theme-dark .lovely-chart--container:not(.lovely-chart--container-scheme-system)` for the default `colorScheme`, and under `.lovely-chart--container-scheme-system` inside `@media (prefers-color-scheme: dark)` for `'system'`, so neither reaches a chart of the other scheme.
 `--tooltip-change-positive`, `--tooltip-change-negative`| Colours of a rise and a fall of the `comparison` change in the tooltip.
-`--tooltip-muted-text-color`| Colour of the `comparison` row of the tooltip. Defaults to a mix of 70% `--text-color` and 30% `--tooltip-background`, which follows a skin of your own and reaches a contrast of 4.5:1 on the tooltip background in the day and the night skin. A colour of your own goes per skin, as the colours above.
-`--tooltip-separator-color`| Colour of the rule under the `comparison` row of the tooltip. Defaults to `--grid-lines`.
+`--tooltip-muted-text-color`| Colour of the `comparison` row and the notes of the tooltip. Defaults to a mix of 70% `--text-color` and 30% `--tooltip-background`, which follows a skin of your own and reaches a contrast of 4.5:1 on the tooltip background in the day and the night skin. A colour of your own goes per skin, as the colours above.
+`--tooltip-separator-color`| Colour of the rule under the `comparison` row of the tooltip and of the rule over its notes. Defaults to `--grid-lines`.
 `--tooltip-border`| Border of the tooltip balloon, as `1px solid #D2D5D7`. Default `none`.
 `--lovely-chart-plot-area-left`, `--lovely-chart-plot-area-top`, `--lovely-chart-plot-area-width`, `--lovely-chart-plot-area-height`| Set by the chart on `element`, as px lengths from the inside of its border: the data area of the plot, where a window over every label and the Y range draw. It runs from the start of the plot, after an `isYAxisOutward` column, to its end, and from the top of the Y range to the X-axis baseline. A pie or donut sets the square around its circle, and a sparkline its plot inset by 2px. The chart sets them from its first paint, the frame after it is created, and rewrites them when the area changes: on `update()`, a resize or an orientation change, a zoom into data of another label column or into a pie, when a web font of the page changes the axis font, and when a style of the page moves the plot by resizing the chart's layout, as a header folded while its caption is empty. `destroy()` removes them.
 
 #### Styling the tooltip
 
-The tooltip keeps these classes from release to release, for the rules of a page; its other classes are internal. Its text takes `--text-color`, and its background, the `comparison` row, the rule under it, the tones of the change and the border of the balloon take the `--tooltip-*` variables above.
+The tooltip keeps these classes from release to release, for the rules of a page; its other classes are internal. Its text takes `--text-color`, and its background, the `comparison` row and the notes, the rules under that row and over the notes, the tones of the change and the border of the balloon take the `--tooltip-*` variables above.
 
 Class | Element |
 ---------|----|
 `.lovely-chart--tooltip-balloon`| The balloon: its shadow, padding and radius. A night rule of your own under `html.theme-dark .lovely-chart--tooltip-balloon` is as specific as the library's.
 `.lovely-chart--tooltip-title`| The title: the date or the label, and at its far end the total of `isTooltipTotalInTitle`.
 `.lovely-chart--tooltip-title-total`| The total beside the title, with `isTooltipTotalInTitle`.
+`.lovely-chart--tooltip-title-note`| The `titleNote` of `resolveTooltipNotes` or `hatchedRanges`, inside the first `<span>` of the title after the date, in `--tooltip-muted-text-color`.
 `.lovely-chart--tooltip-dataset`| A row: a swatch, a name and a value. The `comparison` row is a row too, and the Total row and the `secondaryYAxis` row are rows with a name and a value but no swatch.
 `.lovely-chart--tooltip-dataset-value`| The value at the end of a row, in bold tabular figures; that of the `comparison` row is in the normal weight.
 `.lovely-chart--tooltip-dataset-comparison`| The `comparison` row, in `--tooltip-muted-text-color` above a rule in `--tooltip-separator-color`.
 `.lovely-chart--tooltip-swatch`| The swatch of a row, in `--lovely-chart-series-color`, the colour of its dataset or line. With `data-dashed` or `data-dotted` it is a dashed or dotted outline.
 `.lovely-chart--tooltip-change[data-tone]`| The change of the `comparison` row, inside its value. `data-tone` is `positive` or `negative` for a rise or a fall, bold in `--tooltip-change-positive` or `--tooltip-change-negative`, and `neutral` for a change that rounds to 0%, which keeps the colour and weight of its value.
+`.lovely-chart--tooltip-notes`| The notes under the rows, the last child of the balloon, with a `<div>` per line, in `--tooltip-muted-text-color` under a rule in `--tooltip-separator-color`. Hidden while empty.
 
 #### Placing elements over the plot
 

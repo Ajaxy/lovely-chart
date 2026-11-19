@@ -200,6 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         label: 'Forecast',
         hasEdge: true,
         color: { light: '#108BE3', dark: '#48AAF0' },
+        note: 'Forecast',
       }],
     });
 

@@ -3,6 +3,7 @@
 import LovelyChart, {
   type ChartType, type Comparison, type DateLocale, type HatchedRange, type LabelType, type LovelyChartDatasetParams,
   type LovelyChartInstance, type LovelyChartParams, type ReferenceLine, type SecondaryYAxisConfig, type ThemedColor,
+  type TooltipNotes,
 } from 'lovely-chart';
 
 declare const element: HTMLElement;
@@ -16,6 +17,8 @@ const comparison: Comparison = { name: 'Previous period', values: [[1, null, 3]]
 const reference: ReferenceLine = { value: 0, color: 'transparent' };
 const surface: ThemedColor = { light: '#F5F6F7', dark: '#212A33' };
 const forecast: HatchedRange = { from: 1, to: 2, label: 'Forecast', hasEdge: true, isAccruing: false, color: surface };
+const estimate: HatchedRange = { from: 0, to: 0, note: 'Estimated\nFrom partial data', titleNote: 'est.' };
+const notes: TooltipNotes = { titleNote: 'upd. 14:05 UTC', notes: ['Today is still in progress'] };
 const dateLocale: DateLocale = { weekOf: 'Semana de' };
 const secondaryYAxis: SecondaryYAxisConfig = { label: 'x', multiplier: 1 };
 const type: ChartType = 'area';
@@ -30,11 +33,14 @@ const params: LovelyChartParams = {
   datasets,
   comparison,
   referenceLines: [reference, { value: 1200, label: 'Stall', color: surface }],
-  hatchedRanges: [forecast, { from: 0, to: 0, color: 'rgba(0, 0, 0, 0.5)' }],
+  hatchedRanges: [forecast, { from: 0, to: 0, color: 'rgba(0, 0, 0, 0.5)' }, estimate],
   isTooltipOrderFixed: true,
   isTooltipTotalInTitle: true,
   formatTooltipValue: (value) => value.toFixed(1),
   resolveTooltipTotal: (labelValue, datasetIndexes) => (datasetIndexes.length ? labelValue : null),
+  resolveTooltipNotes: (labelValue, datasetIndexes, labelIndex) => (
+    labelIndex === labels.length - 1 && datasetIndexes.length ? notes : undefined
+  ),
   isYAxisOutward: true,
   areLabelsContrast: true,
   noFloatSteps: true,

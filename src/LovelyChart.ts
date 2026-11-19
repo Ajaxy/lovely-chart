@@ -37,7 +37,7 @@ import { Zoomer } from './Zoomer.js';
 
 export type {
   ChartType, Comparison, DateLocale, HatchedRange, LabelType, LovelyChartDatasetParams, LovelyChartParams,
-  ReferenceLine, SecondaryYAxisConfig, ThemedColor,
+  ReferenceLine, SecondaryYAxisConfig, ThemedColor, TooltipNotes,
 } from './types.js';
 
 const REDRAW_DEBOUNCE_MS = 500;

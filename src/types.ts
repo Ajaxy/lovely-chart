@@ -97,6 +97,24 @@ export interface HatchedRange {
   hasEdge?: boolean;
   /** Marks a range whose values are still filling: a line or area chart starts its hatch halfway from the point before. */
   isAccruing?: boolean;
+  /**
+   * A note under the tooltip rows at each label of the range, split into lines at `\n`, before the notes of
+   * `resolveTooltipNotes`.
+   */
+  note?: string;
+  /**
+   * A note beside the tooltip title at each label of the range, unless `resolveTooltipNotes` or an earlier range
+   * gives one.
+   */
+  titleNote?: string;
+}
+
+/** Muted notes of a tooltip, which `resolveTooltipNotes` gives a label. */
+export interface TooltipNotes {
+  /** Text beside the title, after the date and before a title total. */
+  titleNote?: string;
+  /** Lines under the rows, wrapped to their width; a `\n` splits a line in two. */
+  notes?: string[];
 }
 
 /** The values of a previous period, drawn as one dashed line under the name of its legend entry. */
@@ -215,6 +233,12 @@ export interface LovelyChartParams {
    * reads this total too.
    */
   resolveTooltipTotal?: (labelValue: number, datasetIndexes: number[]) => number | null | undefined;
+  /**
+   * The notes of a tooltip, for the label's value (its timestamp, or the index of a text label), the indexes of the
+   * datasets on screen and the label's index. Its notes follow those of the `hatchedRanges` that hold the label, and
+   * its `titleNote` wins over theirs; ignored on pie and donut charts.
+   */
+  resolveTooltipNotes?: (labelValue: number, datasetIndexes: number[], labelIndex: number) => TooltipNotes | undefined;
   /** Draws line datasets as monotone curves through their values, never overshooting a value. */
   areLinesSmooth?: boolean;
   /** Opacity of an area fill, 0 to 1; the area's outline and dots keep full opacity. */
@@ -312,6 +336,7 @@ export interface AnalyzedData {
   isTooltipTotalInTitle?: boolean;
   formatTooltipValue?: LovelyChartParams['formatTooltipValue'];
   resolveTooltipTotal?: LovelyChartParams['resolveTooltipTotal'];
+  resolveTooltipNotes?: LovelyChartParams['resolveTooltipNotes'];
   areLinesSmooth?: boolean;
   areaOpacity?: number;
   areaBorderColor?: LovelyChartParams['areaBorderColor'];

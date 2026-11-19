@@ -7,7 +7,10 @@
 - `hatchedRanges`: runs of labels whose values are estimated, partial, still accruing or forecast, hatched across the plot and the minimap, `[{ from, to, label?, color?, hasEdge?, isAccruing? }]`. Bar and step charts hatch the columns of a range; line and area charts start the hatch at the point before it, or halfway from it with `isAccruing`, and end it halfway to the next label. The hatch goes under lines and over fills, and ranges of one colour that touch hatch as one band. Each range keeps its own `label`, drawn at the bottom left of its hatch where it fits, and `hasEdge`, a dashed rule where its hatch starts.
 - `HatchedRange` type.
 - `--tooltip-muted-text-color`, `--tooltip-separator-color` and `--tooltip-border`: the colour of the tooltip's `comparison` row, a mix of 70% `--text-color` and 30% `--tooltip-background` by default, the colour of the rule under it, `--grid-lines` by default, and a border of the balloon, `none` by default.
-- The README lists the classes of the tooltip that stay stable for the rules of a page: `.lovely-chart--tooltip-balloon`, `-title`, `-title-total`, `-dataset`, `-dataset-value`, `-dataset-comparison`, `-swatch` and `-change[data-tone]`.
+- The README lists the classes of the tooltip that stay stable for the rules of a page: `.lovely-chart--tooltip-balloon`, `-title`, `-title-total`, `-title-note`, `-dataset`, `-dataset-value`, `-dataset-comparison`, `-swatch`, `-change[data-tone]` and `-notes`.
+- `resolveTooltipNotes`: notes of the tooltip at a label, `(labelValue, datasetIndexes, labelIndex) => { titleNote?, notes? } | undefined`, in `--tooltip-muted-text-color`. A `titleNote` follows the date in `.lovely-chart--tooltip-title-note`, before a title total, and `notes` are lines below the rows in `.lovely-chart--tooltip-notes`, under a rule in `--tooltip-separator-color`, wrapped to the width of the rows. They change with the rows, for a pointer, a touch or `selectLabel()`; ignored on pie and donut charts.
+- `hatchedRanges[*].note` and `hatchedRanges[*].titleNote`: notes of the tooltip at each label of a range. Range notes come first, in range order, then those of `resolveTooltipNotes`; each splits into lines at `\n`, and a line shown already is left out. The `titleNote` of `resolveTooltipNotes` wins over a range's, and among ranges the first wins.
+- `TooltipNotes` type.
 
 ### Changed
 
