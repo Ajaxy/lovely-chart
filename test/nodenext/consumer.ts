@@ -11,7 +11,7 @@ declare const element: HTMLElement;
 const labels = [1, 2, 3];
 const datasets: LovelyChartDatasetParams[] = [
   { name: 'A', values: [1, null, 3], isDashed: true, isInitiallyHidden: false },
-  { name: 'B', values: [2, 1, null], isDotted: true },
+  { name: 'B', values: [2, 1, null], isDotted: true, type: 'line' },
 ];
 const comparison: Comparison = { name: 'Previous period', values: [[1, null, 3]] };
 const reference: ReferenceLine = { value: 0, color: 'transparent' };

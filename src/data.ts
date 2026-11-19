@@ -169,6 +169,8 @@ export function analyzeData(
     isBars: data.type === 'bar',
     isSteps: data.type === 'step',
     isAreas: data.type === 'area',
+    hasBars: datasets.some(({ type }) => type === 'bar'),
+    hasSteps: datasets.some(({ type }) => type === 'step'),
     isPie,
     isDonut,
     isCircle,
@@ -287,15 +289,18 @@ function prepareDatasets(
   datasetColors: Record<string, string> | undefined,
   fallbackColors: Record<string, string> | undefined,
 ): { labels: (number | string)[]; datasets: AnalyzedDataset[] } {
-  const { type, labels, datasets, hasSecondYAxis } = data;
+  const { type, labels, datasets, hasSecondYAxis, isPercentage } = data;
 
   const defaultColors = getDefaultColors(datasets.length);
   let nextDefaultColor = 0;
+  // The datasets of a percentage, pie or donut chart are shares of one whole, which takes the chart's type
+  const canTakeOwnType = !isPercentage && type !== 'pie' && type !== 'donut';
 
   return {
     labels: [...labels],
-    datasets: datasets.map(({ name, color, values, isInitiallyHidden, isDashed, isDotted }, i) => {
+    datasets: datasets.map(({ name, color, values, isInitiallyHidden, isDashed, isDotted, type: ownType }, i) => {
       const key = `y${i}`;
+      const datasetType = (canTakeOwnType && ownType) || type;
       const { min: yMin, max: yMax } = getMaxMin(values);
       const ownColor = datasetColors?.[key] || color;
       // A dataset with no colour of its own holds its place among the default colours under a fallback colour, so
@@ -303,7 +308,7 @@ function prepareDatasets(
       const defaultColor = ownColor ? undefined : defaultColors[nextDefaultColor++ % defaultColors.length];
 
       return {
-        type,
+        type: datasetType,
         key,
         name,
         color: ownColor || fallbackColors?.[key] || defaultColor!,
@@ -312,6 +317,7 @@ function prepareDatasets(
         isDashed,
         isDotted,
         hasOwnYAxis: hasSecondYAxis && i === datasets.length - 1,
+        hasOwnType: datasetType !== type,
         yMin,
         yMax,
       };

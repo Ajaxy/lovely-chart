@@ -339,7 +339,7 @@ export class Zoomer {
     // of `i` across `length - 1` intervals. Using the point grid for a column
     // chart leaves the selection overhanging its column by half a slot, which is
     // visible as a sliver of the neighbouring column inside the minimap slider.
-    if (data.isBars || data.isCircle) {
+    if (data.hasBars || data.isCircle) {
       return {
         begin: dayStart / xLabels.length,
         end: (dayEnd + 1) / xLabels.length,
@@ -363,10 +363,12 @@ export class Zoomer {
       ...this.#overviewData,
       type: this.#data.zoomType,
       labels: this.#overviewData.labels.slice(from, to),
-      datasets: this.#overviewData.datasets.map((dataset) => {
+      datasets: this.#overviewData.datasets.map((dataset, i) => {
+        const values = dataset.values.slice(from, to);
         return {
           ...dataset,
-          values: dataset.values.slice(from, to),
+          // A dataset of another type than the chart's is out of the total, so it takes no share
+          values: this.#data.datasets[i].hasOwnType ? values.map(() => 0) : values,
         };
       }),
     };

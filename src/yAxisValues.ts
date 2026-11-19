@@ -4,7 +4,7 @@ import { getComparisonValues } from './comparison.js';
 import { GAP } from './constants.js';
 import {
   calculateYAxisScale, ceilToStep, floorToStep, getConstantLabelStep, getYAxisRowCount, getYRangeBottom,
-  isConstantRange, yScaleLevelToStep,
+  isConstantRange, isInTotal, isZeroBasedAxis, yScaleLevelToStep,
 } from './formulas.js';
 import { getMaxMin } from './utils.js';
 
@@ -41,21 +41,25 @@ interface YAxisValue {
 export function listYAxisValues(data: AnalyzedData, plotHeight: number): YAxisValue[] {
   const { isStacked, noFloatSteps } = data;
   const length = data.xLabels.length;
-  const series = data.datasets.flatMap(({ values, hasOwnYAxis }, i): Series[] => (
-    hasOwnYAxis ? [] : [{ values, previousValues: data.comparison?.values[i] ?? [] }]
+  // A dataset of another type than the chart's stays out of the comparison and the stack
+  const series = data.datasets.flatMap(({ values, hasOwnYAxis, hasOwnType }, i): Series[] => (
+    hasOwnYAxis ? [] : [{ values, previousValues: hasOwnType ? [] : data.comparison?.values[i] ?? [] }]
   ));
+  const stackValues = data.datasets.filter(isInTotal).map(({ values }) => values);
+  // A stacked window always spans 0, as does a window of bars that share the axis with another type
+  const isZeroBased = isStacked || isZeroBasedAxis(data.datasets.filter(({ hasOwnYAxis }) => !hasOwnYAxis));
   const dataValues = series.flatMap(({ values }) => values.filter((value): value is number => value !== GAP));
   const references = data.referenceLines.map(({ value }) => value);
   const previousTotals = data.comparison ? getComparisonValues(data, data.datasets.map(() => 1)) : [];
   const { min = 0, max = 0 } = getMaxMin([
     ...dataValues,
-    // A stacked window always spans 0
-    ...(isStacked ? [0, ...listSubsetTotalBounds(series.map(({ values }) => values), length)] : []),
+    ...(isZeroBased ? [0] : []),
+    ...(isStacked ? listSubsetTotalBounds(stackValues, length) : []),
     ...references,
   ]);
   // The comparison line draws the previous total of the datasets on screen, which no subset takes past these bounds
   const comparison = getMaxMin(listSubsetTotalBounds(series.map(({ previousValues }) => previousValues), length));
-  const bottom = Math.min(isStacked ? min : getYRangeBottom(min, max), comparison.min ?? Infinity);
+  const bottom = Math.min(isZeroBased ? min : getYRangeBottom(min, max), comparison.min ?? Infinity);
   const top = Math.max(max, comparison.max ?? -Infinity);
 
   if (isConstantRange(bottom, top)) {
@@ -63,8 +67,8 @@ export function listYAxisValues(data: AnalyzedData, plotHeight: number): YAxisVa
   }
 
   const referenceBounds = { min: Math.min(...references), max: Math.max(...references) };
-  // A stacked window always spans 0, so its labels reach out from there
-  const narrowestRanges = isStacked
+  // A window that always spans 0 has labels that reach out from there
+  const narrowestRanges = isZeroBased
     ? new Map([[0, getNarrowestStackRange(series, dataValues, referenceBounds)]])
     : getNarrowestRanges(series, previousTotals, referenceBounds);
   const anchors = Float64Array.from(narrowestRanges.keys()).sort();
@@ -73,7 +77,7 @@ export function listYAxisValues(data: AnalyzedData, plotHeight: number): YAxisVa
   const rowCount = getYAxisRowCount(plotHeight);
   const finestLevel = calculateYAxisScale(plotHeight, 0, narrowestRange, noFloatSteps);
   const coarsestLevel = calculateYAxisScale(plotHeight, bottom, top, noFloatSteps);
-  const values = isStacked ? [] : listConstantValues(series, references, length).map(getConstantValue);
+  const values = isZeroBased ? [] : listConstantValues(series, references, length).map(getConstantValue);
   const reachedValues = new Float64Array(anchors.length);
 
   // Every step labels 0 when the range spans it, also where no other label of that step fits, each as `0`

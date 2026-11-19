@@ -276,6 +276,26 @@ document.addEventListener('DOMContentLoaded', () => {
       dateLocale: HEBREW_DATE_LOCALE,
       isTooltipTotalInTitle: true,
     });
+
+    // The monthly spending under a budget for each half of the year, drawn as dashed steps over the stack of bars. The
+    // budget stays out of the stack, the Total row of the tooltip and the shares of a zoomed month.
+    const spending = data[8];
+    const halfYearBudgets = [2800, 3000];
+    const monthsInHalfYear = 6;
+    new LovelyChart(container, {
+      ...spending,
+      title: 'Lovely Spending against a Budget',
+      datasets: [
+        ...spending.datasets,
+        {
+          name: 'Budget',
+          type: 'step',
+          color: '#2373DB',
+          values: spending.labels.map((_, i) => halfYearBudgets[Math.floor(i / monthsInHalfYear)]),
+          isDashed: true,
+        },
+      ],
+    });
   })();
 
   document.getElementById('skin-switcher').addEventListener('click', (e) => {

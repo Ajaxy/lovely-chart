@@ -18,7 +18,7 @@ import { chromium } from 'playwright-core';
 import { buildWideFont, WIDE_FONT_FAMILY } from './wideFont.js';
 
 // Demo charts rendered by docs/app.js
-const EXPECTED_CHARTS = 16;
+const EXPECTED_CHARTS = 17;
 const COMPARISON_CHART = 9;
 const LIMIT_CHART = 10;
 const SPARKLINE_CHART = 11;
@@ -82,6 +82,8 @@ const MAX_HATCH_ALPHA_GAP = 5;
 const DEFAULT_AXIS_FONT_SIZE = 10;
 // How far the channels of a hatch pixel over a clear canvas may stand from its colour, its low alpha rounding them
 const HATCH_COLOR_TOLERANCE = 12;
+// The least share of its pixels a line over a hatch keeps, its antialiased edges blending into the stripes
+const MIN_LINE_SHARE_OVER_HATCH = 0.97;
 // The width of a small phone, which the demo page fits
 const PHONE_WIDTH = 375;
 
@@ -2498,6 +2500,187 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   }
   check('the outward column of a stacked chart fits the stack alone, not the dataset on its own Y axis',
     ownAxisColumnEnds[0] === ownAxisColumnEnds[1], `column ends at ${ownAxisColumnEnds.join(' and ')}`);
+
+  // --- A dataset of another type than the chart's: a line over bars from 0, out of the stack, total and shares ---
+  // Bars alone start the main axis near their lowest value, while bars beside a line start it at 0. The line comes
+  // first in the datasets and runs inside every bar, so it shows only drawn over them.
+  const mixedLabels = Array.from({ length: 7 }, (_, i) => Date.UTC(2026, 10, 1 + i));
+  const mixedBars = { name: 'Daily', color: '#0000FF', values: [990, 1000, 985, 995, 980, 1000, 990] };
+  const mixedLine = { name: 'Average', color: '#FF0000', type: 'line', values: [940, 930, 950, 945, 935, 950, 940] };
+  const mixedConfig = { type: 'bar', labels: mixedLabels, datasets: [mixedLine, mixedBars] };
+  const readMainYLabels = async () => getLastFrameTexts(await readProbeTexts(page))
+    .filter(({ align }) => align === 'left')
+    .map(({ text }) => parseAxisLabel(text));
+  await recordProbeNumbers(page);
+  await mountProbe(page, { config: { ...mixedConfig, title: 'Probe — Bars alone', datasets: [mixedBars] } });
+  const barsAloneLabels = await readMainYLabels();
+  await unmountProbe(page);
+  await recordProbeNumbers(page);
+  const mixedChart = await mountProbe(page, { config: { ...mixedConfig, title: 'Probe — A line over bars' } });
+  const mixedLabelValues = await readMainYLabels();
+  const mixedLinePaint = await findColor(mixedChart, [255, 0, 0], CONSTANT_LINE_BAND, GRID_TINTED_COLOR_TOLERANCE);
+  const mixedBarsPaint = await findColor(mixedChart, [0, 0, 255]);
+  const mixedTooltip = await readProbeTooltip(page, 3);
+  const mixedFocusedBarsPaint = await findColor(mixedChart, [0, 0, 255]);
+  const mixedDots = {
+    line: await findColor(mixedChart.locator('.lovely-chart--tooltip'), [255, 0, 0]),
+    bars: await findColor(mixedChart.locator('.lovely-chart--tooltip'), [0, 0, 255]),
+  };
+  await unmountProbe(page);
+  check('bars beside a line start the main Y axis at 0, bars alone near their lowest value',
+    Math.min(...mixedLabelValues) === 0 && Math.min(...barsAloneLabels) > 0,
+    `beside a line ${JSON.stringify(mixedLabelValues)}, alone ${JSON.stringify(barsAloneLabels)}`);
+  check('a line of another type than the chart\'s draws over the bars, though it comes first in the datasets',
+    mixedLinePaint.count > 300, `${mixedLinePaint.count}px of the line`);
+  check('a line over bars takes the dot of a selected label, and the bars the mask around its column',
+    mixedTooltip.names.includes('Average') && mixedDots.line.count > 10 && mixedDots.bars.count === 0
+    && mixedFocusedBarsPaint.count < mixedBarsPaint.count / 2,
+    `dots: line ${mixedDots.line.count}px, bars ${mixedDots.bars.count}px; `
+    + `bars ${mixedBarsPaint.count}px, ${mixedFocusedBarsPaint.count}px focused`);
+
+  // The same values below 0 end the main axis at 0, from which the bars hang
+  const negateValues = (dataset) => ({ ...dataset, values: dataset.values.map((value) => -value) });
+  await recordProbeNumbers(page);
+  await mountProbe(page, {
+    config: { ...mixedConfig, title: 'Probe — Bars below 0', datasets: mixedConfig.datasets.map(negateValues) },
+  });
+  const negativeLabelValues = await readMainYLabels();
+  await unmountProbe(page);
+  check('bars below 0 beside a line end the main Y axis at 0',
+    Math.max(...negativeLabelValues) === 0 && Math.min(...negativeLabelValues) <= -Math.max(...mixedLabelValues),
+    `labels ${JSON.stringify(negativeLabelValues)}, above 0 ${JSON.stringify(mixedLabelValues)}`);
+
+  // A hatch goes over the bars and under the line, which keeps every pixel it has without the hatch
+  const mixedHatchedRanges = [{ from: 0, to: mixedLabels.length - 1, color: HATCH_COLOR }];
+  const mixedHatched = await mountProbe(page, {
+    config: { ...mixedConfig, title: 'Probe — A hatch between bars and a line', hatchedRanges: mixedHatchedRanges },
+  });
+  const hatchedLinePaint = await findColor(mixedHatched, [255, 0, 0], CONSTANT_LINE_BAND, GRID_TINTED_COLOR_TOLERANCE);
+  const hatchedBarPixels = await countPickedPixels(mixedHatched, BAR_HATCH_PIXEL);
+  await unmountProbe(page);
+  check('a hatch goes over bars and under a line of another type',
+    hatchedBarPixels > 1000 && hatchedLinePaint.count >= mixedLinePaint.count * MIN_LINE_SHARE_OVER_HATCH,
+    `${hatchedBarPixels}px of the hatch over the bars, ${hatchedLinePaint.count}px of the line under it, `
+    + `${mixedLinePaint.count}px without it`);
+
+  // A stack of 10 and 20 under a target of 60 drawn as a line, which the main axis reaches with the stack hidden too
+  const targetConfig = {
+    type: 'bar',
+    isStacked: true,
+    labels: mixedLabels,
+    datasets: [
+      { name: 'Low', color: '#0000FF', values: Array(7).fill(10) },
+      { name: 'High', color: '#00AA00', values: Array(7).fill(20) },
+      { name: 'Target', color: '#FF0000', type: 'line', values: Array(7).fill(60) },
+    ],
+  };
+  await recordProbeNumbers(page);
+  const targetChart = await mountProbe(page, { config: { ...targetConfig, title: 'Probe — Stack under a target' } });
+  const targetLabels = await readMainYLabels();
+  const targetPaint = await findColor(targetChart, [255, 0, 0], CONSTANT_LINE_BAND, GRID_TINTED_COLOR_TOLERANCE);
+  const targetTooltip = await readProbeTooltip(page, 3);
+  const targetTotal = await page.evaluate(() => (
+    document.querySelector('#probe [data-total="true"] .lovely-chart--tooltip-dataset-value')?.textContent
+  ));
+  await page.evaluate(() => window.probeChart.selectLabel(undefined));
+  await targetChart.locator('.lovely-chart--button').nth(0).click();
+  await targetChart.locator('.lovely-chart--button').nth(1).click();
+  await sleep(1000);
+  const targetAloneLabels = await readMainYLabels();
+  await unmountProbe(page);
+  check('a line of another type than a stacked chart\'s draws its own value beside the stack, on the main Y axis',
+    Math.max(...targetLabels) === 60 && targetPaint.count > 50 && Math.abs(targetPaint.meanY - PLOT_TOP) < 3,
+    `labels ${JSON.stringify(targetLabels)}, line ${targetPaint.count}px at ${targetPaint.meanY?.toFixed(1)}`);
+  check('the Total row of a stacked chart leaves out a dataset of another type',
+    targetTooltip.names.includes('Target') && targetTotal === '30',
+    `rows ${JSON.stringify(targetTooltip.names)}, total ${targetTotal}`);
+  check('a stacked chart spans 0 to the dataset of another type with the stack hidden',
+    Math.min(...targetAloneLabels) === 0 && Math.max(...targetAloneLabels) === 60,
+    `labels ${JSON.stringify(targetAloneLabels)}`);
+
+  // A zoom into shares leaves the target out of the pie
+  const targetShares = await mountProbe(page, {
+    config: { ...targetConfig, title: 'Probe — Shares under a target', zoomToShares: true, initialZoom: 3 },
+  });
+  const targetSharesPaint = {
+    target: await findColor(targetShares, [255, 0, 0]),
+    low: await findColor(targetShares, [0, 0, 255]),
+    high: await findColor(targetShares, [0, 170, 0]),
+  };
+  await unmountProbe(page);
+  check('a zoom into shares leaves a dataset of another type out of the pie',
+    targetSharesPaint.target.count === 0 && targetSharesPaint.low.count > 1000 && targetSharesPaint.high.count > 1000,
+    Object.entries(targetSharesPaint).map(([part, { count }]) => `${part} ${count}px`).join(', '));
+
+  // The comparison line and its change follow the dataset of the chart's type alone: 110 against 100
+  await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Comparison beside bars',
+      labels: mixedLabels,
+      datasets: [
+        { name: 'Visits', color: '#FF0000', values: Array(7).fill(110) },
+        { name: 'Orders', color: '#0000FF', type: 'bar', values: Array(7).fill(1000) },
+      ],
+      comparison: { name: 'Week before', values: [Array(7).fill(100), Array(7).fill(500)] },
+    },
+  });
+  const comparedTooltip = await readProbeTooltip(page, 3);
+  await unmountProbe(page);
+  check('the comparison and its change leave out a dataset of another type',
+    comparedTooltip.names.includes('Orders') && comparedTooltip.change.text === '+10%',
+    `rows ${JSON.stringify(comparedTooltip.names)}, change ${comparedTooltip.change.text}`);
+
+  // A percentage chart draws every dataset as a share of one whole, the one of another type included
+  await mountProbe(page, {
+    config: {
+      ...targetConfig,
+      type: 'area',
+      isStacked: false,
+      isPercentage: true,
+      title: 'Probe — Shares of every type',
+      datasets: targetConfig.datasets.slice(0, 2).map((dataset) => ({ ...dataset, type: 'line' })),
+    },
+  });
+  await readProbeTooltip(page, 3);
+  const typedShares = await page.evaluate(() => Object.fromEntries(
+    [...document.querySelectorAll('#probe .lovely-chart--tooltip-dataset[data-key]')].map((row) => (
+      [row.dataset.name, row.querySelector('.lovely-chart--percentage-title')?.textContent]
+    )),
+  ));
+  await unmountProbe(page);
+  check('a percentage chart ignores the type of a dataset', typedShares.Low === '33%' && typedShares.High === '67%',
+    JSON.stringify(typedShares));
+
+  // The outward column of bars and a line on one axis fits every label of windows from 0, and no wider, on either side
+  const mixedColumnLabels = Array.from({ length: 30 }, (_, i) => Date.UTC(2026, 0, 1 + i));
+  const mixedColumnBars = mixedColumnLabels.map((_, i) => 6100 + (i % 4) * 100);
+  const mixedColumnLine = mixedColumnLabels.map((_, i) => 6200 + i * 5);
+  for (const [side, sign] of [['above', 1], ['below', -1]]) {
+    await recordProbeNumbers(page);
+    const mixedColumnChart = await mountProbe(page, {
+      config: {
+        type: 'bar',
+        title: `Probe — Column, a line over bars ${side} 0`,
+        withMinimap: true,
+        isYAxisOutward: true,
+        labels: mixedColumnLabels,
+        datasets: [
+          { name: 'Daily', color: '#0000FF', values: mixedColumnBars.map((value) => sign * value) },
+          { name: 'Average', color: '#FF0000', type: 'line', values: mixedColumnLine.map((value) => sign * value) },
+        ],
+      },
+    });
+    await mixedColumnChart.scrollIntoViewIfNeeded();
+    await sweepProbe(page);
+    const mixedColumn = getYLabelColumn(await readProbeTexts(page));
+    await unmountProbe(page);
+    check(`an outward column of bars and a line ${side} 0 fits every label of its windows from 0, and no wider`,
+      mixedColumn.ends.length === 1 && mixedColumn.overflowing.length === 0
+      && mixedColumn.end - GUTTER - mixedColumn.widest < 1,
+      `ends at ${JSON.stringify(mixedColumn.ends)}, widest ${mixedColumn.widest.toFixed(2)}px, `
+      + `labels ${mixedColumn.texts.join(' ')}`);
+  }
 
   // --- A single label draws in a column centered in the plot, its X-axis label under it, whatever window the minimap
   // opens on, which spans the whole minimap ---

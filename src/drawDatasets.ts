@@ -7,9 +7,9 @@ import { getComparisonValues } from './comparison.js';
 import {
   CIRCLE_MINIMUM_VISIBLE_PERCENT, DONUT_INNER_RADIUS_FACTOR, GAP, NO_FOCUS, PLOT_BARS_WIDTH_SHIFT, PLOT_CIRCLE_SHIFT,
 } from './constants.js';
-import { areHatchesOverFills, drawHatchedRanges } from './drawHatchedRanges.js';
+import { drawHatchedRanges } from './drawHatchedRanges.js';
 import {
-  getCircleRadius, getCircleTextShift, getCircleTextSize, getDrawnPattern, isConstantRange,
+  getCircleRadius, getCircleTextShift, getCircleTextSize, getDrawnPattern, isConstantRange, isInTotal,
 } from './formulas.js';
 import { preparePoints } from './preparePoints.js';
 import { simplify } from './simplify.js';
@@ -67,19 +67,15 @@ export function drawDatasets(
   const areaBorder = isStack && areaBorderColor !== undefined ? new Path2D() : undefined;
   const leadRange = { from: 0, to: range.from - 1 };
   let leadPoints: Point[][] | undefined;
-  const isHatchOverFills = areHatchesOverFills(data);
 
-  if (data.hatchedRanges.length && !isHatchOverFills) {
-    drawHatchedRanges(context, data, projection, colors, !isMinimap);
-  }
-
-  data.datasets.forEach((dataset, i) => {
+  function drawDatasetAt(i: number) {
+    const dataset = data.datasets[i];
     if (!visibilities[i]) {
       return;
     }
 
     const { key, type, hasOwnYAxis, values } = dataset;
-    const isInStack = isStack && !hasOwnYAxis;
+    const isInStack = isStack && isInTotal(dataset);
     const pattern = getDrawnPattern(dataset);
     const options: DrawOptions = {
       color: getCssColor(colors, `dataset#${key}`),
@@ -133,6 +129,13 @@ export function drawDatasets(
     }
 
     drawDataset(datasetType, context, datasetPoints, datasetProjection, options);
+  }
+
+  // Lines and steps draw over the fills of bars and areas whatever the order of the datasets, and a hatch between them,
+  // where it shows over the fills and leaves the lines clear
+  const isStroked = data.datasets.map(({ type }) => type === 'line' || type === 'step');
+  isStroked.forEach((isDatasetStroked, i) => {
+    if (!isDatasetStroked) drawDatasetAt(i);
   });
 
   if (areaBorder) {
@@ -144,9 +147,13 @@ export function drawDatasets(
     context.restore();
   }
 
-  if (data.hatchedRanges.length && isHatchOverFills) {
+  if (data.hatchedRanges.length) {
     drawHatchedRanges(context, data, projection, colors, !isMinimap);
   }
+
+  isStroked.forEach((isDatasetStroked, i) => {
+    if (isDatasetStroked) drawDatasetAt(i);
+  });
 
   if (data.comparison) {
     const comparisonValues = getComparisonValues(data, visibilities);
@@ -170,14 +177,14 @@ export function drawDatasets(
     });
   }
 
-  if (state.focusOn !== undefined && state.focusOn !== NO_FOCUS && (data.isBars || data.isSteps)) {
+  if (state.focusOn !== undefined && state.focusOn !== NO_FOCUS && (data.hasBars || data.hasSteps)) {
     const [x0] = projection.toPixels(0, 0);
     const [x1] = projection.toPixels(1, 0);
 
     drawBarsMask(context, projection, {
       focusOn: state.focusOn as number,
       color: getCssColor(colors, 'mask'),
-      lineWidth: data.isSteps ? x1 - x0 + lineWidth : x1 - x0,
+      lineWidth: data.hasSteps ? x1 - x0 + lineWidth : x1 - x0,
     });
   }
 }

@@ -25,11 +25,6 @@ interface Band {
   color: string;
 }
 
-// A hatch under a fill would vanish, and one over lines would dim them, so over fills it takes the tone that still shows
-export function areHatchesOverFills(data: AnalyzedData) {
-  return data.isBars || data.isAreas;
-}
-
 // Touching ranges of one colour hatch as one band, and the stripes of every band keep the phase of the first label, so
 // they move with the data as the window pans
 export function drawHatchedRanges(
@@ -167,4 +162,9 @@ function mergeBands(bands: Band[]): Band[] {
   });
 
   return merged;
+}
+
+// A hatch under a fill would vanish, and one over lines would dim them, so over fills it takes the tone that still shows
+function areHatchesOverFills(data: AnalyzedData) {
+  return data.hasBars || data.isAreas;
 }

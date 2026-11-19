@@ -11,8 +11,8 @@ import {
   TRANSITION_DEFAULT_DURATION,
 } from './constants.js';
 import {
-  calculateYAxisScale, floorToStep, getPlotCircle, getYRangeBottom, isConstantRange, xStepToScaleLevel,
-  yScaleLevelToStep,
+  calculateYAxisScale, floorToStep, getPlotCircle, getYRangeBottom, isConstantRange, isInTotal, isZeroBasedAxis,
+  xStepToScaleLevel, yScaleLevelToStep,
 } from './formulas.js';
 import { TransitionManager } from './TransitionManager.js';
 import { getMaxMin, mergeProxied, throttleWithRaf } from './utils.js';
@@ -318,10 +318,11 @@ function calculateYRanges(
   prevState: ChartState,
 ): YRanges {
   const filteredDatasets = data.datasets.filter((d) => filter[d.key] && !d.hasOwnYAxis);
+  // The axis stays zero-based with its bars hidden, so it keeps 0 in view as the reader toggles them
+  const isZeroBased = isZeroBasedAxis(data.datasets.filter((d) => !d.hasOwnYAxis));
+  const referenceValues = [...data.referenceLines.map(({ value }) => value), ...(isZeroBased ? [0] : [])];
 
-  return calculateYRangesForGroup(
-    data, labelFromIndex, labelToIndex, prevState, filteredDatasets, data.referenceLines.map(({ value }) => value),
-  );
+  return calculateYRangesForGroup(data, labelFromIndex, labelToIndex, prevState, filteredDatasets, referenceValues);
 }
 
 function calculateSecondYRanges(
@@ -387,10 +388,14 @@ function calculateYRangesStacked(
   labelToIndex: number,
   prevState: ChartState,
 ): YRanges {
-  const filteredDatasets = data.datasets.filter((d) => filter[d.key] && !d.hasOwnYAxis);
+  const filteredDatasets = data.datasets.filter((d) => filter[d.key] && isInTotal(d));
   const filteredValues = filteredDatasets.map(({ values }) => values);
+  // A dataset of another type than the chart's draws its own values beside the stack, which spans 0 with it alone too
+  const ownTypeValues = data.datasets
+    .filter((d) => filter[d.key] && !d.hasOwnYAxis && d.hasOwnType)
+    .map(({ values }) => values);
 
-  const length = filteredValues[0] ? filteredValues[0].length : 0;
+  const length = [...filteredValues, ...ownTypeValues][0]?.length ?? 0;
   const posSums = new Array(length).fill(0);
   const negSums = new Array(length).fill(0);
   for (let i = 0; i < filteredValues.length; i++) {
@@ -409,11 +414,17 @@ function calculateYRangesStacked(
   const referenceValues = data.isShares ? [] : data.referenceLines.map(({ value }) => value);
   const viewportPosSums = posSums.slice(labelFromIndex, labelToIndex + 1);
   const viewportNegSums = negSums.slice(labelFromIndex, labelToIndex + 1);
+  const ownType = getMaxMin(ownTypeValues.flat());
+  const viewportOwnType = getMaxMin(ownTypeValues.flatMap((values) => values.slice(labelFromIndex, labelToIndex + 1)));
 
-  const { max: yMaxMinimap = prevState.yMaxMinimap } = extendMaxMin(getMaxMin(posSums), referenceValues);
-  const { min: yMinMinimap = prevState.yMinMinimap } = extendMaxMin(getMaxMin(negSums), referenceValues);
-  const { max: yMaxViewport = prevState.yMaxViewport } = extendMaxMin(getMaxMin(viewportPosSums), referenceValues);
-  const { min: yMinViewport = prevState.yMinViewport } = extendMaxMin(getMaxMin(viewportNegSums), referenceValues);
+  const { max: yMaxMinimap = prevState.yMaxMinimap }
+    = extendMaxMin(getMaxMin([...posSums, ownType.max]), referenceValues);
+  const { min: yMinMinimap = prevState.yMinMinimap }
+    = extendMaxMin(getMaxMin([...negSums, ownType.min]), referenceValues);
+  const { max: yMaxViewport = prevState.yMaxViewport }
+    = extendMaxMin(getMaxMin([...viewportPosSums, viewportOwnType.max]), referenceValues);
+  const { min: yMinViewport = prevState.yMinViewport }
+    = extendMaxMin(getMaxMin([...viewportNegSums, viewportOwnType.min]), referenceValues);
 
   return {
     yMinViewport,

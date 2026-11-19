@@ -94,6 +94,11 @@ export function getYRangeBottom(yMin: number, yMax: number): number {
   return yMin < 0 || yMin / yMax > Y_AXIS_ZERO_BASED_THRESHOLD ? yMin : 0;
 }
 
+// Bars that share an axis with another type rise from 0, so their heights compare with its values
+export function isZeroBasedAxis(datasets: AnalyzedDataset[]): boolean {
+  return datasets.some(({ type }) => type === 'bar') && datasets.some(({ type }) => type !== 'bar');
+}
+
 // A range whose ends differ by machine-precision noise around one value draws as constant: stretched to the full
 // height, that noise would draw as a trend
 export function isConstantRange(yMin: number, yMax: number): boolean {
@@ -157,6 +162,11 @@ export function applyXEdgeOpacity(opacity: number, yPx: number): number {
   return (yPx - GUTTER <= GUTTER * 2)
     ? Math.min(1, opacity, (yPx - GUTTER) / (GUTTER * 2))
     : opacity;
+}
+
+// The datasets of the chart's own type on the main Y axis make the total of a label, and the stack of a stacked chart
+export function isInTotal({ hasOwnYAxis, hasOwnType }: AnalyzedDataset): boolean {
+  return !hasOwnYAxis && !hasOwnType;
 }
 
 // Only a line or a step draws the pattern of a dashed or dotted dataset, and the dots of one that is both

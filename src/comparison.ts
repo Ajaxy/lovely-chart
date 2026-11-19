@@ -1,6 +1,7 @@
 import type { AnalyzedData, Filter } from './types.js';
 
 import { GAP } from './constants.js';
+import { isInTotal } from './formulas.js';
 import { getMaxMin } from './utils.js';
 
 interface ComparableRanges {
@@ -18,7 +19,7 @@ export function getComparisonValues(data: AnalyzedData, visibilities: number[]):
     let isAnyVisible = false;
 
     for (let i = 0; i < data.datasets.length; i++) {
-      if (!visibilities[i] || data.datasets[i].hasOwnYAxis) continue;
+      if (!visibilities[i] || !isInTotal(data.datasets[i])) continue;
 
       isAnyVisible = true;
       const value = data.comparison!.values[i]?.[index];

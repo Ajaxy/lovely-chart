@@ -8,7 +8,7 @@ import { clearCanvas, setupCanvas } from './canvas.js';
 import { getComparisonValues } from './comparison.js';
 import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, SPARKLINE_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { formatDayHourFull, formatInteger, getLabelDate, getLabelTime } from './format.js';
-import { getCircleRadius, getDrawnPattern, getVisibleLabelRange } from './formulas.js';
+import { getCircleRadius, getDrawnPattern, getVisibleLabelRange, isInTotal } from './formulas.js';
 import { addEventListener, createElement, removeEventListener } from './minifiers.js';
 import { getCssColor } from './skin.js';
 import { throttle, throttleWithRaf } from './utils.js';
@@ -379,11 +379,12 @@ export class Tooltip {
 
     const [xPx] = this.#projection!.toPixels(labelIndex, 0);
     const statistics: StatisticsItem[] = this.#data.datasets
-      .map(({ key, name, values, hasOwnYAxis }, i) => ({
-        key,
-        name,
-        value: getValue(values, labelIndex),
-        hasOwnYAxis,
+      .map((dataset, i) => ({
+        key: dataset.key,
+        name: dataset.name,
+        value: getValue(dataset.values, labelIndex),
+        hasOwnYAxis: dataset.hasOwnYAxis,
+        isInTotal: isInTotal(dataset),
         originalIndex: i,
       }))
       .filter(({ key }) => this.#state!.filter[key]);
@@ -396,11 +397,11 @@ export class Tooltip {
     }
 
     clearCanvas(this.#canvas, this.#context);
-    if (this.#data.isLines || this.#data.isAreas) {
-      if (this.#data.isLines) {
-        this.#drawCircles(statistics, labelIndex);
-      }
-
+    this.#drawCircles(
+      statistics.filter(({ originalIndex }) => this.#data.datasets[originalIndex].type === 'line'), labelIndex,
+    );
+    // Bars and steps mask the columns around the focused one in place of the tail
+    if (!this.#data.hasBars && !this.#data.hasSteps && !this.#data.isCircle) {
       const plotBottom = this.#plotSize.height - (this.#data.isSparkline ? SPARKLINE_PADDING : X_AXIS_HEIGHT);
       this.#drawTail(xPx, plotBottom, getCssColor(this.#colors, 'grid-lines'));
     }
@@ -525,7 +526,7 @@ export class Tooltip {
     if (hasTooltipTotal(this.#data)) {
       content.total = resolvedTotal !== undefined
         ? resolvedTotal
-        : statistics.reduce((sum, { value, hasOwnYAxis }) => (hasOwnYAxis ? sum : sum + (value ?? 0)), 0);
+        : statistics.reduce((sum, item) => (item.isInTotal ? sum + (item.value ?? 0) : sum), 0);
     }
 
     if (comparisonItem) {
@@ -551,13 +552,14 @@ export class Tooltip {
     const value = getComparisonValues(this.#data, visibilities)[labelIndex];
     const current = resolvedTotal !== undefined
       ? resolvedTotal
-      : statistics.reduce((sum, { value: itemValue, hasOwnYAxis }) => (hasOwnYAxis ? sum : sum + (itemValue ?? 0)), 0);
+      : statistics.reduce((sum, item) => (item.isInTotal ? sum + (item.value ?? 0) : sum), 0);
 
     return {
       key: 'comparison',
       name: comparison!.name,
       value,
       hasOwnYAxis: false,
+      isInTotal: false,
       originalIndex: -1,
       isComparison: true,
       comparisonChange: value !== GAP && value > 0 && current !== GAP ? (current / value - 1) * 100 : undefined,
@@ -759,8 +761,7 @@ export class Tooltip {
       }
     });
 
-    // The total is of the main Y axis, so the dataset on its own axis stays out of it
-    const totalValue = statistics.reduce((a, x) => (x.isComparison || x.hasOwnYAxis ? a : a + (x.value ?? 0)), 0);
+    const totalValue = statistics.reduce((a, x) => (x.isInTotal ? a + (x.value ?? 0) : a), 0);
     const pointerVector = this.#getPointerVector();
     // The comparison row stays first, its value missing or zero included
     const filteredStatistics = statistics.filter(({ value, isComparison }) => (

@@ -1,6 +1,7 @@
 import type { AnalyzedData, AnalyzedDataset, LabelRange, Point } from './types.js';
 
 import { GAP } from './constants.js';
+import { isInTotal } from './formulas.js';
 import { sumArrays } from './utils.js';
 
 export function preparePoints(
@@ -22,8 +23,8 @@ export function preparePoints(
     values = circleSums ? circleSums.map((sum) => [sum]) : prepareSumsByX(values);
   }
 
-  // The dataset on its own Y axis draws its own values, apart from the stack
-  const isInStack = datasets.map(({ hasOwnYAxis }) => (data.isStacked || data.isShares) && !hasOwnYAxis);
+  // A dataset on its own Y axis or of another type than the chart's draws its own values, apart from the stack
+  const isInStack = datasets.map((dataset) => (data.isStacked || data.isShares) && isInTotal(dataset));
   const points = values.map((datasetValues, i) => (
     datasetValues.map((value, j) => {
       const isGap = value === GAP;

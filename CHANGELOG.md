@@ -17,6 +17,7 @@
 - `onTooltipChange`: what the tooltip shows, `{ labelIndex, title, rows, total?, comparison? }`, reported on each change and as `undefined` once it shows nothing, for a readout of the page. `rows` lists each dataset on screen in the order of `datasets`, and `total` is the one the Total row shows, `resolveTooltipTotal`'s included.
 - `TooltipContent` type.
 - `--lovely-chart-balloon-display`: `none` hides the tooltip balloon alone, keeping the hover line, the dots, the focus of a bar and the reports of the selection, so a media query can swap the balloon for a readout.
+- `datasets[*].type`: draws a dataset as a `line`, `bar` or `step` whatever the chart's `type`, as a line over bars, apart from a percentage, pie or donut chart's. Lines and steps draw over bars and areas, with the hatch of `hatchedRanges` between them, and bars that share the main Y axis with another type keep 0 on it. A chart with bars or steps among its datasets gives every label a column and masks the columns around the focused one. A dataset of another type than the chart's draws its own values: it stays out of a stacked chart's stack, the tooltip's total, the `comparison` and the shares of a zoom into a label.
 
 ### Changed
 

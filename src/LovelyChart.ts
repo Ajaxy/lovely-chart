@@ -262,7 +262,7 @@ export default class LovelyChart {
       xPadding: this.#data.isSparkline ? SPARKLINE_PADDING : GUTTER,
       xInsetStart: labelColumnWidth !== undefined ? getPlotStart(labelColumnWidth) : undefined,
       yPadding: this.#data.isSparkline ? SPARKLINE_PADDING : PLOT_TOP_PADDING,
-      withColumns: this.#data.isBars || this.#data.isSteps || this.#data.isCircle,
+      withColumns: this.#data.hasBars || this.#data.hasSteps || this.#data.isCircle,
     };
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`] as number);
     const circleSums = this.#data.isCircle
@@ -426,7 +426,7 @@ export default class LovelyChart {
 
   // The report goes last, as its callback can update or destroy the chart
   readonly #onFocus = (focusOn: FocusOn) => {
-    if (this.#data.isBars || this.#data.isCircle || this.#data.isSteps) {
+    if (this.#data.hasBars || this.#data.isCircle || this.#data.hasSteps) {
       // TODO animate
       this.#stateManager!.update({ focusOn });
     }

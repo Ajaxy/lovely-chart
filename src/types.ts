@@ -59,6 +59,13 @@ export interface LovelyChartDatasetParams {
   isDashed?: boolean;
   /** Draws a line or step dataset in 2px dots 3px apart, `isDashed` or not, its legend button with a dotted outline. */
   isDotted?: boolean;
+  /**
+   * Draws the dataset as a line, bars or steps whatever the chart's `type`, as a line over bars; ignored on percentage,
+   * pie and donut charts. Lines and steps draw over bars and areas, and bars that share the main Y axis with another
+   * type keep 0 on it. A dataset of another type than the chart's draws its own values, out of a stacked chart's
+   * stack, and stays out of the tooltip's total, the comparison and the shares of a zoom into a label.
+   */
+  type?: 'line' | 'bar' | 'step';
 }
 
 /**
@@ -362,6 +369,8 @@ export interface AnalyzedDataset {
   isDashed?: boolean;
   isDotted?: boolean;
   hasOwnYAxis: boolean | undefined;
+  // Draws as another type than the chart's
+  hasOwnType: boolean;
   yMin: number | undefined;
   yMax: number | undefined;
 }
@@ -410,6 +419,9 @@ export interface AnalyzedData {
   isBars: boolean;
   isSteps: boolean;
   isAreas: boolean;
+  // Some dataset draws as bars or as steps, whatever the chart's type
+  hasBars: boolean;
+  hasSteps: boolean;
   isPie: boolean;
   isDonut: boolean;
   isCircle: boolean;
@@ -502,6 +514,8 @@ export interface StatisticsItem {
   name: string;
   value: number | null;
   hasOwnYAxis: boolean | undefined;
+  // Counts toward the total, unlike the comparison and a dataset on its own Y axis or of another type than the chart's
+  isInTotal: boolean;
   originalIndex: number;
   isComparison?: boolean;
   // Change of the current total against the comparison value, in percent
