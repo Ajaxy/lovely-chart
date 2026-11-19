@@ -77,6 +77,10 @@ const LEGEND_FILLS = {
 };
 // The middle of the plot, where the lines run clear of the axis labels at either side
 const CONSTANT_LINE_BAND = [0.2, 0.8];
+// How far each channel of a pixel may stand from a colour to count as it, and how far under the grid line of a Y
+// tick, whose tenth of the night skin's white lifts a 0 channel to 26
+const COLOR_TOLERANCE = 24;
+const GRID_TINTED_COLOR_TOLERANCE = 32;
 // The middle of the plot, where the dot of a single label sits
 const SINGLE_LABEL_BAND = [0.45, 0.55];
 // The plot of the default 320px canvas runs from under its top padding to over the X-axis band
@@ -251,23 +255,24 @@ function check(name, condition, details = '') {
 
 // Counts the pixels of the plot canvas close to `rgb`, thin antialiased strokes included, and averages their height.
 // `xBand` limits the count to a horizontal band of the canvas, as fractions of its width, clear of the axis labels.
-function findColor(locator, [r, g, b], xBand = [0, 1]) {
-  return locator.evaluate((el, [color, [bandStart, bandEnd]]) => {
+function findColor(locator, [r, g, b], xBand = [0, 1], tolerance = COLOR_TOLERANCE) {
+  return locator.evaluate((el, [color, [bandStart, bandEnd], tolerance]) => {
     const canvas = el.querySelector('canvas');
     const d = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
     let count = 0;
     let ySum = 0;
     for (let j = 0; j < d.length; j += 4) {
       const x = (j / 4) % canvas.width;
-      const isMatch = d[j + 3] > 100 && Math.abs(d[j] - color[0]) < 24 && Math.abs(d[j + 1] - color[1]) < 24
-        && Math.abs(d[j + 2] - color[2]) < 24 && x >= canvas.width * bandStart && x < canvas.width * bandEnd;
+      const isMatch = d[j + 3] > 100 && Math.abs(d[j] - color[0]) < tolerance
+        && Math.abs(d[j + 1] - color[1]) < tolerance && Math.abs(d[j + 2] - color[2]) < tolerance
+        && x >= canvas.width * bandStart && x < canvas.width * bandEnd;
       if (isMatch) {
         count++;
         ySum += Math.floor(j / 4 / canvas.width);
       }
     }
     return { count, meanY: count ? ySum / count / (canvas.height / canvas.clientHeight) : undefined };
-  }, [[r, g, b], xBand]);
+  }, [[r, g, b], xBand, tolerance]);
 }
 
 // Measures the dashes and gaps of a horizontal blue line on the canvas of an element, the margins and the end dashes
@@ -2130,8 +2135,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
         hasSecondYAxis: true,
       },
     });
-    const mainLine = await findColor(constantChart, [255, 0, 0], CONSTANT_LINE_BAND);
-    const secondLine = await findColor(constantChart, [0, 0, 255], CONSTANT_LINE_BAND);
+    // The grid line of their label runs over both lines, and a canvas drawn without a GPU, as on CI, blends the
+    // antialiased edges of the dashes into the main line under them, so a dash may only show under the grid line
+    const mainLine = await findColor(constantChart, [255, 0, 0], CONSTANT_LINE_BAND, GRID_TINTED_COLOR_TOLERANCE);
+    const secondLine = await findColor(constantChart, [0, 0, 255], CONSTANT_LINE_BAND, GRID_TINTED_COLOR_TOLERANCE);
     const labels = await readProbeNumberLabels(page);
     await unmountProbe(page);
     // A standard Y label sits half a gutter above its tick
