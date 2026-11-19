@@ -177,6 +177,9 @@ export class Zoomer {
       filter,
     });
 
+    // A zoom that closely follows the last one takes over its timeouts, which would end its transition early
+    clearTimeout(this.#swapDataTimeout);
+    clearTimeout(this.#stateAnimatingTimeout);
     this.#swapDataTimeout = window.setTimeout(() => {
       this.#swapDataTimeout = undefined;
       this.#applyZoomData(newData, shouldZoomToLines, zoomInLabel, false);

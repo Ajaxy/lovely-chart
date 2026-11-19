@@ -150,6 +150,10 @@ const LINES_ZOOM_LAST_LABEL_INDEX = 9;
 const HOUR_MS = 3_600_000;
 // The fewest pixels of its colour that show a dataset drawn on a canvas
 const MIN_DATASET_PIXELS = 100;
+// The time from a zoom out of a pie that the transition class holds through, short of the transition's end
+const QUICK_ZOOM_OUT_WATCH = 400;
+// The time between two zoom clicks, the second before the zoom of the first settles
+const DOUBLE_ZOOM_CLICK_GAP = 50;
 // The labels of a bar chart that a callback destroys or rebuilds, and the fewer labels it rebuilds it with
 const CALLBACK_CHART_LABELS = 30;
 const CALLBACK_UPDATE_LABELS = 5;
@@ -1031,6 +1035,113 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
   }
   await unmountProbe(page);
+
+  // A zoom out of a pie as soon as the zoom in allows it keeps its transition class to the end of the transition
+  const quickZoomOut = await page.evaluate(async ({ watch }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeChart = new LovelyChart(element, {
+      type: 'bar',
+      isStacked: true,
+      zoomToShares: true,
+      title: 'Probe — Quick zoom out',
+      labels: Array.from({ length: 20 }, (_, i) => Date.UTC(2029, 0, 1 + i)),
+      datasets: [
+        { name: 'A', values: Array.from({ length: 20 }, (_, i) => 300 + (i % 4) * 100) },
+        { name: 'B', values: Array.from({ length: 20 }, (_, i) => 500 + (i % 3) * 100) },
+      ],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    const container = element.querySelector('.lovely-chart--container');
+    const plot = element.querySelector('.lovely-chart--tooltip');
+    const { left, top, width, height } = plot.getBoundingClientRect();
+    const pointer = { bubbles: true, clientX: left + width / 2, clientY: top + height / 2 };
+    plot.dispatchEvent(new MouseEvent('mousemove', pointer));
+    plot.dispatchEvent(new MouseEvent('click', pointer));
+    // The zoom out control takes a click once the zoom in binds it, and the click leaves the zoomed-in state
+    const zoomOutStart = await new Promise((resolve) => {
+      const clickZoomOut = () => {
+        if (!container.classList.contains('lovely-chart--state-zoomed-in')) {
+          resolve(performance.now());
+          return;
+        }
+        element.querySelector('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)')?.click();
+        requestAnimationFrame(clickZoomOut);
+      };
+      requestAnimationFrame(clickZoomOut);
+    });
+    const frames = [];
+    await new Promise((resolve) => {
+      const readFrame = () => {
+        frames.push(container.classList.contains('lovely-chart--state-animating'));
+        if (performance.now() - zoomOutStart < watch) {
+          requestAnimationFrame(readFrame);
+        } else {
+          resolve();
+        }
+      };
+      requestAnimationFrame(readFrame);
+    });
+
+    return { frames: frames.length, framesWithoutTransition: frames.filter((isAnimating) => !isAnimating).length };
+  }, { watch: QUICK_ZOOM_OUT_WATCH });
+  await unmountProbe(page);
+  check('a zoom out right after the zoom in keeps its transition to the end',
+    quickZoomOut.frames > 0 && quickZoomOut.framesWithoutTransition === 0, JSON.stringify(quickZoomOut));
+
+  // A second zoom click before the zoom of the first settles leaves the chart zoomed in, with no page error: stacked bars
+  // zoomed to shares, and lines zoomed by `onZoom`
+  const doubleZoomCharts = [
+    {
+      name: 'zoomToShares stacked bars',
+      mount: () => mountProbe(page, {
+        config: {
+          type: 'bar',
+          isStacked: true,
+          zoomToShares: true,
+          title: 'Probe — Double zoom click',
+          labels: Array.from({ length: 20 }, (_, i) => Date.UTC(2029, 0, 1 + i)),
+          datasets: [
+            { name: 'A', values: Array.from({ length: 20 }, (_, i) => 300 + (i % 4) * 100) },
+            { name: 'B', values: Array.from({ length: 20 }, (_, i) => 500 + (i % 3) * 100) },
+          ],
+        },
+      }),
+    },
+    {
+      name: 'onZoom lines',
+      mount: () => mountLinesZoom(page, {
+        overview: [{ name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }],
+        zoomed: [{ name: 'Blue', color: '#0000FF' }, { name: 'Magenta', color: '#FF00FF' }],
+      }),
+    },
+  ];
+  for (const { name, mount } of doubleZoomCharts) {
+    const pageErrorsBefore = errors.filter((error) => error.startsWith('[pageerror]')).length;
+    const doubleZoomChart = await mount();
+    await doubleZoomChart.evaluate(async (container, gap) => {
+      const plot = container.querySelector('.lovely-chart--tooltip');
+      const { left, top, width, height } = plot.getBoundingClientRect();
+      // A pointer moves before each click, which lets the tooltip take the second one
+      const clickAt = (fx) => {
+        const pointer = { bubbles: true, clientX: left + width * fx, clientY: top + height / 2 };
+        plot.dispatchEvent(new MouseEvent('mousemove', pointer));
+        plot.dispatchEvent(new MouseEvent('click', pointer));
+      };
+      clickAt(0.9);
+      await new Promise((resolve) => setTimeout(resolve, gap));
+      clickAt(0.85);
+    }, DOUBLE_ZOOM_CLICK_GAP);
+    await sleep(2000);
+    const isZoomedIn = (await doubleZoomChart
+      .locator('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').count()) > 0;
+    const doubleZoomErrors = errors.filter((error) => error.startsWith('[pageerror]')).slice(pageErrorsBefore);
+    await unmountProbe(page);
+    check(`two zoom clicks ${DOUBLE_ZOOM_CLICK_GAP}ms apart zoom ${name} in with no page error`,
+      isZoomedIn && !doubleZoomErrors.length, `zoomed in: ${isZoomedIn}, ${doubleZoomErrors.join('; ').slice(0, 200)}`);
+  }
 
   // A rebuild returns a zoomed chart to its overview, which `onZoomChange` reports
   const mountZoomedShares = () => page.evaluate(async () => {
