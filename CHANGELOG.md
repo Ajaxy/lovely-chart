@@ -62,6 +62,7 @@
 - The tooltip balloon takes its place from the width of the content it shows, so one opened by a tap or a single pointer move near the right edge stays inside a chart wider than it, beside its label.
 - The tooltip of a stacked bar, step or area chart with `secondaryYAxis` keeps its Total row, with the total on the secondary scale on a row of its own under it.
 - Y-axis labels read left to right on a right-to-left page, each sign before its digits.
+- A long tooltip title stops short of the zoom chevron and the loading spinner instead of running under them.
 
 ## 2.0.6
 

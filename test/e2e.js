@@ -146,6 +146,8 @@ const TOOLTIP_ROW_COLORS = [
   '#5D5CDC', '#8E44AD', '#16A085', '#C0392B', '#2C3E50', '#D35400',
 ];
 const DEFAULT_COMPARISON_COLOR = '#6B7280';
+// Text labels too long for the tooltip title to fit on one line beside the zoom chevron
+const LONG_TITLE_LABELS = Array.from({ length: 8 }, (_, i) => `A rather long text label number ${i}`);
 
 // The first colour of the default palette, which the first dataset without a colour of its own takes
 const DEFAULT_PALETTE_COLOR = '#3497ED';
@@ -3329,6 +3331,50 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('the title total of a zoomable balloon stops short of the zoom chevron',
     overviewTotals.chevronStart !== undefined && overviewTotals.totalEnd <= overviewTotals.chevronStart,
     JSON.stringify(overviewTotals));
+
+  // A zoom that never resolves holds the balloon on its spinner
+  await page.evaluate(async (labels) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeChart = new LovelyChart(element, {
+      type: 'line',
+      title: 'Probe — Long tooltip title',
+      labelType: 'text',
+      labels,
+      datasets: [{ name: 'A', values: labels.map((_, i) => i + 1) }],
+      onZoom: () => new Promise(() => {}),
+    });
+  }, LONG_TITLE_LABELS);
+  await sleep(1800);
+  const readLongTitle = () => page.evaluate(() => {
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    const title = balloon.querySelector('.lovely-chart--tooltip-title');
+    const text = document.createRange();
+    text.selectNodeContents(title);
+    const chevron = getComputedStyle(title, '::after');
+    const spinner = balloon.querySelector('.lovely-chart--spinner');
+
+    return {
+      textEnd: Math.max(...[...text.getClientRects()].map(({ right }) => right)),
+      chevronStart: chevron.display === 'none'
+        ? undefined
+        : title.getBoundingClientRect().right - parseFloat(chevron.width),
+      spinnerStart: getComputedStyle(spinner).display === 'none' ? undefined : spinner.getBoundingClientRect().left,
+    };
+  });
+  await page.evaluate(() => window.probeChart.selectLabel(3));
+  await sleep(300);
+  const zoomableTitle = await readLongTitle();
+  await page.locator('#probe .lovely-chart--tooltip-balloon').click();
+  await sleep(300);
+  const loadingTitle = await readLongTitle();
+  await unmountProbe(page);
+  check('a long tooltip title stops short of the zoom chevron and the loading spinner',
+    zoomableTitle.chevronStart !== undefined && zoomableTitle.textEnd <= zoomableTitle.chevronStart
+    && loadingTitle.spinnerStart !== undefined && loadingTitle.textEnd <= loadingTitle.spinnerStart,
+    JSON.stringify({ zoomableTitle, loadingTitle }));
 
   // The total on the scale of `secondaryYAxis` scales the total `resolveTooltipTotal` gives. A function cannot cross
   // into the page, so the page builds the chart with the total it is given.

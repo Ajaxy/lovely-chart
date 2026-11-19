@@ -43,12 +43,11 @@
     }
   }
 
-  // The title total keeps clear of the chevron of a zoomable balloon and the spinner of a loading one, which sit at
-  // the end of the title
+  // The chevron of a zoomable balloon and the spinner of a loading one sit at the end of the title
   &:not(.lovely-chart--state-inactive),
   &.lovely-chart--state-loading {
-    .lovely-chart--tooltip-title-total {
-      margin-inline-end: 16px;
+    .lovely-chart--tooltip-title {
+      padding-inline-end: 16px;
     }
   }
 
