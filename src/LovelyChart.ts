@@ -7,6 +7,7 @@ import { Axes } from './Axes.js';
 import { clearCanvas, setupCanvas } from './canvas.js';
 import {
   GUTTER,
+  PLOT_BARS_WIDTH_SHIFT,
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
   PLOT_TOP_PADDING,
@@ -50,6 +51,7 @@ const PLOT_AREA_PROPERTIES: [keyof Rect, string][] = [
   ['width', '--lovely-chart-plot-area-width'],
   ['height', '--lovely-chart-plot-area-height'],
 ];
+const PLOT_PADDING_TOP_PROPERTY = '--lovely-chart-plot-padding-top';
 
 export default class LovelyChart {
   readonly #container: HTMLElement;
@@ -64,6 +66,7 @@ export default class LovelyChart {
   #plotArea?: Rect;
   // The data area in px of the padding box of the element, as last written to it
   #placedPlotArea?: Rect;
+  #reportedPlotArea?: Rect;
 
   #header?: Header;
   #axes?: Axes;
@@ -165,6 +168,28 @@ export default class LovelyChart {
     this.#zoomer?.releaseSize();
   }
 
+  /**
+   * The x of the label at `labelIndex` in px from the left of the plot area, in the range and the zoom the chart shows
+   * or is moving to: where its value draws, at its point or the centre of its bar or step column. `offset`, from 0 to 1,
+   * takes that fraction through the label's interval instead: from its point to the next one on line and area charts,
+   * and across its column from its start on charts with bars or steps among their datasets. `undefined` outside the
+   * visible range, before the first paint, on pie and donut charts and while zoomed into shares.
+   */
+  getLabelX(labelIndex: number, offset?: number): number | undefined {
+    if (!this.#placedPlotArea || this.#data.isCircle || this.#zoomer?.isZoomedIntoShares()) return undefined;
+
+    // A zoom swaps the data and sets the range it moves to at once, ahead of the frames that draw them
+    const state = this.#stateManager!.getState();
+    const { from, to } = getVisibleLabelRange(state);
+    if (!Number.isInteger(labelIndex) || labelIndex < from || labelIndex > to) return undefined;
+
+    const projection = new Projection(this.#buildProjectionParams(state, this.#axes!.getLabelColumnWidth()));
+    // A column starts half a label before its label, which draws at its centre
+    const columnShift = this.#data.hasBars || this.#data.hasSteps ? PLOT_BARS_WIDTH_SHIFT : 0;
+
+    return projection.toPixels(labelIndex - columnShift + (offset ?? columnShift), 0)[0] - projection.getArea().left;
+  }
+
   destroy() {
     if (this.#isDestroyed) return;
     this.#isDestroyed = true;
@@ -185,6 +210,10 @@ export default class LovelyChart {
 
     this.#destroyComponents();
     PLOT_AREA_PROPERTIES.forEach(([, property]) => this.#container.style.removeProperty(property));
+    this.#container.style.removeProperty(PLOT_PADDING_TOP_PROPERTY);
+    if (this.#reportedPlotArea) {
+      this.#originalData.onPlotAreaChange?.(undefined);
+    }
   }
 
   #setupComponents(nextSibling?: Node) {
@@ -209,7 +238,7 @@ export default class LovelyChart {
     this.#zoomer = this.#data.isZoomable
       ? new Zoomer(
         this.#data, this.#originalData, this.#colors, this.#stateManager,
-        this.#element!, this.#plotSize!, this.#header, this.#minimap, this.#tooltip, this.#tools,
+        this.#element!, this.#plotSize!, this.#header, this.#minimap, this.#tooltip, this.#tools, this.#onZoomStart,
       )
       : undefined;
   }
@@ -289,19 +318,7 @@ export default class LovelyChart {
       from: state.labelFromIndex,
       to: state.labelToIndex,
     };
-    const boundsAndParams: ProjectionParams = {
-      begin: state.begin,
-      end: state.end,
-      lastLabelIndex: state.lastLabelIndex,
-      yMin: state.yMinViewport,
-      yMax: state.yMaxViewport,
-      availableWidth: this.#plotSize!.width,
-      availableHeight: this.#plotSize!.height - (this.#data.isSparkline ? SPARKLINE_PADDING : X_AXIS_HEIGHT),
-      xPadding: this.#data.isSparkline ? SPARKLINE_PADDING : GUTTER,
-      xInsetStart: labelColumnWidth !== undefined ? getPlotStart(labelColumnWidth) : undefined,
-      yPadding: this.#data.isSparkline ? SPARKLINE_PADDING : PLOT_TOP_PADDING,
-      withColumns: this.#data.hasBars || this.#data.hasSteps || this.#data.isCircle,
-    };
+    const boundsAndParams = this.#buildProjectionParams(state, labelColumnWidth);
     const visibilities = datasets.map(({ key }) => state[`opacity#${key}`] as number);
     const circleSums = this.#data.isCircle
       ? datasets.map(({ key }) => state[`circleSum#${key}`] as number)
@@ -363,6 +380,7 @@ export default class LovelyChart {
     }
     this.#minimap?.update(state);
     this.#tooltip!.update(state, points, projection, secondaryPoints, secondaryProjection);
+    this.#reportPlotArea();
 
     // The state callback is rAF-deferred, so this is the earliest point where both
     // `this.#state` and `this.#zoomer` exist — the start-zoom fires here, not in setup
@@ -371,6 +389,22 @@ export default class LovelyChart {
       this.#zoomer.zoomIn(state, this.#data.initialZoomIndex, true);
     }
   };
+
+  #buildProjectionParams(state: ChartState, labelColumnWidth: number | undefined): ProjectionParams {
+    return {
+      begin: state.begin,
+      end: state.end,
+      lastLabelIndex: state.lastLabelIndex,
+      yMin: state.yMinViewport,
+      yMax: state.yMaxViewport,
+      availableWidth: this.#plotSize!.width,
+      availableHeight: this.#plotSize!.height - (this.#data.isSparkline ? SPARKLINE_PADDING : X_AXIS_HEIGHT),
+      xPadding: this.#data.isSparkline ? SPARKLINE_PADDING : GUTTER,
+      xInsetStart: labelColumnWidth !== undefined ? getPlotStart(labelColumnWidth) : undefined,
+      yPadding: this.#data.isSparkline ? SPARKLINE_PADDING : PLOT_TOP_PADDING,
+      withColumns: this.#data.hasBars || this.#data.hasSteps || this.#data.isCircle,
+    };
+  }
 
   // The element carries the data area for overlays of the page, measured only when it changes, as on a build or a
   // zoom into data of another label column, or when the layout of the chart resizes
@@ -393,6 +427,18 @@ export default class LovelyChart {
     PLOT_AREA_PROPERTIES.forEach(([key, property]) => {
       this.#container.style.setProperty(property, `${placedArea[key]}px`);
     });
+    this.#container.style.setProperty(
+      PLOT_PADDING_TOP_PROPERTY, `${this.#data.isSparkline ? SPARKLINE_PADDING : PLOT_TOP_PADDING}px`,
+    );
+  }
+
+  // The report goes last, as its callback can update or destroy the chart
+  #reportPlotArea() {
+    const area = this.#placedPlotArea;
+    if (!area || area === this.#reportedPlotArea) return;
+
+    this.#reportedPlotArea = area;
+    this.#originalData.onPlotAreaChange?.({ ...area });
   }
 
   // The canvas origin in the padding box of the element. The layout offset of the canvas leaves out the transform
@@ -480,6 +526,11 @@ export default class LovelyChart {
     this.#zoomer!.zoomOut(this.#state!);
   };
 
+  // A zoom moves the labels under an area it can leave as it is
+  readonly #onZoomStart = () => {
+    this.#originalData.onPlotAreaChange?.({ ...this.#placedPlotArea! });
+  };
+
   readonly #onSystemSchemeChange = () => {
     if (this.#data.colorScheme !== 'system') return;
     this.refreshColors();
@@ -494,6 +545,7 @@ export default class LovelyChart {
   readonly #onLayoutResize = () => {
     if (this.#isDestroyed || !this.#plotArea) return;
     this.#placePlotArea();
+    this.#reportPlotArea();
   };
 
   // A web font that arrives after the build changes the width of the Y-axis labels the column was measured for, and

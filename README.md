@@ -46,7 +46,7 @@ chart.destroy();
 ```
 
 #### Constructor arguments
-- `element` — DOM node in which the chart is rendered. The chart layout resizes automatically to occupy the entire available width. The chart sets the `--lovely-chart-plot-area-*` CSS variables on it; of several charts in one element, they describe the one that wrote them last.
+- `element` — DOM node in which the chart is rendered. The chart layout resizes automatically to occupy the entire available width. The chart sets the `--lovely-chart-plot-area-*` and `--lovely-chart-plot-padding-top` CSS variables on it; of several charts in one element, they describe the one that wrote them last.
 - `data` — Parameters for a chart.
 
 #### Instance methods
@@ -58,7 +58,8 @@ Method | Description |
 `selectLabel(labelIndex)` | Selects the label at `labelIndex` as hovering it would: shows its tooltip, focuses its bar and calls `onSelectedIndexChange` and `onTooltipChange`. The selection holds while the pointer moves elsewhere on the page and follows its label through a range change; the pointer over the chart takes it over, and it clears once its label leaves the visible range. `selectLabel(undefined)` clears the selection. Ignored for an index outside the visible range, on pie and donut charts and before the first paint, the frame after the chart is created or updated. No-op after `destroy()`.
 `refreshColors()` | Reads the `var()` colours of the params again and repaints the chart in them in place, keeping its zoom, range, legend filter and selection: for custom properties that the page changes on another trigger than the skin, such as a `data-theme` attribute. A change of the skin reads them by itself, as [Colours](#colours) describes. No-op after `destroy()`.
 `setLegendContainer(element)` | Moves the legend into `element`, or back to the end of the chart with `undefined`, without a rebuild: its buttons keep the datasets they hide, and the chart keeps its zoom, range and selection. The legend takes its [spacing variables](#spacing-the-chart) from its new place, and stays there through a zoom, a resize and an orientation change; `update()` places it by the `legendContainer` of its new data. The element that held it keeps nothing of the chart, and a call with the element that holds it leaves it in place among the elements of the page. No-op after `destroy()`.
-`destroy()` | Tears down the chart: removes the DOM subtree from `element` and the `--lovely-chart-plot-area-*` variables from its style, detaches all global listeners (window `resize` / `orientationchange`, document `mousemove` / `touchstart` and those of a drag in progress, theme `MutationObserver`, layout `ResizeObserver`, the `prefers-color-scheme` media query `change`, `document.fonts` `loadingdone`), cancels pending animation frames and timeouts, and calls back nothing after it. Idempotent. Call this from your framework's cleanup hook (e.g. React `useEffect` cleanup) to avoid resource leaks.
+`getLabelX(labelIndex, offset?)` | The x of the label at `labelIndex` in px from the left of the plot area the `--lovely-chart-plot-area-*` variables describe, in the current view: where its value draws, at its point on a `line` or `area` chart and at the centre of its column on a `bar` or `step` chart. `offset`, from 0 to 1, takes that fraction through the label's interval instead: from its point to the next one on a `line` or `area` chart, where `0` is the point, and across its column on a `bar` or `step` chart, or one with bars or steps among its datasets, where `0` is its start and `0.5` its centre. It reads the range and the zoom the chart is moving to, so through the transition of a pan or a zoom it gives where the label ends up, and once a zoom into the data `onZoom` returns swaps that data in, as `onZoomChange` reports, it maps that data's labels. A panned window runs past the plot area, so a label at its edge can map below 0 or past the area's width. Returns `undefined` for an index outside the visible range, before the first paint, on pie and donut charts, a zoom into shares from its start included, and after `destroy()`.
+`destroy()` | Tears down the chart: removes the DOM subtree from `element` and the `--lovely-chart-plot-area-*` and `--lovely-chart-plot-padding-top` variables from its style, calling `onPlotAreaChange` with `undefined`, detaches all global listeners (window `resize` / `orientationchange`, document `mousemove` / `touchstart` and those of a drag in progress, theme `MutationObserver`, layout `ResizeObserver`, the `prefers-color-scheme` media query `change`, `document.fonts` `loadingdone`), cancels pending animation frames and timeouts, and calls back nothing after it. Idempotent. Call this from your framework's cleanup hook (e.g. React `useEffect` cleanup) to avoid resource leaks.
 
 #### Data parameters
 
@@ -115,6 +116,7 @@ Parameter | Description |
 `areaOpacity`| Opacity of an `area` fill, from 0 to 1; the outline and dots keep full opacity. Default `1`.
 `areaBorderColor`| Colour of a 1px outline around each area, and around each run of an area split at a gap: any CSS colour or `{ light, dark }`. A stack draws a boundary two areas share once.
 `legendContainer`| Element that holds the legend, in place of the chart container; `setLegendContainer()` moves the legend later. The legend takes its [spacing variables](#spacing-the-chart) from this element and its ancestors.
+`onPlotAreaChange`| Optional function called with the plot area, `{ left, top, width, height }` in px from the inside of the border of `element`, whenever the chart writes the `--lovely-chart-plot-area-*` variables: on its first paint and at each change their row under "CSS variables" lists. It is also called as a zoom in or out starts to move the plot, once the data `onZoom` returns arrives, since a zoom moves the labels `getLabelX()` maps under an area it can leave as it is, and with `undefined` as `destroy()` removes the variables.
 
 #### Colours
 
@@ -303,6 +305,7 @@ Variable | Description |
 `--lovely-chart-balloon-z-index`| The `z-index` of the tooltip balloon, read from the chart element or an ancestor. Default `auto`, so an overlay added after the chart paints over the balloon. A value above the `z-index` of such an overlay places the overlay between the hover line and the balloon: see [Placing elements over the plot](#placing-elements-over-the-plot).
 `--lovely-chart-balloon-display`| The `display` of the tooltip balloon, read from the chart element or an ancestor: `block` by default. `none` hides the balloon alone and keeps the rest of a selection, the hover line and dots, the focus of a bar and the calls of `onSelectedIndexChange` and `onTooltipChange`, so a media query can swap the balloon for a readout of the page. A touch screen zooms by a tap on the balloon, so there `none` takes that zoom away too.
 `--lovely-chart-plot-area-left`, `--lovely-chart-plot-area-top`, `--lovely-chart-plot-area-width`, `--lovely-chart-plot-area-height`| Set by the chart on `element`, as px lengths from the inside of its border: the data area of the plot, where a window over every label and the Y range draw. It runs from the start of the plot, after an `isYAxisOutward` column, to its end, and from the top of the Y range to the X-axis baseline. A pie or donut sets the square around its circle, and a sparkline its plot inset by 2px. The chart sets them from its first paint, the frame after it is created, and rewrites them when the area changes: on `update()`, a resize or an orientation change, a zoom into data of another label column or into a pie, when a web font of the page changes the axis font, and when a style of the page moves the plot by resizing the chart's layout, as a header folded while its caption is empty. `destroy()` removes them.
+`--lovely-chart-plot-padding-top`| Set by the chart on `element` beside the `--lovely-chart-plot-area-*` variables, and removed with them: the room in the plot above the top of the Y range, `15px`, or `2px` on a sparkline, for marks that rise above the data.
 
 #### Styling the tooltip
 
@@ -379,6 +382,48 @@ An overlay added after the chart can sit over the hover line and under the ballo
 .chart-overlay {
   z-index: 1;
 }
+```
+
+An element at a label, such as a marker or an annotation, takes its x from `getLabelX()` whenever `onPlotAreaChange` or `onZoomChange` fires, and hides where the label has no x: outside the visible range, and from the start of a zoom into shares. The data `onZoom` returns brings labels of its own once the zoom settles, as `onZoomChange` reports, so a marker at a label of the overview hides from then until the zoom out settles. A pan of the minimap moves the labels with no call, as the area holds still.
+
+```css
+.chart-marker {
+  position: absolute;
+  /* Rises over the data into the room above the Y range */
+  top: calc(var(--lovely-chart-plot-area-top) - var(--lovely-chart-plot-padding-top));
+  height: calc(var(--lovely-chart-plot-area-height) + var(--lovely-chart-plot-padding-top));
+  border-left: 1px dashed currentColor;
+  pointer-events: none;
+}
+```
+
+```js
+const marker = document.createElement('div');
+marker.className = 'chart-marker';
+marker.hidden = true;
+element.appendChild(marker);
+
+let plotArea;
+let isZoomedIn = false;
+const placeMarker = () => {
+  const x = plotArea && !isZoomedIn ? chart.getLabelX(markerIndex) : undefined;
+  marker.hidden = x === undefined;
+  if (x !== undefined) {
+    marker.style.left = `${plotArea.left + x}px`;
+  }
+};
+
+const chart = new LovelyChart(element, {
+  ...params,
+  onPlotAreaChange: (area) => {
+    plotArea = area;
+    placeMarker();
+  },
+  onZoomChange: (labelValue) => {
+    isZoomedIn = labelValue !== undefined;
+    placeMarker();
+  },
+});
 ```
 
 ## Contributing

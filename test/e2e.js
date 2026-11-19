@@ -3704,6 +3704,272 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     `${builtWrites} writes on the build, ${pannedWrites} while panning, left ${builtLeft} `
     + `after labels ending at ${pannedAreaColumn.end}`);
 
+  // --- `getLabelX()` places labels in the plot area, `onPlotAreaChange` reports it, and the room above the Y range ---
+  // Mounts the probe in a padded host with `onPlotAreaChange` and `onZoomChange` recording each call, with what
+  // `getLabelX()` gives for each of `xArgs` then, and what it gives for the first of them before the first paint. An
+  // `onZoom` of `isZoomable` probes opens 24 hours of the day.
+  const mountGeometryProbe = async (config, xArgs = [[0]], isZoomable = false) => {
+    await page.evaluate(async (spec) => {
+      const { default: LovelyChart } = await import('./LovelyChart.js');
+      const element = document.createElement('div');
+      element.id = 'probe';
+      element.style.cssText = spec.hostStyle;
+      document.getElementById('container').appendChild(element);
+      const readXs = () => spec.xArgs.map((args) => window.probeChart.getLabelX(...args));
+      window.probeAreaReports = [];
+      window.probeZoomReports = [];
+      window.probeParams = {
+        ...spec.config,
+        onZoom: spec.isZoomable
+          ? (day) => Promise.resolve({
+            type: 'line',
+            labels: Array.from({ length: 24 }, (_, hour) => day + hour * spec.hourMs),
+            datasets: [{ name: 'Hours', color: '#FF0000', values: Array.from({ length: 24 }, (_, hour) => hour % 5) }],
+          })
+          : undefined,
+        onPlotAreaChange: (area) => window.probeAreaReports.push({ area, xs: readXs() }),
+        onZoomChange: (value) => window.probeZoomReports.push({ value, xs: readXs() }),
+      };
+      window.probeChart = new LovelyChart(element, window.probeParams);
+      window.probeEarlyX = window.probeChart.getLabelX(...spec.xArgs[0]);
+    }, { config, xArgs, isZoomable, hostStyle: PADDED_HOST_STYLE, hourMs: HOUR_MS });
+    await sleep(1800);
+
+    return page.locator('#probe .lovely-chart--container');
+  };
+  // What `getLabelX()` gives for each of `xArgs`, the plot-area properties, the room above the Y range, the top of the
+  // canvas in the padding box of the host, and the reports so far
+  const readGeometry = (xArgs) => page.evaluate((labelArgs) => {
+    const host = document.getElementById('probe');
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    return {
+      xs: labelArgs.map((args) => window.probeChart.getLabelX(...args)),
+      area: ['left', 'top', 'width', 'height']
+        .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`))),
+      paddingTop: host.style.getPropertyValue('--lovely-chart-plot-padding-top'),
+      canvasTop: canvas.getBoundingClientRect().top - host.getBoundingClientRect().top - host.clientTop,
+      areaReports: window.probeAreaReports,
+      zoomReports: window.probeZoomReports,
+    };
+  }, xArgs);
+  const isSameReportedArea = (report, area) => report.area !== undefined
+    && ['left', 'top', 'width', 'height'].every((key, i) => Math.abs(report.area[key] - area[i]) < 0.01);
+  const isNearX = (x, expected) => x !== undefined && Math.abs(x - expected) < 0.01;
+  // Hovers and clicks the probe's plot at the label, where `getLabelX()` places it
+  const clickProbeLabel = async (labelIndex) => {
+    const point = await page.evaluate((index) => {
+      const host = document.getElementById('probe');
+      const box = host.getBoundingClientRect();
+      const [left, top, , height] = ['left', 'top', 'width', 'height']
+        .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+      return {
+        x: box.left + host.clientLeft + left + window.probeChart.getLabelX(index),
+        y: box.top + host.clientTop + top + height / 2,
+      };
+    }, labelIndex);
+    await page.mouse.move(point.x, point.y);
+    await sleep(100);
+    await page.mouse.click(point.x, point.y);
+  };
+  const geometryLabels = Array.from({ length: 11 }, (_, i) => Date.UTC(2026, 0, i + 1));
+
+  const lineGeometryConfig = {
+    type: 'line',
+    title: 'Probe — Label x',
+    labels: geometryLabels.slice(0, 5),
+    datasets: [{ name: 'Line', color: '#FF0000', values: [3, 9, 4, 8, 5] }],
+  };
+  await page.mouse.move(5, 5);
+  await mountGeometryProbe(lineGeometryConfig);
+  const lineGeometry = await readGeometry([[0], [4], [1], [2], [1, 0.5], [1, 0], [1.5], [5], [-1]]);
+  const earlyX = await page.evaluate(() => window.probeEarlyX);
+  const [lineFirst, lineLast, lineSecond, lineThird, lineHalfway, lineStart, ...lineMissing] = lineGeometry.xs;
+  const [, lineAreaTop, lineAreaWidth] = lineGeometry.area;
+  const [lineReport] = lineGeometry.areaReports;
+  check('getLabelX() is undefined before the first paint, and onPlotAreaChange reports the area the paint writes',
+    earlyX === undefined && lineGeometry.areaReports.length === 1 && isSameReportedArea(lineReport, lineGeometry.area)
+    && lineReport.xs[0] === 0,
+    `${earlyX} before the paint, reports ${JSON.stringify(lineGeometry.areaReports)} of ${lineGeometry.area.join()}`);
+  check('getLabelX() puts the points of a full-range line from edge to edge of the plot area, an offset between them',
+    lineFirst === 0 && isNearX(lineLast, lineAreaWidth) && isNearX(lineHalfway, (lineSecond + lineThird) / 2)
+    && lineStart === lineSecond,
+    `${JSON.stringify(lineGeometry.xs)} across ${lineAreaWidth}`);
+  check('getLabelX() is undefined for an index that is no label of the visible range',
+    lineMissing.every((x) => x === undefined), JSON.stringify(lineMissing));
+  check('the room above the Y range is 15px, from the top of the plot to that of the plot area',
+    lineGeometry.paddingTop === `${PLOT_TOP}px` && Math.abs(lineAreaTop - PLOT_TOP - lineGeometry.canvasTop) < 0.5,
+    `${lineGeometry.paddingTop}, area at ${lineAreaTop}, canvas at ${lineGeometry.canvasTop}`);
+
+  await page.evaluate(() => window.probeChart.update({
+    ...window.probeParams,
+    datasets: [{ name: 'Line', color: '#FF0000', values: [5, 8, 4, 9, 3] }],
+  }));
+  await sleep(1200);
+  const updatedReports = await page.evaluate(() => window.probeAreaReports);
+  const destroyedGeometry = await page.evaluate(() => {
+    const host = document.getElementById('probe');
+    window.probeChart.destroy();
+    const result = {
+      reports: window.probeAreaReports,
+      x: window.probeChart.getLabelX(0),
+      paddingTop: host.style.getPropertyValue('--lovely-chart-plot-padding-top'),
+    };
+    host.remove();
+    return result;
+  });
+  check('update() reports the area it writes again, and destroy() reports undefined as it removes the variables',
+    updatedReports.length === 2 && isSameReportedArea(updatedReports[1], lineGeometry.area)
+    && destroyedGeometry.reports.length === 3 && destroyedGeometry.reports[2].area === undefined
+    && destroyedGeometry.x === undefined && destroyedGeometry.paddingTop === '',
+    `${JSON.stringify(updatedReports)}, then ${JSON.stringify(destroyedGeometry)}`);
+
+  // Columns between gaps, each where `getLabelX()` puts its start and end, and its centre between them
+  for (const type of ['bar', 'step']) {
+    await mountGeometryProbe({
+      type,
+      title: `Probe — Label x of a ${type} column`,
+      labels: geometryLabels.slice(0, 6),
+      // `values` marks a missing value with `null`
+      // eslint-disable-next-line no-null/no-null
+      datasets: [{ name: 'Columns', color: '#FF0000', values: [6, null, 6, null, 6, null] }],
+    });
+    const columnGeometry = await readGeometry([0, 2, 4, 5].flatMap((i) => [[i], [i, 0], [i, 1]]));
+    // A step's 2px line covers some rows in part
+    const columnPixels = await readAreaColumns(page, '#probe', getColorBounds('#FF0000', [40, 255], COLOR_TOLERANCE));
+    const columnRuns = findColumnRuns(columnPixels, 1);
+    await unmountProbe(page);
+    const columnXs = [0, 1, 2, 3].map((i) => columnGeometry.xs.slice(i * 3, i * 3 + 3));
+    const expectedColumnRuns = columnXs.slice(0, 3).map(([, start, end]) => [start, end]);
+    check(`getLabelX() spans each ${type} column from offset 0 to 1, its centre without an offset`,
+      areRunsNear(columnRuns, expectedColumnRuns) && columnXs[0][1] === 0
+      && isNearX(columnXs[3][2], columnGeometry.area[2])
+      && columnXs.every(([centre, start, end]) => isNearX(centre, (start + end) / 2)),
+      `${formatRuns(columnRuns)} for ${formatRuns(expectedColumnRuns)}, ${JSON.stringify(columnXs)}`);
+  }
+
+  // A window over the second half of the labels, which a drag of the minimap slider pans back by a label and a half
+  await mountGeometryProbe({
+    type: 'line',
+    title: 'Probe — Label x of a panned window',
+    labels: geometryLabels,
+    datasets: [{ name: 'Line', color: '#FF0000', values: [3, 9, 4, 8, 5, 7, 4, 9, 3, 8, 5] }],
+    withMinimap: true,
+    minimapRange: [0.5, 1],
+  });
+  const pannedGeometry = await readGeometry([[4], [5], [10]]);
+  const panXs = await page.evaluate(async () => {
+    const host = document.getElementById('probe');
+    const minimap = host.querySelector('.lovely-chart--minimap canvas').getBoundingClientRect();
+    const slider = host.querySelector('.lovely-chart--minimap-slider-inner');
+    const { left, width } = slider.getBoundingClientRect();
+    const fire = (target, type, clientX) => target.dispatchEvent(new MouseEvent(type, {
+      bubbles: true, cancelable: true, buttons: 1, clientX, clientY: minimap.top + minimap.height / 2,
+    }));
+    const readXs = () => [3, 4, 5].map((i) => window.probeChart.getLabelX(i));
+    const start = left + width / 2;
+    const end = start - minimap.width * 0.15;
+    fire(slider, 'mousedown', start);
+    fire(document, 'mousemove', end);
+    fire(document, 'mouseup', end);
+    const moving = readXs();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return { moving, settled: readXs() };
+  });
+  await unmountProbe(page);
+  check('getLabelX() maps the first label of a panned window before the plot area, as the plot runs past it there',
+    pannedGeometry.xs[0] === undefined && isNearX(pannedGeometry.xs[1], -GUTTER)
+    && isNearX(pannedGeometry.xs[2], pannedGeometry.area[2]),
+    `${JSON.stringify(pannedGeometry.xs)} across ${pannedGeometry.area[2]}`);
+  check('getLabelX() follows a pan of the minimap to where its transition ends, from the start of the transition',
+    panXs.moving[0] === undefined && panXs.moving[1] !== undefined && panXs.moving[2] > pannedGeometry.xs[1]
+    && panXs.moving.every((x, i) => x === panXs.settled[i]),
+    JSON.stringify(panXs));
+
+  // A zoom into shares from a column the click finds where `getLabelX()` puts it, and back out
+  const sharesGeometry = await mountGeometryProbe({
+    type: 'bar',
+    title: 'Probe — Label x through a zoom into shares',
+    isStacked: true,
+    labels: geometryLabels.slice(0, 6),
+    datasets: [
+      { name: 'Blue', color: '#0000FF', values: [3, 4, 5, 4, 3, 4] },
+      { name: 'Green', color: '#00FF00', values: [2, 3, 2, 3, 2, 3] },
+    ],
+    zoomToShares: true,
+    circleLabelsAround: 0,
+  }, [[3]]);
+  await sharesGeometry.scrollIntoViewIfNeeded();
+  const sharesArea = (await readGeometry([])).area;
+  await clickProbeLabel(3);
+  const zoomStartReports = await page.evaluate(() => window.probeAreaReports);
+  await sleep(2000);
+  await page.mouse.move(5, 5);
+  await sharesGeometry.locator('.lovely-chart--header-zoom-out-control').first().click();
+  await sleep(2000);
+  const sharesReports = await readGeometry([]);
+  await unmountProbe(page);
+  const [sharesFirst, sharesStart] = sharesReports.areaReports;
+  const sharesLast = sharesReports.areaReports[sharesReports.areaReports.length - 1];
+  const zoomedReports = sharesReports.areaReports.slice(1, -1);
+  const [sharesZoomIn, sharesZoomOut] = sharesReports.zoomReports;
+  check('onPlotAreaChange reports the start of a zoom into shares, from which getLabelX() is undefined',
+    zoomStartReports.length === 2 && isSameReportedArea(sharesStart, sharesArea) && sharesStart.xs[0] === undefined
+    && sharesZoomIn?.value === geometryLabels[3],
+    `${JSON.stringify(zoomStartReports)}, zoomed into ${sharesZoomIn?.value} for ${geometryLabels[3]}`);
+  check('getLabelX() stays undefined over the pie and the start of the zoom out, and maps the bars on their return',
+    zoomedReports.every(({ xs }) => xs[0] === undefined)
+    && zoomedReports.some(({ area }) => Math.abs(area.width - area.height) < 0.01)
+    && isSameReportedArea(sharesLast, sharesArea) && sharesLast.xs[0] === sharesFirst.xs[0]
+    && sharesZoomOut?.value === undefined && sharesZoomOut?.xs[0] === sharesFirst.xs[0],
+    `${JSON.stringify(sharesReports.areaReports)}, zoom reports ${JSON.stringify(sharesReports.zoomReports)}`);
+
+  // A zoom into the hours of a day from `onZoom` maps the day alone from its start, and the hours from its report on
+  const hoursXArgs = [[0], [4], [5], [6], [12], [23]];
+  const hoursGeometry = await mountGeometryProbe({
+    type: 'line',
+    title: 'Probe — Label x of a zoom into data',
+    labels: geometryLabels.slice(0, 10),
+    datasets: [{ name: 'Days', color: '#FF0000', values: [3, 9, 4, 8, 5, 7, 4, 9, 3, 8] }],
+  }, hoursXArgs, true);
+  await hoursGeometry.scrollIntoViewIfNeeded();
+  await clickProbeLabel(5);
+  await sleep(2000);
+  await page.mouse.move(5, 5);
+  const hoursReports = await readGeometry(hoursXArgs);
+  await unmountProbe(page);
+  const [, hoursStart] = hoursReports.areaReports;
+  const [hoursZoom] = hoursReports.zoomReports;
+  const hoursWidth = hoursReports.area[2];
+  const [hourFirst, , , , hourMiddle, hourLast] = hoursReports.xs;
+  check('onPlotAreaChange reports the start of a zoom into data as the range narrows on the day, the one label mapped',
+    hoursStart !== undefined && isSameReportedArea(hoursStart, hoursReports.area)
+    && hoursStart.xs.every((x, i) => (i === 2 ? isNearX(x, hoursWidth / 2) : x === undefined)),
+    `${JSON.stringify(hoursReports.areaReports)} across ${hoursWidth}`);
+  check('getLabelX() maps the labels of the data onZoom returns as onZoomChange reports it, where the zoom settles',
+    hoursZoom?.value === geometryLabels[5] && hoursZoom.xs.every((x, i) => x === hoursReports.xs[i])
+    && hourFirst === 0 && isNearX(hourMiddle, hoursWidth * 12 / 23) && isNearX(hourLast, hoursWidth),
+    `${JSON.stringify(hoursReports.zoomReports)}, then ${JSON.stringify(hoursReports.xs)} across ${hoursWidth}`);
+
+  // A sparkline keeps 2px above its Y range, and a pie maps no label
+  await mountGeometryProbe({ ...lineGeometryConfig, title: 'Probe — Label x of a sparkline', isSparkline: true });
+  const sparklineGeometry = await readGeometry([[0]]);
+  await unmountProbe(page);
+  await mountGeometryProbe({
+    type: 'pie',
+    title: 'Probe — Label x of a pie',
+    labels: lineGeometryConfig.labels,
+    datasets: [{ name: 'A', values: [5, 3, 6, 2, 4] }, { name: 'B', values: [2, 4, 1, 3, 5] }],
+  });
+  const pieGeometry = await readGeometry([[0]]);
+  await unmountProbe(page);
+  check('a sparkline keeps 2px above its Y range and maps its first point to the start of the plot area',
+    sparklineGeometry.paddingTop === `${SPARKLINE_INSET}px` && sparklineGeometry.xs[0] === 0,
+    `${sparklineGeometry.paddingTop}, ${JSON.stringify(sparklineGeometry.xs)}`);
+  check('a pie reports its plot area and maps no label',
+    pieGeometry.areaReports.length === 1 && isSameReportedArea(pieGeometry.areaReports[0], pieGeometry.area)
+    && pieGeometry.xs[0] === undefined && pieGeometry.areaReports[0].xs[0] === undefined,
+    `${JSON.stringify(pieGeometry.areaReports)}, ${JSON.stringify(pieGeometry.xs)}`);
+
   // --- A web font that loads after the build widens the outward column to fit, and moves the plot area ---
   await page.evaluate(({ family, fontPath }) => {
     const style = document.createElement('style');

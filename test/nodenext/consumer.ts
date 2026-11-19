@@ -68,6 +68,7 @@ const params: LovelyChartParams = {
   onSelectedIndexChange: (labelIndex) => labelIndex?.toFixed(),
   isKeyboardSelectable: true,
   onTooltipChange: readTooltip,
+  onPlotAreaChange: (area) => (area ? area.left + area.top + area.width + area.height : undefined),
 };
 
 const chart = new LovelyChart(element, params);
@@ -76,6 +77,7 @@ chart.selectLabel(undefined);
 chart.refreshColors();
 chart.setLegendContainer(element);
 chart.setLegendContainer(undefined);
+const labelX: number | undefined = chart.getLabelX(1, 0.5) ?? chart.getLabelX(1);
 
 const handle: LovelyChartInstance = chart;
 handle.update({ ...params, colorScheme: 'htmlClassName' });
@@ -88,4 +90,4 @@ const swatches: string[] = [...getDefaultColors(2), DEFAULT_COMPARISON_COLOR];
 // @ts-expect-error The exported palette is read-only
 DEFAULT_COLORS[0] = DEFAULT_COMPARISON_COLOR;
 
-export { misspelled, swatches };
+export { labelX, misspelled, swatches };

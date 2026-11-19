@@ -112,6 +112,11 @@ export class StateManager {
     return { ...this.#filter };
   }
 
+  // The state a transition moves to, which its frames only approach
+  getState(): ChartState {
+    return this.#state;
+  }
+
   hasAnimations(): boolean {
     return this.#transitions.isFast();
   }

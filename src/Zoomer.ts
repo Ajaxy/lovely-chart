@@ -30,8 +30,10 @@ export class Zoomer {
   readonly #minimap: Minimap | undefined;
   readonly #tooltip: Tooltip;
   readonly #tools: Tools;
+  readonly #onZoomStart: () => void;
 
   #isZoomed = false;
+  #isZoomedIntoShares = false;
   #isDestroyed = false;
   #stateBeforeZoomIn?: ChartState;
   #stateBeforeZoomOut?: ChartState;
@@ -49,6 +51,7 @@ export class Zoomer {
     minimap: Minimap | undefined,
     tooltip: Tooltip,
     tools: Tools,
+    onZoomStart: () => void,
   ) {
     this.#data = data;
     this.#overviewData = overviewData;
@@ -60,6 +63,7 @@ export class Zoomer {
     this.#minimap = minimap;
     this.#tooltip = tooltip;
     this.#tools = tools;
+    this.#onZoomStart = onZoomStart;
   }
 
   zoomIn(state: ChartState, labelIndex: number, isInstant = false) {
@@ -74,6 +78,7 @@ export class Zoomer {
     this.#tooltip.toggleLoading(true);
     this.#tooltip.toggleIsZoomed(true);
     if (this.#data.shouldZoomToShares) {
+      this.#isZoomedIntoShares = true;
       this.#container.classList.add('lovely-chart--state-zoomed-in');
       // Cancel CSS animation for `isInstant` display
       if (!isInstant) {
@@ -108,6 +113,7 @@ export class Zoomer {
     this.#tooltip.toggleLoading(true);
     this.#tooltip.toggleIsZoomed(false);
     if (this.#data.shouldZoomToShares) {
+      this.#isZoomedIntoShares = false;
       this.#container.classList.remove('lovely-chart--state-zoomed-in');
       this.#startCircleTransition();
     }
@@ -124,6 +130,11 @@ export class Zoomer {
   releaseSize() {
     this.#container.style.removeProperty('width');
     this.#container.style.removeProperty('height');
+  }
+
+  // From the start of a zoom into shares, ahead of the swap of the data, to the start of the zoom out of them
+  isZoomedIntoShares(): boolean {
+    return this.#isZoomedIntoShares;
   }
 
   // While a zoomed view shows, or one is on its way in, the overview's filter lives only in the saved state
@@ -213,6 +224,10 @@ export class Zoomer {
         this.#container.classList.remove('lovely-chart--state-animating');
       }
     }, this.#stateManager.hasAnimations() ? ZOOM_ANIMATING_TIMEOUT : 0);
+
+    // The labels start to move with the range above, and the report goes last, as its callback can update or destroy
+    // the chart
+    this.#onZoomStart();
   }
 
   #applyZoomData(

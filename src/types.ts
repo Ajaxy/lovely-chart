@@ -336,6 +336,12 @@ export interface LovelyChartParams {
    */
   onTooltipChange?: (tooltip: TooltipContent | undefined) => void;
   /**
+   * Called with the data area of the plot, in px from the inside of the element's border, whenever the chart writes
+   * the `--lovely-chart-plot-area-*` variables, and as a zoom starts to move the labels under the area, once the data
+   * `onZoom` returns arrives; called with `undefined` as `destroy()` removes the variables.
+   */
+  onPlotAreaChange?: (area: { left: number; top: number; width: number; height: number } | undefined) => void;
+  /**
    * Element that holds the legend, in place of the chart container; `setLegendContainer()` moves the legend later. The
    * legend takes its spacing variables, such as `--lovely-chart-legend-gap`, from this element and its ancestors.
    */
