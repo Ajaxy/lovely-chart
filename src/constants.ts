@@ -5,6 +5,8 @@ export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
 export const NO_FOCUS = Symbol('NO_FOCUS');
 // Marks the `colorScheme` the colours of a chart follow, carried along by `Object.assign`
 export const COLOR_SCHEME = Symbol('COLOR_SCHEME');
+// Marks the hidden element of a chart its `var()` colours resolve on, carried along by `Object.assign`
+export const COLOR_PROBE = Symbol('COLOR_PROBE');
 export const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
 // Raw JSON represents missing dataset values as `null`; compare via
 // `value === GAP` instead of spelling the literal

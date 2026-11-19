@@ -1,5 +1,5 @@
 import type {
-  AnalyzedData, AnalyzedDataset, HatchedRange, LabelType, LovelyChartParams, Range, XLabel,
+  AnalyzedData, AnalyzedDataset, HatchedRange, LabelType, LovelyChartParams, Range, ThemedColor, XLabel,
 } from './types.js';
 
 import { AXES_FONT_SIZE, MILLISECONDS_IN_DAY } from './constants.js';
@@ -45,8 +45,8 @@ const LABEL_TYPE_TO_FORMATTER: Record<LabelType, string | undefined> = {
 export function analyzeData(
   data: LovelyChartParams,
   fallbackLabelType?: LabelType,
-  datasetColors?: Record<string, string>,
-  fallbackColors?: Record<string, string>,
+  datasetColors?: Record<string, ThemedColor>,
+  fallbackColors?: Record<string, ThemedColor>,
 ): AnalyzedData {
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage,
@@ -70,7 +70,7 @@ export function analyzeData(
   const analyzedComparison = comparison && !isShares
     ? { ...comparison, color: comparison.color ?? DEFAULT_COMPARISON_COLOR }
     : undefined;
-  const colors: Record<string, string> = {};
+  const colors: Record<string, ThemedColor> = {};
   if (analyzedComparison) {
     colors.comparison = analyzedComparison.color;
   }
@@ -286,8 +286,8 @@ function prepareHatchedRanges(ranges: HatchedRange[], labelsCount: number): Hatc
 
 function prepareDatasets(
   data: LovelyChartParams,
-  datasetColors: Record<string, string> | undefined,
-  fallbackColors: Record<string, string> | undefined,
+  datasetColors: Record<string, ThemedColor> | undefined,
+  fallbackColors: Record<string, ThemedColor> | undefined,
 ): { labels: (number | string)[]; datasets: AnalyzedDataset[] } {
   const { type, labels, datasets, hasSecondYAxis, isPercentage } = data;
 

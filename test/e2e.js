@@ -241,6 +241,40 @@ const EDGE_LABEL_COUNT = 8;
 const HOUR_MS = 3_600_000;
 // The fewest pixels of its colour that show a dataset drawn on a canvas
 const MIN_DATASET_PIXELS = 100;
+// The fewest pixels of its colour that show a thin line or a halo drawn on a canvas, as a dashed comparison line
+const MIN_THIN_PIXELS = 20;
+// Custom properties of the page on the probe's element: a series colour with a night value under the `theme-dark`
+// class and another under an attribute of the page's own, a `color-mix()`, and a colour with a night value under the
+// system's dark scheme. The page also eases its colours, which a colour read mid-way would catch.
+const PAGE_TOKENS_STYLE = `
+  #probe {
+    --probe-series: #FF0000;
+    --probe-mix: color-mix(in srgb, #FF0000 50%, #0000FF);
+    --probe-comparison: rgb(255 128 0);
+    --probe-reference: #00FF00;
+    --probe-hatch: #FF00FF;
+    --probe-axis: #0000FF;
+    --probe-surface: #FFFF00;
+    --probe-system: #FF00FF;
+  }
+  html.theme-dark #probe { --probe-series: #00FFFF; }
+  #probe[data-theme='alt'] { --probe-series: #8000FF; }
+  @media (prefers-color-scheme: dark) { #probe { --probe-system: #00FFFF; } }
+  #probe span { transition: color 2s; }
+`;
+const PAGE_TOKEN_COLORS = {
+  series: '#FF0000',
+  seriesNight: '#00FFFF',
+  seriesAlt: '#8000FF',
+  mix: '#800080',
+  comparison: '#FF8000',
+  reference: '#00FF00',
+  hatch: '#FF00FF',
+  axis: '#0000FF',
+  surface: '#FFFF00',
+  system: '#FF00FF',
+  systemNight: '#00FFFF',
+};
 // The time from a zoom out of a pie that the transition class holds through, short of the transition's end
 const QUICK_ZOOM_OUT_WATCH = 400;
 // The time between two zoom clicks, the second before the zoom of the first settles
@@ -1096,11 +1130,12 @@ function getColorBounds(hex, alpha, tolerance) {
   return { red, green, blue, alpha };
 }
 
-// Reads the dataset colour of each legend button, as its `lovely-chart--color-*` class names it, the contrast of its
+// Reads the dataset colour of each legend button, as its `--lovely-chart-series-color` gives it, the contrast of its
 // label on its fill, the contrast a white label would have there and whether the label is white
 function readLegendLabels(chart) {
   return chart.evaluate((el) => {
     const parseRgb = (value) => value.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
+    const toHex = (rgb) => `#${rgb.map((channel) => channel.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
     const getLuminance = (rgb) => rgb
       .map((channel) => channel / 255)
       .map((value) => (value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4))
@@ -1112,7 +1147,7 @@ function readLegendLabels(chart) {
       const whiteContrast = 1.05 / (fill + 0.05);
       return {
         name: button.textContent,
-        color: `#${button.className.match(/lovely-chart--color-(\w+)/)[1]}`,
+        color: toHex(parseRgb(button.style.getPropertyValue('--lovely-chart-series-color'))),
         contrast: Math.round(contrast * 100) / 100,
         whiteContrast: Math.round(whiteContrast * 100) / 100,
         isLabelWhite: label > 0.99,
@@ -5844,6 +5879,319 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     nightColors.background === '#101010' && nightColors.balloonShadow.includes('rgb(1, 2, 3)'),
     JSON.stringify(nightColors));
   await unmountProbe(page);
+
+  // --- Colours per skin and `var()` colours of the page, read again on a change of the skin and by refreshColors() ---
+  const wasTokensDark = await page.evaluate(() => document.documentElement.classList.contains('theme-dark'));
+  await page.evaluate((textContent) => {
+    const style = document.createElement('style');
+    style.id = 'probe-tokens';
+    style.textContent = textContent;
+    document.head.appendChild(style);
+  }, PAGE_TOKENS_STYLE);
+  await setHtmlDark(false);
+
+  // A dataset and the comparison of a colour per skin, and a dataset pale by day and deep by night
+  const pairChart = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Colours per skin',
+      labels: [1, 2, 3, 4, 5, 6].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [
+        { name: 'Pair', color: { light: '#FF00FF', dark: '#00FFFF' }, values: [10, 30, 20, 40, 30, 50] },
+        { name: 'Pale by day', color: { light: '#9ED448', dark: '#2373DB' }, values: [5, 15, 10, 20, 15, 25] },
+      ],
+      comparison: {
+        name: 'Before',
+        color: { light: '#FF8000', dark: '#8000FF' },
+        values: [Array(6).fill(20), Array(6).fill(10)],
+      },
+      withMinimap: true,
+      minimapRange: 'full',
+    },
+  });
+  await readProbeTooltip(page, 2);
+  const readPairSkin = async () => {
+    const plot = {};
+    for (const color of ['#FF00FF', '#00FFFF', '#FF8000', '#8000FF']) {
+      plot[color] = (await findColor(pairChart, parseHex(color))).count;
+    }
+    const minimap = pairChart.locator('.lovely-chart--minimap');
+    const dom = await pairChart.evaluate((el) => ({
+      buttons: [...el.querySelectorAll('.lovely-chart--button')].map((button) => [
+        getComputedStyle(button).borderTopColor, button.classList.contains('lovely-chart--dark-content'),
+      ]),
+      comparison: getComputedStyle(el.querySelector('.lovely-chart--comparison-legend'), '::before').borderTopColor,
+      swatches: [...el.querySelectorAll('.lovely-chart--tooltip-swatch')].map((swatch) => (
+        getComputedStyle(swatch)[swatch.matches('[data-dashed]') ? 'borderTopColor' : 'backgroundColor']
+      )),
+    }));
+    return {
+      plot,
+      minimap: [(await findColor(minimap, [255, 0, 255])).count, (await findColor(minimap, [0, 255, 255])).count],
+      ...dom,
+    };
+  };
+  const pairDay = await readPairSkin();
+  await setHtmlDark(true);
+  await sleep(400);
+  const pairNight = await readPairSkin();
+  await unmountProbe(page);
+  check('a dataset and a comparison of a colour per skin paint the plot and the minimap in the skin on screen',
+    pairDay.plot['#FF00FF'] > MIN_DATASET_PIXELS && pairDay.plot['#00FFFF'] === 0
+    && pairDay.plot['#FF8000'] > MIN_THIN_PIXELS && pairDay.plot['#8000FF'] === 0
+    && pairDay.minimap[0] > MIN_THIN_PIXELS && pairDay.minimap[1] === 0
+    && pairNight.plot['#00FFFF'] > MIN_DATASET_PIXELS && pairNight.plot['#FF00FF'] === 0
+    && pairNight.plot['#8000FF'] > MIN_THIN_PIXELS && pairNight.plot['#FF8000'] === 0
+    && pairNight.minimap[1] > MIN_THIN_PIXELS && pairNight.minimap[0] === 0,
+    JSON.stringify({ day: [pairDay.plot, pairDay.minimap], night: [pairNight.plot, pairNight.minimap] }));
+  const readPairDom = ({ buttons, comparison, swatches }) => JSON.stringify({ buttons, comparison, swatches });
+  check('the legend buttons, their labels, the comparison entry and the shown tooltip\'s swatches follow the skin',
+    readPairDom(pairDay) === JSON.stringify({
+      buttons: [['rgb(255, 0, 255)', false], ['rgb(158, 212, 72)', true]],
+      comparison: 'rgb(255, 128, 0)',
+      swatches: ['rgb(255, 128, 0)', 'rgb(255, 0, 255)', 'rgb(158, 212, 72)'],
+    }) && readPairDom(pairNight) === JSON.stringify({
+      buttons: [['rgb(0, 255, 255)', true], ['rgb(35, 115, 219)', false]],
+      comparison: 'rgb(128, 0, 255)',
+      swatches: ['rgb(128, 0, 255)', 'rgb(0, 255, 255)', 'rgb(35, 115, 219)'],
+    }),
+    `day: ${readPairDom(pairDay)}; night: ${readPairDom(pairNight)}`);
+
+  // Every colour parameter as a `var()` of the page, one of them a `color-mix()`
+  await setHtmlDark(false);
+  await recordProbeNumbers(page);
+  const tokenChart = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Colours of the page',
+      labels: Array.from({ length: 8 }, (_, i) => Date.UTC(2026, 10, i + 1)),
+      datasets: [
+        { name: 'Token', color: 'var(--probe-series)', values: [10, 30, 20, 40, 30, 50, 40, 60] },
+        { name: 'Mix', color: 'var(--probe-mix)', values: [5, 15, 10, 20, 15, 25, 20, 30] },
+      ],
+      comparison: { name: 'Before', color: 'var(--probe-comparison)', values: [Array(8).fill(20), Array(8).fill(10)] },
+      referenceLines: [{ value: 55, color: 'var(--probe-reference)' }],
+      hatchedRanges: [{ from: 6, to: 7, hasEdge: true, color: 'var(--probe-hatch)' }],
+      axisTextColor: 'var(--probe-axis)',
+      backgroundColor: 'var(--probe-surface)',
+    },
+  });
+  const readTokenPaint = async () => {
+    const paint = {};
+    for (const key of ['series', 'seriesNight', 'mix', 'comparison', 'reference', 'surface']) {
+      paint[key] = (await findColor(tokenChart, parseHex(PAGE_TOKEN_COLORS[key]))).count;
+    }
+    paint.hatch = await countPickedPixels(
+      tokenChart, getColorBounds(PAGE_TOKEN_COLORS.hatch, [5, 255], HATCH_COLOR_TOLERANCE),
+    );
+    paint.axisTexts = (await readProbeTexts(page)).texts.map(({ color }) => color);
+
+    return paint;
+  };
+  const tokenDay = await readTokenPaint();
+  await tokenChart.evaluate((el) => {
+    el.dataset.marker = 'built';
+  });
+  await setHtmlDark(true);
+  await sleep(400);
+  const tokenNight = await readTokenPaint();
+  const tokenMarker = await tokenChart.evaluate((el) => el.dataset.marker);
+  await unmountProbe(page);
+  const isTokenPainted = (paint) => paint.mix > MIN_DATASET_PIXELS && paint.comparison > MIN_THIN_PIXELS
+    && paint.reference > MIN_THIN_PIXELS && paint.surface > MIN_THIN_PIXELS && paint.hatch > MIN_THIN_PIXELS
+    && paint.axisTexts.length > 0 && paint.axisTexts.every((color) => isTextColor(color, PAGE_TOKEN_COLORS.axis));
+  const formatTokenPaint = ({ axisTexts, ...paint }) => JSON.stringify({
+    ...paint, axisTexts: [...new Set(axisTexts)],
+  });
+  check('every colour parameter takes a var() of the page, a color-mix() among them',
+    isTokenPainted(tokenDay) && tokenDay.series > MIN_DATASET_PIXELS && tokenDay.seriesNight === 0,
+    formatTokenPaint(tokenDay));
+  check('a var() colour reads the page again as the theme-dark class changes, repainting without a rebuild',
+    isTokenPainted(tokenNight) && tokenNight.seriesNight > MIN_DATASET_PIXELS && tokenNight.series === 0
+    && tokenMarker === 'built',
+    `${formatTokenPaint(tokenNight)}, element ${tokenMarker ?? 'rebuilt'}`);
+
+  // A CSS colour the canvas does not take, as `light-dark()`, on a reference line and a hatch. The page leaves
+  // `color-scheme` as it is, which picks the light colour.
+  const lightDarkChart = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Colours the canvas does not take',
+      labels: Array.from({ length: 8 }, (_, i) => Date.UTC(2026, 10, i + 1)),
+      datasets: [{ name: 'Blue', color: '#0000FF', values: [10, 30, 20, 40, 30, 50, 40, 60] }],
+      referenceLines: [{ value: 55, color: 'light-dark(#00FF00, #FF0000)' }],
+      hatchedRanges: [{ from: 6, to: 7, hasEdge: true, color: 'light-dark(#FF00FF, #00FFFF)' }],
+    },
+  });
+  const lightDarkPaint = [
+    (await findColor(lightDarkChart, parseHex('#00FF00'))).count,
+    (await findColor(lightDarkChart, parseHex('#FF0000'))).count,
+    await countPickedPixels(lightDarkChart, getColorBounds('#FF00FF', [5, 255], HATCH_COLOR_TOLERANCE)),
+    await countPickedPixels(lightDarkChart, getColorBounds('#00FFFF', [5, 255], HATCH_COLOR_TOLERANCE)),
+  ];
+  await unmountProbe(page);
+  check('a reference line and a hatch take a CSS colour the canvas does not, as light-dark()',
+    lightDarkPaint[0] > MIN_THIN_PIXELS && lightDarkPaint[1] === 0
+    && lightDarkPaint[2] > MIN_THIN_PIXELS && lightDarkPaint[3] === 0,
+    `green, red, magenta and cyan px: ${JSON.stringify(lightDarkPaint)}`);
+
+  // A chart that follows the system scheme reads the page again as the scheme changes, its datasets and legend among
+  // the colours it reads
+  await page.emulateMedia({ colorScheme: 'light' });
+  const systemTokenChart = await mountProbe(page, {
+    config: {
+      type: 'area',
+      title: 'Probe — Colours of the page, system scheme',
+      labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [
+        { name: 'Token', color: 'var(--probe-system)', values: [20, 30, 25, 35] },
+        { name: 'Other', color: '#0000FF', values: [10, 15, 12, 18] },
+      ],
+      areaBorderColor: 'var(--probe-system)',
+      colorScheme: 'system',
+    },
+  });
+  const readSystemTokens = async () => [
+    (await findColor(systemTokenChart, parseHex(PAGE_TOKEN_COLORS.system))).count,
+    (await findColor(systemTokenChart, parseHex(PAGE_TOKEN_COLORS.systemNight))).count,
+    await systemTokenChart.locator('.lovely-chart--button').first()
+      .evaluate((button) => getComputedStyle(button).borderTopColor),
+  ];
+  const systemTokenLight = await readSystemTokens();
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await sleep(400);
+  const systemTokenDark = await readSystemTokens();
+  // Playwright restores the system scheme on `null` alone
+  // eslint-disable-next-line no-null/no-null
+  await page.emulateMedia({ colorScheme: null });
+  await unmountProbe(page);
+  check('a chart of the system scheme reads its var() colours again as the scheme changes, the legend\'s among them',
+    systemTokenLight[0] > MIN_DATASET_PIXELS && systemTokenLight[1] === 0 && systemTokenLight[2] === 'rgb(255, 0, 255)'
+    && systemTokenDark[0] === 0 && systemTokenDark[1] > MIN_DATASET_PIXELS && systemTokenDark[2] === 'rgb(0, 255, 255)',
+    `magenta px, cyan px and the legend outline: ${JSON.stringify(systemTokenLight)} light, `
+    + `${JSON.stringify(systemTokenDark)} dark`);
+
+  // A change of the page the chart does not watch, as a `data-theme` attribute, waits for `refreshColors()`, which
+  // keeps the range, the legend and the selection
+  await setHtmlDark(false);
+  await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const buildValues = (base) => Array.from({ length: 20 }, (_, i) => base + (i % 4) * 10);
+    window.colorRefreshLog = [];
+    window.probeChart = new LovelyChart(element, {
+      type: 'line',
+      title: 'Probe — Refreshed colours',
+      labels: Array.from({ length: 20 }, (_, i) => Date.UTC(2026, 10, i + 1)),
+      datasets: [
+        { name: 'Token', color: 'var(--probe-series)', values: buildValues(10) },
+        { name: 'Other', color: '#3497ED', values: buildValues(20) },
+      ],
+      withMinimap: true,
+      minimapRange: [0.5, 1],
+      onSelectedIndexChange: (index) => window.colorRefreshLog.push(`select ${index}`),
+      onHiddenSeriesChange: (names) => window.colorRefreshLog.push(`hidden ${names}`),
+    });
+  });
+  await sleep(1800);
+  const refreshChart = page.locator('#probe .lovely-chart--container');
+  await refreshChart.evaluate((el) => {
+    el.querySelectorAll('.lovely-chart--button')[1].click();
+    el.dataset.marker = 'built';
+  });
+  await readProbeTooltip(page, 15);
+  const readRefreshView = () => refreshChart.evaluate((el) => ({
+    marker: el.dataset.marker,
+    ruler: [...el.querySelector('.lovely-chart--minimap-ruler').children].map(({ style }) => style.width),
+    pressed: [...el.querySelectorAll('.lovely-chart--button')].map((button) => button.getAttribute('aria-pressed')),
+    legend: getComputedStyle(el.querySelector('.lovely-chart--button')).borderTopColor,
+    swatches: [...el.querySelectorAll('.lovely-chart--tooltip-swatch')]
+      .map((swatch) => getComputedStyle(swatch).backgroundColor),
+    log: window.colorRefreshLog.join('; '),
+  }));
+  const readRefreshPaint = async () => [
+    (await findColor(refreshChart, parseHex(PAGE_TOKEN_COLORS.series))).count,
+    (await findColor(refreshChart, parseHex(PAGE_TOKEN_COLORS.seriesAlt))).count,
+    (await findColor(refreshChart.locator('.lovely-chart--minimap'), parseHex(PAGE_TOKEN_COLORS.seriesAlt))).count,
+  ];
+  const refreshViewBefore = await readRefreshView();
+  await page.evaluate(() => document.getElementById('probe').setAttribute('data-theme', 'alt'));
+  await sleep(400);
+  const unwatchedPaint = await readRefreshPaint();
+  await page.evaluate(() => window.probeChart.refreshColors());
+  await sleep(400);
+  const refreshedPaint = await readRefreshPaint();
+  const refreshViewAfter = await readRefreshView();
+  await unmountProbe(page);
+  check('a var() colour holds through a change of the page the chart does not watch',
+    unwatchedPaint[0] > MIN_DATASET_PIXELS && unwatchedPaint[1] === 0, JSON.stringify(unwatchedPaint));
+  const { legend: refreshedLegend, swatches: refreshedSwatches, ...refreshedView } = refreshViewAfter;
+  const { legend: legendBefore, swatches: swatchesBefore, ...viewBefore } = refreshViewBefore;
+  check('refreshColors() repaints the plot, minimap, legend and tooltip, keeping the range, legend and selection',
+    refreshedPaint[0] === 0 && refreshedPaint[1] > MIN_DATASET_PIXELS && refreshedPaint[2] > MIN_THIN_PIXELS
+    && legendBefore === 'rgb(255, 0, 0)' && refreshedLegend === 'rgb(128, 0, 255)'
+    && JSON.stringify(swatchesBefore) === '["rgb(255, 0, 0)"]'
+    && JSON.stringify(refreshedSwatches) === '["rgb(128, 0, 255)"]'
+    && JSON.stringify(refreshedView) === JSON.stringify(viewBefore) && viewBefore.marker === 'built'
+    && JSON.stringify(viewBefore.pressed) === '["true","false"]' && viewBefore.log === 'hidden Other; select 15',
+    JSON.stringify({ refreshedPaint, refreshViewBefore, refreshViewAfter }));
+
+  // A zoomed view keeps its zoom through `refreshColors()`, its datasets of `var()` colours read again
+  const zoomedTokenChart = await mountLinesZoom(page, {
+    overview: [{ name: 'A', color: 'var(--probe-series)' }, { name: 'B', color: '#3497ED' }],
+    zoomed: [
+      { name: 'C', color: 'var(--probe-series)' }, { name: 'D', color: '#3497ED' }, { name: 'E', color: '#9ED448' },
+    ],
+    config: { initialZoom: 'last' },
+  });
+  const readZoomedTokens = async () => [
+    (await findColor(zoomedTokenChart, parseHex(PAGE_TOKEN_COLORS.series))).count,
+    (await findColor(zoomedTokenChart, parseHex(PAGE_TOKEN_COLORS.seriesAlt))).count,
+    await zoomedTokenChart.locator('.lovely-chart--button').count(),
+  ];
+  const zoomedTokensBefore = await readZoomedTokens();
+  await page.evaluate(() => {
+    document.getElementById('probe').setAttribute('data-theme', 'alt');
+    window.probeChart.refreshColors();
+  });
+  await sleep(400);
+  const zoomedTokensAfter = await readZoomedTokens();
+  await unmountProbe(page);
+  check('refreshColors() keeps a zoom, its datasets of var() colours in the colours the page now gives',
+    zoomedTokensBefore[0] > MIN_DATASET_PIXELS && zoomedTokensBefore[2] === 3
+    && zoomedTokensAfter[0] === 0 && zoomedTokensAfter[1] > MIN_DATASET_PIXELS && zoomedTokensAfter[2] === 3,
+    `red px, violet px and legend buttons: ${JSON.stringify(zoomedTokensBefore)} before, `
+    + `${JSON.stringify(zoomedTokensAfter)} after`);
+
+  // A zoom into datasets of the names and colours of the overview's keeps the legend, and reads its `var()` colours
+  // again with those of the plot
+  const keptLegendChart = await mountLinesZoom(page, {
+    overview: [{ name: 'A', color: 'var(--probe-series)' }, { name: 'B', color: '#3497ED' }],
+    zoomed: [{ name: 'A', color: 'var(--probe-series)' }, { name: 'B', color: '#3497ED' }],
+  });
+  await keptLegendChart.scrollIntoViewIfNeeded();
+  await page.evaluate(() => document.getElementById('probe').setAttribute('data-theme', 'alt'));
+  const keptLegendPlot = await keptLegendChart.locator('.lovely-chart--tooltip').boundingBox();
+  await hoverWiggle(page, keptLegendPlot, 0.5, 0.5);
+  await page.mouse.click(keptLegendPlot.x + keptLegendPlot.width / 2, keptLegendPlot.y + keptLegendPlot.height / 2);
+  await sleep(2000);
+  const keptLegend = [
+    (await keptLegendChart
+      .locator('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').count()) > 0,
+    (await findColor(keptLegendChart, parseHex(PAGE_TOKEN_COLORS.series))).count,
+    (await findColor(keptLegendChart, parseHex(PAGE_TOKEN_COLORS.seriesAlt))).count,
+    await keptLegendChart.locator('.lovely-chart--button').first()
+      .evaluate((button) => getComputedStyle(button).borderTopColor),
+  ];
+  await page.mouse.move(0, 0);
+  await unmountProbe(page);
+  check('a zoom that keeps the legend reads its var() colours again, in the legend as in the plot',
+    keptLegend[0] && keptLegend[1] === 0 && keptLegend[2] > MIN_DATASET_PIXELS && keptLegend[3] === 'rgb(128, 0, 255)',
+    `zoomed, red px, violet px and the legend outline: ${JSON.stringify(keptLegend)}`);
+  await page.evaluate(() => document.getElementById('probe-tokens').remove());
+  await setHtmlDark(wasTokensDark);
 
   // --- UTC labels, west of UTC ---
   const westContext = await browser.newContext({ timezoneId: 'America/Los_Angeles' });

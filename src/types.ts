@@ -1,4 +1,4 @@
-import type { COLOR_SCHEME, NO_FOCUS } from './constants.js';
+import type { COLOR_PROBE, COLOR_SCHEME, NO_FOCUS } from './constants.js';
 
 export type ChartType = 'line' | 'bar' | 'step' | 'area' | 'pie' | 'donut';
 
@@ -51,7 +51,7 @@ export interface SecondaryYAxisConfig {
 
 export interface LovelyChartDatasetParams {
   name: string;
-  color?: string;
+  color?: ThemedColor;
   values: (number | null)[];
   /** Starts the dataset hidden, its legend button unchecked, so a reader can show it from the legend. */
   isInitiallyHidden?: boolean;
@@ -69,7 +69,9 @@ export interface LovelyChartDatasetParams {
 }
 
 /**
- * A hex colour (`#RRGGBB`, optionally `#RRGGBB/alpha`) for both the day and the night skin, or one for each.
+ * A CSS colour for both the day and the night skin, or one for each. A `var()` of the page's custom properties, alone or
+ * inside a colour function such as `color-mix()`, takes the colour it computes to inside the chart, read again on each
+ * change of the skin and on `refreshColors()`. `#RRGGBB/alpha` gives a hex colour at an opacity.
  */
 export type ThemedColor = string | { light: string; dark: string };
 
@@ -82,8 +84,8 @@ export interface ReferenceLine {
   value: number;
   /** Text drawn above the right end of the line; none when empty or absent. */
   label?: string;
-  /** Any canvas colour, or one per skin; defaults to the Y-axis text colour. */
-  color?: string | { light: string; dark: string };
+  /** Any CSS colour, or one per skin; defaults to the Y-axis text colour. */
+  color?: ThemedColor;
 }
 
 /**
@@ -99,8 +101,8 @@ export interface HatchedRange {
   to: number;
   /** Text at the bottom left of the range's hatch, in its colour; dropped where it has no room. */
   label?: string;
-  /** Any canvas colour of the hatch, the edge and the label, or one per skin; defaults to the axis text colour. */
-  color?: string | { light: string; dark: string };
+  /** Any CSS colour of the hatch, the edge and the label, or one per skin; defaults to the axis text colour. */
+  color?: ThemedColor;
   /** Draws a dashed rule where the range's hatch starts, as where actuals end and a forecast begins. */
   hasEdge?: boolean;
   /** Marks a range whose values are still filling: a line or area chart starts its hatch halfway from the point before. */
@@ -129,8 +131,8 @@ export interface TooltipNotes {
 export interface Comparison {
   /** Name in the legend and in the tooltip, as `'Previous period'`. */
   name: string;
-  /** Hex colour of the line; defaults to `#6B7280`. */
-  color?: string;
+  /** Colour of the line and of its swatches in the legend and the tooltip; defaults to `#6B7280`. */
+  color?: ThemedColor;
   /**
    * Previous values per dataset, in the order of `datasets`, each aligned with `labels`. The line draws their
    * sum over the datasets on screen, and `null` leaves a gap.
@@ -180,7 +182,7 @@ export interface LovelyChartParams {
   datasets: LovelyChartDatasetParams[];
   title?: string;
   /** In data that `onZoom` returns, dataset colours by key (`y0` for the first) over each dataset's `color`. */
-  colors?: Record<string, string>;
+  colors?: Record<string, ThemedColor>;
   labelType?: LabelType;
   labelFormatter?: string;
   tooltipFormatter?: string;
@@ -281,9 +283,9 @@ export interface LovelyChartParams {
   /** Opacity of an area fill, 0 to 1; the area's outline and dots keep full opacity. */
   areaOpacity?: number;
   /**
-   * Canvas colour of a 1px outline around each area, and around each run of an area split at a gap, or one per skin.
+   * CSS colour of a 1px outline around each area, and around each run of an area split at a gap, or one per skin.
    */
-  areaBorderColor?: string | { light: string; dark: string };
+  areaBorderColor?: ThemedColor;
   /**
    * Puts the last dataset on a Y axis of its own, labelled at the right of the plot in the dataset's colour. The main
    * Y axis is labelled in the colour of the first dataset, apart from a stacked or percentage chart's, whose labels
@@ -363,7 +365,7 @@ export interface AnalyzedDataset {
   type: ChartType;
   key: string;
   name: string;
-  color: string;
+  color: ThemedColor;
   values: (number | null)[];
   isInitiallyHidden?: boolean;
   isDashed?: boolean;
@@ -399,7 +401,7 @@ export interface AnalyzedData {
   hatchedRanges: HatchedRange[];
   isUtc?: boolean;
   colorScheme?: LovelyChartParams['colorScheme'];
-  comparison?: Comparison & { color: string };
+  comparison?: Comparison & { color: ThemedColor };
   isTooltipOrderFixed?: boolean;
   isTooltipTotalInTitle?: boolean;
   formatTooltipValue?: LovelyChartParams['formatTooltipValue'];
@@ -428,7 +430,7 @@ export interface AnalyzedData {
   withGradient: boolean;
   yMin: number;
   yMax: number;
-  colors: Record<string, string>;
+  colors: Record<string, ThemedColor>;
   withMinimap: boolean;
   minimapRange?: Range;
   noCaption?: boolean;
@@ -507,7 +509,10 @@ export type Pixel = [number, number];
 
 export type ColorChannels = [number, number, number, number?];
 type SkinColors = Record<string, ColorChannels>;
-export type ChartColors = Record<string, SkinColors> & { [COLOR_SCHEME]?: 'htmlClassName' | 'system' };
+export type ChartColors = Record<string, SkinColors> & {
+  [COLOR_SCHEME]?: 'htmlClassName' | 'system';
+  [COLOR_PROBE]: HTMLElement;
+};
 
 export interface StatisticsItem {
   key: string;

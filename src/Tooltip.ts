@@ -684,7 +684,7 @@ export class Tooltip {
 
     dataSet.setAttribute('data-name', name);
     dataSet.querySelector('.lovely-chart--dataset-title')!.textContent = name;
-    swatchElement.style.setProperty('--lovely-chart-series-color', this.#data.colors[key]);
+    swatchElement.style.setProperty('--lovely-chart-series-color', getCssColor(this.#colors, `dataset#${key}`));
     swatchElement.toggleAttribute('data-dashed', isDashed);
     swatchElement.toggleAttribute('data-dotted', pattern === 'dotted');
   }

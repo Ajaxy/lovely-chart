@@ -8,10 +8,10 @@
   margin-inline: 0 6px;
   padding: 7px 7px;
   border: 1px solid #E6ECF0;
-  border-color: var(--text-color);
+  border-color: var(--lovely-chart-series-color);
   border-radius: 18px;
 
-  color: var(--text-color);
+  color: var(--lovely-chart-series-color);
   text-align: center;
   text-decoration: none;
 
@@ -24,7 +24,7 @@
   }
 
   &.lovely-chart--state-checked {
-    background-color: var(--text-color);
+    background-color: var(--lovely-chart-series-color);
     animation-duration: 500ms;
 
     .lovely-chart--button-check {

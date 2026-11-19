@@ -28,7 +28,7 @@ import { createElement } from './minifiers.js';
 import { Minimap } from './Minimap.js';
 import { preparePoints } from './preparePoints.js';
 import { Projection } from './Projection.js';
-import { createColors } from './skin.js';
+import { createColors, recreateColors } from './skin.js';
 import { StateManager } from './StateManager.js';
 import { Tools } from './Tools.js';
 import { Tooltip } from './Tooltip.js';
@@ -89,7 +89,7 @@ export default class LovelyChart {
 
   // Each rebuild analyzes the data into a new object, out of reach of the components it destroyed
   #data: AnalyzedData;
-  #colors: ChartColors;
+  #colors!: ChartColors;
   readonly #redrawDebounced = debounce(() => this.#redraw(), REDRAW_DEBOUNCE_MS, false, true);
 
   constructor(container: HTMLElement, originalData: LovelyChartParams) {
@@ -97,7 +97,6 @@ export default class LovelyChart {
     this.#originalData = originalData;
 
     this.#data = analyzeData(this.#originalData);
-    this.#colors = createColors(this.#data.colors, this.#data);
     this.#initialZoomPending = this.#data.initialZoomIndex !== undefined;
 
     // The page can move the plot inside the element with the data area unchanged, as by folding the header while its
@@ -123,7 +122,6 @@ export default class LovelyChart {
     const isPlotFocused = this.#tooltip!.isFocused();
     this.#destroyComponents();
     this.#data = analyzeData(this.#originalData);
-    this.#colors = createColors(this.#data.colors, this.#data);
     this.#setupComponents(nextSibling);
     if (isPlotFocused) {
       this.#tooltip!.focus();
@@ -137,6 +135,17 @@ export default class LovelyChart {
   selectLabel(labelIndex: number | undefined) {
     if (this.#isDestroyed) return;
     this.#tooltip?.selectLabel(labelIndex);
+  }
+
+  /**
+   * Reads the `var()` colours of the params again and repaints the chart in them, keeping its zoom, range, legend
+   * filter and selection, for custom properties of the page that change on another trigger than the skin.
+   */
+  refreshColors() {
+    if (this.#isDestroyed || !this.#stateManager) return;
+    recreateColors(this.#colors, this.#data.colors, this.#data);
+    this.#tools!.updateColors();
+    this.#stateManager.update();
   }
 
   destroy() {
@@ -163,6 +172,7 @@ export default class LovelyChart {
 
   #setupComponents(nextSibling?: Node) {
     this.#setupContainer(nextSibling);
+    this.#colors = createColors(this.#data.colors, this.#data, this.#setupColorProbe());
     this.#header = new Header(this.#element!, this.#data.title!, this.#data.zoomOutLabel, this.#onZoomOut);
     this.#setupPlotCanvas();
     this.#stateManager = new StateManager(this.#data, this.#plotSize!, this.#onStateUpdate);
@@ -176,7 +186,9 @@ export default class LovelyChart {
     this.#tooltip = new Tooltip(
       this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus, this.#reportTooltip,
     );
-    this.#tools = new Tools(this.#originalData.legendContainer ?? this.#element!, this.#data, this.#onFilterChange);
+    this.#tools = new Tools(
+      this.#originalData.legendContainer ?? this.#element!, this.#data, this.#colors, this.#onFilterChange,
+    );
     this.#zoomer = this.#data.isZoomable
       ? new Zoomer(
         this.#data, this.#originalData, this.#colors, this.#stateManager,
@@ -206,6 +218,15 @@ export default class LovelyChart {
       this.#container.appendChild(this.#element);
     }
     this.#layoutObserver?.observe(this.#element);
+  }
+
+  // The `var()` colours of the params compute on an element inside the chart, in its cascade. Hidden, the element
+  // starts none of the transitions of the page's colours, which a read would catch midway.
+  #setupColorProbe() {
+    const probe = createElement<HTMLSpanElement>('span');
+    probe.style.display = 'none';
+    this.#element!.appendChild(probe);
+    return probe;
   }
 
   #setupPlotCanvas() {
@@ -443,8 +464,8 @@ export default class LovelyChart {
   };
 
   readonly #onSystemSchemeChange = () => {
-    if (this.#isDestroyed || !this.#stateManager || this.#data.colorScheme !== 'system') return;
-    this.#stateManager.update();
+    if (this.#data.colorScheme !== 'system') return;
+    this.refreshColors();
   };
 
   readonly #onFontsLoaded = () => {
@@ -466,10 +487,7 @@ export default class LovelyChart {
   }
 
   #setupGlobalListeners() {
-    this.#themeObserver = new MutationObserver(() => {
-      if (this.#isDestroyed || !this.#stateManager) return;
-      this.#stateManager.update();
-    });
+    this.#themeObserver = new MutationObserver(() => this.refreshColors());
     this.#themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
     if (typeof matchMedia === 'function') {
@@ -538,7 +556,6 @@ export default class LovelyChart {
     const isPlotFocused = this.#tooltip!.isFocused();
     this.#destroyComponents();
     this.#data = analyzeData(this.#originalData);
-    this.#colors = createColors(this.#data.colors, this.#data);
     // The rebuilt chart keeps the datasets the reader hid
     this.#data.datasets.forEach((dataset) => {
       if (filter[dataset.key] !== undefined) {

@@ -18,12 +18,17 @@
 - `TooltipContent` type.
 - `--lovely-chart-balloon-display`: `none` hides the tooltip balloon alone, keeping the hover line, the dots, the focus of a bar and the reports of the selection, so a media query can swap the balloon for a readout.
 - `datasets[*].type`: draws a dataset as a `line`, `bar` or `step` whatever the chart's `type`, as a line over bars, apart from a percentage, pie or donut chart's. Lines and steps draw over bars and areas, with the hatch of `hatchedRanges` between them, and bars that share the main Y axis with another type keep 0 on it. A chart with bars or steps among its datasets gives every label a column and masks the columns around the focused one. A dataset of another type than the chart's draws its own values: it stays out of a stacked chart's stack, the tooltip's total, the `comparison` and the shares of a zoom into a label.
+- `datasets[*].color`, `comparison.color` and the `colors` of data that `onZoom` returns take `{ light, dark }`, a colour per skin. The legend buttons, `--lovely-chart-series-color` and the tooltip swatches follow the skin, as the plot and the minimap do.
+- Every colour parameter takes a `var()` of the page's custom properties, alone or inside a colour function such as `color-mix()`. The chart computes it on a hidden element inside it, so any colour the property holds works, and computes it again on each change of the `class` of `<html>` and, with `colorScheme: 'system'`, of `prefers-color-scheme`, repainting in place.
+- `refreshColors()`: reads the `var()` colours again, for custom properties that the page changes on another trigger than the skin, keeping the zoom, the range, the legend filter and the selection.
 
 ### Changed
 
 - The `comparison` row of the tooltip takes `--tooltip-muted-text-color` in place of an opacity of 0.7. Its text keeps the shade the opacity gave it, on a page's own skin too, while its swatch and the tone of a rise or a fall keep their full colours. In the day and the night skin the text reaches a contrast of 4.5:1 on the tooltip background.
 - A `comparison` change that rounds to 0% keeps the weight of its value, normal by default, in place of bold; a rise or a fall stays bold.
 - The total on the `secondaryYAxis` scale in the tooltip is formatted as the dataset values are, by `formatTooltipValue` when given, and otherwise with its digits grouped and no trailing zeros: `$1 250` rather than `$1250.00`.
+- Dataset, comparison, axis text and background colours take any CSS colour, not only `#RRGGBB`. Reference line, hatched range and area border colours take any CSS colour, such as `light-dark()`, and `#RRGGBB/alpha`, not only those the canvas takes.
+- Legend buttons take their outline, label and checked fill from `--lovely-chart-series-color`, in place of a `lovely-chart--color-*` class and the rules the chart added to the page for each colour.
 
 ### Fixed
 

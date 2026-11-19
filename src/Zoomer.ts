@@ -11,7 +11,7 @@ import {
 import { analyzeData } from './data.js';
 import { getZoomCaption } from './format.js';
 import { getDrawnPattern, getLabelFraction, getPlotCircle } from './formulas.js';
-import { createColors } from './skin.js';
+import { recreateColors } from './skin.js';
 
 const ZOOM_ANIMATING_TIMEOUT = 1_000;
 // Days taken around the zoomed label to build the circle data
@@ -222,7 +222,7 @@ export class Zoomer {
     Object.assign(this.#data, newData, { axisTextColor, backgroundColor, colorScheme });
     this.#stateManager.refreshTransitionConfig();
     // The datasets of either view, and its comparison, take their own colours in the chart's skin
-    Object.assign(this.#colors, createColors(newData.colors, this.#data));
+    recreateColors(this.#colors, newData.colors, this.#data);
 
     const daysCount = this.#isZoomed || this.#data.shouldZoomToShares
       ? this.#data.xLabels.length
@@ -269,6 +269,9 @@ export class Zoomer {
       this.#container.style.height = `${this.#container.scrollHeight}px`;
     } else if (describeLegend(this.#data) !== legendBefore) {
       this.#tools.redraw(filter);
+    } else {
+      // The legend compares the colours as given, and a `var()` among them may compute to another colour by now
+      this.#tools.updateColors();
     }
 
     if (isInstant) {

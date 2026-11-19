@@ -44,8 +44,8 @@ export class Minimap {
   #state?: ChartState;
   // The datasets on the canvas, which a zoom may swap for others at an unchanged state
   #drawnDatasets?: AnalyzedDataset[];
-  // A skin switch leaves the state as it is, and changes the colours of hatches and themed area borders
-  #drawnSkin?: Skin;
+  // The colours on the canvas, which a skin switch or `refreshColors()` changes at an unchanged state
+  #drawnColors?: ChartColors[Skin];
 
   readonly #limitBegin: number | undefined;
   readonly #captureDetachers: (() => void)[] = [];
@@ -77,14 +77,16 @@ export class Minimap {
       newState = newState.static!;
     }
 
-    const skin = getSkin(this.#colors);
-    if (this.#drawnDatasets === this.#data.datasets && this.#drawnSkin === skin && !this.#isStateChanged(newState)) {
+    const skinColors = this.#colors[getSkin(this.#colors)];
+    if (
+      this.#drawnDatasets === this.#data.datasets && this.#drawnColors === skinColors && !this.#isStateChanged(newState)
+    ) {
       return;
     }
 
     this.#state = mergeProxied(newState, { focusOn: NO_FOCUS });
     this.#drawnDatasets = this.#data.datasets;
-    this.#drawnSkin = skin;
+    this.#drawnColors = skinColors;
     clearCanvas(this.#canvas, this.#context);
 
     this.#drawDatasets(this.#state);

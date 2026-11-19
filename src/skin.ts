@@ -1,6 +1,9 @@
 import type { ChartColors, ColorChannels, LovelyChartParams, ThemedColor } from './types.js';
 
-import { COLOR_SCHEME, SYSTEM_DARK_QUERY } from './constants.js';
+import { COLOR_PROBE, COLOR_SCHEME, SYSTEM_DARK_QUERY } from './constants.js';
+import { createElement } from './minifiers.js';
+
+type ColorParams = Pick<LovelyChartParams, 'axisTextColor' | 'backgroundColor' | 'colorScheme'>;
 
 const MASK_OPACITY = 0.5;
 // The label colours of a checked legend button, as `_buttons.scss` sets them
@@ -19,6 +22,10 @@ const SRGB_GAMMA = 2.4;
 const CONTRAST_FLARE = 0.05;
 const CHANNEL_MAX = 255;
 const SKIN_SCHEMES = { 'skin-day': 'light', 'skin-night': 'dark' } as const;
+// The form of a colour the chart reads itself; the browser computes any other
+const HEX_COLOR_PATTERN = /^#[\da-f]{6}(\/[\d.]+)?$/i;
+// The forms of a colour the canvas takes as given, `transparent` among them, as a reference line checks for the word
+const CANVAS_COLOR_PATTERN = /^(#[\da-f]{6}|transparent)$/i;
 
 function detectSkin() {
   return document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
@@ -28,9 +35,8 @@ export type Skin = 'skin-day' | 'skin-night';
 
 let skin: Skin | undefined;
 let systemDarkQuery: MediaQueryList | undefined;
-let styleSheet: CSSStyleSheet | null | undefined;
-// Dataset colours the shared stylesheet holds rules for
-const styledColors = new Set<string>();
+// A canvas of a pixel, which turns a colour of any form the browser computes into channels
+let colorReader: CanvasRenderingContext2D | undefined;
 
 const COLORS = {
   'skin-day': {
@@ -71,40 +77,23 @@ function ensureInited() {
   skin = detectSkin();
   systemDarkQuery = typeof matchMedia === 'function' ? matchMedia(SYSTEM_DARK_QUERY) : undefined;
 
-  // Prefer Constructable Stylesheets so a strict `style-src` CSP without
-  // `'unsafe-inline'` does not block us; fall back to an injected <style> on
-  // browsers that do not support them or where construction throws
-  if (typeof CSSStyleSheet === 'function') {
-    try {
-      styleSheet = new CSSStyleSheet();
-      document.adoptedStyleSheets = [...document.adoptedStyleSheets, styleSheet];
-    } catch {
-      styleSheet = undefined;
-    }
-  }
-  if (!styleSheet) {
-    const styleElement = document.createElement('style');
-    styleElement.type = 'text/css';
-    styleElement.appendChild(document.createTextNode(''));
-    document.head.appendChild(styleElement);
-    styleSheet = styleElement.sheet;
-  }
-
   new MutationObserver(() => {
     skin = detectSkin();
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 }
 
+// `probe` is a hidden element inside the chart, where each `var()` colour resolves
 export function createColors(
-  datasetColors: Record<string, string>,
-  { axisTextColor, backgroundColor, colorScheme }: Pick<
-    LovelyChartParams, 'axisTextColor' | 'backgroundColor' | 'colorScheme'
-  > = {},
+  datasetColors: Record<string, ThemedColor>,
+  { axisTextColor, backgroundColor, colorScheme }: ColorParams,
+  probe: HTMLElement,
 ): ChartColors {
   ensureInited();
 
-  const colors: ChartColors = { [COLOR_SCHEME]: colorScheme === 'system' ? 'system' : 'htmlClassName' };
-  const baseClass = `.lovely-chart--color`;
+  const colors: ChartColors = {
+    [COLOR_SCHEME]: colorScheme === 'system' ? 'system' : 'htmlClassName',
+    [COLOR_PROBE]: probe,
+  };
 
   (['skin-day', 'skin-night'] as const).forEach((skin) => {
     colors[skin] = {};
@@ -114,47 +103,46 @@ export function createColors(
     });
 
     if (axisTextColor) {
-      const axisText = hexToChannels(pickSchemeColor(axisTextColor, SKIN_SCHEMES[skin]));
+      const axisText = readColorChannels(pickSchemeColor(axisTextColor, SKIN_SCHEMES[skin]), probe);
       colors[skin]['x-axis-text'] = axisText;
       colors[skin]['y-axis-text'] = axisText;
     }
 
     if (backgroundColor) {
-      const background = hexToChannels(pickSchemeColor(backgroundColor, SKIN_SCHEMES[skin]));
+      const background = readColorChannels(pickSchemeColor(backgroundColor, SKIN_SCHEMES[skin]), probe);
       colors[skin].background = background;
       colors[skin].mask = [background[0], background[1], background[2], background[3]! * MASK_OPACITY];
     }
 
     Object.entries(datasetColors).forEach(([key, color]) => {
-      colors[skin][`dataset#${key}`] = hexToChannels(color);
+      colors[skin][`dataset#${key}`] = readColorChannels(pickSchemeColor(color, SKIN_SCHEMES[skin]), probe);
     });
   });
 
-  Object.values(datasetColors).forEach((color) => {
-    if (styledColors.has(color)) return;
-    styledColors.add(color);
-
-    const colorSuffix = color.slice(1);
-    addCssRule(
-      styleSheet!,
-      `.lovely-chart--button${baseClass}-${colorSuffix}`,
-      `border-color: ${color}; color: ${color}`,
-    );
-
-    const checkedButtonSelector = `.lovely-chart--button.lovely-chart--state-checked${baseClass}-${colorSuffix}`;
-    addCssRule(styleSheet!, checkedButtonSelector, `background-color: ${color}`);
-  });
-
   return colors;
+}
+
+// Creates the colours again where the components of the chart read them, each `var()` resolved anew
+export function recreateColors(colors: ChartColors, datasetColors: Record<string, ThemedColor>, params: ColorParams) {
+  Object.assign(colors, createColors(datasetColors, params, colors[COLOR_PROBE]));
 }
 
 function pickSchemeColor(color: ThemedColor, scheme: 'light' | 'dark') {
   return typeof color === 'string' ? color : color[scheme];
 }
 
-// Picks the colour of the skin on screen from a colour given one per skin
-export function pickSkinColor(colors: ChartColors, color: string | { light: string; dark: string }): string {
-  return typeof color === 'string' ? color : color[SKIN_SCHEMES[getSkin(colors)]];
+// Picks the colour of the skin on screen from a colour given one per skin. A form other than `CANVAS_COLOR_PATTERN`,
+// as a `var()` or `light-dark()`, which the canvas may not take, resolves once per creation of the colours, kept by
+// its text among those of the skin.
+export function pickSkinColor(colors: ChartColors, color: ThemedColor): string {
+  const skin = getSkin(colors);
+  const skinColor = pickSchemeColor(color, SKIN_SCHEMES[skin]);
+  if (CANVAS_COLOR_PATTERN.test(skinColor)) {
+    return skinColor;
+  }
+
+  colors[skin][skinColor] ??= readColorChannels(skinColor, colors[COLOR_PROBE]);
+  return buildCssColor(colors[skin][skinColor]);
 }
 
 export function getCssColor(colors: ChartColors, key: string, opacity?: number): string {
@@ -167,6 +155,35 @@ export function getSkin(colors: ChartColors): Skin {
   }
 
   return skin!;
+}
+
+function readColorChannels(color: string, probe: HTMLElement): ColorChannels {
+  return HEX_COLOR_PATTERN.test(color) ? hexToChannels(color) : resolveColor(color, probe);
+}
+
+// The colour computes on the probe, in the cascade of the chart, and a pixel of the canvas holds it in channels,
+// whatever form it computes to, such as `color(srgb …)` for a `color-mix()`
+function resolveColor(color: string, probe: HTMLElement): ColorChannels {
+  // An `!important` rule of the page would take the place of the colour otherwise
+  probe.style.setProperty('color', color, 'important');
+  const computedColor = getComputedStyle(probe).color;
+  probe.style.removeProperty('color');
+
+  colorReader ??= createColorReader();
+  colorReader.clearRect(0, 0, 1, 1);
+  colorReader.fillStyle = computedColor;
+  colorReader.fillRect(0, 0, 1, 1);
+  const [red, green, blue, alpha] = colorReader.getImageData(0, 0, 1, 1).data;
+
+  return [red, green, blue, alpha / CHANNEL_MAX];
+}
+
+function createColorReader() {
+  const canvas = createElement<HTMLCanvasElement>('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+
+  return canvas.getContext('2d', { willReadFrequently: true })!;
 }
 
 function hexToChannels(hexWithAlpha: string): ColorChannels {
@@ -185,8 +202,8 @@ function buildCssColor([r, g, b, a = 1]: ColorChannels, opacity = 1): string {
 }
 
 // A checked legend button keeps its light label while that reaches `MIN_LIGHT_CONTENT_CONTRAST` on the fill
-export function isLightContentTooFaint(hex: string): boolean {
-  const luminance = getRelativeLuminance(hexToChannels(hex));
+export function isLightContentTooFaint(colors: ChartColors, key: string): boolean {
+  const luminance = getRelativeLuminance(colors[getSkin(colors)][key]);
   const darkContrast = getContrastRatio(luminance, getRelativeLuminance(hexToChannels(DARK_CONTENT_COLOR)));
   const lightContrast = getContrastRatio(luminance, getRelativeLuminance(hexToChannels(LIGHT_CONTENT_COLOR)));
   return lightContrast < MIN_LIGHT_CONTENT_CONTRAST && darkContrast > lightContrast;
@@ -206,8 +223,4 @@ function getContrastRatio(luminance: number, otherLuminance: number): number {
   const lighter = Math.max(luminance, otherLuminance);
   const darker = Math.min(luminance, otherLuminance);
   return (lighter + CONTRAST_FLARE) / (darker + CONTRAST_FLARE);
-}
-
-function addCssRule(sheet: CSSStyleSheet, selector: string, rule: string) {
-  sheet.insertRule(`${selector} { ${rule} }`, sheet.cssRules.length);
 }

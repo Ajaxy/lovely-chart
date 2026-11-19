@@ -56,6 +56,7 @@ Method | Description |
 ---------|----|
 `update(newData)` | Replaces the current data with `newData` (same shape as the initial `data` argument) and re-renders. Resets transient view state (zoom, range, filter) and ends a drag, a long press or a hover in progress. No-op after `destroy()`.
 `selectLabel(labelIndex)` | Selects the label at `labelIndex` as hovering it would: shows its tooltip, focuses its bar and calls `onSelectedIndexChange` and `onTooltipChange`. The selection holds while the pointer moves elsewhere on the page and follows its label through a range change; the pointer over the chart takes it over, and it clears once its label leaves the visible range. `selectLabel(undefined)` clears the selection. Ignored for an index outside the visible range, on pie and donut charts and before the first paint, the frame after the chart is created or updated. No-op after `destroy()`.
+`refreshColors()` | Reads the `var()` colours of the params again and repaints the chart in them in place, keeping its zoom, range, legend filter and selection: for custom properties that the page changes on another trigger than the skin, such as a `data-theme` attribute. A change of the skin reads them by itself, as [Colours](#colours) describes. No-op after `destroy()`.
 `destroy()` | Tears down the chart: removes the DOM subtree from `element` and the `--lovely-chart-plot-area-*` variables from its style, detaches all global listeners (window `resize` / `orientationchange`, document `mousemove` / `touchstart` and those of a drag in progress, theme `MutationObserver`, layout `ResizeObserver`, the `prefers-color-scheme` media query `change`, `document.fonts` `loadingdone`), cancels pending animation frames and timeouts, and calls back nothing after it. Idempotent. Call this from your framework's cleanup hook (e.g. React `useEffect` cleanup) to avoid resource leaks.
 
 #### Data parameters
@@ -71,7 +72,7 @@ Parameter | Description |
 `isUtc`| `true` to read every date and time of the labels in UTC. Axis labels of days, hours and minutes and their tooltip titles otherwise follow the reader's time zone, while captions and day titles always read UTC. Default `false`.
 `datasets`| Array of params for each dataset
 `datasets[*].name`| Dataset name
-`datasets[*].color`| Dataset color
+`datasets[*].color`| Dataset colour, in any of the forms under [Colours](#colours)
 `datasets[*].values`| Array of dataset values; `null` leaves a gap
 `datasets[*].isInitiallyHidden`| `true` to start the dataset hidden, its legend button unchecked. Default `false`.
 `datasets[*].isDashed`| `true` to draw a `line` or `step` dataset in 6px dashes 4px apart. Its legend button gets a dashed outline and a `data-dashed` attribute, and its tooltip swatch a dashed outline. Other types ignore it, legend included. Default `false`.
@@ -106,21 +107,46 @@ Parameter | Description |
 `noFloatSteps`| `true` to step the main and the second Y axis in whole numbers, 1 at the finest, for counts: a range of 0 to 2 labels 0, 1 and 2. Default `false`.
 `areLabelsContrast`| `true` to center each Y-axis label on its grid line, over the line, inside a halo of the background colour, 2px in from its side of the chart so the grid line still shows at the plot edge. Default `false`.
 `axisFontSize`| Font size of the axis labels in px. Default `10`.
-`axisTextColor`| Colour of the axis labels: a hex colour (`#RRGGBB`, optionally `#RRGGBB/alpha`) or `{ light, dark }`, one per skin.
-`backgroundColor`| Colour of the surface behind the chart, in the same form as `axisTextColor`. The chart paints it inside the hover dots, in the mask over unfocused bars and as a halo around the Y-axis labels and the labels of reference lines and hatched ranges. Defaults to the skin's own background; without it, of the Y-axis labels only `areLabelsContrast` ones get a halo.
+`axisTextColor`| Colour of the axis labels, in any of the forms under [Colours](#colours).
+`backgroundColor`| Colour of the surface behind the chart, in any of the forms under [Colours](#colours). The chart paints it inside the hover dots, in the mask over unfocused bars and as a halo around the Y-axis labels and the labels of reference lines and hatched ranges. Defaults to the skin's own background; without it, of the Y-axis labels only `areLabelsContrast` ones get a halo.
 `colorScheme`| `'htmlClassName'` follows the `theme-dark` class on the `<html>` element; `'system'` follows the system's `prefers-color-scheme`, live. Default `'htmlClassName'`.
 `areLinesSmooth`| `true` to draw `line` datasets, and the `comparison` line beside them, as monotone curves through their values, never overshooting a value. Default `false`.
 `areaOpacity`| Opacity of an `area` fill, from 0 to 1; the outline and dots keep full opacity. Default `1`.
-`areaBorderColor`| Colour of a 1px outline around each area, and around each run of an area split at a gap: any canvas colour or `{ light, dark }`. A stack draws a boundary two areas share once.
+`areaBorderColor`| Colour of a 1px outline around each area, and around each run of an area split at a gap: any CSS colour or `{ light, dark }`. A stack draws a boundary two areas share once.
 `legendContainer`| Element that holds the legend, in place of the chart container.
+
+#### Colours
+
+Every colour parameter, `datasets[*].color`, `colors`, `comparison.color`, `axisTextColor`, `backgroundColor`, `areaBorderColor`, `referenceLines[*].color` and `hatchedRanges[*].color`, takes a CSS colour for both skins, or `{ light, dark }`, one for each. Each also takes `#RRGGBB/alpha`, a hex colour at an opacity.
+
+A colour can be a `var()` of a custom property of the page, alone or inside a colour function such as `color-mix()`. The chart computes it on a hidden element of its own inside `element`, so it reads the custom properties of `element` and its ancestors, and the chart's skin variables such as `--text-color`, and any colour they hold works: hex, `rgb()`, `color-mix()`, `oklch()` and the rest. It reads them when it is built, on `update()` and on a zoom, and again on each change of the `class` of `<html>`, where the `theme-dark` class switches the skin, and, with `colorScheme: 'system'`, of `prefers-color-scheme`. It then repaints in place, keeping its zoom, range, legend filter and selection. `refreshColors()` reads them again for custom properties that the page changes on another trigger, such as a `data-theme` attribute.
+
+The plot, the minimap, the legend buttons, `--lovely-chart-series-color` and the tooltip swatches take the colour of the skin on screen.
+
+```js
+const chart = new LovelyChart(element, {
+  type: 'line',
+  labels,
+  datasets: [
+    { name: 'Revenue', color: 'var(--color-accent)', values: revenue },
+    { name: 'Refunds', color: { light: '#E65850', dark: '#F07068' }, values: refunds },
+  ],
+  axisTextColor: 'var(--color-text-muted)',
+  backgroundColor: 'var(--color-surface)',
+});
+
+// The page's tokens follow a `data-theme` attribute, which the chart does not watch
+document.documentElement.dataset.theme = 'dark';
+chart.refreshColors();
+```
 
 #### Reference and comparison parameters
 
 Parameter | Description |
 ---------|----|
-`referenceLines`| Dashed rules at fixed values of the main Y axis: `[{ value, label?, color? }]`. The Y range always reaches each value, stacked charts included, so a line with `color: 'transparent'` draws nothing and only pins the range. `label` is drawn above the right end of the line, none when empty. `color` is any canvas colour or `{ light, dark }`, and defaults to the Y-axis text colour. `label` reads in the direction of the page, so on a right-to-left page a sign before a number moves after it; a number wrapped in U+2066 and U+2069, as `'\u2066-1.2K\u2069'`, keeps its sign first. On a percentage chart `value` is a percentage from 0 to 100 and the range stays 0–100%. Ignored on pie and donut charts.
-`hatchedRanges`| Runs of labels whose values are estimated, partial, still accruing or forecast, hatched across the plot and the minimap: `[{ from, to, label?, color?, hasEdge?, isAccruing?, note?, titleNote? }]`, `from` and `to` inclusive label indexes, rounded and clamped to the labels. A `bar` or `step` chart hatches the columns of the range. A `line` or `area` chart starts the hatch at the point before the range, as the segment into an estimated value is estimated too, or halfway from it with `isAccruing`, for a period still filling, and ends it halfway to the label after the range. The hatch goes under the lines of a `line` or `step` chart and over the fills of a `bar` or `area` chart, under the comparison line, the mask over unfocused bars and the reference lines; ranges of one colour that touch hatch as one band. Each range keeps its own label and edge: `label` is drawn at the bottom left of the range's hatch, in the axis font size, clear of the Y-axis labels and of the next label, and dropped where it has no room. `hasEdge` draws a dashed rule where the range's hatch starts, none at the first label. `color` is any canvas colour or `{ light, dark }` for the hatch, the edge and the label, and defaults to the Y-axis text colour. `note` and `titleNote` are notes of the tooltip at each label of the range, under the rows and beside the title, as `resolveTooltipNotes` gives them. The minimap draws the hatch alone, and a sparkline the hatch and the edges. Ignored on pie and donut charts, a zoom into shares included; the data `onZoom` returns sets ranges of its own.
-`comparison`| A previous period, drawn as a dashed line: `{ name, color?, values }`. `values` holds the previous values per dataset, in the order of `datasets`, each aligned with `labels`; the line draws their sum over the datasets on screen, and a `null` leaves a gap. `color` is a hex colour, `#6B7280` by default. The legend names it beside a dashed swatch, and the tooltip lists it first with the change of the current total in percent. Ignored on percentage, pie and donut charts.
+`referenceLines`| Dashed rules at fixed values of the main Y axis: `[{ value, label?, color? }]`. The Y range always reaches each value, stacked charts included, so a line with `color: 'transparent'` draws nothing and only pins the range. `label` is drawn above the right end of the line, none when empty. `color` is any CSS colour or `{ light, dark }`, and defaults to the Y-axis text colour. `label` reads in the direction of the page, so on a right-to-left page a sign before a number moves after it; a number wrapped in U+2066 and U+2069, as `'\u2066-1.2K\u2069'`, keeps its sign first. On a percentage chart `value` is a percentage from 0 to 100 and the range stays 0–100%. Ignored on pie and donut charts.
+`hatchedRanges`| Runs of labels whose values are estimated, partial, still accruing or forecast, hatched across the plot and the minimap: `[{ from, to, label?, color?, hasEdge?, isAccruing?, note?, titleNote? }]`, `from` and `to` inclusive label indexes, rounded and clamped to the labels. A `bar` or `step` chart hatches the columns of the range. A `line` or `area` chart starts the hatch at the point before the range, as the segment into an estimated value is estimated too, or halfway from it with `isAccruing`, for a period still filling, and ends it halfway to the label after the range. The hatch goes under the lines of a `line` or `step` chart and over the fills of a `bar` or `area` chart, under the comparison line, the mask over unfocused bars and the reference lines; ranges of one colour that touch hatch as one band. Each range keeps its own label and edge: `label` is drawn at the bottom left of the range's hatch, in the axis font size, clear of the Y-axis labels and of the next label, and dropped where it has no room. `hasEdge` draws a dashed rule where the range's hatch starts, none at the first label. `color` is any CSS colour or `{ light, dark }` for the hatch, the edge and the label, and defaults to the Y-axis text colour. `note` and `titleNote` are notes of the tooltip at each label of the range, under the rows and beside the title, as `resolveTooltipNotes` gives them. The minimap draws the hatch alone, and a sparkline the hatch and the edges. Ignored on pie and donut charts, a zoom into shares included; the data `onZoom` returns sets ranges of its own.
+`comparison`| A previous period, drawn as a dashed line: `{ name, color?, values }`. `values` holds the previous values per dataset, in the order of `datasets`, each aligned with `labels`; the line draws their sum over the datasets on screen, and a `null` leaves a gap. `color` takes any of the forms under [Colours](#colours), `#6B7280` by default. The legend names it beside a dashed swatch, and the tooltip lists it first with the change of the current total in percent. Ignored on percentage, pie and donut charts.
 
 #### Tooltip parameters
 
@@ -242,7 +268,7 @@ new LovelyChart(element, {
 Variable | Description |
 ---------|----|
 `--lovely-chart-plot-height`| Plot canvas height, read from the chart element or an ancestor, ahead of `plotHeight`: a unitless number of px, `px` or `rem`.
-`--lovely-chart-series-color`| Set by the chart on each legend button, on the comparison legend entry and on each tooltip swatch: the colour of its dataset or line.
+`--lovely-chart-series-color`| Set by the chart on each legend button, on the comparison legend entry and on each tooltip swatch: the colour of its dataset or line in the skin on screen, as `rgba()`. A legend button takes its outline, its label and its checked fill from it.
 `--background-color`, `--text-color`, `--grid-lines`, `--tooltip-background` and the other variables on `.lovely-chart--container`| The colours of the day and the night skin. Night colours of your own go under `html.theme-dark .lovely-chart--container:not(.lovely-chart--container-scheme-system)` for the default `colorScheme`, and under `.lovely-chart--container-scheme-system` inside `@media (prefers-color-scheme: dark)` for `'system'`, so neither reaches a chart of the other scheme.
 `--tooltip-change-positive`, `--tooltip-change-negative`| Colours of a rise and a fall of the `comparison` change in the tooltip.
 `--tooltip-muted-text-color`| Colour of the `comparison` row and the notes of the tooltip. Defaults to a mix of 70% `--text-color` and 30% `--tooltip-background`, which follows a skin of your own and reaches a contrast of 4.5:1 on the tooltip background in the day and the night skin. A colour of your own goes per skin, as the colours above.

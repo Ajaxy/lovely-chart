@@ -1,9 +1,9 @@
-import type { AnalyzedData, Filter } from './types.js';
+import type { AnalyzedData, ChartColors, Filter } from './types.js';
 
 import { captureEvents } from './captureEvents.js';
 import { getDrawnPattern } from './formulas.js';
 import { createElement } from './minifiers.js';
-import { isLightContentTooFaint } from './skin.js';
+import { getCssColor, isLightContentTooFaint } from './skin.js';
 import { throttleWithRaf } from './utils.js';
 
 // Matches the fade-out transition of the replaced controls
@@ -12,6 +12,7 @@ const HIDE_TIMEOUT = 500;
 export class Tools {
   readonly #container: HTMLElement;
   readonly #data: AnalyzedData;
+  readonly #colors: ChartColors;
   readonly #filterCallback: (filter: Filter) => void;
 
   #element!: HTMLElement;
@@ -25,9 +26,12 @@ export class Tools {
     button.classList.add('lovely-chart--state-shake');
   });
 
-  constructor(container: HTMLElement, data: AnalyzedData, filterCallback: (filter: Filter) => void) {
+  constructor(
+    container: HTMLElement, data: AnalyzedData, colors: ChartColors, filterCallback: (filter: Filter) => void,
+  ) {
     this.#container = container;
     this.#data = data;
+    this.#colors = colors;
     this.#filterCallback = filterCallback;
 
     this.#setupLayout();
@@ -45,6 +49,18 @@ export class Tools {
     this.#setupLayout(filter);
     this.#element.classList.add('lovely-chart--state-transparent');
     this.#revealOnRaf();
+  }
+
+  // Paints the buttons and the comparison entry in the colours of the skin on screen
+  updateColors() {
+    Array.from(this.#element.getElementsByTagName('a')).forEach((button) => {
+      const colorKey = `dataset#${button.dataset.key}`;
+      button.style.setProperty('--lovely-chart-series-color', getCssColor(this.#colors, colorKey));
+      button.classList.toggle('lovely-chart--dark-content', isLightContentTooFaint(this.#colors, colorKey));
+    });
+
+    this.#element.querySelector<HTMLElement>('.lovely-chart--comparison-legend')
+      ?.style.setProperty('--lovely-chart-series-color', getCssColor(this.#colors, 'dataset#comparison'));
   }
 
   destroy() {
@@ -68,17 +84,14 @@ export class Tools {
 
     datasets.forEach((dataset) => {
       const { key, name, isInitiallyHidden } = dataset;
-      const color = this.#data.colors[key];
       const control = createElement<HTMLAnchorElement>('a');
       control.href = '#';
       control.dataset.key = key;
-      const darkContent = isLightContentTooFaint(color) ? ' lovely-chart--dark-content' : '';
       const isChecked = filter?.[key] ?? !isInitiallyHidden;
       const checked = isChecked ? ' lovely-chart--state-checked' : '';
-      control.className = `lovely-chart--button lovely-chart--color-${color.slice(1)}${checked}${darkContent}`;
+      control.className = `lovely-chart--button${checked}`;
       control.setAttribute('role', 'button');
       control.setAttribute('aria-pressed', String(isChecked));
-      control.style.setProperty('--lovely-chart-series-color', color);
       const pattern = getDrawnPattern(dataset);
       if (pattern) {
         control.setAttribute(`data-${pattern}`, 'true');
@@ -124,11 +137,11 @@ export class Tools {
     if (comparison) {
       const comparisonLegend = createElement<HTMLSpanElement>('span');
       comparisonLegend.className = 'lovely-chart--comparison-legend';
-      comparisonLegend.style.setProperty('--lovely-chart-series-color', comparison.color);
       comparisonLegend.textContent = comparison.name;
       this.#element.appendChild(comparisonLegend);
     }
 
+    this.updateColors();
     this.#container.appendChild(this.#element);
   }
 

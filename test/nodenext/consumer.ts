@@ -10,10 +10,10 @@ declare const element: HTMLElement;
 
 const labels = [1, 2, 3];
 const datasets: LovelyChartDatasetParams[] = [
-  { name: 'A', values: [1, null, 3], isDashed: true, isInitiallyHidden: false },
-  { name: 'B', values: [2, 1, null], isDotted: true, type: 'line' },
+  { name: 'A', values: [1, null, 3], isDashed: true, isInitiallyHidden: false, color: 'var(--color-accent)' },
+  { name: 'B', values: [2, 1, null], isDotted: true, type: 'line', color: { light: '#3497ED', dark: '#48AAF0' } },
 ];
-const comparison: Comparison = { name: 'Previous period', values: [[1, null, 3]] };
+const comparison: Comparison = { name: 'Previous period', values: [[1, null, 3]], color: 'var(--color-text-muted)' };
 const reference: ReferenceLine = { value: 0, color: 'transparent' };
 const surface: ThemedColor = { light: '#F5F6F7', dark: '#212A33' };
 const forecast: HatchedRange = { from: 1, to: 2, label: 'Forecast', hasEdge: true, isAccruing: false, color: surface };
@@ -62,7 +62,7 @@ const params: LovelyChartParams = {
   legendContainer: element,
   dateLocale,
   secondaryYAxis,
-  onZoom: (labelValue) => Promise.resolve({ type: 'line', labels: [labelValue], datasets, colors: { y0: '#3497ED' } }),
+  onZoom: (labelValue) => Promise.resolve({ type: 'line', labels: [labelValue], datasets, colors: { y0: surface } }),
   onZoomChange: (labelValue, labelIndex) => [labelValue?.toFixed(), labelIndex?.toFixed()],
   onHiddenSeriesChange: (names, datasetIndexes) => names.length + datasetIndexes.length,
   onSelectedIndexChange: (labelIndex) => labelIndex?.toFixed(),
@@ -73,6 +73,7 @@ const params: LovelyChartParams = {
 const chart = new LovelyChart(element, params);
 chart.selectLabel(2);
 chart.selectLabel(undefined);
+chart.refreshColors();
 
 const handle: LovelyChartInstance = chart;
 handle.update({ ...params, colorScheme: 'htmlClassName' });
