@@ -9,6 +9,8 @@
   cursor: var(--custom-cursor, pointer);
 
   position: absolute;
+  // A page sets the variable on the chart's element or above it, so the container declares no default to shadow it
+  z-index: var(--lovely-chart-balloon-z-index, auto);
   top: 5px;
   left: 0;
 

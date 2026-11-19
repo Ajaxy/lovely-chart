@@ -3826,6 +3826,59 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     dayLook.border.startsWith('0px none') && customLook.border === '2px solid rgb(4, 5, 6)',
     JSON.stringify([dayLook.border, customLook.border]));
 
+  // --- An overlay after the chart paints over the balloon, or between the hover line and the balloon by
+  // `--lovely-chart-balloon-z-index` ---
+  const layeringChart = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Balloon layering',
+      labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)),
+      datasets: [{ name: 'A', values: [10, 20, 30] }],
+      noZoom: true,
+    },
+    hostStyle: 'position: relative',
+  });
+  await layeringChart.scrollIntoViewIfNeeded();
+  await addPlotAreaOverlay(page);
+  // The overlay takes the pointer, as a label with a tip does, so that the elements under a point where it meets the
+  // balloon list it, topmost first
+  const readBalloonLayers = (balloonZIndex, overlayZIndex) => page.evaluate(async (zIndexes) => {
+    const host = document.getElementById('probe');
+    const overlay = document.getElementById('probe-overlay');
+    host.style.setProperty('--lovely-chart-balloon-z-index', zIndexes.balloon);
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.zIndex = zIndexes.overlay;
+    window.probeChart.selectLabel(1);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const balloon = host.querySelector('.lovely-chart--tooltip-balloon');
+    const hoverCanvas = host.querySelector('.lovely-chart--tooltip canvas');
+    const balloonBox = balloon.getBoundingClientRect();
+    const overlayBox = overlay.getBoundingClientRect();
+    const stack = document.elementsFromPoint(
+      (Math.max(balloonBox.left, overlayBox.left) + Math.min(balloonBox.right, overlayBox.right)) / 2,
+      (Math.max(balloonBox.top, overlayBox.top) + Math.min(balloonBox.bottom, overlayBox.bottom)) / 2,
+    );
+    const layers = {
+      balloon: stack.findIndex((element) => balloon.contains(element)),
+      overlay: stack.indexOf(overlay),
+      'hover line': stack.indexOf(hoverCanvas),
+    };
+    return {
+      order: Object.keys(layers).filter((name) => layers[name] !== -1).sort((a, b) => layers[a] - layers[b]),
+      zIndex: getComputedStyle(balloon).zIndex,
+    };
+  }, { balloon: balloonZIndex, overlay: overlayZIndex });
+  const defaultLayers = await readBalloonLayers('', '');
+  const raisedLayers = await readBalloonLayers('2', '1');
+  await unmountProbe(page);
+  check('an overlay added after the chart paints over the tooltip balloon by default',
+    defaultLayers.zIndex === 'auto'
+    && defaultLayers.order.join() === ['overlay', 'balloon', 'hover line'].join(),
+    JSON.stringify(defaultLayers));
+  check('--lovely-chart-balloon-z-index over the z-index of an overlay puts it over the hover line, under the balloon',
+    raisedLayers.zIndex === '2' && raisedLayers.order.join() === ['balloon', 'overlay', 'hover line'].join(),
+    JSON.stringify(raisedLayers));
+
   // --- Tooltip notes: those of hatched ranges and `resolveTooltipNotes`, beside the title and under the rows ---
   // A function cannot cross into the page, so the page builds the resolver from the notes it is given, and logs its calls
   const mountNotesProbe = (config, notesByLabel) => page.evaluate(async ({ spec, resolved }) => {

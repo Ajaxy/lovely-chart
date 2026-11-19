@@ -221,6 +221,7 @@ Variable | Description |
 `--tooltip-muted-text-color`| Colour of the `comparison` row and the notes of the tooltip. Defaults to a mix of 70% `--text-color` and 30% `--tooltip-background`, which follows a skin of your own and reaches a contrast of 4.5:1 on the tooltip background in the day and the night skin. A colour of your own goes per skin, as the colours above.
 `--tooltip-separator-color`| Colour of the rule under the `comparison` row of the tooltip and of the rule over its notes. Defaults to `--grid-lines`.
 `--tooltip-border`| Border of the tooltip balloon, as `1px solid #D2D5D7`. Default `none`.
+`--lovely-chart-balloon-z-index`| The `z-index` of the tooltip balloon, read from the chart element or an ancestor. Default `auto`, so an overlay added after the chart paints over the balloon. A value above the `z-index` of such an overlay places the overlay between the hover line and the balloon: see [Placing elements over the plot](#placing-elements-over-the-plot).
 `--lovely-chart-plot-area-left`, `--lovely-chart-plot-area-top`, `--lovely-chart-plot-area-width`, `--lovely-chart-plot-area-height`| Set by the chart on `element`, as px lengths from the inside of its border: the data area of the plot, where a window over every label and the Y range draw. It runs from the start of the plot, after an `isYAxisOutward` column, to its end, and from the top of the Y range to the X-axis baseline. A pie or donut sets the square around its circle, and a sparkline its plot inset by 2px. The chart sets them from its first paint, the frame after it is created, and rewrites them when the area changes: on `update()`, a resize or an orientation change, a zoom into data of another label column or into a pie, when a web font of the page changes the axis font, and when a style of the page moves the plot by resizing the chart's layout, as a header folded while its caption is empty. `destroy()` removes them.
 
 #### Styling the tooltip
@@ -270,6 +271,19 @@ element.appendChild(overlay);
 ```
 
 The chart keeps its place among the children of `element` through updates and resizes, so an overlay added after it paints over the plot and the tooltip balloon, and one inserted before it paints under them. A band over a run of labels needs no element: `hatchedRanges` draws it with the data.
+
+An overlay added after the chart can sit over the hover line and under the balloon instead, as a label with a tip the pointer can reach: give it a `z-index`, and the balloon a higher one through `--lovely-chart-balloon-z-index` on `element`. `isolation: isolate` keeps both values inside `element`, away from the z-indexes of the rest of the page.
+
+```css
+.chart {
+  --lovely-chart-balloon-z-index: 2;
+  isolation: isolate;
+}
+
+.chart-overlay {
+  z-index: 1;
+}
+```
 
 ## Contributing
 
