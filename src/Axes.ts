@@ -306,7 +306,7 @@ export class Axes {
       const textOpacity = this.#data.areLabelsContrast ? opacity : applyXEdgeOpacity(opacity, yPx);
 
       labels.push({
-        text: isSecondary ? humanize(value, labelStep) : this.#formatPrimaryAxisLabel(value, labelStep),
+        text: isSecondary ? humanize(value, labelStep) : this.#formatAxisLabel(value, labelStep),
         x: labelX,
         y: this.#getLabelY(yPx),
         colorKey: colorKey ?? 'y-axis-text',
@@ -381,7 +381,7 @@ export class Axes {
       const [, yPx] = projection.toPixels(0, value);
 
       labels.push({
-        text: `${prefix}${humanize(value * multiplier, labelStep)}${suffix}`,
+        text: this.#formatAxisLabel(value * multiplier, labelStep, prefix, suffix),
         x: this.#getSecondaryLabelX(),
         y: this.#getLabelY(yPx),
         colorKey: 'y-axis-text',
@@ -454,7 +454,7 @@ export class Axes {
     return this.#measureWidest(this.#data.isPercentage
       ? PERCENT_VALUES.map(formatPercentLabel)
       : listYAxisValues(this.#data, this.#plotSize.height).map(({ value, step }) => (
-        this.#formatPrimaryAxisLabel(value, step)
+        this.#formatAxisLabel(value, step)
       )));
   }
 
@@ -473,7 +473,7 @@ export class Axes {
 
     const { multiplier, prefix = '', suffix = '' } = secondaryYAxis;
     return listYAxisValues(this.#data, height).map(({ value, step }) => (
-      `${prefix}${humanize(value * multiplier, step * multiplier)}${suffix}`
+      this.#formatAxisLabel(value * multiplier, step * multiplier, prefix, suffix)
     ));
   }
 
@@ -493,10 +493,10 @@ export class Axes {
     return Math.ceil(width);
   }
 
-  #formatPrimaryAxisLabel(value: number, step: number): string {
+  #formatAxisLabel(
+    value: number, step: number, prefix = this.#data.valuePrefix || '', suffix = this.#data.valueSuffix || '',
+  ): string {
     const formatted = humanize(value, step);
-    const prefix = this.#data.valuePrefix || '';
-    const suffix = this.#data.valueSuffix || '';
     if (this.#data.isCurrencyPrefix && prefix && formatted.charCodeAt(0) === 45) {
       return `-${prefix}${formatted.slice(1)}${suffix}`;
     }

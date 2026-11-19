@@ -701,14 +701,14 @@ export class Tooltip {
     valueElement.replaceChildren(`${this.#formatValue(value)} · `, changeElement);
   }
 
-  #formatValue(value: number | null): string {
+  #formatValue(
+    value: number | null, prefix = this.#data.valuePrefix || '', suffix = this.#data.valueSuffix || '',
+  ): string {
     if (value === GAP) {
       return NO_VALUE;
     }
 
     const formatted = this.#data.formatTooltipValue ? this.#data.formatTooltipValue(value) : formatInteger(value);
-    const prefix = this.#data.valuePrefix || '';
-    const suffix = this.#data.valueSuffix || '';
     if (this.#data.isCurrencyPrefix && prefix && formatted.charCodeAt(0) === 45) {
       return `-${prefix}${formatted.slice(1)}${suffix}`;
     }
@@ -865,7 +865,7 @@ export class Tooltip {
     const { label, multiplier, prefix = '', suffix = '' } = this.#data.secondaryYAxis!;
     this.#renderTotalRow(
       dataSetContainer, 'secondary', label,
-      total === GAP ? NO_VALUE : `${prefix}${(total * multiplier).toFixed(2)}${suffix}`,
+      total === GAP ? NO_VALUE : this.#formatValue(total * multiplier, prefix, suffix),
     );
   }
 

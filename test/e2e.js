@@ -3657,7 +3657,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     missing: await readResolvedSecondaryRows({ type: 'line' }, null),
   };
   check('the total on the secondaryYAxis scale scales the total resolveTooltipTotal gives',
-    JSON.stringify(resolvedSecondaryRows.resolved) === '["A 200","B 20","USD ≈ $1250.00"]'
+    JSON.stringify(resolvedSecondaryRows.resolved) === '["A 200","B 20","USD ≈ $1 250"]'
     && JSON.stringify(resolvedSecondaryRows.missing) === '["A 200","B 20","USD ≈ —"]',
     JSON.stringify(resolvedSecondaryRows));
 
@@ -3698,15 +3698,15 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     // eslint-disable-next-line no-null/no-null
     missing: await readResolvedSecondaryRows({ type: 'bar', isStacked: true }, null),
   };
-  const rowsWithTotal = '["A 200","B 20","Total 220","USD ≈ $550.00"]';
+  const rowsWithTotal = '["A 200","B 20","Total 220","USD ≈ $550"]';
   check('a stacked chart with secondaryYAxis shows its total and the scaled total on rows of their own',
     JSON.stringify(secondaryTotals.bar.rows) === rowsWithTotal
     && JSON.stringify(secondaryTotals.step.rows) === rowsWithTotal
     && JSON.stringify(secondaryTotals.area.rows) === rowsWithTotal
     && JSON.stringify(secondaryTotals.percentage.rows) === rowsWithTotal
     && secondaryTotals.inTitle.titleTotal === '220'
-    && JSON.stringify(secondaryTotals.inTitle.rows) === '["A 200","B 20","USD ≈ $550.00"]'
-    && JSON.stringify(secondaryTotals.resolved) === '["A 200","B 20","Total 500","USD ≈ $1250.00"]'
+    && JSON.stringify(secondaryTotals.inTitle.rows) === '["A 200","B 20","USD ≈ $550"]'
+    && JSON.stringify(secondaryTotals.resolved) === '["A 200","B 20","Total 500","USD ≈ $1 250"]'
     && JSON.stringify(secondaryTotals.missing) === '["A 200","B 20","Total —","USD ≈ —"]',
     JSON.stringify(secondaryTotals));
 
@@ -4083,6 +4083,58 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('the demo forecast notes its forecast days in the tooltip, and its actual days not',
     JSON.stringify(forecastDayNotes) === '["Forecast"]' && actualDayNotes.length === 0,
     JSON.stringify({ forecastDayNotes, actualDayNotes }));
+
+  // --- The total on the `secondaryYAxis` scale takes the format of the dataset values, and `isCurrencyPrefix` puts
+  // the minus sign of that total and of the labels of that scale in front of its prefix ---
+  // A function cannot cross into the page, so the page formats the tooltip numbers in `locale` when it is given
+  const readSecondaryFormat = async (config, locale) => {
+    await recordProbeNumbers(page);
+    return page.evaluate(async ({ spec, formatLocale }) => {
+      const { default: LovelyChart } = await import('./LovelyChart.js');
+      const element = document.createElement('div');
+      element.id = 'probe';
+      document.getElementById('container').appendChild(element);
+      window.probeChart = new LovelyChart(element, {
+        type: 'bar',
+        isStacked: true,
+        title: 'Probe — Secondary total format',
+        labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)),
+        datasets: [{ name: 'A', values: [-900, -1000, -1100] }, { name: 'B', values: [-95, -105, -115] }],
+        secondaryYAxis: { label: 'EUR', multiplier: 0.92, prefix: '€' },
+        ...spec,
+        ...(formatLocale && { formatTooltipValue: (value) => value.toLocaleString(formatLocale) }),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      window.probeChart.selectLabel(1);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
+      const rows = [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset')].map((row) => [
+        row.dataset.name ?? row.firstElementChild.textContent,
+        row.querySelector('.lovely-chart--tooltip-dataset-value').textContent,
+      ].join(' '));
+      const axisLabels = [...new Set(window.probeTexts.map(({ text }) => text).filter((text) => text.includes('€')))];
+      window.probeChart.destroy();
+      element.remove();
+      return { rows, axisLabels };
+    }, { spec: config, formatLocale: locale });
+  };
+  const currencyConfig = { valuePrefix: '$', isCurrencyPrefix: true };
+  const secondaryFormats = {
+    plain: await readSecondaryFormat({}),
+    currency: await readSecondaryFormat(currencyConfig),
+    formatted: await readSecondaryFormat(currencyConfig, 'en-US'),
+  };
+  check('the total on the secondaryYAxis scale takes the format of the dataset values, formatTooltipValue included',
+    JSON.stringify(secondaryFormats.plain.rows) === '["B -105","A -1 000","Total -1 105","EUR €-1 016.6"]'
+    && JSON.stringify(secondaryFormats.currency.rows) === '["B -$105","A -$1 000","Total -$1 105","EUR -€1 016.6"]'
+    && JSON.stringify(secondaryFormats.formatted.rows) === '["B -$105","A -$1,000","Total -$1,105","EUR -€1,016.6"]',
+    JSON.stringify(secondaryFormats));
+  check('isCurrencyPrefix puts the minus sign of a secondaryYAxis label in front of its prefix',
+    secondaryFormats.plain.axisLabels.some((text) => /^€-\d/.test(text))
+    && !secondaryFormats.plain.axisLabels.some((text) => text.startsWith('-€'))
+    && secondaryFormats.currency.axisLabels.some((text) => /^-€\d/.test(text))
+    && !secondaryFormats.currency.axisLabels.some((text) => text.startsWith('€-')),
+    JSON.stringify({ plain: secondaryFormats.plain.axisLabels, currency: secondaryFormats.currency.axisLabels }));
 
   // --- Smooth lines, a dataset that starts hidden and the axis font (demo chart) ---
   const smoothDemoChart = charts.nth(SMOOTH_CHART);

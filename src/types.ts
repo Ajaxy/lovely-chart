@@ -252,7 +252,10 @@ export interface LovelyChartParams {
    * Total row.
    */
   isTooltipTotalInTitle?: boolean;
-  /** Formats a number of the tooltip; `valuePrefix` and `valueSuffix` still wrap the result. */
+  /**
+   * Formats a number of the tooltip, the total on the `secondaryYAxis` scale included; `valuePrefix` and
+   * `valueSuffix` still wrap the result, or the `prefix` and `suffix` of `secondaryYAxis` around that total.
+   */
   formatTooltipValue?: (value: number) => string;
   /**
    * The total of a tooltip, for the label's value (its timestamp, or the index of a text label), the indexes of the
@@ -275,6 +278,11 @@ export interface LovelyChartParams {
    */
   areaBorderColor?: string | { light: string; dark: string };
   hasSecondYAxis?: boolean;
+  /**
+   * A scale of the main Y axis in another unit, labelled at the right of the plot, apart from a percentage chart's.
+   * The tooltip adds a row of `label` and the total times `multiplier`, formatted as the dataset values are, between
+   * `prefix` and `suffix`.
+   */
   secondaryYAxis?: SecondaryYAxisConfig;
   onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
   /**
@@ -327,6 +335,10 @@ export interface LovelyChartParams {
   zoomOutLabel?: string;
   valuePrefix?: string;
   valueSuffix?: string;
+  /**
+   * Puts the minus sign of a negative value in front of `valuePrefix`, `-$9.1` rather than `$-9.1`, and in front of
+   * the `prefix` of `secondaryYAxis` on its labels and its tooltip total.
+   */
   isCurrencyPrefix?: boolean;
   limitDate?: number;
   onLimitedRangeClick?: () => void;
