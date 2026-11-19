@@ -2,6 +2,7 @@ import type { AnalyzedData, ChartColors, Filter } from './types.js';
 
 import { captureEvents } from './captureEvents.js';
 import { getDrawnPattern } from './formulas.js';
+import { applyLoading } from './loading.js';
 import { createElement } from './minifiers.js';
 import { getCssColor, isLightContentTooFaint } from './skin.js';
 import { throttleWithRaf } from './utils.js';
@@ -78,6 +79,10 @@ export class Tools {
     return this.#element;
   }
 
+  updateLoading() {
+    applyLoading(this.#element, this.#data);
+  }
+
   // Leaves the legend in place, for the chart to remove it or fade it out
   destroy() {
     this.#removeHiddenElement();
@@ -89,6 +94,7 @@ export class Tools {
   #setupLayout(filter?: Filter, nextSibling?: Node) {
     this.#element = createElement();
     this.#element.className = 'lovely-chart--tools';
+    applyLoading(this.#element, this.#data);
 
     // A lone dataset needs no legend, unless it starts hidden and the legend is the way to show it,
     // or a comparison line needs its name

@@ -60,6 +60,7 @@ Method | Description |
 `setLegendContainer(element)` | Moves the legend into `element`, or back to the end of the chart with `undefined`, without a rebuild: its buttons keep the datasets they hide, and the chart keeps its zoom, range and selection. The legend takes its [spacing variables](#spacing-the-chart) from its new place, and stays there through a zoom, a resize and an orientation change; `update()` places it by the `legendContainer` of its new data. The element that held it keeps nothing of the chart, and a call with the element that holds it leaves it in place among the elements of the page. No-op after `destroy()`.
 `getLabelX(labelIndex, offset?)` | The x of the label at `labelIndex` in px from the left of the plot area the `--lovely-chart-plot-area-*` variables describe, in the current view: where its value draws, at its point on a `line` or `area` chart and at the centre of its column on a `bar` or `step` chart. `offset`, from 0 to 1, takes that fraction through the label's interval instead: from its point to the next one on a `line` or `area` chart, where `0` is the point, and across its column on a `bar` or `step` chart, or one with bars or steps among its datasets, where `0` is its start and `0.5` its centre. It reads the range and the zoom the chart is moving to, so through the transition of a pan or a zoom it gives where the label ends up, and once a zoom into the data `onZoom` returns swaps that data in, as `onZoomChange` reports, it maps that data's labels. A panned window runs past the plot area, so a label at its edge can map below 0 or past the area's width. Returns `undefined` for an index outside the visible range, before the first paint, on pie and donut charts, a zoom into shares from its start included, and after `destroy()`.
 `zoomOut()` | Zooms a zoomed chart out to its overview as its zoom-out control does, for a page that draws a header or a zoom-out control of its own and leaves out the chart's control with `noZoomOutControl`. Starts on the next frame, and only if the chart is zoomed in then: from the moment `onZoomChange` reports a zoom, even from within that callback, until a zoom out starts. No-op after `destroy()`.
+`setLoading(isLoading)` | Shows the chart as loading, as the `isLoading` parameter does, and `setLoading(false)` as loaded, without a rebuild: the data on screen dims or shows in full, or data with no labels shows or leaves its skeleton, and the zoom, the range, the datasets hidden in the legend and the selected label stay as they are, with no callback. A resize keeps the state, and `update()` takes the one of its `isLoading`. No-op after `destroy()`.
 `destroy()` | Tears down the chart: removes the DOM subtree from `element` and the `--lovely-chart-plot-area-*` and `--lovely-chart-plot-padding-top` variables from its style, calling `onPlotAreaChange` with `undefined`, detaches all global listeners (window `resize` / `orientationchange`, document `mousemove` / `touchstart` and those of a drag in progress, theme `MutationObserver`, layout `ResizeObserver`, the `prefers-color-scheme` media query `change`, `document.fonts` `loadingdone`), cancels pending animation frames and timeouts, and calls back nothing after it. Idempotent. Call this from your framework's cleanup hook (e.g. React `useEffect` cleanup) to avoid resource leaks.
 
 #### Update options
@@ -117,6 +118,7 @@ Parameter | Description |
 ---------|----|
 `plotHeight`| Height of the plot canvas in px. Default `320`. A `--lovely-chart-plot-height` custom property on the chart element or an ancestor takes precedence (a unitless number, `px` or `rem`), so a media query can set it.
 `isSparkline`| `true` to draw the datasets alone, inset by 2px: no axes, grid, header or legend. The bottom of the Y range stays unrounded to an axis step and follows the zero baseline of every chart: 0, unless the values go below 0 or their lowest is more than three quarters of their highest. Default `false`.
+`isLoading`| `true` to show the chart as loading, for a page that fetches its data. The chart element and its legend are `inert`: they take no pointer, focus or keyboard input and leave the accessibility tree. Data with labels dims on the plot, the minimap and the legend, as the data on screen does while the next data loads. Data with none, as `labels: []`, draws a skeleton of them in the chart's own geometry, so the chart its data builds takes the same place: a block over the data area of the plot, or the circle of a pie and the ring of a donut, the box of the minimap without its ruler, and a pill for each legend entry, sized by its name, so datasets with their names and empty `values` hold the place of the legend to come. The header keeps its title and the band of a caption of dates; for text labels and no `title`, `labelType: 'text'` folds it as the labels will. The skeleton takes `--skeleton-color`, and pulses unless the reader prefers reduced motion. `setLoading()` sets and clears it in place, keeping the zoom, the range, the hidden datasets and the selected label of the data on screen, and `update()` takes it from its params. Default `false`.
 `noHeader`| `true` to leave out the band of the title and the caption, so the plot starts at the top of the chart, axes and legend kept. While zoomed, the zoom-out control floats over the top inline-start corner of the plot, as it does from a header with nothing to show (see `--lovely-chart-empty-header-height`), on a backdrop of `--background-color` that covers the top label of the main Y axis; `noZoomOutControl` leaves it out. Default `false`.
 `noCaption`| `true` to leave out the caption of the header, the dates on screen. With no `title`, the header has nothing to show and folds to `--lovely-chart-empty-header-height`. Default `false`.
 `noZoomOutControl`| `true` to leave out the zoom-out control, for a page that zooms out with `zoomOut()` from a control of its own; while zoomed, the header keeps its title. Default `false`.
@@ -319,6 +321,24 @@ new LovelyChart(element, {
 }
 ```
 
+A chart that loads its data, a skeleton in its place until the data arrives, and the data dimmed while the next loads:
+
+```js
+const params = { type: 'line', title: 'Orders', withMinimap: true };
+const chart = new LovelyChart(element, {
+  ...params,
+  labels: [],
+  datasets: [{ name: 'iOS', values: [] }, { name: 'Android', values: [] }],
+  isLoading: true,
+});
+const data = await fetchOrders(period);
+chart.update({ ...params, ...data });
+
+// Another period
+chart.setLoading(true);
+chart.update({ ...params, ...(await fetchOrders(nextPeriod)) });
+```
+
 A compact chart, its axes and plot without the header, the legend or the tooltip:
 
 ```js
@@ -358,6 +378,7 @@ Variable | Description |
 `--tooltip-border`| Border of the tooltip balloon, as `1px solid #D2D5D7`. Default `none`.
 `--lovely-chart-balloon-z-index`| The `z-index` of the tooltip balloon, read from the chart element or an ancestor. Default `auto`, so an overlay added after the chart paints over the balloon. A value above the `z-index` of such an overlay places the overlay between the hover line and the balloon: see [Placing elements over the plot](#placing-elements-over-the-plot). A chart whose header floats, with `noHeader` or a header with nothing to show, keeps its balloon over the zoom-out control in a stacking context of its own, so an overlay added after it paints over the balloon whatever the value.
 `--lovely-chart-balloon-display`| The `display` of the tooltip balloon, read from the chart element or an ancestor: `block` by default. `none` hides the balloon alone and keeps the rest of a selection, the hover line and dots, the focus of a bar and the calls of `onSelectedIndexChange` and `onTooltipChange`, so a media query can swap the balloon for a readout of the page. A touch screen zooms by a tap on the balloon, so there `none` takes that zoom away too.
+`--skeleton-color`| Colour of the skeleton a loading chart draws in place of data with no labels, `isLoading`, one in each skin as the colours above. A legend in `legendContainer` reads it from that element or an ancestor, and takes a translucent grey while it is unset.
 `--lovely-chart-plot-area-left`, `--lovely-chart-plot-area-top`, `--lovely-chart-plot-area-width`, `--lovely-chart-plot-area-height`| Set by the chart on `element`, as px lengths from the inside of its border: the data area of the plot, where a window over every label and the Y range draw. It runs from the start of the plot, after an `isYAxisOutward` column, to its end, and from the top of the Y range to the X-axis baseline. A pie or donut sets the square around its circle, and a sparkline its plot inset by 2px. The chart sets them from its first paint, the frame after it is created, and rewrites them when the area changes: on `update()`, a resize or an orientation change, a zoom into data of another label column or into a pie, when a web font of the page changes the axis font, and when a style of the page moves the plot by resizing the chart's layout or its header, as a header folded while its caption is empty. `destroy()` removes them.
 `--lovely-chart-plot-padding-top`| Set by the chart on `element` beside the `--lovely-chart-plot-area-*` variables, and removed with them: the room in the plot above the top of the Y range, `15px`, or `2px` on a sparkline, for marks that rise above the data.
 

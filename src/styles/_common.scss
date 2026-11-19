@@ -12,6 +12,7 @@ $font-stack: '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
   --minimap-limit-color: #BFC0C2;
   --tooltip-change-positive: #48AAF0;
   --tooltip-change-negative: #F07068;
+  --skeleton-color: #{rgba(#FFFFFF, 0.1)};
 }
 
 .lovely-chart--container {
@@ -30,6 +31,7 @@ $font-stack: '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
   --tooltip-muted-text-color: color-mix(in srgb, var(--text-color) 70%, var(--tooltip-background));
   --tooltip-separator-color: var(--grid-lines);
   --tooltip-border: none;
+  --skeleton-color: #{rgba(#182D3B, 0.1)};
 
   -webkit-user-select: none;
   user-select: none;

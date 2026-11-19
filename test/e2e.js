@@ -303,6 +303,14 @@ const ZOOM_SETTLE_MS = 1500;
 // The distance in px from the left of the plot at which the pointer opens the balloon of a label left of the middle
 // over the floating zoom-out control
 const FLOATING_CONTROL_HOVER_X = 40;
+// The opacity a loading chart dims its data to, and the width of the elements the loading probes are built in
+const LOADING_OPACITY = 0.4;
+const LOADING_PROBE_WIDTH = 600;
+// The fade of the minimap and the legend of a chart that starts or stops loading, and a margin
+const LOADING_FADE_MS = 600;
+// The pixels of a skeleton in the day and the night skin, a tenth of a dark blue and of white
+const DAY_SKELETON_PIXEL = { red: [0, 100], green: [0, 100], blue: [0, 100], alpha: [10, 60] };
+const NIGHT_SKELETON_PIXEL = { red: [180, 255], green: [180, 255], blue: [180, 255], alpha: [10, 60] };
 // The fewest pixels of its colour that show a dataset drawn on a canvas
 const MIN_DATASET_PIXELS = 100;
 // The fewest pixels of its colour that show a thin line or a halo drawn on a canvas, as a dashed comparison line
@@ -7703,6 +7711,368 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('the floating zoom-out control sits on a backdrop of --background-color',
     stacking.background === stacking.skinBackground && stacking.background !== 'rgba(0, 0, 0, 0)',
     JSON.stringify(stacking));
+
+  // --- A loading chart: a skeleton in the chart's own geometry in place of data with no labels, or its data dimmed ---
+  // The skeleton of a line chart takes the boxes of the chart its data builds: the plot, the minimap and a pill for
+  // each legend entry, checked or not. The plot draws a block over its data area alone in the colour of the skin, which
+  // follows a change of skin, the minimap and the pills take the colour too, and the chart and its legend are inert. A
+  // pie draws a circle, a donut a ring, and a legend in `legendContainer` takes a grey of its own.
+  const loadingSkeleton = await page.evaluate(async (width) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wasHtmlDark = document.documentElement.classList.contains('theme-dark');
+    document.documentElement.classList.add('theme-dark');
+    const labels = Array.from({ length: 30 }, (_, i) => Date.UTC(2026, 0, 1 + i));
+    const datasets = [{ name: 'Desktop' }, { name: 'Mobile users' }, { name: 'Tablet', isInitiallyHidden: true }];
+    const elements = [];
+    const build = (config) => {
+      const element = document.createElement('div');
+      element.style.width = `${width}px`;
+      document.getElementById('container').appendChild(element);
+      elements.push(element);
+      return { element, chart: new LovelyChart(element, { title: 'Probe — Loading', type: 'line', ...config }) };
+    };
+    const emptyDatasets = datasets.map((dataset) => ({ ...dataset, values: [] }));
+    const legend = document.createElement('div');
+    document.getElementById('container').appendChild(legend);
+    elements.push(legend);
+    const skeleton = build({ labels: [], datasets: emptyDatasets, withMinimap: true, isLoading: true });
+    const loaded = build({
+      labels,
+      datasets: datasets.map((dataset, k) => ({
+        ...dataset, values: labels.map((_, i) => 50 + ((i * 37 * (k + 1)) % 101)),
+      })),
+      withMinimap: true,
+    });
+    const pie = build({ type: 'pie', labels: [], datasets: emptyDatasets, isLoading: true });
+    const donut = build({ type: 'donut', labels: [], datasets: emptyDatasets, isLoading: true });
+    const outsideLegend = build({ labels: [], datasets: emptyDatasets, isLoading: true, legendContainer: legend });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const readPixel = (canvas, [x, y]) => {
+      const scale = canvas.width / canvas.clientWidth;
+      return [...canvas.getContext('2d').getImageData(Math.round(x * scale), Math.round(y * scale), 1, 1).data];
+    };
+    const measure = ({ element }) => {
+      const origin = element.getBoundingClientRect();
+      const box = (el) => {
+        const rect = el.getBoundingClientRect();
+        return [rect.left - origin.left, rect.top - origin.top, rect.width, rect.height];
+      };
+      const container = element.querySelector('.lovely-chart--container');
+      return {
+        height: container.getBoundingClientRect().height,
+        plot: box(container.querySelector(':scope > canvas')),
+        minimap: box(container.querySelector('.lovely-chart--minimap')),
+        legend: [...container.querySelectorAll('.lovely-chart--button')].map(box),
+      };
+    };
+    // The data area on the canvas, by the plot-area properties of the element, and the pixels at its middle, in the
+    // gutter left of it and in the X-axis band under it
+    const readPlotSkeleton = ({ element }) => {
+      const canvas = element.querySelector('.lovely-chart--container > canvas');
+      const canvasRect = canvas.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const [left, top, areaWidth, areaHeight] = ['left', 'top', 'width', 'height']
+        .map((key) => parseFloat(element.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+      const area = {
+        left: left - (canvasRect.left - elementRect.left),
+        top: top - (canvasRect.top - elementRect.top),
+        width: areaWidth,
+        height: areaHeight,
+      };
+      const middle = [area.left + area.width / 2, area.top + area.height / 2];
+      return {
+        area,
+        middle: readPixel(canvas, middle),
+        gutter: readPixel(canvas, [area.left / 2, middle[1]]),
+        xAxisBand: readPixel(canvas, [middle[0], (area.top + area.height + canvas.clientHeight) / 2]),
+      };
+    };
+    const readSkeletonColors = ({ element }) => {
+      const container = element.querySelector('.lovely-chart--container');
+      const swatch = document.createElement('div');
+      swatch.style.background = 'var(--skeleton-color)';
+      container.appendChild(swatch);
+      const skinColor = getComputedStyle(swatch).backgroundColor;
+      swatch.remove();
+      const minimap = container.querySelector('.lovely-chart--minimap');
+      return {
+        skinColor,
+        minimap: getComputedStyle(minimap).backgroundColor,
+        isRulerHidden: getComputedStyle(minimap.querySelector('.lovely-chart--minimap-ruler')).visibility === 'hidden',
+      };
+    };
+    const readPills = (tools) => [...tools.querySelectorAll('.lovely-chart--button')].map((button) => ({
+      fill: getComputedStyle(button).backgroundColor,
+      border: getComputedStyle(button).borderTopColor,
+      isLabelHidden: getComputedStyle(button.querySelector('.lovely-chart--button-label')).visibility === 'hidden',
+    }));
+    // The middle of the circle, a point of the ring between the hole of a donut, half the radius, and the edge, and a
+    // corner of the square around the circle
+    const readCircle = ({ element }) => {
+      const { area } = readPlotSkeleton({ element });
+      const canvas = element.querySelector('.lovely-chart--container > canvas');
+      const center = [area.left + area.width / 2, area.top + area.height / 2];
+      return {
+        center: readPixel(canvas, center),
+        ring: readPixel(canvas, [center[0] + area.width * 0.375, center[1]]),
+        corner: readPixel(canvas, [area.left + 2, area.top + 2]),
+      };
+    };
+
+    const skeletonContainer = skeleton.element.querySelector('.lovely-chart--container');
+    const result = {
+      skeleton: measure(skeleton),
+      loaded: measure(loaded),
+      nightPlot: readPlotSkeleton(skeleton),
+      nightColors: readSkeletonColors(skeleton),
+      pills: readPills(skeletonContainer.querySelector('.lovely-chart--tools')),
+      isInert: skeletonContainer.inert && skeletonContainer.querySelector('.lovely-chart--tools').inert,
+      caption: skeletonContainer.querySelector('.lovely-chart--header-caption').textContent,
+      pie: readCircle(pie),
+      donut: readCircle(donut),
+      outsideLegend: { isInert: legend.firstElementChild.inert, pills: readPills(legend) },
+      outsideChartInert: outsideLegend.element.querySelector('.lovely-chart--container').inert,
+    };
+
+    document.documentElement.classList.remove('theme-dark');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    result.dayPlot = readPlotSkeleton(skeleton);
+    result.dayColors = readSkeletonColors(skeleton);
+    document.documentElement.classList.toggle('theme-dark', wasHtmlDark);
+
+    [skeleton, loaded, pie, donut, outsideLegend].forEach(({ chart }) => chart.destroy());
+    elements.forEach((element) => element.remove());
+    return result;
+  }, LOADING_PROBE_WIDTH);
+  const {
+    skeleton: skeletonLayout, loaded: loadedLayout, nightPlot: nightPlotSkeleton, dayPlot: dayPlotSkeleton,
+    nightColors: nightSkeletonColors, dayColors: daySkeletonColors, pie: pieSkeleton, donut: donutSkeleton,
+  } = loadingSkeleton;
+  const isSameBox = (box, otherBox) => box.every((side, i) => isNear(side, otherBox[i]));
+  const isPixelPicked = (pixel, { red, green, blue, alpha }) => (
+    [red, green, blue, alpha].every(([min, max], k) => pixel[k] >= min && pixel[k] <= max)
+  );
+  const isClearPixel = (pixel) => pixel[3] === 0;
+  check('a loading chart with no labels takes the boxes of the chart its data builds: plot, minimap and legend pills',
+    isNear(skeletonLayout.height, loadedLayout.height) && isSameBox(skeletonLayout.plot, loadedLayout.plot)
+    && isSameBox(skeletonLayout.minimap, loadedLayout.minimap)
+    && skeletonLayout.legend.length === loadedLayout.legend.length
+    && skeletonLayout.legend.every((box, i) => isSameBox(box, loadedLayout.legend[i])),
+    JSON.stringify({ skeletonLayout, loadedLayout }));
+  check('the plot skeleton fills the data area alone, in the colour of either skin',
+    isPixelPicked(nightPlotSkeleton.middle, NIGHT_SKELETON_PIXEL)
+    && isPixelPicked(dayPlotSkeleton.middle, DAY_SKELETON_PIXEL)
+    && [nightPlotSkeleton, dayPlotSkeleton].every(({ gutter, xAxisBand }) => (
+      isClearPixel(gutter) && isClearPixel(xAxisBand)
+    )),
+    JSON.stringify({ nightPlotSkeleton, dayPlotSkeleton }));
+  check('the minimap skeleton takes --skeleton-color in either skin, without its ruler',
+    [nightSkeletonColors, daySkeletonColors].every(({ skinColor, minimap, isRulerHidden }) => (
+      minimap === skinColor && skinColor !== 'rgba(0, 0, 0, 0)' && isRulerHidden
+    )) && nightSkeletonColors.skinColor !== daySkeletonColors.skinColor,
+    JSON.stringify({ nightSkeletonColors, daySkeletonColors }));
+  check('the legend skeleton is a pill of --skeleton-color for each entry, its label hidden, checked or not',
+    loadingSkeleton.pills.length === 3 && loadingSkeleton.pills.every(({ fill, border, isLabelHidden }) => (
+      fill === nightSkeletonColors.skinColor && border === 'rgba(0, 0, 0, 0)' && isLabelHidden
+    )),
+    JSON.stringify(loadingSkeleton.pills));
+  check('a loading chart and its legend are inert, the legend in legendContainer too, and the caption stays empty',
+    loadingSkeleton.isInert && loadingSkeleton.outsideChartInert && loadingSkeleton.outsideLegend.isInert
+    && !loadingSkeleton.caption,
+    JSON.stringify({
+      isInert: loadingSkeleton.isInert,
+      outsideChartInert: loadingSkeleton.outsideChartInert,
+      outsideLegendInert: loadingSkeleton.outsideLegend.isInert,
+      caption: loadingSkeleton.caption,
+    }));
+  check('a legend skeleton in legendContainer takes a grey of its own',
+    loadingSkeleton.outsideLegend.pills.length === 3 && loadingSkeleton.outsideLegend.pills.every(({ fill }) => (
+      fill !== 'rgba(0, 0, 0, 0)'
+    )),
+    JSON.stringify(loadingSkeleton.outsideLegend));
+  check('a pie skeleton fills its circle and a donut skeleton its ring, the corners of their squares left clear',
+    isPixelPicked(pieSkeleton.center, NIGHT_SKELETON_PIXEL) && isPixelPicked(pieSkeleton.ring, NIGHT_SKELETON_PIXEL)
+    && isClearPixel(donutSkeleton.center) && isPixelPicked(donutSkeleton.ring, NIGHT_SKELETON_PIXEL)
+    && isClearPixel(pieSkeleton.corner) && isClearPixel(donutSkeleton.corner),
+    JSON.stringify({ pieSkeleton, donutSkeleton }));
+
+  // The skeleton pulses unless the reader prefers reduced motion
+  const readSkeletonAnimations = () => page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    document.getElementById('container').appendChild(element);
+    const chart = new LovelyChart(element, {
+      type: 'line', labels: [], datasets: [{ name: 'A', values: [] }, { name: 'B', values: [] }], isLoading: true,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const animations = element.querySelector('.lovely-chart--container > canvas').getAnimations().length;
+    chart.destroy();
+    element.remove();
+    return animations;
+  });
+  const pulsingAnimations = await readSkeletonAnimations();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const stillAnimations = await readSkeletonAnimations();
+  // Playwright restores the preference on `null` alone
+  // eslint-disable-next-line no-null/no-null
+  await page.emulateMedia({ reducedMotion: null });
+  check('the skeleton pulses, unless the reader prefers reduced motion',
+    pulsingAnimations === 1 && stillAnimations === 0, JSON.stringify({ pulsingAnimations, stillAnimations }));
+
+  // `setLoading()` takes the skeleton of data with no labels away in place, so the chart draws nothing, with no error,
+  // and brings it back. A browser without `roundRect` draws the block with square corners.
+  const errorsBefore = errors.length;
+  const { shown: shownSkeleton, cleared: clearedSkeleton, squared: squaredSkeleton } = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    document.getElementById('container').appendChild(element);
+    const chart = new LovelyChart(element, {
+      type: 'line', labels: [], datasets: [{ name: 'A', values: [] }, { name: 'B', values: [] }], isLoading: true,
+    });
+    const container = element.querySelector('.lovely-chart--container');
+    const canvas = container.querySelector(':scope > canvas');
+    const read = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      const parts = [container, container.querySelector('.lovely-chart--tools')];
+      return {
+        painted: data.filter((channel, j) => j % 4 === 3 && channel).length,
+        states: parts.flatMap(({ inert, classList }) => [inert, classList.contains('lovely-chart--state-skeleton')]),
+        isSameContainer: element.querySelector('.lovely-chart--container') === container,
+      };
+    };
+    const shown = await read();
+    chart.setLoading(false);
+    const cleared = await read();
+    const { roundRect } = CanvasRenderingContext2D.prototype;
+    delete CanvasRenderingContext2D.prototype.roundRect;
+    chart.setLoading(true);
+    const squared = await read();
+    CanvasRenderingContext2D.prototype.roundRect = roundRect;
+    chart.destroy();
+    element.remove();
+    return { shown, cleared, squared };
+  });
+  check('setLoading(false) takes the skeleton away in place, and data with no labels that does not load draws nothing',
+    shownSkeleton.painted > 0 && shownSkeleton.states.every(Boolean)
+    && !clearedSkeleton.painted && !clearedSkeleton.states.some(Boolean) && clearedSkeleton.isSameContainer
+    && errors.length === errorsBefore,
+    JSON.stringify({ shownSkeleton, clearedSkeleton, errors: errors.slice(errorsBefore) }));
+  check('setLoading(true) brings the skeleton back, with square corners in a browser without roundRect',
+    squaredSkeleton.painted > shownSkeleton.painted && squaredSkeleton.states.every(Boolean)
+    && squaredSkeleton.isSameContainer,
+    JSON.stringify({ shownSkeleton, squaredSkeleton }));
+
+  // A loading chart with labels dims its plot, minimap and legend, and takes no pointer: hovering the plot opens no
+  // balloon, a click on it zooms nothing, and a click on the legend hides nothing. `setLoading()` shows the data in
+  // full and dims it again in place, with no callback: the chart keeps the datasets the reader hid and the zoom. A zoom
+  // that redraws the legend keeps it as the chart loads or not.
+  await page.evaluate(async (hourMs) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeLog = [];
+    const labels = Array.from({ length: 14 }, (_, i) => Date.UTC(2026, 0, 1 + i));
+    const buildDatasets = (length, suffix) => [
+      { name: `A${suffix}`, values: Array.from({ length }, (_, i) => 10 + i) },
+      { name: `B${suffix}`, values: Array.from({ length }, (_, i) => 30 - i) },
+    ];
+    window.probeChart = new LovelyChart(element, {
+      title: 'Probe — Loading data',
+      type: 'line',
+      withMinimap: true,
+      labels,
+      datasets: buildDatasets(labels.length, ''),
+      isLoading: true,
+      onZoom: (day) => Promise.resolve({
+        type: 'line',
+        labels: Array.from({ length: 24 }, (_, hour) => day + hour * hourMs),
+        datasets: buildDatasets(24, ' hourly'),
+      }),
+      onZoomChange: (labelValue) => window.probeLog.push(labelValue === undefined ? 'zoom out' : 'zoom in'),
+      onHiddenSeriesChange: (names) => window.probeLog.push(`hidden ${names}`),
+      onSelectedIndexChange: (labelIndex) => window.probeLog.push(`selected ${labelIndex}`),
+    });
+    window.probeContainer = element.querySelector('.lovely-chart--container');
+    element.scrollIntoView({ block: 'center' });
+  }, HOUR_MS);
+  await sleep(1200);
+  const readLoadingProbe = () => page.evaluate(() => {
+    const container = document.querySelector('#probe .lovely-chart--container');
+    return {
+      opacities: [':scope > canvas', '.lovely-chart--minimap', '.lovely-chart--tools']
+        .map((selector) => Number(getComputedStyle(container.querySelector(selector)).opacity)),
+      isInert: container.inert,
+      isSameContainer: container === window.probeContainer,
+      pressed: [...container.querySelectorAll('.lovely-chart--button')].map((button) => (
+        button.getAttribute('aria-pressed')
+      )),
+      isBalloonShown: Boolean(container.querySelector('.lovely-chart--tooltip-balloon.lovely-chart--state-shown')),
+      log: [...window.probeLog],
+    };
+  });
+  const setProbeLoading = async (isLoading) => {
+    await page.evaluate((isProbeLoading) => window.probeChart.setLoading(isProbeLoading), isLoading);
+    await sleep(LOADING_FADE_MS);
+  };
+  // A click by the position of the first legend button, as an inert one takes no click of its own
+  const clickFirstLegendButton = async () => {
+    const box = await page.locator('#probe .lovely-chart--button').first().boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await sleep(300);
+  };
+  const loadingPlotBox = await page.locator('#probe .lovely-chart--tooltip').boundingBox();
+  await page.mouse.move(
+    loadingPlotBox.x + loadingPlotBox.width / 2, loadingPlotBox.y + loadingPlotBox.height / 2, { steps: 5 },
+  );
+  await sleep(400);
+  const hoveredLoading = await readLoadingProbe();
+  await clickProbeMiddle('#probe .lovely-chart--tooltip');
+  await sleep(ZOOM_SETTLE_MS);
+  await clickFirstLegendButton();
+  await page.mouse.move(0, 0);
+  const dimmed = await readLoadingProbe();
+  await setProbeLoading(false);
+  await clickFirstLegendButton();
+  const shownLoading = await readLoadingProbe();
+  await clickProbeMiddle('#probe .lovely-chart--tooltip');
+  await sleep(ZOOM_SETTLE_MS);
+  await page.mouse.move(0, 0);
+  const zoomed = await readLoadingProbe();
+  await setProbeLoading(true);
+  const zoomedLoading = await readLoadingProbe();
+  await page.evaluate(() => window.probeChart.zoomOut());
+  await sleep(ZOOM_SETTLE_MS);
+  const zoomedOutLoading = await readLoadingProbe();
+  await setProbeLoading(false);
+  const loadedAgain = await readLoadingProbe();
+  await unmountProbe(page);
+  const isDimmed = ({ opacities, isInert, isSameContainer }) => (
+    opacities.every((opacity) => opacity === LOADING_OPACITY) && isInert && isSameContainer
+  );
+  const isShown = ({ opacities, isInert, isSameContainer }) => (
+    opacities.every((opacity) => opacity === 1) && !isInert && isSameContainer
+  );
+  check('a loading chart dims its plot, minimap and legend, and is inert',
+    isDimmed(dimmed), JSON.stringify(dimmed));
+  check('a loading chart opens no balloon on hover, and a click on the plot or the legend neither zooms nor hides',
+    !hoveredLoading.isBalloonShown && !hoveredLoading.log.length && !dimmed.log.length,
+    JSON.stringify({ hoveredLoading, dimmed }));
+  check('setLoading(false) shows the data in full in place, and the legend takes a click again',
+    isShown(shownLoading) && JSON.stringify(shownLoading.log) === '["hidden A"]'
+    && JSON.stringify(shownLoading.pressed) === '["false","true"]',
+    JSON.stringify(shownLoading));
+  check('a zoom shows the chart as loaded, and setLoading(true) dims it in place, which stays zoomed with no callback',
+    zoomed.log.includes('zoom in') && isShown(zoomed) && isDimmed(zoomedLoading)
+    && JSON.stringify(zoomedLoading.log) === JSON.stringify(zoomed.log),
+    JSON.stringify({ zoomed, zoomedLoading }));
+  check('a zoom out while loading keeps the chart and its legend dimmed, and the datasets the reader hid',
+    isDimmed(zoomedOutLoading) && zoomedOutLoading.log.at(-1) === 'zoom out'
+    && JSON.stringify(zoomedOutLoading.pressed) === '["false","true"]'
+    && isShown(loadedAgain) && JSON.stringify(loadedAgain.pressed) === '["false","true"]',
+    JSON.stringify({ zoomedOutLoading, loadedAgain }));
 
   // --- Keyboard selection, the tooltip content `onTooltipChange` reports and a balloon the page hides ---
   // The keys step inside the window the minimap opens on, the last 20% of 101 labels, from 80 to 100

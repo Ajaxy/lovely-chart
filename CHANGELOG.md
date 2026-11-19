@@ -43,6 +43,9 @@
 - `--lovely-chart-font-weight`: the regular weight of the chart's text, 300 by default: the legend, the names in the tooltip and the axis labels.
 - `--lovely-chart-font-weight-bold`: the weight of the chart's bold text, `bold` by default: the header, the tooltip title and its total, the values, the Total row, a rise or a fall against the `comparison` and the shares of a percentage chart.
 - `ariaLabel`: the accessible name of the plot, which takes `role="img"` while the chart element takes no role, so the legend buttons stay exposed. An empty string leaves the plot out of the accessibility tree.
+- `isLoading`: shows the chart as loading, its element and its legend `inert`. Data with labels dims on the plot, the minimap and the legend, and data with none draws a skeleton of them in the chart's own geometry, so the chart its data builds takes the same place: a block over the data area of the plot, or the circle of a pie and the ring of a donut, the box of the minimap and a pill for each legend entry, sized by its name. The skeleton pulses unless the reader prefers reduced motion.
+- `setLoading(isLoading)`: shows the chart as loading, as `isLoading` does, or as loaded, in place, so the data on screen keeps its zoom, range, hidden datasets and selected label.
+- `--skeleton-color`: the colour of the skeleton of a loading chart, one in each skin.
 
 ### Changed
 
@@ -65,6 +68,7 @@
 - A resize or an orientation change of a chart zoomed into its own datasets, as into a pie or a donut, keeps in the overview it opens the datasets the reader hid or showed in the zoomed legend.
 - The hover line and dots of the tooltip stay on the plot when a style of the page moves the plot canvas by resizing the chart's layout or its header, as by folding or restyling the header or changing the plot canvas's margin. The chart places the hover layer, `.lovely-chart--tooltip`, from the plot canvas whenever the plot area, the chart's layout or its header changes, ahead of a `top` the page sets on the layer and a margin it sets on the hover canvas: a page that set a margin on both canvases to move the plot needs it on `.lovely-chart--container > canvas` alone.
 - The `--lovely-chart-plot-area-*` variables follow the plot when a style of the page folds or resizes the header in a chart element that keeps its size, as one of fixed height.
+- A chart with no labels, as `labels: []`, draws its empty plot, in place of throwing an error on each frame it draws.
 - A header caption of a range of days whose ends fall in different years gives each end its year, as `1 Jan 2026 — 18 Feb 2027`, in place of leaving out the year of the end in the current year, which read as a span of the other end's year, `1 Jan — 18 Feb 2027`.
 
 ## 2.1.0

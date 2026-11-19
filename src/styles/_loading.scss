@@ -1,0 +1,62 @@
+// While loading, a chart dims the data on screen, or shows a skeleton in place of data with no labels: a block over the
+// plot, which the canvas draws in `--skeleton-color`, the box of the minimap without its ruler, and a pill in place of
+// each legend entry, which keeps its size
+$loading-opacity: 0.4;
+// A legend in `legendContainer` reads `--skeleton-color` from that element or an ancestor, and takes a grey that shows
+// on either skin while it is unset
+$legend-skeleton-color: rgba(#808080, 0.2);
+
+.lovely-chart--container.lovely-chart--state-loading {
+  > canvas,
+  .lovely-chart--minimap {
+    opacity: $loading-opacity;
+  }
+}
+
+.lovely-chart--tools.lovely-chart--state-loading {
+  opacity: $loading-opacity;
+}
+
+.lovely-chart--container.lovely-chart--state-skeleton {
+  .lovely-chart--minimap {
+    background-color: var(--skeleton-color);
+  }
+
+  .lovely-chart--minimap-ruler {
+    visibility: hidden;
+  }
+}
+
+// A checked legend button takes the fill of its dataset by its checked selector, which this one outweighs
+.lovely-chart--tools.lovely-chart--state-skeleton {
+  .lovely-chart--button,
+  .lovely-chart--button.lovely-chart--state-checked,
+  .lovely-chart--comparison-legend {
+    border-color: transparent;
+    border-radius: var(--lovely-chart-button-radius, 18px);
+    color: transparent;
+    background-color: var(--skeleton-color, $legend-skeleton-color);
+  }
+
+  .lovely-chart--button-check,
+  .lovely-chart--button-label,
+  .lovely-chart--comparison-legend::before {
+    visibility: hidden;
+  }
+}
+
+// The skeleton pulses unless the reader prefers reduced motion
+@media (prefers-reduced-motion: no-preference) {
+  .lovely-chart--container.lovely-chart--state-skeleton > canvas,
+  .lovely-chart--container.lovely-chart--state-skeleton .lovely-chart--minimap,
+  .lovely-chart--tools.lovely-chart--state-skeleton .lovely-chart--button,
+  .lovely-chart--tools.lovely-chart--state-skeleton .lovely-chart--comparison-legend {
+    animation: lovely-chart--animation-skeleton-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes lovely-chart--animation-skeleton-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}

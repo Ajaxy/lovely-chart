@@ -26,6 +26,7 @@ import {
   getCircleArea, getIntervalPosition, getPlotStart, getSimplificationDelta, getVisibleLabelRange, isDataRange,
 } from './formulas.js';
 import { Header } from './Header.js';
+import { applyLoading, drawPlotSkeleton } from './loading.js';
 import { createElement } from './minifiers.js';
 import { Minimap } from './Minimap.js';
 import { preparePoints } from './preparePoints.js';
@@ -105,6 +106,8 @@ export default class LovelyChart {
   // The label the first frame zooms into, as `initialZoom` asks or a zoom `update()` keeps
   #pendingZoomIndex?: number;
   #isZoomOutPending = false;
+  // The loading state `setLoading()` gave, which a rebuild from the params keeps until `update()` brings its own
+  #isLoadingSet?: boolean;
   #selectedLabelIndex?: number;
   #tooltipKey?: string;
   // The selection `update()` keeps, which the first frame of the rebuilt chart selects again
@@ -181,6 +184,7 @@ export default class LovelyChart {
     const hiddenDatasetsKey = this.#hiddenDatasetsKey;
     this.#hiddenDatasetsKey = undefined;
     this.#originalData = newData;
+    this.#isLoadingSet = undefined;
     this.#legendContainer = newData.legendContainer;
     const isPlotFocused = this.#tooltip?.isFocused();
     const shouldCrossFade = isAnimated && !isMotionReduced();
@@ -272,6 +276,21 @@ export default class LovelyChart {
     this.#stateManager!.update();
   }
 
+  /**
+   * Shows the chart as loading, as `isLoading` does, and `false` as loaded, in place: the data on screen keeps its
+   * zoom, range, hidden datasets and selected label.
+   */
+  setLoading(isLoading: boolean) {
+    if (this.#isDestroyed) return;
+    // A resize rebuilds the chart from the params, which the chart keeps as the page passed them
+    this.#isLoadingSet = isLoading;
+    this.#data.isLoading = isLoading;
+    applyLoading(this.#element!, this.#data);
+    this.#tools!.updateLoading();
+    // The plot draws the skeleton in place of data with no labels, or takes it away
+    this.#stateManager!.update();
+  }
+
   destroy() {
     if (this.#isDestroyed) return;
     this.#isDestroyed = true;
@@ -354,6 +373,7 @@ export default class LovelyChart {
     if (this.#data.colorScheme === 'system') {
       this.#element.classList.add('lovely-chart--container-scheme-system');
     }
+    applyLoading(this.#element, this.#data);
 
     if (nextSibling?.parentNode === this.#container) {
       this.#container.insertBefore(this.#element, nextSibling);
@@ -451,13 +471,21 @@ export default class LovelyChart {
       secondaryProjection = projection.copy(bounds);
     }
 
-    if (hasCaption(this.#data)) {
+    if (hasCaption(this.#data) && this.#data.xLabels.length) {
       this.#header!.setCaption(this.#getCaption(state));
     }
+    const area = this.#data.isCircle ? getCircleArea(projection) : projection.getArea();
     // A page that folds the header while its caption is empty moves the plot as the first caption arrives
-    this.#updatePlotArea(this.#data.isCircle ? getCircleArea(projection) : projection.getArea());
+    this.#updatePlotArea(area);
 
     clearCanvas(this.#plot!, this.#context!);
+
+    // The skeleton stands in for the datasets, the rules and the axes alike
+    if (this.#data.isLoading && !this.#data.xLabels.length) {
+      drawPlotSkeleton(this.#context!, this.#data, area);
+      this.#reportPlotArea();
+      return;
+    }
 
     const totalPoints = points.reduce((a, p) => a + p.length, 0);
     const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_PLOT_FACTOR;
@@ -885,6 +913,9 @@ export default class LovelyChart {
     const isPlotFocused = this.#tooltip?.isFocused();
     const nextSiblings = this.#destroyComponents();
     this.#data = analyzeData(this.#originalData);
+    if (this.#isLoadingSet !== undefined) {
+      this.#data.isLoading = this.#isLoadingSet;
+    }
     this.#keepFilter(filter);
     this.#setupComponents(nextSiblings);
     if (isPlotFocused) {

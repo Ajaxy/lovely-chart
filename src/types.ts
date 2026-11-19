@@ -241,6 +241,14 @@ export interface LovelyChartParams {
   /** Draws the datasets alone, with no axes, grid, header or legend, inset by 2px. */
   isSparkline?: boolean;
   /**
+   * Shows the chart as loading, for a page that fetches its data: the chart and its legend are `inert`, data with
+   * labels dims on the plot, the minimap and the legend, and data with none draws a skeleton of them in the chart's own
+   * geometry, in `--skeleton-color`. The legend skeleton holds a pill for each dataset, sized by its name, so datasets
+   * with their names and empty `values` hold the place of the legend to come. `setLoading()` sets and clears it in
+   * place.
+   */
+  isLoading?: boolean;
+  /**
    * Leaves out the band of the title and the caption, so the plot starts at the top of the chart. While zoomed, the
    * zoom-out control floats over the top inline-start corner of the plot.
    */
@@ -496,6 +504,7 @@ export interface AnalyzedData {
   isShares: boolean;
   plotHeight?: number;
   isSparkline?: boolean;
+  isLoading?: boolean;
   noHeader?: boolean;
   noTooltip?: boolean;
   areLabelsContrast?: boolean;

@@ -59,6 +59,7 @@ const params: LovelyChartParams = {
   isUtc: true,
   plotHeight: 52,
   isSparkline: false,
+  isLoading: false,
   noHeader: true,
   noTooltip: false,
   noCaption: true,
@@ -89,6 +90,7 @@ chart.setLegendContainer(element);
 chart.setLegendContainer(undefined);
 const labelX: number | undefined = chart.getLabelX(1, 0.5) ?? chart.getLabelX(1);
 chart.zoomOut();
+chart.setLoading(true);
 
 const keptView: LovelyChartUpdateOptions = { shouldKeepFilter: true, shouldKeepZoom: true, shouldKeepSelection: false };
 chart.update(params, keptView);
@@ -97,6 +99,7 @@ chart.update(params, { ...keptView, isAnimated: true });
 const handle: LovelyChartInstance = chart;
 handle.update({ ...params, colorScheme: 'htmlClassName' });
 handle.update(params, { shouldKeepSelection: true });
+handle.update({ ...params, labels: [], datasets: [{ name: 'A', values: [] }], isLoading: true });
 
 // @ts-expect-error A misspelled option fails, so the params are typed rather than `any`
 const misspelled: LovelyChartParams = { type: 'line', labels, datasets, sparkline: true };

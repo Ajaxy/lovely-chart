@@ -263,9 +263,10 @@ export class Zoomer {
     isInstant: boolean,
   ) {
     const legendBefore = describeLegend(this.#data);
-    // The skin belongs to the page around the chart, which a zoom leaves as it is
+    // The skin belongs to the page around the chart and the loading state to the chart, which a zoom leaves as they are
     const { axisTextColor, backgroundColor, colorScheme } = this.#overviewData;
-    Object.assign(this.#data, newData, { axisTextColor, backgroundColor, colorScheme });
+    const { isLoading } = this.#data;
+    Object.assign(this.#data, newData, { axisTextColor, backgroundColor, colorScheme, isLoading });
     this.#stateManager.refreshTransitionConfig();
     // The datasets of either view, and its comparison, take their own colours in the chart's skin
     recreateColors(this.#colors, newData.colors, this.#data);
