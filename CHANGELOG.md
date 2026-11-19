@@ -23,6 +23,10 @@
 - The `comparison` row of the tooltip takes `--tooltip-muted-text-color` in place of an opacity of 0.7. Its text keeps the shade the opacity gave it, on a page's own skin too, while its swatch and the tone of a rise or a fall keep their full colours. In the day and the night skin the text reaches a contrast of 4.5:1 on the tooltip background.
 - A `comparison` change that rounds to 0% keeps the weight of its value, normal by default, in place of bold; a rise or a fall stays bold.
 
+### Fixed
+
+- English dates read left to right on a right-to-left page, on the X axis, in the header caption and in the tooltip title: each of these, a text label included, reads in the direction of its first letter, so dates in Hebrew or Arabic words read right to left on a left-to-right page. One with no letter, such as the caption `2022 — 2026` of a year chart, reads left to right, the way the X axis runs.
+
 ## 2.1.0
 
 ### Added

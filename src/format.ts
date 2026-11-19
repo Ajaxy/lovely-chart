@@ -12,12 +12,11 @@ const MAX_STEP_DIGITS = 3;
 // A step within this fraction of itself from a whole number of units of a digit ends at that digit
 const STEP_DIGIT_EPSILON = 1e-9;
 const TRAILING_ZEROS = /(\.\d*?[1-9])0+$|\.0+$/;
+const LETTER = /\p{L}/u;
+const RIGHT_TO_LEFT_LETTER = /[\p{sc=Hebrew}\p{sc=Arabic}\p{sc=Syriac}\p{sc=Thaana}\p{sc=Nko}\p{sc=Adlam}]/u;
 
 export function formatDayHour(labels: number[], dateLocale?: DateLocale, isUtc = false): XLabel[] {
-  return labels.map((value) => ({
-    value,
-    text: formatDayHourFull(value, dateLocale, isUtc),
-  }));
+  return labels.map((value) => createXLabel(value, formatDayHourFull(value, dateLocale, isUtc)));
 }
 
 export function formatDayHourFull(value: number, dateLocale?: DateLocale, isUtc = false): string {
@@ -31,25 +30,16 @@ export function formatDay(labels: number[], dateLocale?: DateLocale, isUtc = fal
   return labels.map((value) => {
     const { day, month } = getDateParts(value, isUtc);
 
-    return ({
-      value,
-      text: `${day} ${months[month]}`,
-    });
+    return createXLabel(value, `${day} ${months[month]}`);
   });
 }
 
 export function formatMin(labels: number[], isUtc = false): XLabel[] {
-  return labels.map((value) => ({
-    value,
-    text: formatTime(value, isUtc),
-  }));
+  return labels.map((value) => createXLabel(value, formatTime(value, isUtc)));
 }
 
 export function formatWeek(labels: number[]): XLabel[] {
-  return labels.map((value) => ({
-    value,
-    text: `Week ${getIsoWeek(value)}`,
-  }));
+  return labels.map((value) => createXLabel(value, `Week ${getIsoWeek(value)}`));
 }
 
 // ISO 8601: weeks start on Monday and week 1 is the one holding the year's first Thursday
@@ -63,26 +53,21 @@ function getIsoWeek(value: number): number {
 
 export function formatMonth(labels: number[], dateLocale?: DateLocale): XLabel[] {
   const monthsFull = dateLocale?.monthsFull ?? MONTHS_FULL;
-  return labels.map((value) => ({
-    value,
-    text: monthsFull[new Date(value).getUTCMonth()],
-  }));
+  return labels.map((value) => createXLabel(value, monthsFull[new Date(value).getUTCMonth()]));
 }
 
 export function formatYear(labels: number[]): XLabel[] {
-  return labels.map((value) => ({
-    value,
-    text: String(new Date(value).getUTCFullYear()),
-  }));
+  return labels.map((value) => createXLabel(value, String(new Date(value).getUTCFullYear())));
 }
 
 export function formatText(labels: (number | string)[]): XLabel[] {
-  return labels.map((value, i) => {
-    return ({
-      value: i,
-      text: String(value),
-    });
-  });
+  return labels.map((value, i) => createXLabel(i, String(value)));
+}
+
+// A label reads in the direction of its first letter, left to right without one, the way the X axis runs
+function createXLabel(value: number, text: string): XLabel {
+  const firstLetter = LETTER.exec(text)?.[0] ?? '';
+  return { value, text, direction: RIGHT_TO_LEFT_LETTER.test(firstLetter) ? 'rtl' : 'ltr' };
 }
 
 // An axis label of a value at a step, with every digit after the point that the step has in the label's unit, so the

@@ -27,6 +27,7 @@ export interface Rect extends Size {
 export interface XLabel {
   value: number;
   text: string;
+  direction: 'ltr' | 'rtl';
 }
 
 export type Filter = Record<string, boolean>;
@@ -153,7 +154,10 @@ export interface TooltipContent {
   comparison?: { name: string; value: number | null; change?: number };
 }
 
-/** Localized date strings for axis, tooltip and caption labels. Each is optional and falls back to English. */
+/**
+ * Localized date strings for axis, tooltip and caption labels. Each is optional and falls back to English. A date
+ * reads in the direction of its first letter, so one in Hebrew or Arabic words reads right to left on any page.
+ */
 export interface DateLocale {
   months?: readonly string[]; // Short month names, 12 entries (Jan..Dec)
   monthsFull?: readonly string[]; // Full month names, 12 entries (January..December)

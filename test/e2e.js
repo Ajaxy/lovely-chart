@@ -4645,7 +4645,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && rtlTooltipNumbers.length > 0 && rtlTooltipNumbers.every(({ text, shown }) => shown === text.trim()),
     JSON.stringify({ rtlYLabels, rtlTooltipNumbers }));
   check('the right-to-left demo chart reads its Hebrew dates in order on the axis, the caption and the tooltip title',
-    rtlXLabels.length > 0 && rtlXLabels.every((label) => /^\d+ ינו׳ inherit$/.test(label))
+    rtlXLabels.length > 0 && rtlXLabels.every((label) => /^\d+ ינו׳ rtl$/.test(label))
     && rtlDates.every(({ isRightToLeft }) => isRightToLeft),
     JSON.stringify({ rtlXLabels, rtlDates }));
 
@@ -5669,8 +5669,8 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && nestedColumns.shareInsets.length === 3 && nestedColumns.shareInsets.every((inset) => inset === 0),
     JSON.stringify(nestedColumns));
   await unmountProbe(page);
-  // The Y-axis labels of both axes and of `secondaryYAxis` draw left to right, while the X-axis labels, dates in the
-  // words of `dateLocale`, inherit the direction of the page
+  // The Y-axis labels of both axes and of `secondaryYAxis` draw left to right, and so do the X-axis labels, dates in
+  // English words
   await recordProbeNumbers(page);
   const rtlAxisTexts = [];
   const rtlAxisConfigs = [
@@ -5695,10 +5695,121 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     .map(({ direction }) => direction))];
   check('rtl Y-axis labels put the signs of their numbers before the digits',
     [/^-\d+K /, /^-\d+ /, /^\$-/].every((pattern) => negativeLabels.some((label) => pattern.test(label)))
-    && negativeLabels.every((label) => label.endsWith(' ltr')) && JSON.stringify(xLabelDirections) === '["inherit"]',
+    && negativeLabels.every((label) => label.endsWith(' ltr')) && JSON.stringify(xLabelDirections) === '["ltr"]',
     JSON.stringify({ negativeLabels, xLabelDirections }));
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
   await sleep(300);
+
+  // --- Dates in the direction of their words ---
+  // Each pair of charts draws the same dates in an element of either direction, and the X-axis labels, the caption and
+  // the tooltip title read in the direction of their first letter, left to right without one
+  const datePairs = await page.evaluate(async (plotBottom) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const days = [1, 2, 3, 4, 5].map((day) => Date.UTC(2025, 10, day));
+    const hebrewMonths = ['ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יוני', 'יולי', 'אוג׳', 'ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳'];
+    const configs = {
+      englishDates: { labels: days },
+      hebrewDates: { labels: days, dateLocale: { months: hebrewMonths } },
+      yearDates: { labels: [2022, 2023, 2024, 2025, 2026].map((year) => Date.UTC(year, 0, 1)), labelType: 'year' },
+    };
+    const pairs = Object.entries(configs).map(([name, config]) => ['ltr', 'rtl'].map((dir) => {
+      const element = document.createElement('div');
+      element.dir = dir;
+      document.getElementById('container').appendChild(element);
+      const chart = new LovelyChart(element, {
+        ...config, type: 'line', title: `Probe — ${name}`, isUtc: true,
+        datasets: [{ name: 'A', values: [1, 3, 2, 5, 4] }],
+      });
+      return { name, element, chart };
+    }));
+    await new Promise((resolve) => setTimeout(resolve, 1800));
+
+    const readXAxisBand = (element) => {
+      const canvas = element.querySelector('.lovely-chart--container > canvas');
+      const top = Math.ceil(plotBottom * canvas.width / canvas.clientWidth);
+      return canvas.getContext('2d').getImageData(0, top, canvas.width, canvas.height - top).data;
+    };
+    // The words of an element's text, and whether they run left to right on screen or right to left
+    const readWordOrder = (element) => {
+      const range = document.createRange();
+      const node = element.firstChild;
+      const words = [...node.data.matchAll(/\S+/g)].map((match) => {
+        range.setStart(node, match.index);
+        range.setEnd(node, match.index + match[0].length);
+        return range.getBoundingClientRect();
+      });
+      return {
+        text: node.data,
+        isLeftToRight: words.length > 1 && words.every((word, i) => !i || word.left >= words[i - 1].right - 1),
+        isRightToLeft: words.length > 1 && words.every((word, i) => !i || word.right <= words[i - 1].left + 1),
+      };
+    };
+    const readTexts = async ({ element, chart }) => {
+      chart.selectLabel(2);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return {
+        caption: readWordOrder(element.querySelector('.lovely-chart--header-caption')),
+        title: readWordOrder(
+          element.querySelector('.lovely-chart--tooltip-title > span:not(.lovely-chart--tooltip-title-total)'),
+        ),
+      };
+    };
+    const results = {};
+    for (const [ltr, rtl] of pairs) {
+      const [ltrBand, rtlBand] = [readXAxisBand(ltr.element), readXAxisBand(rtl.element)];
+      results[ltr.name] = {
+        isAxisAlike: ltrBand.every((value, i) => value === rtlBand[i]),
+        axisPixels: ltrBand.filter((value, i) => i % 4 === 3 && value > 0).length,
+        ltr: await readTexts(ltr),
+        rtl: await readTexts(rtl),
+      };
+      [ltr, rtl].forEach(({ element, chart }) => {
+        chart.destroy();
+        element.remove();
+      });
+    }
+    return results;
+  }, PLOT_BOTTOM);
+  const { englishDates, hebrewDates, yearDates } = datePairs;
+  check('English dates read left to right in a right-to-left chart, on the X axis, the caption and the tooltip title',
+    englishDates.isAxisAlike && englishDates.axisPixels > 100 && [englishDates.ltr, englishDates.rtl]
+      .every(({ caption, title }) => caption.isLeftToRight && title.isLeftToRight),
+    JSON.stringify(englishDates));
+  check('dates in Hebrew words read right to left in a left-to-right chart, on the X axis, the caption and the title',
+    hebrewDates.isAxisAlike && hebrewDates.axisPixels > 100 && [hebrewDates.ltr, hebrewDates.rtl]
+      .every(({ caption, title }) => caption.isRightToLeft && title.isRightToLeft),
+    JSON.stringify(hebrewDates));
+  check('a caption of years reads left to right in a right-to-left chart, as the X axis runs',
+    yearDates.ltr.caption.isLeftToRight && yearDates.rtl.caption.isLeftToRight, JSON.stringify(yearDates));
+  // A caption beside a long title on a phone wraps, and each of its lines ends at the end of the header
+  await mountProbe(page, {
+    config: {
+      type: 'line', title: 'A rather long chart title for a phone', isUtc: true,
+      labels: [1, 2, 3, 4, 5].map((day) => Date.UTC(2025, 10, day)), datasets: [{ name: 'A', values: [1, 3, 2, 5, 4] }],
+    },
+    width: 360,
+  });
+  const captionEndGaps = await page.evaluate(() => ['ltr', 'rtl'].map((dir) => {
+    const probe = document.getElementById('probe');
+    probe.dir = dir;
+    const caption = probe.querySelector('.lovely-chart--header-caption');
+    const box = caption.getBoundingClientRect();
+    const node = caption.firstChild;
+    const range = document.createRange();
+    const lineGaps = new Map();
+    for (const match of node.data.matchAll(/\S+/g)) {
+      range.setStart(node, match.index);
+      range.setEnd(node, match.index + match[0].length);
+      const { top, left, right } = range.getBoundingClientRect();
+      const gap = dir === 'rtl' ? left - box.left : box.right - right;
+      const line = Math.round(top);
+      lineGaps.set(line, Math.min(lineGaps.get(line) ?? Infinity, gap));
+    }
+    return [...lineGaps.values()].map(Math.round);
+  }));
+  await unmountProbe(page);
+  check('a wrapped caption ends each of its lines at the end of the header, in a chart of either direction',
+    captionEndGaps.every((gaps) => gaps.length > 1 && gaps.every((gap) => gap === 0)), JSON.stringify(captionEndGaps));
 
   // --- Theme switch (MutationObserver -> state update path) ---
   await page.locator('#skin-switcher').click();

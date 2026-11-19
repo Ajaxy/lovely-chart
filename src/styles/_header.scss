@@ -24,9 +24,21 @@
   // Pushed to the end by its own margin: the title leaves the flow while transitioning
   &-caption {
     inset-inline-end: 0;
+
+    // The caption reads in the direction of its first letter, left to right without one, so English dates keep their
+    // order on a right-to-left page
+    unicode-bidi: plaintext;
+
     margin-inline-start: auto;
+
     font-size: 12px;
-    text-align: end;
+
+    // A physical side, the end of the header, since `plaintext` resolves `end` by the direction of the caption's text
+    text-align: right;
+
+    &:dir(rtl) {
+      text-align: left;
+    }
   }
 
   &-zoom-out-control {

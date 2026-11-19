@@ -102,6 +102,11 @@
   [dir='rtl'] &::after {
     transform: scaleX(-1);
   }
+
+  // The title reads in the direction of its first letter, left to right without one, as the caption does
+  > :not(.lovely-chart--tooltip-title-total) {
+    unicode-bidi: plaintext;
+  }
 }
 
 .lovely-chart--tooltip-dataset {

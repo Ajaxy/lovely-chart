@@ -31,6 +31,7 @@ interface AxisLabel {
 
 interface PlacedLabel {
   text: string;
+  direction: CanvasDirection;
   x: number;
   halfWidth: number;
   opacity: number;
@@ -131,10 +132,13 @@ export class Axes {
       labels = this.#placeXLabels(state, projection, step);
     }
 
-    labels.forEach(({ text, x, opacity }) => {
+    labels.forEach(({ text, direction, x, opacity }) => {
       context.fillStyle = getCssColor(this.#colors, 'x-axis-text', opacity);
+      context.direction = direction;
       context.fillText(text, x, topOffset);
     });
+
+    context.direction = 'inherit';
   }
 
   #placeXLabels(state: ChartState, projection: Projection, step: number): PlacedLabel[] {
@@ -160,7 +164,7 @@ export class Axes {
         continue;
       }
 
-      const { text } = this.#data.xLabels[i];
+      const { text, direction } = this.#data.xLabels[i];
       const [xPx] = projection.toPixels(i, 0);
       let opacity = shiftedI % (step * 2) === 0 ? 1 : opacityFactor;
       opacity = applyYEdgeOpacity(opacity, xPx, plotStart, plotSize.width, startPin, endPin);
@@ -170,7 +174,7 @@ export class Axes {
         ? shiftIntoView(xPx, halfWidth, plotStart, plotEnd, startPin, endPin)
         : xPx;
 
-      labels.push({ text, x, halfWidth, opacity });
+      labels.push({ text, direction, x, halfWidth, opacity });
     }
 
     return labels;
@@ -429,7 +433,8 @@ export class Axes {
     context.font = getAxesFont(context, this.#data.axisFontSize);
     context.textAlign = textAlign;
     context.textBaseline = this.#data.areLabelsContrast ? 'middle' : 'bottom';
-    // Numbers read left to right, signs first, on a right-to-left page too, while the X-axis labels follow the page
+    // Numbers read left to right, signs first, on a right-to-left page too, while the labels of reference lines and
+    // hatched ranges follow the page
     context.direction = 'ltr';
 
     labels.forEach(({ text, x, y, colorKey, opacity }) => {
