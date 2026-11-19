@@ -2,7 +2,7 @@ import type { Projection } from './Projection.js';
 import type { AnalyzedData, AnalyzedDataset, ChartColors, ChartState, SecondaryYAxisConfig, Size } from './types.js';
 
 import { drawHalo } from './canvas.js';
-import { AXES_FONT_STYLE, AXES_FONT_WEIGHT, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT } from './constants.js';
+import { AXES_FONT_WEIGHT, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { humanize } from './format.js';
 import {
   applyXEdgeOpacity, applyYEdgeOpacity, ceilToStep, floorToStep, getConstantLabelStep, getEdgePin, getPlotStart,
@@ -44,6 +44,8 @@ export class Axes {
 
   #labelColumnWidth = 0;
   #measuredDatasets?: AnalyzedDataset[];
+  #innerLabelWidths: [number, number] = [0, 0];
+  #innerMeasuredDatasets?: AnalyzedDataset[];
   #fontProbeWidth?: number;
   #drawnDatasets?: AnalyzedDataset[];
   // From a zoom's swap of the data until the Y range holds still, the labels fading out belong to the data before
@@ -70,8 +72,26 @@ export class Axes {
     return this.#labelColumnWidth;
   }
 
+  // The widths the Y-axis labels take inside the plot at its start and at its end, on the row above each grid line,
+  // which text drawn there keeps clear of; a contrast label sits on its line and leaves that row free
+  getInnerLabelWidths(): [number, number] {
+    const { areLabelsContrast, datasets } = this.#data;
+    if (areLabelsContrast) return [0, 0];
+
+    if (datasets !== this.#innerMeasuredDatasets) {
+      this.#innerMeasuredDatasets = datasets;
+      this.#innerLabelWidths = [
+        this.getLabelColumnWidth() === undefined ? this.#measureWidestYLabel() : 0,
+        this.#measureWidest(this.#listSecondaryLabelTexts()),
+      ];
+    }
+
+    return this.#innerLabelWidths;
+  }
+
   resetLabelColumn() {
     this.#measuredDatasets = undefined;
+    this.#innerMeasuredDatasets = undefined;
   }
 
   // `true` on the first call after the axis font changes, however the font arrives
@@ -426,13 +446,36 @@ export class Axes {
 
   // The widest label the data can put on the main axis, so the column holds still whatever the reader does
   #measureWidestYLabel(): number {
-    const context = this.#context;
-    const texts = this.#data.isPercentage
+    return this.#measureWidest(this.#data.isPercentage
       ? PERCENT_VALUES.map(formatPercentLabel)
       : listYAxisValues(this.#data, this.#plotSize.height).map(({ value, step }) => (
         this.#formatPrimaryAxisLabel(value, step)
-      ));
+      )));
+  }
 
+  #listSecondaryLabelTexts(): string[] {
+    const { secondaryYAxis, hasSecondYAxis, isPercentage, datasets } = this.#data;
+    const height = this.#plotSize.height;
+    if (hasSecondYAxis) {
+      const ownDataset = datasets.find(({ hasOwnYAxis }) => hasOwnYAxis)!;
+      const ownData = { ...this.#data, datasets: [{ ...ownDataset, hasOwnYAxis: false }], referenceLines: [] };
+      return listYAxisValues({ ...ownData, comparison: undefined }, height).map(({ value, step }) => (
+        humanize(value, step)
+      ));
+    }
+
+    if (!secondaryYAxis || isPercentage) return [];
+
+    const { multiplier, prefix = '', suffix = '' } = secondaryYAxis;
+    return listYAxisValues(this.#data, height).map(({ value, step }) => (
+      `${prefix}${humanize(value * multiplier, step * multiplier)}${suffix}`
+    ));
+  }
+
+  #measureWidest(texts: string[]): number {
+    if (!texts.length) return 0;
+
+    const context = this.#context;
     context.save();
     context.font = getAxesFont(context, this.#data.axisFontSize);
     // Large data brings labels by the thousand, none wider than its shape with the widest digit in every place
@@ -486,8 +529,7 @@ function shiftIntoView(
   return xPx;
 }
 
-function getAxesFont(context: CanvasRenderingContext2D, fontSize?: number): string {
+function getAxesFont(context: CanvasRenderingContext2D, fontSize: number): string {
   const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
-  const style = fontSize !== undefined && fontSize > 0 ? `${AXES_FONT_WEIGHT} ${fontSize}px` : AXES_FONT_STYLE;
-  return `${style} ${fontFamily}`;
+  return `${AXES_FONT_WEIGHT} ${fontSize}px ${fontFamily}`;
 }

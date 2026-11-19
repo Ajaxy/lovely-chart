@@ -106,7 +106,7 @@ Parameter | Description |
 `areLabelsContrast`| `true` to center each Y-axis label on its grid line, over the line, inside a halo of the background colour, 2px in from its side of the chart so the grid line still shows at the plot edge. Default `false`.
 `axisFontSize`| Font size of the axis labels in px. Default `10`.
 `axisTextColor`| Colour of the axis labels: a hex colour (`#RRGGBB`, optionally `#RRGGBB/alpha`) or `{ light, dark }`, one per skin.
-`backgroundColor`| Colour of the surface behind the chart, in the same form as `axisTextColor`. The chart paints it inside the hover dots, in the mask over unfocused bars and as a halo around the Y-axis labels. Defaults to the skin's own background; without it, only `areLabelsContrast` labels get a halo.
+`backgroundColor`| Colour of the surface behind the chart, in the same form as `axisTextColor`. The chart paints it inside the hover dots, in the mask over unfocused bars and as a halo around the Y-axis labels and the labels of reference lines and hatched ranges. Defaults to the skin's own background; without it, of the Y-axis labels only `areLabelsContrast` ones get a halo.
 `colorScheme`| `'htmlClassName'` follows the `theme-dark` class on the `<html>` element; `'system'` follows the system's `prefers-color-scheme`, live. Default `'htmlClassName'`.
 `areLinesSmooth`| `true` to draw `line` datasets, and the `comparison` line beside them, as monotone curves through their values, never overshooting a value. Default `false`.
 `areaOpacity`| Opacity of an `area` fill, from 0 to 1; the outline and dots keep full opacity. Default `1`.
@@ -118,6 +118,7 @@ Parameter | Description |
 Parameter | Description |
 ---------|----|
 `referenceLines`| Dashed rules at fixed values of the main Y axis: `[{ value, label?, color? }]`. The Y range always reaches each value, stacked charts included, so a line with `color: 'transparent'` draws nothing and only pins the range. `label` is drawn above the right end of the line, none when empty. `color` is any canvas colour or `{ light, dark }`, and defaults to the Y-axis text colour. `label` reads in the direction of the page, so on a right-to-left page a sign before a number moves after it; a number wrapped in U+2066 and U+2069, as `'\u2066-1.2K\u2069'`, keeps its sign first. On a percentage chart `value` is a percentage from 0 to 100 and the range stays 0–100%. Ignored on pie and donut charts.
+`hatchedRanges`| Runs of labels whose values are estimated, partial, still accruing or forecast, hatched across the plot and the minimap: `[{ from, to, label?, color?, hasEdge?, isAccruing? }]`, `from` and `to` inclusive label indexes, rounded and clamped to the labels. A `bar` or `step` chart hatches the columns of the range. A `line` or `area` chart starts the hatch at the point before the range, as the segment into an estimated value is estimated too, or halfway from it with `isAccruing`, for a period still filling, and ends it halfway to the label after the range. The hatch goes under the lines of a `line` or `step` chart and over the fills of a `bar` or `area` chart, under the comparison line, the mask over unfocused bars and the reference lines; ranges of one colour that touch hatch as one band. Each range keeps its own label and edge: `label` is drawn at the bottom left of the range's hatch, in the axis font size, clear of the Y-axis labels and of the next label, and dropped where it has no room. `hasEdge` draws a dashed rule where the range's hatch starts, none at the first label. `color` is any canvas colour or `{ light, dark }` for the hatch, the edge and the label, and defaults to the Y-axis text colour. The minimap draws the hatch alone, and a sparkline the hatch and the edges. Ignored on pie and donut charts, a zoom into shares included; the data `onZoom` returns sets ranges of its own.
 `comparison`| A previous period, drawn as a dashed line: `{ name, color?, values }`. `values` holds the previous values per dataset, in the order of `datasets`, each aligned with `labels`; the line draws their sum over the datasets on screen, and a `null` leaves a gap. `color` is a hex colour, `#6B7280` by default. The legend names it beside a dashed swatch, and the tooltip lists it first with the change of the current total in percent. Ignored on percentage, pie and donut charts.
 
 #### Tooltip parameters
@@ -151,6 +152,23 @@ new LovelyChart(element, {
     { value: 0, color: 'transparent' },
   ],
   isUtc: true,
+});
+```
+
+A forecast after the actuals, hatched from the last actual day and labelled inside the band:
+
+```js
+new LovelyChart(element, {
+  type: 'line',
+  labels,
+  datasets: [{ name: 'Orders', color: '#3497ED', values: [...actuals, ...forecast] }],
+  hatchedRanges: [{
+    from: actuals.length,
+    to: actuals.length + forecast.length - 1,
+    label: 'Forecast',
+    hasEdge: true,
+    color: { light: '#108BE3', dark: '#48AAF0' },
+  }],
 });
 ```
 
@@ -202,7 +220,7 @@ Variable | Description |
 
 #### Placing elements over the plot
 
-An element positioned by the `--lovely-chart-plot-area-*` variables inside `element`, such as a marker, a band or an empty-state message, covers the data area without repeating the chart's paddings, and follows it through updates, resizes and zooms:
+An element positioned by the `--lovely-chart-plot-area-*` variables inside `element`, such as a marker, a badge or an empty-state message, covers the data area without repeating the chart's paddings, and follows it through updates, resizes and zooms:
 
 ```css
 .chart {
@@ -229,7 +247,7 @@ overlay.className = 'chart-overlay';
 element.appendChild(overlay);
 ```
 
-The chart keeps its place among the children of `element` through updates and resizes, so an overlay added after it paints over the plot and the tooltip balloon, and one inserted before it paints under them.
+The chart keeps its place among the children of `element` through updates and resizes, so an overlay added after it paints over the plot and the tooltip balloon, and one inserted before it paints under them. A band over a run of labels needs no element: `hatchedRanges` draws it with the data.
 
 ## Contributing
 

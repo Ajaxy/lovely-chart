@@ -1,7 +1,7 @@
 // Resolves `lovely-chart` through the package's own `exports`, so it checks the built `dist/` declarations
 /* eslint-disable no-null/no-null -- The public API takes `null` for a gap and for an unknown total */
 import LovelyChart, {
-  type ChartType, type Comparison, type DateLocale, type LabelType, type LovelyChartDatasetParams,
+  type ChartType, type Comparison, type DateLocale, type HatchedRange, type LabelType, type LovelyChartDatasetParams,
   type LovelyChartInstance, type LovelyChartParams, type ReferenceLine, type SecondaryYAxisConfig, type ThemedColor,
 } from 'lovely-chart';
 
@@ -15,6 +15,7 @@ const datasets: LovelyChartDatasetParams[] = [
 const comparison: Comparison = { name: 'Previous period', values: [[1, null, 3]] };
 const reference: ReferenceLine = { value: 0, color: 'transparent' };
 const surface: ThemedColor = { light: '#F5F6F7', dark: '#212A33' };
+const forecast: HatchedRange = { from: 1, to: 2, label: 'Forecast', hasEdge: true, isAccruing: false, color: surface };
 const dateLocale: DateLocale = { weekOf: 'Semana de' };
 const secondaryYAxis: SecondaryYAxisConfig = { label: 'x', multiplier: 1 };
 const type: ChartType = 'area';
@@ -29,6 +30,7 @@ const params: LovelyChartParams = {
   datasets,
   comparison,
   referenceLines: [reference, { value: 1200, label: 'Stall', color: surface }],
+  hatchedRanges: [forecast, { from: 0, to: 0, color: 'rgba(0, 0, 0, 0.5)' }],
   isTooltipOrderFixed: true,
   isTooltipTotalInTitle: true,
   formatTooltipValue: (value) => value.toFixed(1),

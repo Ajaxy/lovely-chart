@@ -1,4 +1,5 @@
 import type { CaptureEvent } from './captureEvents.js';
+import type { Skin } from './skin.js';
 import type {
   AnalyzedData, AnalyzedDataset, ChartColors, ChartState, Point, ProjectionParams, Range, Size,
 } from './types.js';
@@ -20,6 +21,7 @@ import { getSimplificationDelta } from './formulas.js';
 import { createElement } from './minifiers.js';
 import { preparePoints } from './preparePoints.js';
 import { Projection } from './Projection.js';
+import { getSkin } from './skin.js';
 import { mergeProxied, throttleWithRaf } from './utils.js';
 
 export class Minimap {
@@ -42,6 +44,8 @@ export class Minimap {
   #state?: ChartState;
   // The datasets on the canvas, which a zoom may swap for others at an unchanged state
   #drawnDatasets?: AnalyzedDataset[];
+  // A skin switch leaves the state as it is, and changes the colours of hatches and themed area borders
+  #drawnSkin?: Skin;
 
   readonly #limitBegin: number | undefined;
   readonly #captureDetachers: (() => void)[] = [];
@@ -73,12 +77,14 @@ export class Minimap {
       newState = newState.static!;
     }
 
-    if (this.#drawnDatasets === this.#data.datasets && !this.#isStateChanged(newState)) {
+    const skin = getSkin(this.#colors);
+    if (this.#drawnDatasets === this.#data.datasets && this.#drawnSkin === skin && !this.#isStateChanged(newState)) {
       return;
     }
 
     this.#state = mergeProxied(newState, { focusOn: NO_FOCUS });
     this.#drawnDatasets = this.#data.datasets;
+    this.#drawnSkin = skin;
     clearCanvas(this.#canvas, this.#context);
 
     this.#drawDatasets(this.#state);

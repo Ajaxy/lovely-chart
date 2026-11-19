@@ -1,6 +1,8 @@
-import type { AnalyzedData, AnalyzedDataset, LabelType, LovelyChartParams, Range, XLabel } from './types.js';
+import type {
+  AnalyzedData, AnalyzedDataset, HatchedRange, LabelType, LovelyChartParams, Range, XLabel,
+} from './types.js';
 
-import { MILLISECONDS_IN_DAY } from './constants.js';
+import { AXES_FONT_SIZE, MILLISECONDS_IN_DAY } from './constants.js';
 import {
   formatDay, formatDayHour, formatMin, formatMonth,
   formatText, formatWeek, formatYear,
@@ -49,7 +51,7 @@ export function analyzeData(
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage,
     percentPrecision, secondaryYAxis, areLinesSmooth, areaOpacity, areaBorderColor,
-    isUtc, colorScheme, referenceLines, comparison,
+    isUtc, colorScheme, referenceLines, hatchedRanges, comparison,
     isTooltipOrderFixed, isTooltipTotalInTitle, formatTooltipValue, resolveTooltipTotal,
     plotHeight, isSparkline, areLabelsContrast, isYAxisOutward, noFloatSteps,
     axisFontSize, axisTextColor, backgroundColor,
@@ -140,10 +142,11 @@ export function analyzeData(
     areLabelsContrast,
     isYAxisOutward,
     noFloatSteps,
-    axisFontSize,
+    axisFontSize: axisFontSize !== undefined && axisFontSize > 0 ? axisFontSize : AXES_FONT_SIZE,
     axisTextColor,
     backgroundColor,
     referenceLines: isCircle ? [] : (referenceLines ?? []).filter(({ value }) => Number.isFinite(value)),
+    hatchedRanges: isCircle ? [] : prepareHatchedRanges(hatchedRanges ?? [], xLabels.length),
     isUtc,
     colorScheme,
     comparison: analyzedComparison,
@@ -265,6 +268,16 @@ function resolveInitialZoomIndex(
   }
 
   return Math.max(0, Math.min(Math.round(initialZoom), labelsCount - 1));
+}
+
+function prepareHatchedRanges(ranges: HatchedRange[], labelsCount: number): HatchedRange[] {
+  return ranges.flatMap((range) => {
+    if (!Number.isFinite(range.from) || !Number.isFinite(range.to)) return [];
+
+    const from = Math.max(0, Math.round(range.from));
+    const to = Math.min(labelsCount - 1, Math.round(range.to));
+    return from <= to ? [{ ...range, from, to }] : [];
+  });
 }
 
 function prepareDatasets(

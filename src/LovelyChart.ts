@@ -17,6 +17,7 @@ import {
 } from './constants.js';
 import { analyzeData } from './data.js';
 import { drawDatasets } from './drawDatasets.js';
+import { drawHatchedRangeLabels } from './drawHatchedRanges.js';
 import { drawReferenceLines } from './drawReferenceLines.js';
 import { getRangeCaption, getZoomCaption } from './format.js';
 import {
@@ -35,8 +36,8 @@ import { debounce } from './utils.js';
 import { Zoomer } from './Zoomer.js';
 
 export type {
-  ChartType, Comparison, DateLocale, LabelType, LovelyChartDatasetParams, LovelyChartParams, ReferenceLine,
-  SecondaryYAxisConfig, ThemedColor,
+  ChartType, Comparison, DateLocale, HatchedRange, LabelType, LovelyChartDatasetParams, LovelyChartParams,
+  ReferenceLine, SecondaryYAxisConfig, ThemedColor,
 } from './types.js';
 
 const REDRAW_DEBOUNCE_MS = 500;
@@ -302,6 +303,11 @@ export default class LovelyChart {
       range, points, projection, secondaryPoints, secondaryProjection,
       PLOT_LINE_WIDTH, visibilities, this.#colors, false, simplification,
     );
+    if (this.#data.hatchedRanges.length && !this.#data.isSparkline) {
+      drawHatchedRangeLabels(
+        this.#context!, this.#data, projection, this.#colors, this.#axes!.getInnerLabelWidths(),
+      );
+    }
     if (labelColumnWidth !== undefined) {
       this.#context!.restore();
     }

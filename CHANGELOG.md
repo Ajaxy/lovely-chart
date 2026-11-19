@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `hatchedRanges`: runs of labels whose values are estimated, partial, still accruing or forecast, hatched across the plot and the minimap, `[{ from, to, label?, color?, hasEdge?, isAccruing? }]`. Bar and step charts hatch the columns of a range; line and area charts start the hatch at the point before it, or halfway from it with `isAccruing`, and end it halfway to the next label. The hatch goes under lines and over fills, and ranges of one colour that touch hatch as one band. Each range keeps its own `label`, drawn at the bottom left of its hatch where it fits, and `hasEdge`, a dashed rule where its hatch starts.
+- `HatchedRange` type.
+
 ## 2.1.0
 
 ### Added

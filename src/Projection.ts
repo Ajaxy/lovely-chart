@@ -105,6 +105,11 @@ export class Projection {
     return { left, top: yPadding, width: this.#availableWidth - xPadding - left, height: this.#effectiveHeight };
   }
 
+  // Bars and steps, and a single label, give every label a column of its own
+  hasColumns(): boolean {
+    return this.#withColumns;
+  }
+
   getParams(): ProjectionParams {
     return this.#params;
   }

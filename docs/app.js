@@ -173,27 +173,34 @@ document.addEventListener('DOMContentLoaded', () => {
       axisTextColor: { light: '#2373DB', dark: '#7FB8F0' },
     });
 
-    // A hatched band over the forecast week, placed by the plot-area variables the chart sets on an element of its
-    // own, so it follows the plot through resizes. The band comes before the chart, which paints the line and the
-    // tooltip over it.
+    // A badge with the total of the forecast week stands at the bottom left of the plot, placed by the plot-area
+    // variables the chart sets on an element of its own, so it follows the plot through resizes. The badge comes before
+    // the chart, which paints the line and the tooltip over it.
     const forecastDays = 28;
     const forecastWeek = 7;
     const lemons = fruits.datasets[2];
+    const forecastValues = lemons.values.slice(-forecastDays);
+    const forecastTotal = forecastValues.slice(-forecastWeek).reduce((sum, value) => sum + value, 0);
     const forecastElement = document.createElement('div');
     forecastElement.className = 'forecast-chart';
-    const forecastBand = document.createElement('div');
-    forecastBand.className = 'forecast-band';
-    forecastBand.textContent = 'Forecast';
-    // The fraction of the plot width left of the first forecast day, the first and the last day at either edge
-    forecastBand.style.setProperty('--forecast-start', String(1 - (forecastWeek - 1) / (forecastDays - 1)));
-    forecastElement.appendChild(forecastBand);
+    const forecastBadge = document.createElement('div');
+    forecastBadge.className = 'forecast-badge';
+    forecastBadge.textContent = `Next ${forecastWeek} days: ${forecastTotal.toLocaleString('en-US')}`;
+    forecastElement.appendChild(forecastBadge);
     container.appendChild(forecastElement);
     new LovelyChart(forecastElement, {
       title: 'Lovely Forecast',
       type: 'line',
       labels: fruits.labels.slice(-forecastDays),
-      datasets: [{ name: lemons.name, color: '#3497ED', values: lemons.values.slice(-forecastDays) }],
+      datasets: [{ name: lemons.name, color: '#3497ED', values: forecastValues }],
       isYAxisOutward: true,
+      hatchedRanges: [{
+        from: forecastDays - forecastWeek,
+        to: forecastDays - 1,
+        label: 'Forecast',
+        hasEdge: true,
+        color: { light: '#108BE3', dark: '#48AAF0' },
+      }],
     });
 
     // The last week of the bars as a list whose rows select their day in the chart on hover and focus, and buttons

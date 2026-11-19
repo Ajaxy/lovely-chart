@@ -30,10 +30,58 @@ const RTL_CHART = 15;
 const SMOOTH_COLORS = ['#E65850', '#F79E39', '#5FB641'];
 const SMOOTH_AXIS_FONT_SIZE = 12;
 const SMOOTH_AXIS_COLORS = { night: '#7FB8F0', day: '#2373DB' };
-// The days of the forecast demo chart, the last of which its band covers
+// The days of the forecast demo chart, the last week of which it hatches in the accent of each skin, and the inset of
+// the badge it pins to the bottom start of the plot
 const FORECAST_DAYS = 28;
 const FORECAST_WEEK = 7;
 const FORECAST_LINE_COLOR = '#3497ED';
+const FORECAST_ACCENTS = { day: '#108BE3', night: '#48AAF0' };
+const FORECAST_BADGE_INSET = 6;
+// The colour probe charts hatch in, and the bounds of each channel that pick its pixels: the hatch over a clear canvas
+// at a fraction of its opacity, its dashed edge and its label at full opacity, the hatch over blue fills, and that under
+// the focus mask of the night skin, about (54, 24, 159), not a hatch over the mask, about (84, 17, 186). Any of them
+// counts where the hatch must not show at all, its green too low for the antialiased edge of white text over blue.
+const HATCH_COLOR = '#FF00FF';
+const CLEAR_HATCH_PIXEL = { red: [200, 255], green: [0, 60], blue: [200, 255], alpha: [5, 120] };
+const OPAQUE_HATCH_PIXEL = { red: [200, 255], green: [0, 60], blue: [200, 255], alpha: [200, 255] };
+const BAR_HATCH_PIXEL = { red: [40, 120], green: [0, 30], blue: [200, 255], alpha: [200, 255] };
+const MASKED_BAR_HATCH_PIXEL = { red: [44, 64], green: [14, 34], blue: [148, 170], alpha: [200, 255] };
+const ANY_HATCH_PIXEL = { red: [40, 255], green: [0, 30], blue: [200, 255], alpha: [5, 255] };
+// A second colour probe charts hatch in, cyan, and the bounds that pick it over a clear canvas, at full opacity and over
+// blue fills
+const CYAN_HATCH_COLOR = '#00FFFF';
+const CLEAR_CYAN_PIXEL = { red: [0, 60], green: [200, 255], blue: [200, 255], alpha: [5, 120] };
+const OPAQUE_CYAN_PIXEL = { red: [0, 60], green: [200, 255], blue: [200, 255], alpha: [200, 255] };
+const BAR_CYAN_HATCH_PIXEL = { red: [0, 30], green: [40, 120], blue: [200, 255], alpha: [200, 255] };
+// The opaque core of a blue line that a hatch over it tints, which a hatch under the lines leaves pure blue, and a green
+// area border that the hatch tints, which a hatch under the border would leave green
+const TINTED_LINE_PIXEL = { red: [20, 60], green: [0, 10], blue: [240, 255], alpha: [250, 255] };
+const HATCHED_BORDER_PIXEL = { red: [40, 120], green: [120, 255], blue: [0, 140], alpha: [200, 255] };
+// The least pixels of a steep green area border that a hatch over it tints across a band, where one under the border
+// tints none but where a grid line crosses it
+const MIN_HATCHED_BORDER_PIXELS = 20;
+// The highest alpha of the hatch over a clear canvas at the tone under lines, about 36, short of the 71 of the tone over
+// fills
+const MAX_UNDER_LINES_ALPHA = 50;
+// The label of an accruing range, narrower than its band but wider than the room before the label of the next range
+const ACCRUING_LABEL = 'Accruing this month';
+// The least picked pixels a column of a hatched band holds, its stripes covering a quarter of it, and the share of the
+// plot height a dashed edge covers at the least and at the most, its dashes six parts of every ten
+const MIN_HATCH_COLUMN_PIXELS = 10;
+const MIN_EDGE_COVER = 0.4;
+const MAX_EDGE_COVER = 0.75;
+// How far apart along a row the stripes of a hatch start, 8px apart across them, how far the ends of a stripe may stand
+// from where they belong, and how far a range label stands in from the start of its range's span
+const HATCH_STRIPE_STEP = 8 * Math.SQRT2;
+const HATCH_STRIPE_TOLERANCE = 0.01;
+const HATCH_LABEL_INSET = 4;
+// How far the alpha of a hatch may differ between two parts of one band, a hatch stroked twice over itself about 30
+// more opaque than one stroked once
+const MAX_HATCH_ALPHA_GAP = 5;
+// The axis font size of a chart that sets none, which the demo forecast labels its band in
+const DEFAULT_AXIS_FONT_SIZE = 10;
+// How far the channels of a hatch pixel over a clear canvas may stand from its colour, its low alpha rounding them
+const HATCH_COLOR_TOLERANCE = 12;
 // The width of a small phone, which the demo page fits
 const PHONE_WIDTH = 375;
 
@@ -417,15 +465,36 @@ function readPanPhaseShift(page) {
   }, { steps: PAN_PHASE_STEPS, settleSteps: PAN_PHASE_SETTLE_STEPS, chords: PHASE_CURVE_CHORDS });
 }
 
-// Records what the plot canvas of a demo chart draws until `stopCanvasRecording()`: each text, with its font, colour
-// and direction, and the count of curves
+// Records what the plot canvas of a chart draws until `stopCanvasRecording()`: each text, with its font, colour,
+// direction, start and width, the count of curves, and each path as the straight segments it starts with a move, each
+// with the opacity and the line width it starts at
 function startCanvasRecording(chart) {
   return chart.evaluate((el) => {
     const context = el.querySelector('canvas').getContext('2d');
-    const recording = { texts: [], curves: 0 };
+    const recording = { texts: [], curves: 0, paths: [] };
     window.canvasRecording = { context, recording };
+    context.beginPath = function () {
+      recording.paths.push([]);
+      return CanvasRenderingContext2D.prototype.beginPath.call(this);
+    };
+    context.moveTo = function (x, y) {
+      recording.paths.at(-1)?.push({ from: [x, y], alpha: this.globalAlpha, width: this.lineWidth });
+      return CanvasRenderingContext2D.prototype.moveTo.call(this, x, y);
+    };
+    context.lineTo = function (x, y) {
+      const segment = recording.paths.at(-1)?.at(-1);
+      if (segment && !segment.to) segment.to = [x, y];
+      return CanvasRenderingContext2D.prototype.lineTo.call(this, x, y);
+    };
     context.fillText = function (text, ...args) {
-      recording.texts.push({ text: String(text), font: this.font, color: this.fillStyle, direction: this.direction });
+      recording.texts.push({
+        text: String(text),
+        font: this.font,
+        color: this.fillStyle,
+        direction: this.direction,
+        x: args[0],
+        width: this.measureText(text).width,
+      });
       return CanvasRenderingContext2D.prototype.fillText.call(this, text, ...args);
     };
     context.bezierCurveTo = function (...args) {
@@ -438,11 +507,19 @@ function startCanvasRecording(chart) {
 function stopCanvasRecording(page) {
   return page.evaluate(() => {
     const { context, recording } = window.canvasRecording;
-    delete context.fillText;
-    delete context.bezierCurveTo;
+    ['fillText', 'bezierCurveTo', 'beginPath', 'moveTo', 'lineTo'].forEach((method) => delete context[method]);
     delete window.canvasRecording;
     return recording;
   });
+}
+
+// Switches the skin of the page and back, each switch redrawing the charts, and runs `whileSwitched` in between
+async function switchSkinAndBack(page, whileSwitched) {
+  await page.evaluate(() => document.documentElement.classList.toggle('theme-dark'));
+  await sleep(500);
+  await whileSwitched?.();
+  await page.evaluate(() => document.documentElement.classList.toggle('theme-dark'));
+  await sleep(500);
 }
 
 // Whether the words of each element's text, in reading order, run from right to left on screen
@@ -895,6 +972,97 @@ async function unmountProbe(page) {
     document.getElementById('probe').remove();
   });
   await sleep(200);
+}
+
+// The pixels of the plot area of the chart in the element `hostSelector` names that `bounds` pick, counted per column
+// of canvas px across the area, or on to the right edge of the canvas with `isToCanvasEnd`, with the highest alpha
+// among them in each column and the area's size; a pixel counts when its alpha and each channel fall within the bounds
+function readAreaColumns(page, hostSelector, bounds, isToCanvasEnd = false) {
+  return page.evaluate(([selector, { red, green, blue, alpha }, toCanvasEnd]) => {
+    const host = document.querySelector(selector);
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    const canvasBox = canvas.getBoundingClientRect();
+    const hostBox = host.getBoundingClientRect();
+    const [left, top, width, height] = ['left', 'top', 'width', 'height']
+      .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+    const scale = canvas.width / canvas.clientWidth;
+    const startX = Math.round((left - (canvasBox.left - hostBox.left - host.clientLeft)) * scale);
+    const startY = Math.round((top - (canvasBox.top - hostBox.top - host.clientTop)) * scale);
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const endX = toCanvasEnd ? canvas.width : startX + Math.round(width * scale);
+    const columns = [];
+    const peaks = [];
+    for (let x = startX; x < endX; x++) {
+      let count = 0;
+      let peak = 0;
+      for (let y = startY; y < startY + Math.round(height * scale); y++) {
+        const j = (y * canvas.width + x) * 4;
+        if ([red, green, blue, alpha].every(([min, max], k) => data[j + k] >= min && data[j + k] <= max)) {
+          count++;
+          peak = Math.max(peak, data[j + 3]);
+        }
+      }
+      columns.push(count);
+      peaks.push(peak);
+    }
+    return { columns, peaks, width, height, scale };
+  }, [hostSelector, bounds, isToCanvasEnd]);
+}
+
+// The picked pixels of the columns from `start` to `end`, in px from the start of the area
+function sumColumns({ columns, scale }, start, end) {
+  return columns.slice(Math.round(start * scale), Math.round(end * scale)).reduce((sum, count) => sum + count, 0);
+}
+
+// The median over the columns from `start` to `end`, in px from the start of the area, of the highest alpha among the
+// picked pixels of each, which the few columns where the antialiased edge of a line lifts that alpha leave as it is
+function readPeakAlpha({ peaks, scale }, start, end) {
+  const sorted = peaks.slice(Math.round(start * scale), Math.round(end * scale)).sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+// The runs of columns that hold at least `minCount` picked pixels, as `[start, end]` in px from the start of the area
+function findColumnRuns({ columns, scale }, minCount) {
+  const runs = [];
+  columns.forEach((count, x) => {
+    if (count < minCount) return;
+    const last = runs[runs.length - 1];
+    if (last && last[1] === x) {
+      last[1] = x + 1;
+    } else {
+      runs.push([x, x + 1]);
+    }
+  });
+  return runs.map(([start, end]) => [start / scale, end / scale]);
+}
+
+// Whether each run starts and ends within the tolerance of the expected one, in px
+function areRunsNear(runs, expected) {
+  return runs.length === expected.length && runs.every((run, i) => (
+    run.every((edge, k) => Math.abs(edge - expected[i][k]) <= PLOT_AREA_TOLERANCE)
+  ));
+}
+
+function formatRuns(runs) {
+  return JSON.stringify(runs.map((run) => run.map((edge) => Number(edge.toFixed(1)))));
+}
+
+// Counts the pixels of every canvas of an element that `bounds` pick
+function countPickedPixels(locator, { red, green, blue, alpha }) {
+  return locator.evaluate((el, bounds) => [...el.querySelectorAll('canvas')].reduce((total, canvas) => {
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    let count = 0;
+    for (let j = 0; j < data.length; j += 4) {
+      if (bounds.every(([min, max], k) => data[j + k] >= min && data[j + k] <= max)) count++;
+    }
+    return total + count;
+  }, 0), [red, green, blue, alpha]);
+}
+
+// The bounds of each channel within `tolerance` of a hex colour, at an alpha within `alpha`
+function getColorBounds(hex, alpha, tolerance) {
+  const [red, green, blue] = parseHex(hex).map((channel) => [channel - tolerance, channel + tolerance]);
+  return { red, green, blue, alpha };
 }
 
 // Reads the dataset colour of each legend button, as its `lovely-chart--color-*` class names it, the contrast of its
@@ -3565,12 +3733,352 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && isSmoothAxisText(dayAxisDrawing, SMOOTH_AXIS_COLORS.day),
     JSON.stringify([nightAxisDrawing.texts[0], dayAxisDrawing.texts[0]]));
 
-  // --- An element over the plot by the plot-area variables (demo chart) ---
+  // --- Hatched ranges: their span by chart kind, merging, edges, labels, the minimap, the focus mask and shares ---
+  // A range from the point before it, an accruing one from halfway, a third that touches it, and one at the first label,
+  // too narrow for its label and with nothing before it for an edge
+  const hatchLabels = Array.from({ length: 11 }, (_, i) => Date.UTC(2026, 0, i + 1));
+  await recordProbeNumbers(page);
+  const hatchLine = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Hatched line',
+      labels: hatchLabels,
+      isUtc: true,
+      datasets: [{ name: 'Line', color: '#0000FF', values: [5, 6, 5, 7, 6, 8, 7, 6, 7, 8, 7] }],
+      withMinimap: true,
+      minimapRange: 'full',
+      hatchedRanges: [
+        { from: 0, to: 0, label: 'Too long for a sliver', hasEdge: true, color: CYAN_HATCH_COLOR },
+        { from: 3, to: 4, color: HATCH_COLOR },
+        { from: 8, to: 8, isAccruing: true, color: HATCH_COLOR },
+        { from: 9, to: 10, label: 'Estimated', hasEdge: true, color: HATCH_COLOR },
+      ],
+    },
+  });
+  const lineHatch = await readAreaColumns(page, '#probe', CLEAR_HATCH_PIXEL, true);
+  const lineStep = lineHatch.width / (hatchLabels.length - 1);
+  const lineRuns = findColumnRuns(lineHatch, MIN_HATCH_COLUMN_PIXELS);
+  const expectedLineRuns = [[2 * lineStep, 4.5 * lineStep], [7.5 * lineStep, 10 * lineStep]];
+  check('a line hatches a range from the point before it, an accruing one from halfway, ranges that touch as one',
+    areRunsNear(lineRuns, expectedLineRuns), `${formatRuns(lineRuns)} for ${formatRuns(expectedLineRuns)}`);
+  // The last band would run half a step past the last point, where the plot area ends, but for the clamp; the column the
+  // antialiased edge of the area may tint is left out
+  const pastLastPoint = sumColumns(lineHatch, lineHatch.width + 1, Infinity);
+  check('a line hatches nothing past its last point', pastLastPoint === 0, `${pastLastPoint}px of hatch`);
+  // Where the accruing range and the next overlap, a band of each would stroke the stripes twice over; the dashed edge at
+  // the start of the next is left out
+  const overlapAlpha = readPeakAlpha(lineHatch, 8.1 * lineStep, 8.4 * lineStep);
+  const singleAlpha = readPeakAlpha(lineHatch, 9.1 * lineStep, 9.9 * lineStep);
+  check('ranges of one colour that overlap hatch once, as one band',
+    Math.abs(overlapAlpha - singleAlpha) <= MAX_HATCH_ALPHA_GAP,
+    `alpha ${overlapAlpha} where they overlap, ${singleAlpha} past it`);
+  // The dashed edge goes under the line too, where it gives the antialiased pixels of the line the tint, so its column
+  // is left out
+  const edgeX = 8 * lineStep;
+  const lineTint = await readAreaColumns(page, '#probe', TINTED_LINE_PIXEL);
+  const tintedLine = sumColumns(lineTint, 2 * lineStep, 4.5 * lineStep)
+    + sumColumns(lineTint, 7.5 * lineStep, edgeX - 2) + sumColumns(lineTint, edgeX + 2, 10 * lineStep);
+  check('a line runs over its hatch, the opaque core of the line untinted', tintedLine === 0, `${tintedLine}px tinted`);
+  const lineEdges = await readAreaColumns(page, '#probe', OPAQUE_HATCH_PIXEL);
+  const minEdgePixels = lineEdges.height * lineEdges.scale * MIN_EDGE_COVER;
+  const edgeCover = Math.max(...lineEdges.columns) / (lineEdges.height * lineEdges.scale);
+  const edgeRuns = findColumnRuns(lineEdges, minEdgePixels);
+  const firstLabelEdges = findColumnRuns(await readAreaColumns(page, '#probe', OPAQUE_CYAN_PIXEL), minEdgePixels);
+  check('a range with an edge draws a dashed rule at the start of its band, and one at the first label draws none',
+    edgeRuns.length === 1 && Math.abs((edgeRuns[0][0] + edgeRuns[0][1]) / 2 - edgeX) <= PLOT_AREA_TOLERANCE
+    && edgeCover <= MAX_EDGE_COVER && firstLabelEdges.length === 0,
+    `edges ${formatRuns(edgeRuns)} for ${edgeX.toFixed(1)}, covering ${edgeCover.toFixed(2)} of the height, `
+    + `at the first label ${formatRuns(firstLabelEdges)}`);
+  const hatchAreaLeft = await readPlotAreaLeft(page);
+  const { texts: hatchTexts } = await readProbeTexts(page);
+  const estimatedTexts = hatchTexts.filter(({ text }) => text === 'Estimated');
+  const estimatedX = hatchAreaLeft + edgeX + HATCH_LABEL_INSET;
+  check('a range label stands at the start of its band in the range colour, and one wider than its band is dropped',
+    estimatedTexts.length > 0 && estimatedTexts.every(({ x, width, color }) => (
+      Math.abs(x - estimatedX) <= 1 && x + width <= hatchAreaLeft + 10 * lineStep && isTextColor(color, HATCH_COLOR)
+    )) && !hatchTexts.some(({ text }) => text === 'Too long for a sliver'),
+    `${JSON.stringify(estimatedTexts.slice(-1))} for x ${estimatedX.toFixed(1)}`);
+  const hatchMinimap = hatchLine.locator('.lovely-chart--minimap');
+  const minimapHatch = await countPickedPixels(hatchMinimap, CLEAR_HATCH_PIXEL);
+  const minimapEdge = await countPickedPixels(hatchMinimap, OPAQUE_HATCH_PIXEL);
+  check('the minimap hatches the ranges without their edges', minimapHatch > 0 && minimapEdge === 0,
+    `${minimapHatch}px of hatch, ${minimapEdge}px of edges`);
+  // The stripes of a narrowed window, then of one panned by a fraction of a step, each read over the redraws of a skin
+  // switch: every stripe of a band rises from the bottom of the plot to its top a stripe step after the one before, on
+  // the grid of the first label as the X-axis labels place it
+  const readStripes = async () => {
+    await startCanvasRecording(hatchLine);
+    await switchSkinAndBack(page);
+    const { paths, texts } = await stopCanvasRecording(page);
+    const labelXs = texts.flatMap(({ text, x }) => {
+      const [, day] = /^(\d+) Jan$/.exec(text) ?? [];
+      return day ? [[Number(day) - 1, x]] : [];
+    }).sort(([a], [b]) => a - b);
+    const [firstIndex, firstX] = labelXs[0];
+    const [lastIndex, lastX] = labelXs[labelXs.length - 1];
+    const firstLabelX = firstX - firstIndex * (lastX - firstX) / (lastIndex - firstIndex);
+    const bands = paths.filter((path) => path.length && path.every(({ alpha }) => alpha < 1));
+    const segments = bands.flat();
+    const isOnStripe = (a, b) => Math.abs(a - b) <= HATCH_STRIPE_TOLERANCE;
+    const getPhase = (x) => {
+      const phase = (((x - firstLabelX) % HATCH_STRIPE_STEP) + HATCH_STRIPE_STEP) % HATCH_STRIPE_STEP;
+      return Math.min(phase, HATCH_STRIPE_STEP - phase);
+    };
+    return {
+      bands: bands.length,
+      isRising: segments.every(({ from, to }) => to && isOnStripe(from[1], PLOT_BOTTOM) && isOnStripe(to[1], PLOT_TOP)
+        && isOnStripe(to[0] - from[0], PLOT_BOTTOM - PLOT_TOP)),
+      isEven: bands.every((band) => band.every(({ from }, i) => (
+        !i || isOnStripe(from[0] - band[i - 1].from[0], HATCH_STRIPE_STEP)
+      ))),
+      phase: Math.max(...segments.map(({ from }) => getPhase(from[0]))),
+      firstLabelX,
+    };
+  };
+  await hatchLine.scrollIntoViewIfNeeded();
+  const lineMinimapWidth = (await hatchMinimap.boundingBox()).width;
+  const lineEar = await hatchLine.locator('.lovely-chart--minimap-slider-handle').first().boundingBox();
+  await drag(page, lineEar.x + lineEar.width / 2, lineEar.y + lineEar.height / 2, lineMinimapWidth * 0.35, 0);
+  await sleep(600);
+  const lineSlider = hatchLine.locator('.lovely-chart--minimap-slider-inner');
+  const narrowSlider = await lineSlider.boundingBox();
+  await drag(page, narrowSlider.x + narrowSlider.width / 2, narrowSlider.y + narrowSlider.height / 2,
+    -lineMinimapWidth * 0.2, 0);
+  await sleep(600);
+  const narrowStripes = await readStripes();
+  const pannedSlider = await lineSlider.boundingBox();
+  await drag(page, pannedSlider.x + pannedSlider.width / 2, pannedSlider.y + pannedSlider.height / 2,
+    lineMinimapWidth / (hatchLabels.length - 1) / 3, 0);
+  await sleep(600);
+  const pannedStripes = await readStripes();
+  await unmountProbe(page);
+  check('hatch stripes rise across the plot a stripe step apart, on the grid of the first label as the window pans',
+    [narrowStripes, pannedStripes].every(({ bands, isRising, isEven, phase }) => (
+      bands > 0 && isRising && isEven && phase <= HATCH_STRIPE_TOLERANCE
+    )) && Math.abs(pannedStripes.firstLabelX - narrowStripes.firstLabelX) > 1,
+    JSON.stringify({ narrowStripes, pannedStripes }));
+
+  // A range past the first label, clamped to it, and one that runs backwards and one of no number, both dropped, all in
+  // a colour of their own
+  const hatchBarValues = [4, 10, 6, 10, 8, 10, 6, 10];
+  await mountProbe(page, {
+    config: {
+      type: 'bar',
+      title: 'Probe — Hatched bars',
+      labels: hatchLabels.slice(0, hatchBarValues.length),
+      datasets: [{ name: 'Bars', color: '#0000FF', values: hatchBarValues }],
+      hatchedRanges: [
+        { from: 2, to: 3, color: HATCH_COLOR },
+        { from: -3, to: 1.4, color: CYAN_HATCH_COLOR },
+        { from: 5, to: 2, color: CYAN_HATCH_COLOR },
+        { from: NaN, to: 1, color: CYAN_HATCH_COLOR },
+      ],
+    },
+  });
+  const readBarHatchRuns = async (bounds) => findColumnRuns(
+    await readAreaColumns(page, '#probe', bounds), MIN_HATCH_COLUMN_PIXELS,
+  );
+  const barHatch = await readAreaColumns(page, '#probe', BAR_HATCH_PIXEL);
+  const barRuns = findColumnRuns(barHatch, MIN_HATCH_COLUMN_PIXELS);
+  const barColumn = barHatch.width / hatchBarValues.length;
+  const expectedBarRuns = [[2 * barColumn, 4 * barColumn]];
+  check('bars hatch the columns of a range over their fill', areRunsNear(barRuns, expectedBarRuns),
+    `${formatRuns(barRuns)} for ${formatRuns(expectedBarRuns)}`);
+  const clampedRuns = await readBarHatchRuns(BAR_CYAN_HATCH_PIXEL);
+  const expectedClampedRuns = [[0, 2 * barColumn]];
+  check('a range from before the first label hatches from it, and one backwards or of no number hatches nothing',
+    areRunsNear(clampedRuns, expectedClampedRuns), `${formatRuns(clampedRuns)} for ${formatRuns(expectedClampedRuns)}`);
+  await page.evaluate(() => window.probeChart.selectLabel(6));
+  await sleep(500);
+  const elsewhereFocusRuns = await readBarHatchRuns(BAR_HATCH_PIXEL);
+  const elsewhereMaskedRuns = await readBarHatchRuns(MASKED_BAR_HATCH_PIXEL);
+  await page.evaluate(() => window.probeChart.selectLabel(2));
+  await sleep(500);
+  const hatchedFocusRuns = await readBarHatchRuns(BAR_HATCH_PIXEL);
+  const hatchedMaskedRuns = await readBarHatchRuns(MASKED_BAR_HATCH_PIXEL);
+  await unmountProbe(page);
+  const expectedFocusRuns = [[2 * barColumn, 3 * barColumn]];
+  const expectedMaskedRuns = [[3 * barColumn, 4 * barColumn]];
+  check('a focused bar dims a hatched column like the others, the mask over the hatch',
+    elsewhereFocusRuns.length === 0 && areRunsNear(elsewhereMaskedRuns, expectedBarRuns)
+    && areRunsNear(hatchedFocusRuns, expectedFocusRuns) && areRunsNear(hatchedMaskedRuns, expectedMaskedRuns),
+    `focus elsewhere ${formatRuns(elsewhereFocusRuns)}, masked ${formatRuns(elsewhereMaskedRuns)}; `
+    + `on the range ${formatRuns(hatchedFocusRuns)}, masked ${formatRuns(hatchedMaskedRuns)}`);
+
+  const sharesHatch = await mountProbe(page, {
+    config: {
+      type: 'bar',
+      title: 'Probe — Hatched shares',
+      isStacked: true,
+      labels: hatchLabels.slice(0, hatchBarValues.length),
+      datasets: [
+        { name: 'Blue', color: '#0000FF', values: hatchBarValues },
+        { name: 'Green', color: '#00FF00', values: hatchBarValues },
+      ],
+      zoomToShares: true,
+      circleLabelsAround: 0,
+      initialZoom: 'last',
+      hatchedRanges: [{
+        from: 0, to: hatchBarValues.length - 1, label: 'Estimated', hasEdge: true, color: HATCH_COLOR,
+      }],
+    },
+  });
+  const zoomedHatch = await countPickedPixels(sharesHatch, ANY_HATCH_PIXEL);
+  await sharesHatch.locator('.lovely-chart--header-zoom-out-control').first().click();
+  await sleep(2000);
+  const overviewHatch = await countPickedPixels(sharesHatch, ANY_HATCH_PIXEL);
+  await unmountProbe(page);
+  check('a zoom into shares draws no hatch, and its overview hatches again', zoomedHatch === 0 && overviewHatch > 0,
+    `${zoomedHatch}px zoomed, ${overviewHatch}px in the overview`);
+
+  // An area hatches over its opaque fill and its border at the tone over fills, steps hatch the columns of a range at
+  // the tone under lines, under their line, and a line of one label hatches its whole plot. The area runs high through
+  // its band, so the fill is thick across it, and steeply, so its border crosses many rows.
+  await mountProbe(page, {
+    config: {
+      type: 'area',
+      title: 'Probe — Hatched area',
+      labels: hatchLabels,
+      datasets: [{ name: 'Area', color: '#0000FF', values: [1, 9, 8, 10, 4, 10, 9, 8, 9, 10, 9] }],
+      areaOpacity: 1,
+      areaBorderColor: '#00FF00',
+      hatchedRanges: [{ from: 3, to: 4, color: HATCH_COLOR }],
+    },
+  });
+  const areaHatch = await readAreaColumns(page, '#probe', BAR_HATCH_PIXEL);
+  const areaStep = areaHatch.width / (hatchLabels.length - 1);
+  const areaBorder = await readAreaColumns(page, '#probe', HATCHED_BORDER_PIXEL);
+  await unmountProbe(page);
+  const areaRuns = findColumnRuns(areaHatch, MIN_HATCH_COLUMN_PIXELS);
+  const expectedAreaRuns = [[2 * areaStep, 4.5 * areaStep]];
+  const hatchedBorder = sumColumns(areaBorder, 2 * areaStep, 4.5 * areaStep);
+  check('an area hatches a range over its fill and its border',
+    areRunsNear(areaRuns, expectedAreaRuns) && hatchedBorder >= MIN_HATCHED_BORDER_PIXELS,
+    `${formatRuns(areaRuns)} for ${formatRuns(expectedAreaRuns)}, ${hatchedBorder}px of hatched border`);
+  await mountProbe(page, {
+    config: {
+      type: 'step',
+      title: 'Probe — Hatched steps',
+      labels: hatchLabels.slice(0, hatchBarValues.length),
+      datasets: [{ name: 'Steps', color: '#0000FF', values: hatchBarValues }],
+      hatchedRanges: [{ from: 2, to: 3, color: HATCH_COLOR }],
+    },
+  });
+  const stepHatch = await readAreaColumns(page, '#probe', CLEAR_HATCH_PIXEL);
+  const stepColumn = stepHatch.width / hatchBarValues.length;
+  const stepTint = await readAreaColumns(page, '#probe', TINTED_LINE_PIXEL);
+  await unmountProbe(page);
+  const stepRuns = findColumnRuns(stepHatch, MIN_HATCH_COLUMN_PIXELS);
+  const expectedStepRuns = [[2 * stepColumn, 4 * stepColumn]];
+  const stepAlpha = readPeakAlpha(stepHatch, 2 * stepColumn, 4 * stepColumn);
+  const tintedSteps = sumColumns(stepTint, 2 * stepColumn, 4 * stepColumn);
+  check('steps hatch the columns of a range at the tone under lines, the opaque core of the line untinted',
+    areRunsNear(stepRuns, expectedStepRuns) && stepAlpha <= MAX_UNDER_LINES_ALPHA && tintedSteps === 0,
+    `${formatRuns(stepRuns)} for ${formatRuns(expectedStepRuns)} at alpha ${stepAlpha}, ${tintedSteps}px tinted`);
+  await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Hatched single label',
+      labels: hatchLabels.slice(0, 1),
+      datasets: [{ name: 'Line', color: '#0000FF', values: [5] }],
+      hatchedRanges: [{ from: 0, to: 0, color: HATCH_COLOR }],
+    },
+  });
+  const singleHatch = await readAreaColumns(page, '#probe', CLEAR_HATCH_PIXEL);
+  await unmountProbe(page);
+  const singleRuns = findColumnRuns(singleHatch, MIN_HATCH_COLUMN_PIXELS);
+  const expectedSingleRuns = [[0, singleHatch.width]];
+  check('a line of one label hatches its whole plot', areRunsNear(singleRuns, expectedSingleRuns),
+    `${formatRuns(singleRuns)} for ${formatRuns(expectedSingleRuns)}`);
+
+  // A range at the first label with no colour of its own, an accruing one whose label fits its band but would run into
+  // the label of the next, and one in a colour of each skin, which the minimap follows as the skin switches
+  await recordProbeNumbers(page);
+  const hatchLabelProbe = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Hatch labels',
+      labels: hatchLabels.slice(0, 4),
+      datasets: [{ name: 'Line', color: '#0000FF', values: [12, 18, 15, 20] }],
+      withMinimap: true,
+      minimapRange: 'full',
+      hatchedRanges: [
+        { from: 0, to: 0, label: 'First' },
+        { from: 1, to: 1, isAccruing: true, label: ACCRUING_LABEL },
+        { from: 2, to: 3, label: 'Estimated', color: { light: HATCH_COLOR, dark: CYAN_HATCH_COLOR } },
+      ],
+    },
+  });
+  const labelProbeStep = (await readAreaColumns(page, '#probe', CLEAR_CYAN_PIXEL)).width / 3;
+  const labelMinimap = hatchLabelProbe.locator('.lovely-chart--minimap');
+  const readMinimapHatch = async () => ({
+    day: await countPickedPixels(labelMinimap, CLEAR_HATCH_PIXEL),
+    night: await countPickedPixels(labelMinimap, CLEAR_CYAN_PIXEL),
+  });
+  const nightMinimapHatch = await readMinimapHatch();
+  let dayMinimapHatch;
+  await startCanvasRecording(hatchLabelProbe);
+  await switchSkinAndBack(page, async () => {
+    dayMinimapHatch = await readMinimapHatch();
+  });
+  const labelDrawing = await stopCanvasRecording(page);
+  const rangeLabels = labelDrawing.texts.filter(({ text }) => ['First', ACCRUING_LABEL, 'Estimated'].includes(text));
+  const accruingWidth = await hatchLabelProbe.evaluate((el, [font, text]) => {
+    const context = el.querySelector('canvas').getContext('2d');
+    context.save();
+    context.font = font;
+    const { width } = context.measureText(text);
+    context.restore();
+    return width;
+  }, [rangeLabels.find(({ text }) => text === 'Estimated')?.font, ACCRUING_LABEL]);
+  await unmountProbe(page);
+  const yLabels = labelDrawing.texts.filter(({ text }) => /^\d+$/.test(text));
+  const yLabelEnd = Math.max(...yLabels.map(({ x, width }) => x + width));
+  const firstLabels = rangeLabels.filter(({ text }) => text === 'First');
+  check('a range label at the first label stands clear of the Y-axis labels on its row',
+    firstLabels.length > 0 && firstLabels.every(({ x }) => x >= yLabelEnd + HATCH_LABEL_INSET),
+    `at ${JSON.stringify(firstLabels.map(({ x }) => x))}, the Y-axis labels ending at ${yLabelEnd}`);
+  const yLabelColors = new Set(yLabels.map(({ color }) => color));
+  const firstLabelColors = [...new Set(firstLabels.map(({ color }) => color))];
+  check('a range of no colour of its own labels in the Y-axis text colour of each skin',
+    firstLabelColors.length === 2 && firstLabelColors.every((color) => yLabelColors.has(color)),
+    `${JSON.stringify(firstLabelColors)} for ${JSON.stringify([...yLabelColors])}`);
+  const isOverlapping = rangeLabels.some((a) => rangeLabels.some((b) => (
+    a.text !== b.text && a.x < b.x + b.width && b.x < a.x + a.width
+  )));
+  check('an accruing range drops a label that would run into the label of the next, though it fits its own band',
+    !rangeLabels.some(({ text }) => text === ACCRUING_LABEL) && rangeLabels.some(({ text }) => text === 'Estimated')
+    && !isOverlapping && accruingWidth <= labelProbeStep - 2 * HATCH_LABEL_INSET,
+    `${accruingWidth.toFixed(1)}px wide in a band of ${labelProbeStep.toFixed(1)}px, `
+    + JSON.stringify(rangeLabels.map(({ text, x, width }) => [text, x, width])));
+  check('the minimap hatches in the colour of each skin as the skin switches',
+    nightMinimapHatch.night > 0 && nightMinimapHatch.day === 0
+    && dayMinimapHatch.day > 0 && dayMinimapHatch.night === 0,
+    JSON.stringify({ nightMinimapHatch, dayMinimapHatch }));
+
+  await recordProbeNumbers(page);
+  const hatchSparkline = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Hatched sparkline',
+      isSparkline: true,
+      labels: hatchLabels,
+      datasets: [{ name: 'Line', color: '#0000FF', values: [5, 6, 5, 7, 6, 8, 7, 6, 7, 8, 7] }],
+      hatchedRanges: [{ from: 8, to: 10, label: 'Estimated', color: HATCH_COLOR }],
+    },
+  });
+  const sparklineHatch = await countPickedPixels(hatchSparkline, CLEAR_HATCH_PIXEL);
+  const sparklineLabels = (await readProbeTexts(page)).texts.filter(({ text }) => text === 'Estimated');
+  await unmountProbe(page);
+  check('a sparkline hatches a labelled range without its label', sparklineHatch > 0 && sparklineLabels.length === 0,
+    `${sparklineHatch}px of hatch, labels ${JSON.stringify(sparklineLabels)}`);
+
+  // --- A forecast week the chart hatches, and a badge over the plot by the plot-area variables (demo chart) ---
   const forecastChart = charts.nth(FORECAST_CHART);
   await forecastChart.scrollIntoViewIfNeeded();
-  const forecastFit = await forecastChart.evaluate((el, [days, week, hex]) => {
+  const readForecastFit = () => forecastChart.evaluate((el, [hex, inset]) => {
     const host = el.parentElement;
-    const band = host.querySelector('.forecast-band');
+    const badge = host.querySelector('.forecast-badge');
     const canvas = el.querySelector('canvas');
     const hostBox = host.getBoundingClientRect();
     const toHost = ({ left, top, right, bottom }) => ({
@@ -3597,31 +4105,65 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     }
     return {
       area: { left, top, right: left + width, bottom: top + height },
-      band: toHost(band.getBoundingClientRect()),
-      bandLeft: left + width * (1 - (week - 1) / (days - 1)),
+      areaInCanvas: left - canvasBox.left,
+      badge: toHost(badge.getBoundingClientRect()),
+      badgeCorner: { left: left + inset, bottom: top + height - inset },
       line,
-      isBandBeforeChart: band.nextElementSibling === el,
+      isBadgeBeforeChart: badge.nextElementSibling === el,
+      skin: document.documentElement.classList.contains('theme-dark') ? 'night' : 'day',
     };
-  }, [FORECAST_DAYS, FORECAST_WEEK, FORECAST_LINE_COLOR]);
-  const { area: forecastArea, band: forecastBand, line: forecastLine } = forecastFit;
+  }, [FORECAST_LINE_COLOR, FORECAST_BADGE_INSET]);
+  const forecastFit = await readForecastFit();
+  const { area: forecastArea, badge: forecastBadge, line: forecastLine } = forecastFit;
   const isNear = (a, b) => Math.abs(a - b) <= PLOT_AREA_TOLERANCE;
-  check('the demo forecast band stands on the plot area by its variables from the first forecast day, under the chart',
-    isNear(forecastBand.top, forecastArea.top) && isNear(forecastBand.bottom, forecastArea.bottom)
-    && isNear(forecastBand.right, forecastArea.right) && isNear(forecastBand.left, forecastFit.bandLeft)
-    && forecastFit.isBandBeforeChart,
-    `band ${formatBox(forecastBand)}, area ${formatBox(forecastArea)}, start ${forecastFit.bandLeft.toFixed(1)}`);
+  check('the demo forecast badge stands at the bottom start of the plot area by its variables, under the chart',
+    isNear(forecastBadge.left, forecastFit.badgeCorner.left)
+    && isNear(forecastBadge.bottom, forecastFit.badgeCorner.bottom)
+    && forecastFit.isBadgeBeforeChart,
+    `badge ${formatBox(forecastBadge)}, area ${formatBox(forecastArea)}`);
   check('the plot area of the demo forecast frames its line',
     isNear(forecastLine.left, forecastArea.left) && isNear(forecastLine.right, forecastArea.right)
     && forecastLine.top >= forecastArea.top - PLOT_AREA_TOLERANCE
     && forecastLine.bottom <= forecastArea.bottom + PLOT_AREA_TOLERANCE,
     `line ${formatBox(forecastLine)}, area ${formatBox(forecastArea)}`);
-  await hoverWiggle(page, await page.locator('.forecast-band').boundingBox(), 0.5, 0.5);
+  const forecastAccent = FORECAST_ACCENTS[forecastFit.skin];
+  const forecastStep = (forecastArea.right - forecastArea.left) / (FORECAST_DAYS - 1);
+  const forecastStart = (FORECAST_DAYS - FORECAST_WEEK - 1) * forecastStep;
+  const forecastHatch = await readAreaColumns(page, '.forecast-chart',
+    getColorBounds(forecastAccent, CLEAR_HATCH_PIXEL.alpha, HATCH_COLOR_TOLERANCE));
+  const forecastRuns = findColumnRuns(forecastHatch, MIN_HATCH_COLUMN_PIXELS);
+  const forecastEdges = await readAreaColumns(page, '.forecast-chart',
+    getColorBounds(forecastAccent, OPAQUE_HATCH_PIXEL.alpha, HATCH_COLOR_TOLERANCE));
+  const forecastEdgePixels = forecastEdges.height * forecastEdges.scale;
+  const forecastEdgeRuns = findColumnRuns(forecastEdges, forecastEdgePixels * MIN_EDGE_COVER);
+  const forecastEdgeCover = Math.max(...forecastEdges.columns) / forecastEdgePixels;
+  const expectedForecastRuns = [[forecastStart, forecastHatch.width]];
+  check('the demo forecast hatches its last week in the accent from the last actual day, with an edge there',
+    areRunsNear(forecastRuns, expectedForecastRuns) && forecastEdgeRuns.length === 1
+    && Math.abs((forecastEdgeRuns[0][0] + forecastEdgeRuns[0][1]) / 2 - forecastStart) <= PLOT_AREA_TOLERANCE
+    && forecastEdgeCover <= MAX_EDGE_COVER,
+    `hatch ${formatRuns(forecastRuns)} for ${formatRuns(expectedForecastRuns)}, edges ${formatRuns(forecastEdgeRuns)} `
+    + `covering ${forecastEdgeCover.toFixed(2)} of the height`);
+  // A change of skin redraws the plot
+  await startCanvasRecording(forecastChart);
+  await switchSkinAndBack(page);
+  const forecastDrawing = await stopCanvasRecording(page);
+  const forecastLabels = forecastDrawing.texts.filter(({ text }) => text === 'Forecast');
+  const forecastLabelX = forecastFit.areaInCanvas + forecastStart + HATCH_LABEL_INSET;
+  const isForecastLabelFont = (font) => ['500', `${DEFAULT_AXIS_FONT_SIZE}px`].every((part) => (
+    font.split(' ').includes(part)
+  ));
+  check('the demo forecast labels the start of its band in the accent of each skin, at weight 500 in the axis font',
+    Object.values(FORECAST_ACCENTS).every((hex) => forecastLabels.some(({ color }) => isTextColor(color, hex)))
+    && forecastLabels.every(({ x, font }) => Math.abs(x - forecastLabelX) <= 1 && isForecastLabelFont(font)),
+    `${JSON.stringify(forecastLabels)} for x ${forecastLabelX.toFixed(1)}`);
+  await hoverWiggle(page, await page.locator('.forecast-badge').boundingBox(), 0.5, 0.5);
   const forecastBalloon = await forecastChart.locator('.lovely-chart--tooltip-balloon').evaluate((el) => ({
     isShown: el.classList.contains('lovely-chart--state-shown'),
     title: el.querySelector('.lovely-chart--tooltip-title').textContent,
   }));
   await page.mouse.move(5, 5);
-  check('the pointer over the demo forecast band reaches the tooltip', forecastBalloon.isShown,
+  check('the pointer over the demo forecast badge reaches the tooltip', forecastBalloon.isShown,
     JSON.stringify(forecastBalloon));
 
   // --- `selectLabel()` from the page and `onSelectedIndexChange` (demo chart) ---
@@ -4335,15 +4877,26 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   }));
   check('the demo page fits a phone without scrolling sideways', phoneWidths.scroll <= phoneWidths.client,
     JSON.stringify(phoneWidths));
-  const phoneForecastLabel = await page.locator('.forecast-band').evaluate((band) => {
-    const range = document.createRange();
-    range.selectNodeContents(band);
-    const text = range.getBoundingClientRect();
-    const { left, right } = band.getBoundingClientRect();
-    return { band: [left, right], text: [text.left, text.right], isInside: text.left >= left && text.right <= right };
-  });
-  check('the demo forecast band holds its label on a phone', phoneForecastLabel.isInside,
-    JSON.stringify(phoneForecastLabel));
+  // A change of skin redraws the plot the resize rebuilt
+  await forecastChart.scrollIntoViewIfNeeded();
+  await startCanvasRecording(forecastChart);
+  await switchSkinAndBack(page);
+  const phoneForecastDrawing = await stopCanvasRecording(page);
+  const phoneForecastFit = await readForecastFit();
+  const { area: phoneForecastArea, badge: phoneForecastBadge, areaInCanvas: phoneAreaInCanvas } = phoneForecastFit;
+  const phoneForecastWidth = phoneForecastArea.right - phoneForecastArea.left;
+  const phoneForecastStart = phoneAreaInCanvas
+    + phoneForecastWidth * (FORECAST_DAYS - FORECAST_WEEK - 1) / (FORECAST_DAYS - 1);
+  const isPhoneBadgeInside = phoneForecastBadge.left >= phoneForecastArea.left
+    && phoneForecastBadge.right <= phoneForecastArea.right && phoneForecastBadge.top >= phoneForecastArea.top
+    && phoneForecastBadge.bottom <= phoneForecastArea.bottom;
+  const phoneForecastLabels = phoneForecastDrawing.texts.filter(({ text }) => text === 'Forecast');
+  check('the demo forecast holds its label inside the band and its badge inside the plot on a phone',
+    phoneForecastLabels.length > 0 && phoneForecastLabels.every(({ x, width }) => (
+      x >= phoneForecastStart && x + width <= phoneAreaInCanvas + phoneForecastWidth
+    )) && isPhoneBadgeInside,
+    `labels ${JSON.stringify(phoneForecastLabels)} from ${phoneForecastStart.toFixed(1)}, `
+    + `badge ${formatBox(phoneForecastBadge)}, area ${formatBox(phoneForecastArea)}`);
 
   // --- Console hygiene ---
   check('no page or console errors', errors.length === 0, errors.join('; ').slice(0, 200));

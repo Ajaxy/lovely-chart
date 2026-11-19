@@ -7,6 +7,7 @@ import { getComparisonValues } from './comparison.js';
 import {
   CIRCLE_MINIMUM_VISIBLE_PERCENT, DONUT_INNER_RADIUS_FACTOR, GAP, NO_FOCUS, PLOT_BARS_WIDTH_SHIFT, PLOT_CIRCLE_SHIFT,
 } from './constants.js';
+import { areHatchesOverFills, drawHatchedRanges } from './drawHatchedRanges.js';
 import {
   getCircleRadius, getCircleTextShift, getCircleTextSize, getDrawnPattern, isConstantRange,
 } from './formulas.js';
@@ -56,7 +57,7 @@ export function drawDatasets(
   context: CanvasRenderingContext2D, state: ChartState, data: AnalyzedData,
   range: LabelRange, points: Point[][], projection: Projection,
   secondaryPoints: Point[] | undefined, secondaryProjection: Projection | undefined,
-  lineWidth: number, visibilities: number[], colors: ChartColors, shouldConvertToBars: boolean, simplification: number,
+  lineWidth: number, visibilities: number[], colors: ChartColors, isMinimap: boolean, simplification: number,
 ) {
   // A label where a visible stacked dataset has no value leaves every area stacked above it without a base.
   // A percentage chart keeps that base, the shares of the values the label has.
@@ -66,6 +67,11 @@ export function drawDatasets(
   const areaBorder = isStack && areaBorderColor !== undefined ? new Path2D() : undefined;
   const leadRange = { from: 0, to: range.from - 1 };
   let leadPoints: Point[][] | undefined;
+  const isHatchOverFills = areHatchesOverFills(data);
+
+  if (data.hatchedRanges.length && !isHatchOverFills) {
+    drawHatchedRanges(context, data, projection, colors, !isMinimap);
+  }
 
   data.datasets.forEach((dataset, i) => {
     if (!visibilities[i]) {
@@ -88,7 +94,7 @@ export function drawDatasets(
       areaBorder,
     };
 
-    const datasetType = (type === 'pie' || type === 'donut') && shouldConvertToBars ? 'bar' : type;
+    const datasetType = (type === 'pie' || type === 'donut') && isMinimap ? 'bar' : type;
     const datasetPoints: DrawPoint[] = hasOwnYAxis ? secondaryPoints! : points[i];
     const datasetProjection = hasOwnYAxis ? secondaryProjection! : projection;
 
@@ -135,6 +141,10 @@ export function drawDatasets(
     context.lineJoin = 'bevel';
     context.stroke(areaBorder);
     context.restore();
+  }
+
+  if (data.hatchedRanges.length && isHatchOverFills) {
+    drawHatchedRanges(context, data, projection, colors, !isMinimap);
   }
 
   if (data.comparison) {

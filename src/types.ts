@@ -78,6 +78,27 @@ export interface ReferenceLine {
   color?: string | { light: string; dark: string };
 }
 
+/**
+ * A run of labels whose values are not plain actuals, such as estimated, partial, still accruing or forecast, hatched
+ * across the plot and the minimap. A bar or step chart hatches the columns of the range. A line or area chart starts
+ * the hatch at the point before the range, as the segment into an estimated value is estimated too, and ends it halfway
+ * to the label after the range.
+ */
+export interface HatchedRange {
+  /** Index of the first label of the range. */
+  from: number;
+  /** Index of the last label of the range, inclusive. */
+  to: number;
+  /** Text at the bottom left of the range's hatch, in its colour; dropped where it has no room. */
+  label?: string;
+  /** Any canvas colour of the hatch, the edge and the label, or one per skin; defaults to the axis text colour. */
+  color?: string | { light: string; dark: string };
+  /** Draws a dashed rule where the range's hatch starts, as where actuals end and a forecast begins. */
+  hasEdge?: boolean;
+  /** Marks a range whose values are still filling: a line or area chart starts its hatch halfway from the point before. */
+  isAccruing?: boolean;
+}
+
 /** The values of a previous period, drawn as one dashed line under the name of its legend entry. */
 export interface Comparison {
   /** Name in the legend and in the tooltip, as `'Previous period'`. */
@@ -153,7 +174,8 @@ export interface LovelyChartParams {
   axisTextColor?: ThemedColor;
   /**
    * Colour of the surface behind the chart. The chart paints it inside the hover dots, in the mask over
-   * unfocused bars and as a halo around the Y-axis labels; defaults to the skin's own background.
+   * unfocused bars and as a halo around the Y-axis labels and the labels of reference lines and hatched ranges;
+   * defaults to the skin's own background.
    */
   backgroundColor?: ThemedColor;
   /**
@@ -173,6 +195,8 @@ export interface LovelyChartParams {
   colorScheme?: 'htmlClassName' | 'system';
   /** Dashed rules at fixed values, drawn over the datasets; ignored on pie and donut charts. */
   referenceLines?: ReferenceLine[];
+  /** Runs of labels to hatch, such as estimated or forecast ones; ignored on pie and donut charts. */
+  hatchedRanges?: HatchedRange[];
   /**
    * Lists the tooltip rows in the order of the legend, after the comparison row, rather than from the largest
    * value down. When more rows would show than the tooltip holds, the largest values still decide which do.
@@ -276,10 +300,11 @@ export interface AnalyzedData {
   areLabelsContrast?: boolean;
   isYAxisOutward?: boolean;
   noFloatSteps?: boolean;
-  axisFontSize?: number;
+  axisFontSize: number;
   axisTextColor?: ThemedColor;
   backgroundColor?: ThemedColor;
   referenceLines: ReferenceLine[];
+  hatchedRanges: HatchedRange[];
   isUtc?: boolean;
   colorScheme?: LovelyChartParams['colorScheme'];
   comparison?: Comparison & { color: string };

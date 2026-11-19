@@ -61,26 +61,26 @@ a:hover, a:active, a:visited {
   position: relative;
 }
 
-.forecast-band {
+.forecast-badge {
   position: absolute;
-  top: var(--lovely-chart-plot-area-top);
-  left: calc(var(--lovely-chart-plot-area-left) + var(--lovely-chart-plot-area-width) * var(--forecast-start));
-  width: calc(var(--lovely-chart-plot-area-width) * (1 - var(--forecast-start)));
-  height: var(--lovely-chart-plot-area-height);
-  display: flex;
-  align-items: flex-end;
+  top: calc(var(--lovely-chart-plot-area-top) + var(--lovely-chart-plot-area-height) - 6px);
+  left: calc(var(--lovely-chart-plot-area-left) + 6px);
+  max-width: calc(var(--lovely-chart-plot-area-width) - 12px);
+  transform: translateY(-100%);
   box-sizing: border-box;
-  padding: 6px 4px;
-  border-left: 1px dashed #108BE3;
-  background: repeating-linear-gradient(135deg, rgba(16, 139, 227, 0.14) 0 5px, transparent 5px 10px);
+  padding: 2px 6px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(16, 139, 227, 0.1);
   color: #108BE3;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-html.theme-dark .forecast-band {
-  border-left-color: #48AAF0;
-  background: repeating-linear-gradient(135deg, rgba(72, 170, 240, 0.2) 0 5px, transparent 5px 10px);
+html.theme-dark .forecast-badge {
+  background: rgba(72, 170, 240, 0.16);
   color: #48AAF0;
 }
 

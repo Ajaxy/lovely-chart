@@ -24,7 +24,7 @@ function detectSkin() {
   return document.documentElement.classList.contains('theme-dark') ? 'skin-night' : 'skin-day';
 }
 
-type Skin = 'skin-day' | 'skin-night';
+export type Skin = 'skin-day' | 'skin-night';
 
 let skin: Skin | undefined;
 let systemDarkQuery: MediaQueryList | undefined;
@@ -161,7 +161,7 @@ export function getCssColor(colors: ChartColors, key: string, opacity?: number):
   return buildCssColor(colors[getSkin(colors)][key], opacity);
 }
 
-function getSkin(colors: ChartColors): Skin {
+export function getSkin(colors: ChartColors): Skin {
   if (colors[COLOR_SCHEME] === 'system') {
     return systemDarkQuery?.matches ? 'skin-night' : 'skin-day';
   }
