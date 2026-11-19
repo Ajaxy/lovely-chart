@@ -130,6 +130,29 @@ export interface Comparison {
   values: (number | null)[][];
 }
 
+/** What the tooltip shows for the selected label, as `onTooltipChange` reports it. */
+export interface TooltipContent {
+  /** Index of the selected label in `labels`. */
+  labelIndex: number;
+  /** The title of the tooltip, as `18 Nov 2026`. */
+  title: string;
+  /**
+   * Each dataset on screen, in the order of `datasets`, with its index there, its name and its value at the label:
+   * zero included, and `null` for a gap.
+   */
+  rows: { datasetIndex: number; name: string; value: number | null }[];
+  /**
+   * The total of a stacked or percentage bar, step or area chart, as its Total row or title shows it: what
+   * `resolveTooltipTotal` gives, or else the sum of the rows.
+   */
+  total?: number | null;
+  /**
+   * The previous period at the label: its name, its value, `null` for a gap, and `change`, the change of the current
+   * total against it in percent, unrounded, where the tooltip shows one.
+   */
+  comparison?: { name: string; value: number | null; change?: number };
+}
+
 /** Localized date strings for axis, tooltip and caption labels. Each is optional and falls back to English. */
 export interface DateLocale {
   months?: readonly string[]; // Short month names, 12 entries (Jan..Dec)
@@ -259,10 +282,23 @@ export interface LovelyChartParams {
   /** Called when the reader shows or hides a dataset in the legend, with the names and indexes of the hidden ones. */
   onHiddenSeriesChange?: (names: string[], datasetIndexes: number[]) => void;
   /**
-   * Called when the selected label changes, by pointer, touch or `selectLabel()`, with its index, not its value, and
-   * with `undefined` once nothing is selected; a pie or donut selects no label.
+   * Called when the selected label changes, by pointer, touch, keyboard or `selectLabel()`, with its index, not its
+   * value, and with `undefined` once nothing is selected; a pie or donut selects no label.
    */
   onSelectedIndexChange?: (labelIndex: number | undefined) => void;
+  /**
+   * Makes the plot focusable, in the tab order. Arrow Left and Arrow Right then step the selection to the previous or
+   * next label, and Home and End to the first or last label of the visible range; with nothing selected, an arrow
+   * selects the last label. The plot keeps the focus through `update()` and a resize. Ignored on pie and donut charts,
+   * and the pie or donut a zoom opens leaves the tab order.
+   */
+  isKeyboardSelectable?: boolean;
+  /**
+   * Called when what the tooltip shows changes, as another label is selected or a dataset is shown or hidden, with its
+   * content, after `onSelectedIndexChange`, and with `undefined` once it shows nothing; a pie or donut reports none. It
+   * reports with the balloon hidden by `--lovely-chart-balloon-display: none` too, for a readout of the page.
+   */
+  onTooltipChange?: (tooltip: TooltipContent | undefined) => void;
   /** Element that holds the legend, in place of the chart container. */
   legendContainer?: HTMLElement;
   noZoom?: boolean;
@@ -338,6 +374,7 @@ export interface AnalyzedData {
   formatTooltipValue?: LovelyChartParams['formatTooltipValue'];
   resolveTooltipTotal?: LovelyChartParams['resolveTooltipTotal'];
   resolveTooltipNotes?: LovelyChartParams['resolveTooltipNotes'];
+  isKeyboardSelectable?: boolean;
   areLinesSmooth?: boolean;
   areaOpacity?: number;
   areaBorderColor?: LovelyChartParams['areaBorderColor'];

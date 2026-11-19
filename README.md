@@ -55,7 +55,7 @@ The created instance exposes the following methods (the `LovelyChartInstance` ty
 Method | Description |
 ---------|----|
 `update(newData)` | Replaces the current data with `newData` (same shape as the initial `data` argument) and re-renders. Resets transient view state (zoom, range, filter) and ends a drag, a long press or a hover in progress. No-op after `destroy()`.
-`selectLabel(labelIndex)` | Selects the label at `labelIndex` as hovering it would: shows its tooltip, focuses its bar and calls `onSelectedIndexChange`. The selection holds while the pointer moves elsewhere on the page and follows its label through a range change; the pointer over the chart takes it over, and it clears once its label leaves the visible range. `selectLabel(undefined)` clears the selection. Ignored for an index outside the visible range, on pie and donut charts and before the first paint, the frame after the chart is created or updated. No-op after `destroy()`.
+`selectLabel(labelIndex)` | Selects the label at `labelIndex` as hovering it would: shows its tooltip, focuses its bar and calls `onSelectedIndexChange` and `onTooltipChange`. The selection holds while the pointer moves elsewhere on the page and follows its label through a range change; the pointer over the chart takes it over, and it clears once its label leaves the visible range. `selectLabel(undefined)` clears the selection. Ignored for an index outside the visible range, on pie and donut charts and before the first paint, the frame after the chart is created or updated. No-op after `destroy()`.
 `destroy()` | Tears down the chart: removes the DOM subtree from `element` and the `--lovely-chart-plot-area-*` variables from its style, detaches all global listeners (window `resize` / `orientationchange`, document `mousemove` / `touchstart` and those of a drag in progress, theme `MutationObserver`, layout `ResizeObserver`, the `prefers-color-scheme` media query `change`, `document.fonts` `loadingdone`), cancels pending animation frames and timeouts, and calls back nothing after it. Idempotent. Call this from your framework's cleanup hook (e.g. React `useEffect` cleanup) to avoid resource leaks.
 
 #### Data parameters
@@ -132,7 +132,9 @@ Parameter | Description |
 `formatTooltipValue`| Optional function formatting a number of the tooltip; `valuePrefix` and `valueSuffix` still wrap the result.
 `resolveTooltipTotal`| Optional function `(labelValue, datasetIndexes, labelIndex) => number \| null \| undefined` giving the total of a stacked chart's tooltip, for the label's value (its timestamp, or the index of a text label), the indexes of the datasets on screen and the label's index in `labels`. `undefined` keeps the sum of the rows, `null` shows `—`. The comparison change and the total on the `secondaryYAxis` scale read this total too.
 `resolveTooltipNotes`| Optional function `(labelValue, datasetIndexes, labelIndex) => { titleNote?, notes? } \| undefined` giving the notes of the tooltip at a label, for its value and the indexes of the datasets on screen, as `resolveTooltipTotal` takes them, and its index. `titleNote` stands after the date, before the total of `isTooltipTotalInTitle`. `notes` are lines below the rows, under a rule in `--tooltip-separator-color`, as wide as the rows and wrapped to them. The notes of the `hatchedRanges` that hold the label come first, in their order, then these; each note splits into lines at `\n`, a line shown already is left out, and the text shows as it is, never as HTML. This `titleNote` wins over those of the ranges, of which the first one wins. The notes change with the rows, for a pointer, a touch or `selectLabel()`. Ignored on pie and donut charts.
-`onSelectedIndexChange`| Optional function called when the selected label changes, by pointer, touch or `selectLabel()`, with its index, not its value, and with `undefined` once nothing is selected: the pointer leaves the chart, `selectLabel(undefined)`, `update()`, a resize, or the selected label leaving the visible range.
+`onSelectedIndexChange`| Optional function called when the selected label changes, by pointer, touch, keyboard or `selectLabel()`, with its index, not its value, and with `undefined` once nothing is selected: the pointer leaves the chart, `selectLabel(undefined)`, `update()`, a resize, or the selected label leaving the visible range.
+`isKeyboardSelectable`| `true` to make the plot focusable, in the tab order of the page. Arrow Left and Arrow Right then step the selection to the previous or the next label, and Home and End to the first or the last label of the visible range, as `selectLabel()` does; with nothing selected, an arrow selects the last label. A key pressed with Alt, Ctrl or Meta stays the browser's. The plot keeps the focus through `update()` and a resize, which rebuild it. Ignored on pie and donut charts, and the pie or donut a zoom opens leaves the tab order while it shows. Default `false`.
+`onTooltipChange`| Optional function called when what the tooltip shows changes, as another label is selected or a dataset is shown or hidden, with `{ labelIndex, title, rows, total?, comparison? }`, after `onSelectedIndexChange`, and with `undefined` once it shows nothing, as when nothing is selected. `title` is the title of the tooltip. `rows` holds each dataset on screen, in the order of `datasets`, as `{ datasetIndex, name, value }`, its value at the label, zero included and `null` for a gap. `total` comes with a stacked or percentage `bar`, `step` or `area` chart, as its Total row or title shows it: what `resolveTooltipTotal` gives, or else the sum of the rows. `comparison` comes with a `comparison`, as `{ name, value, change? }`: the previous value at the label and the change of the total against it in percent, unrounded, where the tooltip shows one. A pie or donut reports none. It goes on reporting with the balloon hidden by `--lovely-chart-balloon-display`, for a readout of the page.
 `onHiddenSeriesChange`| Optional function called when the reader shows or hides a dataset in the legend, with the names and the indexes of the hidden datasets.
 
 #### Examples
@@ -210,6 +212,30 @@ const chart = new LovelyChart(element, {
 requestAnimationFrame(() => chart.selectLabel(labels.length - 1));
 ```
 
+A readout of the page in place of the balloon on a phone, its selection stepped by the arrow keys too:
+
+```js
+const element = document.querySelector('.chart');
+new LovelyChart(element, {
+  type: 'bar',
+  isStacked: true,
+  labels,
+  datasets,
+  isKeyboardSelectable: true,
+  onTooltipChange: (tooltip) => {
+    readout.textContent = tooltip ? `${tooltip.title}: ${tooltip.total}` : '';
+  },
+});
+```
+
+```css
+@media (max-width: 40rem) {
+  .chart {
+    --lovely-chart-balloon-display: none;
+  }
+}
+```
+
 #### CSS variables
 
 Variable | Description |
@@ -222,6 +248,7 @@ Variable | Description |
 `--tooltip-separator-color`| Colour of the rule under the `comparison` row of the tooltip and of the rule over its notes. Defaults to `--grid-lines`.
 `--tooltip-border`| Border of the tooltip balloon, as `1px solid #D2D5D7`. Default `none`.
 `--lovely-chart-balloon-z-index`| The `z-index` of the tooltip balloon, read from the chart element or an ancestor. Default `auto`, so an overlay added after the chart paints over the balloon. A value above the `z-index` of such an overlay places the overlay between the hover line and the balloon: see [Placing elements over the plot](#placing-elements-over-the-plot).
+`--lovely-chart-balloon-display`| The `display` of the tooltip balloon, read from the chart element or an ancestor: `block` by default. `none` hides the balloon alone and keeps the rest of a selection, the hover line and dots, the focus of a bar and the calls of `onSelectedIndexChange` and `onTooltipChange`, so a media query can swap the balloon for a readout of the page. A touch screen zooms by a tap on the balloon, so there `none` takes that zoom away too.
 `--lovely-chart-plot-area-left`, `--lovely-chart-plot-area-top`, `--lovely-chart-plot-area-width`, `--lovely-chart-plot-area-height`| Set by the chart on `element`, as px lengths from the inside of its border: the data area of the plot, where a window over every label and the Y range draw. It runs from the start of the plot, after an `isYAxisOutward` column, to its end, and from the top of the Y range to the X-axis baseline. A pie or donut sets the square around its circle, and a sparkline its plot inset by 2px. The chart sets them from its first paint, the frame after it is created, and rewrites them when the area changes: on `update()`, a resize or an orientation change, a zoom into data of another label column or into a pie, when a web font of the page changes the axis font, and when a style of the page moves the plot by resizing the chart's layout, as a header folded while its caption is empty. `destroy()` removes them.
 
 #### Styling the tooltip

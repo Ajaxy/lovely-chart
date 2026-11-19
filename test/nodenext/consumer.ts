@@ -3,7 +3,7 @@
 import LovelyChart, {
   type ChartType, type Comparison, type DateLocale, type HatchedRange, type LabelType, type LovelyChartDatasetParams,
   type LovelyChartInstance, type LovelyChartParams, type ReferenceLine, type SecondaryYAxisConfig, type ThemedColor,
-  type TooltipNotes,
+  type TooltipContent, type TooltipNotes,
 } from 'lovely-chart';
 
 declare const element: HTMLElement;
@@ -23,6 +23,11 @@ const dateLocale: DateLocale = { weekOf: 'Semana de' };
 const secondaryYAxis: SecondaryYAxisConfig = { label: 'x', multiplier: 1 };
 const type: ChartType = 'area';
 const labelType: LabelType = 'day';
+const readTooltip = (tooltip: TooltipContent | undefined) => [
+  tooltip?.labelIndex.toFixed(), tooltip?.title, tooltip?.total?.toFixed(), tooltip?.comparison?.change?.toFixed(),
+  tooltip?.comparison?.value?.toFixed(), tooltip?.comparison?.name,
+  tooltip?.rows.map(({ datasetIndex, name, value }) => `${datasetIndex} ${name} ${value ?? '—'}`),
+];
 
 const params: LovelyChartParams = {
   type,
@@ -61,6 +66,8 @@ const params: LovelyChartParams = {
   onZoomChange: (labelValue, labelIndex) => [labelValue?.toFixed(), labelIndex?.toFixed()],
   onHiddenSeriesChange: (names, datasetIndexes) => names.length + datasetIndexes.length,
   onSelectedIndexChange: (labelIndex) => labelIndex?.toFixed(),
+  isKeyboardSelectable: true,
+  onTooltipChange: readTooltip,
 };
 
 const chart = new LovelyChart(element, params);

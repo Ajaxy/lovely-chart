@@ -1,6 +1,6 @@
 import type {
   AnalyzedData, ChartColors, ChartState, Filter, FocusOn, LovelyChartParams, Pixel, Point, ProjectionParams, Range,
-  Rect, Size,
+  Rect, Size, TooltipContent,
 } from './types.js';
 
 import { Axes } from './Axes.js';
@@ -37,7 +37,7 @@ import { Zoomer } from './Zoomer.js';
 
 export type {
   ChartType, Comparison, DateLocale, HatchedRange, LabelType, LovelyChartDatasetParams, LovelyChartParams,
-  ReferenceLine, SecondaryYAxisConfig, ThemedColor, TooltipNotes,
+  ReferenceLine, SecondaryYAxisConfig, ThemedColor, TooltipContent, TooltipNotes,
 } from './types.js';
 
 const REDRAW_DEBOUNCE_MS = 500;
@@ -77,6 +77,7 @@ export default class LovelyChart {
   #isDestroyed = false;
   #initialZoomPending = false;
   #selectedLabelIndex?: number;
+  #tooltipKey?: string;
   #hiddenDatasetsKey?: string;
 
   #themeObserver?: MutationObserver;
@@ -112,16 +113,21 @@ export default class LovelyChart {
     if (this.#isDestroyed) return;
     this.#initialZoomPending = false;
     this.#reportSelectedLabel(undefined);
+    this.#reportTooltip(undefined);
     this.#reportZoomOut();
     // A callback of the reports can destroy the chart
     if (this.#isDestroyed) return;
     this.#hiddenDatasetsKey = undefined;
     this.#originalData = newData;
     const nextSibling = this.#element!.nextSibling ?? undefined;
+    const isPlotFocused = this.#tooltip!.isFocused();
     this.#destroyComponents();
     this.#data = analyzeData(this.#originalData);
     this.#colors = createColors(this.#data.colors, this.#data);
     this.#setupComponents(nextSibling);
+    if (isPlotFocused) {
+      this.#tooltip!.focus();
+    }
   }
 
   /**
@@ -168,7 +174,7 @@ export default class LovelyChart {
       this.#stateManager.update({ range: this.#data.minimapRange });
     }
     this.#tooltip = new Tooltip(
-      this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus,
+      this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus, this.#reportTooltip,
     );
     this.#tools = new Tools(this.#originalData.legendContainer ?? this.#element!, this.#data, this.#onFilterChange);
     this.#zoomer = this.#data.isZoomable
@@ -399,6 +405,18 @@ export default class LovelyChart {
     this.#originalData.onSelectedIndexChange?.(labelIndex);
   }
 
+  // The tooltip reports its content on every frame of a selection, and the callback hears of each change once
+  readonly #reportTooltip = (content: TooltipContent | undefined) => {
+    const { onTooltipChange } = this.#originalData;
+    if (this.#isDestroyed || !onTooltipChange) return;
+
+    const key = content && JSON.stringify(content);
+    if (key === this.#tooltipKey) return;
+
+    this.#tooltipKey = key;
+    onTooltipChange(content);
+  };
+
   // A rebuild opens the overview, so a zoom the reader saw ends
   #reportZoomOut() {
     if (this.#zoomer?.isZoomed()) {
@@ -511,11 +529,13 @@ export default class LovelyChart {
   #redraw() {
     if (this.#isDestroyed) return;
     this.#reportSelectedLabel(undefined);
+    this.#reportTooltip(undefined);
     this.#reportZoomOut();
     // A callback of the reports can destroy the chart
     if (this.#isDestroyed) return;
     const filter = this.#zoomer?.getOverviewFilter() ?? this.#stateManager?.getFilter() ?? {};
     const nextSibling = this.#element!.nextSibling ?? undefined;
+    const isPlotFocused = this.#tooltip!.isFocused();
     this.#destroyComponents();
     this.#data = analyzeData(this.#originalData);
     this.#colors = createColors(this.#data.colors, this.#data);
@@ -526,6 +546,9 @@ export default class LovelyChart {
       }
     });
     this.#setupComponents(nextSibling);
+    if (isPlotFocused) {
+      this.#tooltip!.focus();
+    }
   }
 
   #getCaption(renderedState: ChartState): string {

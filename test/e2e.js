@@ -4919,6 +4919,383 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   }
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
 
+  // --- Keyboard selection, the tooltip content `onTooltipChange` reports and a balloon the page hides ---
+  // The keys step inside the window the minimap opens on, the last 20% of 101 labels, from 80 to 100
+  await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeLog = [];
+    window.probeKeys = [];
+    window.probeKeyListener = (e) => window.probeKeys.push([e.key, e.defaultPrevented]);
+    document.addEventListener('keydown', window.probeKeyListener);
+    const count = 101;
+    window.probeParams = {
+      type: 'line',
+      title: 'Probe — Keyboard selection',
+      withMinimap: true,
+      isKeyboardSelectable: true,
+      labels: Array.from({ length: count }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+      datasets: [{ name: 'A', values: Array.from({ length: count }, (_, i) => i % 7) }],
+      onSelectedIndexChange: (index) => window.probeLog.push(index ?? 'none'),
+    };
+    window.probeChart = new LovelyChart(element, window.probeParams);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  });
+  const keyLayer = page.locator('#probe .lovely-chart--tooltip');
+  await keyLayer.scrollIntoViewIfNeeded();
+  await keyLayer.focus();
+  const readLastSelection = () => page.evaluate(() => window.probeLog.at(-1));
+  const pressKeys = async (keys) => {
+    const selections = [];
+    for (const key of keys) {
+      await page.keyboard.press(key);
+      await sleep(150);
+      selections.push(await readLastSelection());
+    }
+    return selections;
+  };
+  const steppingKeys = ['ArrowLeft', 'ArrowLeft', 'Home', 'ArrowLeft', 'ArrowRight', 'End', 'ArrowRight'];
+  const keySelections = await pressKeys(steppingKeys);
+  const steppedLog = await page.evaluate(() => [...window.probeLog]);
+  const otherKeySelections = await pressKeys(['Control+ArrowLeft', 'ArrowUp']);
+  const keyDefaults = await page.evaluate(() => window.probeKeys.filter(([key]) => key !== 'Control'));
+  await hoverWiggle(page, await keyLayer.boundingBox(), 0.5, 0.5);
+  const pointedIndex = await readLastSelection();
+  const [steppedFromPointer] = await pressKeys(['ArrowLeft']);
+  await page.mouse.move(5, 5);
+  // `update()` and a resize rebuild the plot, which keeps the focus and the keys
+  const isKeyLayerFocused = () => page.evaluate(() => (
+    document.activeElement === document.querySelector('#probe .lovely-chart--tooltip')
+  ));
+  await keyLayer.focus();
+  await page.evaluate(() => window.probeChart.update(window.probeParams));
+  await sleep(300);
+  const isFocusedAfterUpdate = await isKeyLayerFocused();
+  const [keyAfterUpdate] = await pressKeys(['End']);
+  const keyViewport = page.viewportSize();
+  await page.setViewportSize({ width: keyViewport.width - 20, height: keyViewport.height });
+  await sleep(1200);
+  const isFocusedAfterResize = await isKeyLayerFocused();
+  await page.setViewportSize(keyViewport);
+  await sleep(1200);
+  const keyFocusable = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const readTabIndex = (params) => {
+      const element = document.createElement('div');
+      document.getElementById('container').appendChild(element);
+      const chart = new LovelyChart(element, {
+        labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)),
+        datasets: [{ name: 'A', values: [1, 2, 3] }, { name: 'B', values: [3, 2, 1] }],
+        ...params,
+      });
+      const tabIndex = element.querySelector('.lovely-chart--tooltip').getAttribute('tabindex');
+      chart.destroy();
+      element.remove();
+      return tabIndex ?? 'none';
+    };
+    document.removeEventListener('keydown', window.probeKeyListener);
+    return {
+      selectable: document.querySelector('#probe .lovely-chart--tooltip').getAttribute('tabindex'),
+      plain: readTabIndex({ type: 'line' }),
+      pie: readTabIndex({ type: 'pie', isKeyboardSelectable: true }),
+    };
+  });
+  await unmountProbe(page);
+  check('isKeyboardSelectable puts the plot in the tab order, unless it is a pie, and a chart without it stays out',
+    JSON.stringify(keyFocusable) === '{"selectable":"0","plain":"none","pie":"none"}', JSON.stringify(keyFocusable));
+  check('the arrows step the selection from the last label of the window, and Home and End select its first and last',
+    JSON.stringify(keySelections) === '[100,99,80,80,81,100,100]'
+    && JSON.stringify(steppedLog) === '[100,99,80,81,100]',
+    JSON.stringify({ keySelections, steppedLog }));
+  check('a key the chart takes has its default prevented, and one with a modifier or another key stays the page\'s',
+    JSON.stringify(otherKeySelections) === '[100,100]'
+    && JSON.stringify(keyDefaults) === JSON.stringify([
+      ...steppingKeys.map((key) => [key, true]), ['ArrowLeft', false], ['ArrowUp', false],
+    ]),
+    JSON.stringify({ otherKeySelections, keyDefaults }));
+  check('an arrow steps from the label the pointer selected',
+    pointedIndex > 80 && pointedIndex < 100 && steppedFromPointer === pointedIndex - 1,
+    JSON.stringify({ pointedIndex, steppedFromPointer }));
+  check('the plot keeps the focus and the keys through update() and a resize',
+    isFocusedAfterUpdate && keyAfterUpdate === 100 && isFocusedAfterResize,
+    JSON.stringify({ isFocusedAfterUpdate, keyAfterUpdate, isFocusedAfterResize }));
+
+  // The pie a zoom opens takes no keys and leaves the tab order, and the bars it zooms out to take them back
+  const pieZoomKeys = await page.evaluate(async () => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const log = [];
+    const count = 10;
+    window.probeChart = new LovelyChart(element, {
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Keys on the pie of a zoom',
+      zoomToShares: true,
+      isKeyboardSelectable: true,
+      initialZoom: 'last',
+      labels: Array.from({ length: count }, (_, i) => Date.UTC(2026, 10, 1 + i)),
+      datasets: [{ name: 'A', values: Array(count).fill(2) }, { name: 'B', values: Array(count).fill(1) }],
+      onSelectedIndexChange: (index) => log.push(index ?? 'none'),
+    });
+    await wait(1800);
+    // Whether the plot is in the tab order, whether it takes the key and the selections the key makes
+    const readKey = (key) => {
+      log.length = 0;
+      const plot = element.querySelector('.lovely-chart--tooltip');
+      const isTaken = !plot.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+      return { tabIndex: plot.getAttribute('tabindex') ?? 'none', isTaken, log: [...log] };
+    };
+    const zoomed = readKey('End');
+    element.querySelector('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').click();
+    await wait(2000);
+    const zoomedOut = readKey('End');
+    window.probeChart.destroy();
+    element.remove();
+    return { zoomed, zoomedOut };
+  });
+  check('the pie a zoom opens takes no keys and leaves the tab order, and the bars it zooms out to take them back',
+    JSON.stringify(pieZoomKeys) === JSON.stringify({
+      zoomed: { tabIndex: 'none', isTaken: false, log: [] },
+      zoomedOut: { tabIndex: '0', isTaken: true, log: [9] },
+    }),
+    JSON.stringify(pieZoomKeys));
+
+  // The plot of the demo day picker takes the keys, and its list marks the day they select
+  await pickerChart.locator('.lovely-chart--tooltip').focus();
+  await page.keyboard.press('End');
+  await sleep(300);
+  const keyEndDay = await readDayPicker();
+  await page.keyboard.press('ArrowLeft');
+  await sleep(300);
+  const keySteppedDay = await readDayPicker();
+  await page.evaluate(() => document.activeElement.blur());
+  check('the arrow keys on the plot of the demo day picker step its selection, and its list marks the day',
+    isPickedDay(keyEndDay, 6) && isPickedDay(keySteppedDay, 5), JSON.stringify({ keyEndDay, keySteppedDay }));
+
+  // A stacked bar chart against the previous period: a gap, a zero, a resolved total, a `null` one, a gap of the
+  // previous period and a hidden dataset, then the line chart `update()` swaps in, which has no total. The public API
+  // marks a gap and a missing total with `null`.
+  /* eslint-disable no-null/no-null */
+  const tooltipLabels = [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day));
+  const tooltipSteps = await page.evaluate(async (labels) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const log = [];
+    const params = {
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Tooltip content',
+      labels,
+      isUtc: true,
+      tooltipFormatter: 'statsTooltipFormat(\'day\')',
+      datasets: [
+        { name: 'A', values: [10, 20, 30, 40, 50] },
+        { name: 'B', values: [5, 0, 15, null, 25] },
+        { name: 'C', values: [1, 2, 3, 4, 5] },
+      ],
+      comparison: { name: 'Week before', values: [[8, 16, 24, 32, 40], [4, 4, 12, 4, 20], [1, 1, 1, 1, null]] },
+      resolveTooltipTotal: (value, datasetIndexes, index) => {
+        if (index === 1) return 100;
+        return index === 2 ? null : undefined;
+      },
+      onSelectedIndexChange: (index) => log.push(['selected', index ?? 'none']),
+      onTooltipChange: (tooltip) => log.push(['tooltip', tooltip ?? 'none']),
+    };
+    window.probeChart = new LovelyChart(element, params);
+    await wait(1200);
+    // The reports of a step, and what the balloon shows after it
+    const readStep = async (action, ms = 300) => {
+      log.length = 0;
+      action();
+      await wait(ms);
+      const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
+      return {
+        log: [...log],
+        title: balloon.querySelector('.lovely-chart--tooltip-title > span')?.textContent,
+        total: balloon.querySelector('[data-total="true"] .lovely-chart--tooltip-dataset-value')?.textContent,
+        change: balloon.querySelector('.lovely-chart--tooltip-change')?.textContent,
+        display: getComputedStyle(balloon).display,
+      };
+    };
+    const steps = {
+      atGap: await readStep(() => window.probeChart.selectLabel(3)),
+      repeated: await readStep(() => window.probeChart.selectLabel(3)),
+      atZero: await readStep(() => window.probeChart.selectLabel(1)),
+      atNullTotal: await readStep(() => window.probeChart.selectLabel(2)),
+      atPreviousGap: await readStep(() => window.probeChart.selectLabel(4)),
+      beforeHiding: await readStep(() => window.probeChart.selectLabel(3)),
+      afterHiding: await readStep(() => element.querySelectorAll('.lovely-chart--button')[2].click(), 800),
+      afterClearing: await readStep(() => window.probeChart.selectLabel(undefined)),
+      beforeUpdate: await readStep(() => window.probeChart.selectLabel(3)),
+      afterUpdate: await readStep(() => window.probeChart.update({ ...params, type: 'line', isStacked: false }), 1200),
+      onLine: await readStep(() => window.probeChart.selectLabel(3)),
+    };
+    window.probeChart.destroy();
+    element.remove();
+    return steps;
+  }, tooltipLabels);
+  const buildChange = (current, previous) => (current / previous - 1) * 100;
+  // Whether the last report of a step is the content of the label, its title the one the balloon shows
+  const isReported = (step, labelIndex, values, total, comparison) => {
+    const [kind, tooltip] = step.log.at(-1) ?? [];
+    const rows = values.map((value, i) => ({ datasetIndex: i, name: 'ABC'[i], value }));
+    return kind === 'tooltip' && JSON.stringify(tooltip) === JSON.stringify({
+      labelIndex,
+      title: step.title,
+      rows,
+      ...(total !== undefined && { total }),
+      comparison: { name: 'Week before', ...comparison },
+    });
+  };
+  // Whether the balloon shows the reported total and the reported change, rounded
+  const isBalloonMatched = (step) => {
+    const { total, comparison: { change } } = step.log.at(-1)[1];
+    const rounded = Math.round(change);
+    return step.total === (total === null ? '—' : String(total))
+      && step.change === (change === undefined ? undefined : `${rounded > 0 ? '+' : ''}${rounded}%`);
+  };
+  const {
+    atGap, repeated, atZero, atNullTotal, atPreviousGap, beforeHiding, afterHiding, afterClearing, afterUpdate, onLine,
+  } = tooltipSteps;
+  const contentSteps = [atGap, atZero, atNullTotal, atPreviousGap];
+  check('onTooltipChange reports, after the index, the title, the datasets on screen, the total and the comparison',
+    atGap.log.length === 2 && JSON.stringify(atGap.log[0]) === '["selected",3]'
+    && isReported(atGap, 3, [40, null, 4], 44, { value: 37, change: buildChange(44, 37) })
+    && isReported(atZero, 1, [20, 0, 2], 100, { value: 21, change: buildChange(100, 21) })
+    && isReported(atNullTotal, 2, [30, 15, 3], null, { value: 37 })
+    && isReported(atPreviousGap, 4, [50, 25, 5], 80, { value: null }),
+    JSON.stringify(contentSteps.map(({ log }) => log)));
+  check('onTooltipChange reports the title, the total and the change the balloon shows',
+    contentSteps.every((step) => step.title && isBalloonMatched(step)) && atGap.display === 'block',
+    JSON.stringify(contentSteps.map(({ title, total, change, display }) => ({ title, total, change, display }))));
+  check('onTooltipChange reports a hidden dataset once, and nothing for a selection that changes nothing',
+    repeated.log.length === 0 && beforeHiding.log.length === 2 && afterHiding.log.length === 1
+    && isReported(afterHiding, 3, [40, null], 40, { value: 36, change: buildChange(40, 36) }),
+    JSON.stringify({ repeated, beforeHiding, afterHiding }));
+  check('onTooltipChange reports undefined once nothing is selected, by selectLabel(undefined) or update()',
+    JSON.stringify(afterClearing.log) === '[["selected","none"],["tooltip","none"]]'
+    && JSON.stringify(afterUpdate.log) === '[["selected","none"],["tooltip","none"]]',
+    JSON.stringify({ afterClearing: afterClearing.log, afterUpdate: afterUpdate.log }));
+  check('onTooltipChange reports no total for a line chart',
+    isReported(onLine, 3, [40, null, 4], undefined, { value: 37, change: buildChange(44, 37) }),
+    JSON.stringify(onLine.log));
+  /* eslint-enable no-null/no-null */
+
+  // A callback of the reports that selects again, as a page keeping the last label the reader selected does, or that
+  // clears the selection has the content of its own selection reported last
+  const reselectedSteps = await page.evaluate(async (labels) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const log = [];
+    let keptIndex;
+    window.probeChart = new LovelyChart(element, {
+      type: 'line',
+      title: 'Probe — Selections of the callbacks',
+      labels,
+      datasets: [{ name: 'A', values: [1, 2, 3, 4, 5] }],
+      onSelectedIndexChange: (index) => {
+        log.push(['selected', index ?? 'none']);
+        if (index === undefined && keptIndex !== undefined) {
+          window.probeChart.selectLabel(keptIndex);
+        } else if (index === 3) {
+          window.probeChart.selectLabel(undefined);
+        }
+      },
+      onTooltipChange: (tooltip) => log.push(['tooltip', tooltip?.labelIndex ?? 'none']),
+    });
+    await wait(1200);
+    const readStep = async (action) => {
+      log.length = 0;
+      action();
+      await wait(300);
+      const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
+      return { log: [...log], isShown: balloon.classList.contains('lovely-chart--state-shown') };
+    };
+    const selected = await readStep(() => window.probeChart.selectLabel(1));
+    keptIndex = 1;
+    const kept = await readStep(() => window.probeChart.selectLabel(undefined));
+    keptIndex = undefined;
+    const cleared = await readStep(() => window.probeChart.selectLabel(3));
+    window.probeChart.destroy();
+    element.remove();
+    return { selected, kept, cleared };
+  }, tooltipLabels);
+  check('onTooltipChange reports last the selection a callback of the reports makes or clears',
+    JSON.stringify(reselectedSteps) === JSON.stringify({
+      selected: { log: [['selected', 1], ['tooltip', 1]], isShown: true },
+      kept: { log: [['selected', 'none'], ['selected', 1]], isShown: true },
+      cleared: { log: [['selected', 3], ['selected', 'none'], ['tooltip', 'none']], isShown: false },
+    }),
+    JSON.stringify(reselectedSteps));
+
+  // A pie shows its balloon over a sector and reports no tooltip content, while a line chart whose element hides the
+  // balloon keeps the hover line and the dots and reports the selection and the content
+  const readReportingProbe = async (config, hostStyle = '', shouldCountHoverPixels = false) => {
+    await page.evaluate(async (spec) => {
+      const { default: LovelyChart } = await import('./LovelyChart.js');
+      const element = document.createElement('div');
+      element.id = 'probe';
+      element.style.cssText = spec.hostStyle;
+      document.getElementById('container').appendChild(element);
+      window.probeLog = [];
+      window.probeChart = new LovelyChart(element, {
+        ...spec.config,
+        onSelectedIndexChange: (index) => window.probeLog.push(['selected', index ?? 'none']),
+        onTooltipChange: (tooltip) => window.probeLog.push(['tooltip', tooltip ?? 'none']),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }, { config, hostStyle });
+    const plot = page.locator('#probe .lovely-chart--container > canvas');
+    await plot.scrollIntoViewIfNeeded();
+    await hoverWiggle(page, await plot.boundingBox(), 0.5, 0.45);
+    const reports = await page.evaluate((isCounting) => {
+      const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+      const balloonState = {
+        isShown: balloon.classList.contains('lovely-chart--state-shown'),
+        display: getComputedStyle(balloon).display,
+        log: window.probeLog.map(([kind, value]) => [kind, value.labelIndex ?? value]),
+      };
+      if (!isCounting) return balloonState;
+
+      const canvas = document.querySelector('#probe .lovely-chart--tooltip canvas');
+      const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      let hoverPixels = 0;
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i]) hoverPixels++;
+      }
+      return { ...balloonState, hoverPixels };
+    }, shouldCountHoverPixels);
+    await page.mouse.move(5, 5);
+    await unmountProbe(page);
+    return reports;
+  };
+  const reportingDatasets = [{ name: 'A', values: [1, 2, 3, 4, 5] }, { name: 'B', values: [5, 4, 3, 2, 1] }];
+  const pieReports = await readReportingProbe({
+    type: 'pie', title: 'Probe — A pie that reports no tooltip', labels: tooltipLabels, datasets: reportingDatasets,
+  });
+  const hiddenBalloonReports = await readReportingProbe({
+    type: 'line', title: 'Probe — A balloon the page hides', labels: tooltipLabels, datasets: reportingDatasets,
+  }, '--lovely-chart-balloon-display: none', true);
+  check('a pie shows its balloon and reports no tooltip content',
+    pieReports.isShown && pieReports.display === 'block' && pieReports.log.length === 0, JSON.stringify(pieReports));
+  // The pointer can cross other labels on its way to the middle one
+  check('--lovely-chart-balloon-display: none hides the balloon and keeps the hover line, the dots and the reports',
+    hiddenBalloonReports.isShown && hiddenBalloonReports.display === 'none'
+    && hiddenBalloonReports.hoverPixels > MIN_DATASET_PIXELS
+    && JSON.stringify(hiddenBalloonReports.log.slice(-2)) === '[["selected",2],["tooltip",2]]',
+    JSON.stringify(hiddenBalloonReports));
+
   // --- The index of a label that `onZoomChange` and `resolveTooltipTotal` pass after its value ---
   // A text label's value is its index, and a date label's its timestamp. The data `onZoom` returns passes its own
   // `resolveTooltipTotal` the indexes of its own labels.

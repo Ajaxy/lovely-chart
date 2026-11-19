@@ -205,7 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // The last week of the bars as a list whose rows select their day in the chart on hover and focus, and buttons
-    // that step the selection; `onSelectedIndexChange` marks the row of the day the tooltip shows
+    // that step the selection, as the arrow keys do on the focused plot; `onSelectedIndexChange` marks the row of the
+    // day the tooltip shows
     const bars = data[2];
     const barDays = 30;
     const listedDays = 7;
@@ -241,6 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // The list reads its dates in UTC
       isUtc: true,
       formatTooltipValue: formatValue,
+      isKeyboardSelectable: true,
       onSelectedIndexChange: (index) => {
         // A selection the pointer makes on the chart clears as the pointer leaves it or a step button is touched, so
         // the buttons step from the last selected day

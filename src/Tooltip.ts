@@ -1,6 +1,7 @@
 import type { Projection } from './Projection.js';
 import type {
-  AnalyzedData, ChartColors, ChartState, FocusOn, Pixel, Point, PointerVector, Size, StatisticsItem, TooltipNotes,
+  AnalyzedData, ChartColors, ChartState, FocusOn, LabelRange, Pixel, Point, PointerVector, Size, StatisticsItem,
+  TooltipContent, TooltipNotes,
 } from './types.js';
 
 import { clearCanvas, setupCanvas } from './canvas.js';
@@ -18,6 +19,7 @@ const WEEK_OF = 'Week of';
 const TOTAL_TITLE = 'Total';
 const CIRCLE_RADIUS = 4;
 const CIRCLE_LINE_WIDTH = 2;
+const ARROW_KEY_STEPS: Record<string, number | undefined> = { ArrowLeft: -1, ArrowRight: 1 };
 
 export class Tooltip {
   readonly #container: HTMLElement;
@@ -25,7 +27,8 @@ export class Tooltip {
   readonly #plotSize: Size;
   readonly #colors: ChartColors;
   readonly #onZoom: (labelIndex: number) => void;
-  readonly #onFocus: ((focusOn: FocusOn) => void) | undefined;
+  readonly #onFocus: (focusOn: FocusOn) => void;
+  readonly #onContentChange: (content: TooltipContent | undefined) => void;
 
   #state?: ChartState;
   #points?: Point[][];
@@ -48,6 +51,10 @@ export class Tooltip {
 
   #isZoomed = false;
   #isZooming = false;
+  #isDestroyed = false;
+  // Numbers each selection and clear: a callback of their reports can select or clear again, and only the latest one
+  // reports its content
+  #selectionCount = 0;
   #documentMoveEvent?: string;
 
   readonly #selectLabelOnRaf = throttleWithRaf((isExternal?: boolean) => this.#selectLabel(isExternal));
@@ -72,7 +79,8 @@ export class Tooltip {
     plotSize: Size,
     colors: ChartColors,
     onZoom: (labelIndex: number) => void,
-    onFocus?: (focusOn: FocusOn) => void,
+    onFocus: (focusOn: FocusOn) => void,
+    onContentChange: (content: TooltipContent | undefined) => void,
   ) {
     this.#container = container;
     this.#data = data;
@@ -80,6 +88,7 @@ export class Tooltip {
     this.#colors = colors;
     this.#onZoom = onZoom;
     this.#onFocus = onFocus;
+    this.#onContentChange = onContentChange;
 
     this.#setupLayout();
   }
@@ -147,9 +156,27 @@ export class Tooltip {
     }
     this.#isZoomed = isZoomed;
     this.#balloon.classList.toggle('lovely-chart--state-inactive', isZoomed);
+
+    // The pie of a zoom takes no keys, so it leaves the tab order
+    if (this.#data.isKeyboardSelectable && this.#data.shouldZoomToShares) {
+      if (isZoomed) {
+        this.#element.removeAttribute('tabindex');
+      } else {
+        this.#element.tabIndex = 0;
+      }
+    }
+  }
+
+  isFocused(): boolean {
+    return this.#element.matches(':focus');
+  }
+
+  focus() {
+    this.#element.focus({ preventScroll: true });
   }
 
   destroy() {
+    this.#isDestroyed = true;
     removeEventListener(document, this.#documentMoveEvent!, this.#onDocumentMove);
     this.#documentMoveEvent = undefined;
     this.#selectLabelOnRaf.cancel();
@@ -173,6 +200,11 @@ export class Tooltip {
       addEventListener(this.#element, 'click', this.#onClick);
       this.#documentMoveEvent = 'mousemove';
       addEventListener(document, this.#documentMoveEvent, this.#onDocumentMove);
+    }
+
+    if (this.#data.isKeyboardSelectable && !this.#data.isCircle) {
+      this.#element.tabIndex = 0;
+      addEventListener(this.#element, 'keydown', this.#onKeyDown);
     }
 
     this.#container.appendChild(this.#element);
@@ -221,6 +253,23 @@ export class Tooltip {
     this.#selectLabelOnRaf();
   };
 
+  readonly #onKeyDown = (e: KeyboardEvent) => {
+    // A modifier leaves the key to the browser, as Alt and Arrow Left go back, and so does the pie of a zoom
+    if (!this.#state || this.#data.isCircle || e.altKey || e.ctrlKey || e.metaKey) {
+      return;
+    }
+
+    const labelIndex = getKeyLabelIndex(
+      e.key, this.#getSelectedLabelIndex(), getVisibleLabelRange(this.#state.static ?? this.#state),
+    );
+    if (labelIndex === undefined) {
+      return;
+    }
+
+    e.preventDefault();
+    this.selectLabel(labelIndex);
+  };
+
   readonly #onDocumentMove = (e: MouseEvent | TouchEvent) => {
     if (
       this.#offsetX !== undefined && this.#calledLabelIndex === undefined
@@ -263,20 +312,33 @@ export class Tooltip {
   };
 
   #clear(isExternal?: boolean) {
+    const selectionCount = ++this.#selectionCount;
     this.#offsetX = undefined;
     this.#clickedOnLabel = undefined;
     this.#calledLabelIndex = undefined;
     clearCanvas(this.#canvas, this.#context);
     this.#hideBalloon();
 
+    // The reports go last, as their callbacks can update or destroy the chart or select another label
     if (!isExternal) {
-      this.#onFocus?.(NO_FOCUS);
+      this.#onFocus(NO_FOCUS);
+    }
+    if (!this.#isDestroyed && selectionCount === this.#selectionCount) {
+      this.#onContentChange(undefined);
     }
   }
 
   #isLabelVisible(labelIndex: number): boolean {
     const { from, to } = getVisibleLabelRange(this.#state!.static ?? this.#state!);
     return labelIndex >= from && labelIndex <= to;
+  }
+
+  #getSelectedLabelIndex(): number | undefined {
+    if (this.#calledLabelIndex !== undefined) {
+      return this.#calledLabelIndex;
+    }
+
+    return this.#offsetX !== undefined ? this.#getLabelIndex() : undefined;
   }
 
   #getLabelIndex(): number | undefined {
@@ -296,6 +358,7 @@ export class Tooltip {
       return;
     }
 
+    const selectionCount = ++this.#selectionCount;
     const labelIndex = this.#getLabelIndex();
     if (labelIndex === undefined) {
       this.#clear(isExternal);
@@ -325,8 +388,9 @@ export class Tooltip {
       }))
       .filter(({ key }) => this.#state!.filter[key]);
 
+    let content: TooltipContent | undefined;
     if (statistics.length && shouldShowBalloon) {
-      this.#updateBalloon(statistics, labelIndex);
+      content = this.#updateBalloon(statistics, labelIndex);
     } else {
       this.#hideBalloon();
     }
@@ -341,13 +405,16 @@ export class Tooltip {
       this.#drawTail(xPx, plotBottom, getCssColor(this.#colors, 'grid-lines'));
     }
 
-    // The focus goes last, as the report of it can update or destroy the chart
+    // The reports go last, as their callbacks can update or destroy the chart or select another label
     if (!isExternal) {
       if (this.#data.isCircle) {
-        this.#onFocus?.(pointerVector);
+        this.#onFocus(pointerVector);
       } else {
-        this.#onFocus?.(labelIndex);
+        this.#onFocus(labelIndex);
       }
+    }
+    if (!this.#isDestroyed && selectionCount === this.#selectionCount) {
+      this.#onContentChange(content);
     }
   }
 
@@ -413,29 +480,62 @@ export class Tooltip {
     return this.#data.isCircle ? `${this.#offsetY}px` : 0;
   }
 
-  #updateBalloon(datasetStatistics: StatisticsItem[], labelIndex: number) {
+  // The content it returns is what `onTooltipChange` reports, none for a pie or donut
+  #updateBalloon(datasetStatistics: StatisticsItem[], labelIndex: number): TooltipContent | undefined {
     const resolvedTotal = this.#data.isCircle ? undefined : this.#data.resolveTooltipTotal?.(
       this.#data.xLabels[labelIndex].value, datasetStatistics.map(({ originalIndex }) => originalIndex), labelIndex,
     );
-    const statistics = this.#data.comparison
-      ? [this.#buildComparisonItem(datasetStatistics, labelIndex, resolvedTotal), ...datasetStatistics]
-      : datasetStatistics;
+    const comparisonItem = this.#data.comparison
+      ? this.#buildComparisonItem(datasetStatistics, labelIndex, resolvedTotal)
+      : undefined;
+    const statistics = comparisonItem ? [comparisonItem, ...datasetStatistics] : datasetStatistics;
 
     this.#balloon.classList.add('lovely-chart--state-shown');
 
+    let content: TooltipContent | undefined;
     if (this.#data.isCircle) {
       this.#updateContent(undefined, statistics);
     } else {
+      content = this.#buildContent(
+        this.#getTitle(this.#data, labelIndex), datasetStatistics, comparisonItem, resolvedTotal, labelIndex,
+      );
       // The notes are resolved with the title and the rows, as a zoom can swap the data before the update lands
       this.#throttledUpdateContent(
-        this.#getTitle(this.#data, labelIndex), statistics, resolvedTotal,
-        this.#resolveNotes(datasetStatistics, labelIndex), labelIndex,
+        content.title, statistics, resolvedTotal, this.#resolveNotes(datasetStatistics, labelIndex), labelIndex,
       );
     }
 
     // Placed after the content, whose width decides the place, and on each call to follow the pointer while a
     // throttled content update waits
     this.#placeBalloon(labelIndex);
+
+    return content;
+  }
+
+  #buildContent(
+    title: string,
+    statistics: StatisticsItem[],
+    comparisonItem: StatisticsItem | undefined,
+    resolvedTotal: number | null | undefined,
+    labelIndex: number,
+  ): TooltipContent {
+    const rows = statistics.map(({ originalIndex, name, value }) => ({ datasetIndex: originalIndex, name, value }));
+    const content: TooltipContent = { labelIndex, title, rows };
+
+    if (hasTooltipTotal(this.#data)) {
+      content.total = resolvedTotal !== undefined
+        ? resolvedTotal
+        : rows.reduce((sum, { value }) => sum + (value ?? 0), 0);
+    }
+
+    if (comparisonItem) {
+      content.comparison = { name: comparisonItem.name, value: comparisonItem.value };
+      if (comparisonItem.comparisonChange !== undefined) {
+        content.comparison.change = comparisonItem.comparisonChange;
+      }
+    }
+
+    return content;
   }
 
   #placeBalloon(labelIndex: number) {
@@ -691,9 +791,9 @@ export class Tooltip {
       }
     });
 
-    const { isBars, isSteps, isAreas, isStacked, isShares, isTooltipTotalInTitle } = this.#data;
+    const { isTooltipTotalInTitle } = this.#data;
     const total = resolvedTotal !== undefined ? resolvedTotal : totalValue;
-    const totalText = (isBars || isSteps || isAreas) && (isStacked || isShares) ? this.#formatValue(total) : undefined;
+    const totalText = hasTooltipTotal(this.#data) ? this.#formatValue(total) : undefined;
     if (totalText !== undefined && !isTooltipTotalInTitle) {
       this.#renderTotalRow(dataSetContainer, 'true', TOTAL_TITLE, totalText);
     }
@@ -817,4 +917,28 @@ export class Tooltip {
   #getPageOffset(element: HTMLElement): DOMRect {
     return element.getBoundingClientRect();
   }
+}
+
+// A stacked or percentage bar, step or area chart totals its rows, in a Total row or by the title
+function hasTooltipTotal({ isBars, isSteps, isAreas, isStacked, isShares }: AnalyzedData): boolean {
+  return (isBars || isSteps || isAreas) && Boolean(isStacked || isShares);
+}
+
+// The label a key selects in the visible range, or `undefined` for a key that selects none
+function getKeyLabelIndex(
+  key: string, selectedIndex: number | undefined, { from, to }: LabelRange,
+): number | undefined {
+  if (key === 'Home') {
+    return from;
+  }
+  if (key === 'End') {
+    return to;
+  }
+
+  const step = ARROW_KEY_STEPS[key];
+  if (step === undefined) {
+    return undefined;
+  }
+
+  return selectedIndex === undefined ? to : Math.min(to, Math.max(from, selectedIndex + step));
 }

@@ -13,6 +13,10 @@
 - `hatchedRanges[*].note` and `hatchedRanges[*].titleNote`: notes of the tooltip at each label of a range. Range notes come first, in range order, then those of `resolveTooltipNotes`; each splits into lines at `\n`, and a line shown already is left out. The `titleNote` of `resolveTooltipNotes` wins over a range's, and among ranges the first wins.
 - `TooltipNotes` type.
 - `onZoomChange(labelValue, labelIndex)` and `resolveTooltipTotal(labelValue, datasetIndexes, labelIndex)`: the label's index in `labels` as the last argument, beside its value, the timestamp of a date label or the index of a text label. `onZoomChange` passes `undefined` for both once zoomed out.
+- `isKeyboardSelectable`: makes the plot focusable. Arrow Left and Arrow Right step the selection label by label, and Home and End select the first and the last label of the visible range; with nothing selected, an arrow selects the last label. The plot keeps the focus through `update()` and a resize, and the pie or donut a zoom opens leaves the tab order.
+- `onTooltipChange`: what the tooltip shows, `{ labelIndex, title, rows, total?, comparison? }`, reported on each change and as `undefined` once it shows nothing, for a readout of the page. `rows` lists each dataset on screen in the order of `datasets`, and `total` is the one the Total row shows, `resolveTooltipTotal`'s included.
+- `TooltipContent` type.
+- `--lovely-chart-balloon-display`: `none` hides the tooltip balloon alone, keeping the hover line, the dots, the focus of a bar and the reports of the selection, so a media query can swap the balloon for a readout.
 
 ### Changed
 

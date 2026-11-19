@@ -15,6 +15,7 @@
   left: 0;
 
   overflow: auto;
+  display: var(--lovely-chart-balloon-display, block);
 
   min-width: 130px;
   max-height: 320px;
