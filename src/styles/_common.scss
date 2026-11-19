@@ -1,3 +1,5 @@
+$font-stack: '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
+
 @mixin night-colors {
   --background-color: #242F3E;
   --text-color: #ffffff;
@@ -36,7 +38,11 @@
 
   overflow: hidden;
 
-  font: 300 13px '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
+  // The typography variables are read from the chart element or an ancestor, so the container declares none of them.
+  // Each goes in a longhand of its own, so a value invalid for its property resets that property alone.
+  font: 13px $font-stack;
+  font-family: var(--lovely-chart-font-family, $font-stack);
+  font-weight: var(--lovely-chart-font-weight, 300);
   color: #222222;
   text-align: start;
 

@@ -99,7 +99,7 @@
 
   padding: 0 13px;
 
-  font-weight: 300;
+  font-weight: var(--lovely-chart-font-weight, 300);
   line-height: 20px;
   color: inherit;
 

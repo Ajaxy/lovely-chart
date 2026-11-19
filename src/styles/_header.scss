@@ -2,7 +2,7 @@
   display: flex;
   height: var(--lovely-chart-header-height, 30px);
   margin: var(--lovely-chart-header-margin-top, 0) var(--lovely-chart-inset, 10px) 0;
-  font-weight: bold;
+  font-weight: var(--lovely-chart-font-weight-bold, bold);
 
   &-title, &-caption {
     line-height: var(--lovely-chart-header-height, 30px);

@@ -2,7 +2,7 @@ import type { Projection } from './Projection.js';
 import type { AnalyzedData, AnalyzedDataset, ChartColors, ChartState, SecondaryYAxisConfig, Size } from './types.js';
 
 import { drawHalo } from './canvas.js';
-import { AXES_FONT_WEIGHT, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT } from './constants.js';
+import { GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { humanize } from './format.js';
 import {
   applyXEdgeOpacity, applyYEdgeOpacity, ceilToStep, floorToStep, getConstantLabelStep, getEdgePin, getPlotStart,
@@ -537,6 +537,6 @@ function shiftIntoView(
 }
 
 function getAxesFont(context: CanvasRenderingContext2D, fontSize: number): string {
-  const fontFamily = getComputedStyle(context.canvas).fontFamily || 'sans-serif';
-  return `${AXES_FONT_WEIGHT} ${fontSize}px ${fontFamily}`;
+  const { fontFamily, fontWeight } = getComputedStyle(context.canvas);
+  return `${fontWeight} ${fontSize}px ${fontFamily || 'sans-serif'}`;
 }

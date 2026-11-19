@@ -256,7 +256,10 @@ export interface LovelyChartParams {
    * labels 0, 1 and 2.
    */
   noFloatSteps?: boolean;
-  /** Font size in px of the axis labels; defaults to 10. */
+  /**
+   * Font size in px of the axis labels, which take the family and the regular weight of the chart's text, the
+   * `--lovely-chart-font-family` and `--lovely-chart-font-weight` CSS variables; defaults to 10.
+   */
   axisFontSize?: number;
   /** Colour of the axis labels. */
   axisTextColor?: ThemedColor;

@@ -6,6 +6,10 @@
 
   padding: 0 var(--lovely-chart-inset, 10px) var(--lovely-chart-legend-padding-bottom, 24px);
 
+  // With no fallbacks, an unset variable leaves the legend the font it inherits, in `legendContainer` too
+  font-family: var(--lovely-chart-font-family);
+  font-weight: var(--lovely-chart-font-weight);
+
   opacity: 1;
 
   transition: opacity 400ms ease;

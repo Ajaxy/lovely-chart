@@ -929,6 +929,37 @@ function readProbeTooltip(page, labelIndex) {
   }, labelIndex);
 }
 
+// Selects a label of the probe chart and reads the family of its text and the weights of its parts, each a list of
+// the computed weights of the elements of that part
+function readProbeTypography(page, labelIndex) {
+  return page.evaluate(async (index) => {
+    window.probeChart.selectLabel(index);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const container = document.querySelector('#probe .lovely-chart--container');
+    const parts = {
+      legend: '.lovely-chart--button-label',
+      comparisonLegend: '.lovely-chart--comparison-legend',
+      rowNames: '.lovely-chart--tooltip-dataset:not(.lovely-chart--tooltip-dataset-total) '
+        + '> .lovely-chart--dataset-title',
+      header: '.lovely-chart--header-title, .lovely-chart--header-caption',
+      tooltipTitle: '.lovely-chart--tooltip-title',
+      titleTotal: '.lovely-chart--tooltip-title-total',
+      values: '.lovely-chart--tooltip-dataset:not(.lovely-chart--tooltip-dataset-comparison) '
+        + '> .lovely-chart--tooltip-dataset-value',
+      totalRow: '.lovely-chart--tooltip-dataset-total',
+      change: '.lovely-chart--tooltip-change',
+      shares: '.lovely-chart--percentage-title',
+    };
+    return {
+      family: getComputedStyle(container).fontFamily,
+      weights: Object.fromEntries(Object.entries(parts).map(([key, selector]) => [
+        key,
+        [...container.querySelectorAll(selector)].map((element) => getComputedStyle(element).fontWeight),
+      ])),
+    };
+  }, labelIndex);
+}
+
 function hexToRgb(hex) {
   return `rgb(${parseHex(hex).join(', ')})`;
 }
@@ -5019,6 +5050,150 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     `ends at ${unloadedFontColumn.end} before the font, then at ${loadedFontColumn.end}, widest label `
     + `${loadedFontColumn.widest.toFixed(2)}px, overflowing: ${JSON.stringify(loadedFontColumn.overflowing)}, `
     + `left ${loadedFontLeft}`);
+
+  // --- The typography variables set the family and the weights of the chart's text, of its canvas labels too ---
+  // The regular weight runs through the legend, the names in the tooltip and the axis labels, and the bold one through
+  // the header, the tooltip title and its total, the values, the Total row, the change and the shares
+  const typographyLabels = [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day));
+  const typographyDatasets = [{ name: 'Paid', values: [3, 4, 5, 4, 6] }, { name: 'Free', values: [2, 1, 2, 3, 2] }];
+  const typographyComparison = { name: 'Previous period', values: [[2, 3, 4, 4, 5], [1, 1, 2, 2, 2]] };
+  const typographyVariables = {
+    '--lovely-chart-font-family': 'ProbeSerif, serif',
+    '--lovely-chart-font-weight': '200',
+    '--lovely-chart-font-weight-bold': '800',
+  };
+  const typographyHostStyle = Object.entries(typographyVariables)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join('; ');
+  const typographyChart = await mountProbe(page, {
+    config: {
+      type: 'bar',
+      isStacked: true,
+      labels: typographyLabels,
+      datasets: typographyDatasets,
+      comparison: typographyComparison,
+      referenceLines: [{ value: 9, label: 'Target' }],
+      title: 'Probe — Typography',
+    },
+  });
+  await typographyChart.scrollIntoViewIfNeeded();
+  // A legend toggle there and back redraws the axis labels and the reference label
+  const recordTypographyCanvas = async () => {
+    await startCanvasRecording(typographyChart);
+    for (let i = 0; i < 2; i++) {
+      await typographyChart.locator('.lovely-chart--button').nth(1).click();
+      await sleep(600);
+    }
+    const { texts } = await stopCanvasRecording(page);
+    return {
+      axisFonts: [...new Set(texts.filter(({ text }) => text !== 'Target').map(({ font }) => font))],
+      referenceFonts: [...new Set(texts.filter(({ text }) => text === 'Target').map(({ font }) => font))],
+    };
+  };
+  const defaultCanvasFonts = await recordTypographyCanvas();
+  const defaultTypography = await readProbeTypography(page, typographyLabels.length - 1);
+  await page.evaluate((variables) => {
+    const element = document.getElementById('probe');
+    Object.entries(variables).forEach(([name, value]) => element.style.setProperty(name, value));
+  }, typographyVariables);
+  const variableCanvasFonts = await recordTypographyCanvas();
+  const variableTypography = await readProbeTypography(page, typographyLabels.length - 1);
+  await unmountProbe(page);
+  await mountProbe(page, {
+    config: {
+      type: 'bar',
+      isStacked: true,
+      isPercentage: true,
+      isTooltipTotalInTitle: true,
+      labels: typographyLabels,
+      datasets: typographyDatasets,
+      title: 'Probe — Typography of shares',
+    },
+    hostStyle: typographyHostStyle,
+  });
+  const sharesTypography = await readProbeTypography(page, typographyLabels.length - 1);
+  await unmountProbe(page);
+  const isTypographyWeighted = ({ weights }, keys, weight) => keys.every((key) => (
+    weights[key].length > 0 && weights[key].every((value) => value === weight)
+  ));
+  const regularTextKeys = ['legend', 'comparisonLegend', 'rowNames'];
+  const boldTextKeys = ['header', 'tooltipTitle', 'values', 'totalRow', 'change'];
+  const isCanvasFont = (fonts, prefix, family) => fonts.length > 0 && fonts.every((font) => (
+    font.startsWith(prefix) && font.includes(family)
+  ));
+  check('the chart text takes its own family, a weight of 300 and a bold one of 700 by default, the axis labels 300',
+    defaultTypography.family.includes('Helvetica')
+    && isTypographyWeighted(defaultTypography, regularTextKeys, '300')
+    && isTypographyWeighted(defaultTypography, boldTextKeys, '700')
+    && isCanvasFont(defaultCanvasFonts.axisFonts, '300 10px ', 'Helvetica')
+    && isCanvasFont(defaultCanvasFonts.referenceFonts, '500 11px ', 'Helvetica'),
+    JSON.stringify({ defaultTypography, defaultCanvasFonts }));
+  check('the typography variables set the family and the weights of the chart text, the canvas labels included',
+    variableTypography.family.startsWith('ProbeSerif')
+    && isTypographyWeighted(variableTypography, regularTextKeys, '200')
+    && isTypographyWeighted(variableTypography, boldTextKeys, '800')
+    && isCanvasFont(variableCanvasFonts.axisFonts, '200 10px ', 'ProbeSerif')
+    && isCanvasFont(variableCanvasFonts.referenceFonts, '500 11px ', 'ProbeSerif'),
+    JSON.stringify({ variableTypography, variableCanvasFonts }));
+  check('the bold weight of the typography variables reaches the total beside the tooltip title and the shares',
+    isTypographyWeighted(sharesTypography, ['titleTotal', 'shares'], '800'),
+    JSON.stringify(sharesTypography));
+
+  // A legend in `legendContainer` keeps the family of its own element until the variables reach it from a shared
+  // ancestor, and a weight invalid for its property leaves the chart text its size and the family of the variables
+  const externalTypography = await page.evaluate(async ({ labels, datasets, comparison, variables }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const host = document.createElement('div');
+    host.style.font = '400 16px Georgia, serif';
+    const element = document.createElement('div');
+    const legend = document.createElement('div');
+    host.append(element, legend);
+    document.getElementById('container').append(host);
+    const chart = new LovelyChart(element, {
+      type: 'line',
+      labels,
+      datasets,
+      comparison,
+      legendContainer: legend,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const readFont = (selector) => {
+      const { fontWeight, fontSize, fontFamily } = getComputedStyle(host.querySelector(selector));
+      return `${fontWeight} ${fontSize} ${fontFamily}`;
+    };
+    const readFonts = () => ({
+      container: readFont('.lovely-chart--container'),
+      label: readFont('.lovely-chart--button-label'),
+      comparisonLegend: readFont('.lovely-chart--comparison-legend'),
+    });
+    const unset = readFonts();
+    Object.entries(variables).forEach(([name, value]) => host.style.setProperty(name, value));
+    const shared = readFonts();
+    element.style.setProperty('--lovely-chart-font-weight', 'medium');
+    const invalidWeight = readFonts();
+    chart.destroy();
+    host.remove();
+    return { unset, shared, invalidWeight };
+  }, {
+    labels: typographyLabels,
+    datasets: typographyDatasets,
+    comparison: typographyComparison,
+    variables: typographyVariables,
+  });
+  const { unset: unsetExternal, shared: sharedExternal, invalidWeight } = externalTypography;
+  check('a legend in `legendContainer` keeps the family of its own element while the typography variables are unset',
+    unsetExternal.label === '300 16px Georgia, serif'
+    && unsetExternal.comparisonLegend === '400 16px Georgia, serif'
+    && unsetExternal.container.startsWith('300 13px ') && unsetExternal.container.includes('Helvetica'),
+    JSON.stringify(unsetExternal));
+  check('the typography variables reach a legend in `legendContainer` from an ancestor it shares with the chart',
+    sharedExternal.label === '200 16px ProbeSerif, serif'
+    && sharedExternal.comparisonLegend === '200 16px ProbeSerif, serif'
+    && sharedExternal.container === '200 13px ProbeSerif, serif',
+    JSON.stringify(sharedExternal));
+  check('a weight invalid for its property leaves the chart text its size and the family of the typography variables',
+    invalidWeight.container === '400 13px ProbeSerif, serif',
+    JSON.stringify(invalidWeight));
 
   // --- Whole Y steps for counts, on both axes ---
   const countsConfig = {

@@ -79,7 +79,7 @@
   padding-bottom: 6px;
 
   font-size: 12px;
-  font-weight: bold;
+  font-weight: var(--lovely-chart-font-weight-bold, bold);
 
   &::after {
     content: '';
@@ -127,7 +127,7 @@
 
     margin-left: auto;
 
-    font-weight: bold;
+    font-weight: var(--lovely-chart-font-weight-bold, bold);
     font-variant-numeric: tabular-nums;
   }
 
@@ -138,7 +138,7 @@
 
   &.lovely-chart--tooltip-dataset-total {
     margin-top: 6px;
-    font-weight: bold;
+    font-weight: var(--lovely-chart-font-weight-bold, bold);
 
     // The secondary axis total sits right under the Total it scales
     & + & {
@@ -166,7 +166,7 @@
 
   width: var(--lovely-chart-percentage-width, 35px);
 
-  font-weight: bold;
+  font-weight: var(--lovely-chart-font-weight-bold, bold);
   text-align: right;
 
   &:dir(rtl) {
@@ -246,12 +246,12 @@ html.theme-dark :where(.lovely-chart--container:not(.lovely-chart--container-sch
 // A neutral change keeps the weight of the value it sits in
 .lovely-chart--tooltip-change {
   &[data-tone='positive'] {
-    font-weight: bold;
+    font-weight: var(--lovely-chart-font-weight-bold, bold);
     color: var(--tooltip-change-positive);
   }
 
   &[data-tone='negative'] {
-    font-weight: bold;
+    font-weight: var(--lovely-chart-font-weight-bold, bold);
     color: var(--tooltip-change-negative);
   }
 }

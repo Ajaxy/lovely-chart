@@ -35,7 +35,6 @@ export const DONUT_INNER_RADIUS_FACTOR = 0.5;
 export const BALLOON_OFFSET = 20;
 export const MAX_TOOLTIP_ITEMS = 12;
 
-export const AXES_FONT_WEIGHT = 300;
 export const AXES_FONT_SIZE = 10;
 export const AXES_MAX_COLUMN_WIDTH = 45;
 export const AXES_MAX_ROW_HEIGHT = 50;

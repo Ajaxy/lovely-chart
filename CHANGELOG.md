@@ -39,6 +39,9 @@
 - `zoomOut()`: zooms a zoomed chart out as its zoom-out control does, for a page that draws a header of its own.
 - `noZoomOutControl`: leaves out the zoom-out control, for a page that zooms out with `zoomOut()` from a control of its own.
 - `--lovely-chart-empty-header-height`: the height of a header with nothing to show, 0 by default; a page keeps a band with it, as to level the plots of a row.
+- `--lovely-chart-font-family`: the font family of the chart's text, the labels the canvas draws included, read from the chart element or an ancestor.
+- `--lovely-chart-font-weight`: the regular weight of the chart's text, 300 by default: the legend, the names in the tooltip and the axis labels.
+- `--lovely-chart-font-weight-bold`: the weight of the chart's bold text, `bold` by default: the header, the tooltip title and its total, the values, the Total row, a rise or a fall against the `comparison` and the shares of a percentage chart.
 
 ### Changed
 
@@ -48,6 +51,7 @@
 - Dataset, comparison, axis text and background colours take any CSS colour, not only `#RRGGBB`. Reference line, hatched range and area border colours take any CSS colour, such as `light-dark()`, and `#RRGGBB/alpha`, not only those the canvas takes.
 - Legend buttons take their outline, label and checked fill from `--lovely-chart-series-color`, in place of a `lovely-chart--color-*` class and the rules the chart added to the page for each colour.
 - The legend sets its entries `--lovely-chart-legend-gap` apart in a wrapping flex row, in place of a margin after and under each entry. A row fits entries up to its end, so a legend can take a row fewer, and the 24px under its last row are its own padding. A `text-align` of the page no longer places the entries, and margins of the page on them add to the gap. A negative bottom margin on `.lovely-chart--tools` that offset the 8px under the entries now clips their last row; `--lovely-chart-legend-padding-bottom: 0` in its place ends the chart at that row.
+- The axis labels take the regular weight of the chart's text, `--lovely-chart-font-weight`, as they take its family, in place of a fixed 300, so a page style that sets the weight of the chart's text reaches them too.
 - A header with nothing to show, with no `title` and no caption because of `noCaption` or text labels, folds to `--lovely-chart-empty-header-height`, 0 by default, in place of its 30px band, and the hover layer follows the plot up. While zoomed, its zoom-out control floats over the top inline-start corner of the plot, on a backdrop of `--background-color` and without a caption.
 
 ### Fixed
