@@ -164,6 +164,28 @@ const DARK_LABEL_DEFAULT_COLORS = ['#9ED448', '#F5BD25'];
 // and a colour of a dataset's own, past which the next datasets take the default colours
 const PALETTE_DATASET_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
 const OWN_DATASET_COLOR = '#FF00FF';
+// The spacing of the header, the minimap and the legend by default, and under the spacing variables of a page, which
+// set the side inset, the space under the minimap, the row and the column gap of the legend, the space under it, and the
+// padding, corner radius and font size of a legend button, in px
+const DEFAULT_SPACING = {
+  inset: 10, minimapGap: 16, rowGap: 8, columnGap: 6, bottom: 24, buttonPadding: 7, buttonRadius: 18, fontSize: 13,
+};
+const PAGE_SPACING = {
+  inset: 0, minimapGap: 20, rowGap: 4, columnGap: 12, bottom: 0, buttonPadding: 3, buttonRadius: 5, fontSize: 11,
+};
+const PAGE_SPACING_STYLE = [
+  `--lovely-chart-inset: ${PAGE_SPACING.inset}px`,
+  `--lovely-chart-minimap-margin-bottom: ${PAGE_SPACING.minimapGap}px`,
+  `--lovely-chart-legend-gap: ${PAGE_SPACING.rowGap}px ${PAGE_SPACING.columnGap}px`,
+  `--lovely-chart-legend-padding-bottom: ${PAGE_SPACING.bottom}px`,
+  `--lovely-chart-button-padding: ${PAGE_SPACING.buttonPadding}px`,
+  `--lovely-chart-button-radius: ${PAGE_SPACING.buttonRadius}px`,
+  `--lovely-chart-button-font-size: ${PAGE_SPACING.fontSize}px`,
+].join('; ');
+// A chart narrow enough to wrap its legend of five datasets and a comparison, and how far a length may stand from the
+// one it reads
+const SPACING_PROBE_WIDTH = 360;
+const SPACING_TOLERANCE = 0.5;
 // The space between the edge of the canvas and the plot or the Y-axis labels
 const GUTTER = 10;
 // How far contrast Y-axis labels stand in from their side of the chart
@@ -1132,6 +1154,68 @@ function countPickedPixels(locator, { red, green, blue, alpha }) {
 function getColorBounds(hex, alpha, tolerance) {
   const [red, green, blue] = parseHex(hex).map((channel) => [channel - tolerance, channel + tolerance]);
   return { red, green, blue, alpha };
+}
+
+// Reads the spacing of the legend in the element `legendSelector` names, as `DEFAULT_SPACING` lists it, and of the
+// header and the minimap of its chart when the legend sits in it, with the width of the minimap canvas in canvas px
+// and the width it takes on screen
+function readSpacing(page, legendSelector) {
+  return page.evaluate((selector) => {
+    const tools = document.querySelector(`${selector} .lovely-chart--tools`);
+    const container = tools.closest('.lovely-chart--container');
+    const toolsBox = tools.getBoundingClientRect();
+    const entries = Array.from(tools.children).map((entry) => entry.getBoundingClientRect());
+    const [first, second] = entries;
+    const nextRow = entries.find(({ top }) => top >= first.bottom);
+    const rowsBottom = Math.max(...entries.map(({ bottom }) => bottom));
+    const button = tools.querySelector('.lovely-chart--button');
+    const buttonBox = button.getBoundingClientRect();
+    const checkBox = button.querySelector('.lovely-chart--button-check').getBoundingClientRect();
+    const buttonStyle = getComputedStyle(button);
+    const border = parseFloat(buttonStyle.borderTopWidth);
+    const comparison = tools.querySelector('.lovely-chart--comparison-legend');
+    const comparisonStyle = getComputedStyle(comparison);
+    const frame = container?.getBoundingClientRect();
+    const readInsets = ({ left, right }) => [left - frame.left, frame.right - right];
+
+    const spacing = {
+      inset: [first.left - toolsBox.left, parseFloat(getComputedStyle(tools).paddingRight)],
+      rowGap: nextRow.top - first.bottom,
+      columnGap: second.left - first.right,
+      bottom: (frame ?? toolsBox).bottom - rowsBottom,
+      buttonPadding: [
+        parseFloat(buttonStyle.paddingTop),
+        checkBox.top - buttonBox.top - border,
+        checkBox.left - buttonBox.left - border,
+        parseFloat(comparisonStyle.paddingTop),
+      ],
+      buttonRadius: parseFloat(buttonStyle.borderTopLeftRadius),
+      fontSize: [
+        parseFloat(getComputedStyle(button.querySelector('.lovely-chart--button-label')).fontSize),
+        parseFloat(comparisonStyle.fontSize),
+      ],
+    };
+    if (!container) return { spacing };
+
+    const minimap = container.querySelector('.lovely-chart--minimap');
+    const minimapBox = minimap.getBoundingClientRect();
+    spacing.inset.push(
+      ...readInsets(container.querySelector('.lovely-chart--header').getBoundingClientRect()),
+      ...readInsets(minimapBox),
+    );
+    spacing.minimapGap = first.top - minimapBox.bottom;
+    return {
+      spacing,
+      minimapCanvasWidth: minimap.querySelector('canvas').width,
+      minimapWidth: Math.round(minimapBox.width * devicePixelRatio),
+    };
+  }, legendSelector);
+}
+
+// Whether each length `readSpacing` reads stands within a tolerance of the one `spacing` gives it
+function isSpacingAt(readings, spacing) {
+  return Object.entries(readings.spacing).every(([key, lengths]) => [lengths].flat()
+    .every((length) => Math.abs(length - spacing[key]) <= SPACING_TOLERANCE));
 }
 
 // Reads the dataset colour of each legend button, as its `--lovely-chart-series-color` gives it, the contrast of its
@@ -3815,6 +3899,51 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     JSON.stringify(exportedPalette.colorsAfterChange) === JSON.stringify(DEFAULT_PALETTE)
     && JSON.stringify(exportedPalette.drawnAfterChange) === JSON.stringify(DEFAULT_PALETTE),
     JSON.stringify([exportedPalette.colorsAfterChange, exportedPalette.drawnAfterChange]));
+
+  // --- The spacing variables of a page inset the header, the minimap and the legend, space the legend and size its
+  // buttons, read from an ancestor of the chart or of a `legendContainer` ---
+  const spacingConfig = {
+    type: 'line',
+    title: 'Probe — Spacing',
+    labels: Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 10, i + 1)),
+    datasets: Array.from({ length: 5 }, (_, i) => ({
+      name: `Dataset ${i + 1}`,
+      values: [3, 1, 4, 1, 5, 9, 2, 6, 5, 3],
+    })),
+    comparison: { name: 'Previous period', values: [[2, 7, 1, 8, 2, 8, 1, 8, 2, 8]] },
+    withMinimap: true,
+  };
+  await mountProbe(page, { config: spacingConfig, width: SPACING_PROBE_WIDTH });
+  const defaultSpacing = await readSpacing(page, '#probe');
+  await unmountProbe(page);
+  check('the header, the minimap and the legend stand 10px in, and the legend takes its default gaps and buttons',
+    isSpacingAt(defaultSpacing, DEFAULT_SPACING)
+    && defaultSpacing.minimapCanvasWidth === defaultSpacing.minimapWidth, JSON.stringify(defaultSpacing));
+
+  await mountProbe(page, { config: spacingConfig, width: SPACING_PROBE_WIDTH, hostStyle: PAGE_SPACING_STYLE });
+  const pageSpacing = await readSpacing(page, '#probe');
+  await unmountProbe(page);
+  check('the spacing variables of an ancestor set the insets, the gaps, the space under the legend and its buttons',
+    isSpacingAt(pageSpacing, PAGE_SPACING), JSON.stringify(pageSpacing.spacing));
+  check('a minimap the inset widens takes a canvas as wide as it',
+    pageSpacing.minimapCanvasWidth === pageSpacing.minimapWidth,
+    `${pageSpacing.minimapCanvasWidth} of ${pageSpacing.minimapWidth}`);
+
+  await page.evaluate(({ config, width, style }) => import('./LovelyChart.js').then(({ default: LovelyChart }) => {
+    const element = document.createElement('div');
+    element.id = 'probe';
+    element.style.width = `${width}px`;
+    const legend = document.createElement('div');
+    legend.id = 'probe-legend';
+    legend.style.cssText = `width: ${width}px; ${style}`;
+    document.getElementById('container').append(element, legend);
+    window.probeChart = new LovelyChart(element, { ...config, legendContainer: legend });
+  }), { config: spacingConfig, width: SPACING_PROBE_WIDTH, style: PAGE_SPACING_STYLE });
+  const externalSpacing = await readSpacing(page, '#probe-legend');
+  await unmountProbe(page);
+  await page.evaluate(() => document.getElementById('probe-legend').remove());
+  check('a legend in a `legendContainer` takes the spacing variables of that element',
+    isSpacingAt(externalSpacing, PAGE_SPACING), JSON.stringify(externalSpacing.spacing));
 
   // --- Dashed and dotted datasets, comparison and its tooltip (demo charts) ---
   const limitChart = charts.nth(LIMIT_CHART);

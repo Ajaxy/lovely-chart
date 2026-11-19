@@ -113,7 +113,7 @@ Parameter | Description |
 `areLinesSmooth`| `true` to draw `line` datasets, and the `comparison` line beside them, as monotone curves through their values, never overshooting a value. Default `false`.
 `areaOpacity`| Opacity of an `area` fill, from 0 to 1; the outline and dots keep full opacity. Default `1`.
 `areaBorderColor`| Colour of a 1px outline around each area, and around each run of an area split at a gap: any CSS colour or `{ light, dark }`. A stack draws a boundary two areas share once.
-`legendContainer`| Element that holds the legend, in place of the chart container.
+`legendContainer`| Element that holds the legend, in place of the chart container. The legend takes its [spacing variables](#spacing-the-chart) from this element and its ancestors.
 
 #### Colours
 
@@ -287,6 +287,13 @@ Variable | Description |
 ---------|----|
 `--lovely-chart-plot-height`| Plot canvas height, read from the chart element or an ancestor, ahead of `plotHeight`: a unitless number of px, `px` or `rem`.
 `--lovely-chart-series-color`| Set by the chart on each legend button, on the comparison legend entry and on each tooltip swatch: the colour of its dataset or line in the skin on screen, as `rgba()`. A legend button takes its outline, its label and its checked fill from it.
+`--lovely-chart-inset`| Side inset of the header, the minimap and the legend. Default `10px`. The minimap canvas takes the width it leaves. The plot keeps its own 10px gutter, so another inset moves the header, the minimap and the legend off the line of its Y-axis labels and grid.
+`--lovely-chart-minimap-margin-bottom`| Space under the minimap, above the legend when the chart holds it. Default `16px`.
+`--lovely-chart-legend-gap`| Space between the legend entries, as the CSS `gap`: one length, or a row gap and a column gap. Default `8px 6px`.
+`--lovely-chart-legend-padding-bottom`| Space under the last row of the legend. Default `24px`; `0` ends the chart at the legend.
+`--lovely-chart-button-padding`| Padding on every side of a legend button, one length, which also places its check mark. The comparison entry takes it above and below its name. Default `7px`.
+`--lovely-chart-button-radius`| Corner radius of a legend button. Default `18px`.
+`--lovely-chart-button-font-size`| Font size of the legend buttons and the comparison entry. Defaults to the font size around them, the chart's 13px.
 `--background-color`, `--text-color`, `--grid-lines`, `--tooltip-background` and the other variables on `.lovely-chart--container`| The colours of the day and the night skin. Night colours of your own go under `html.theme-dark .lovely-chart--container:not(.lovely-chart--container-scheme-system)` for the default `colorScheme`, and under `.lovely-chart--container-scheme-system` inside `@media (prefers-color-scheme: dark)` for `'system'`, so neither reaches a chart of the other scheme.
 `--tooltip-change-positive`, `--tooltip-change-negative`| Colours of a rise and a fall of the `comparison` change in the tooltip.
 `--tooltip-muted-text-color`| Colour of the `comparison` row and the notes of the tooltip. Defaults to a mix of 70% `--text-color` and 30% `--tooltip-background`, which follows a skin of your own and reaches a contrast of 4.5:1 on the tooltip background in the day and the night skin. A colour of your own goes per skin, as the colours above.
@@ -312,6 +319,22 @@ Class | Element |
 `.lovely-chart--tooltip-swatch`| The swatch of a row, in `--lovely-chart-series-color`, the colour of its dataset or line. With `data-dashed` or `data-dotted` it is a dashed or dotted outline.
 `.lovely-chart--tooltip-change[data-tone]`| The change of the `comparison` row, inside its value. `data-tone` is `positive` or `negative` for a rise or a fall, bold in `--tooltip-change-positive` or `--tooltip-change-negative`, and `neutral` for a change that rounds to 0%, which keeps the colour and weight of its value.
 `.lovely-chart--tooltip-notes`| The notes under the rows, the last child of the balloon, with a `<div>` per line, in `--tooltip-muted-text-color` under a rule in `--tooltip-separator-color`. Hidden while empty.
+
+#### Spacing the chart
+
+The spacing variables, `--lovely-chart-inset` to `--lovely-chart-button-font-size`, apply from `element`, any ancestor of it or `.lovely-chart--container`, so one rule can space every chart on a page. A legend in `legendContainer` takes them from that element and its ancestors. The chart sizes the minimap canvas to `--lovely-chart-inset` as it lays out: when it is built, on `update()`, a resize or an orientation change.
+
+```css
+/* A card whose own padding insets the chart, which ends at the last row of a legend of small pills */
+.card {
+  padding: 16px;
+  --lovely-chart-inset: 0;
+  --lovely-chart-legend-padding-bottom: 0;
+  --lovely-chart-button-padding: 4px;
+  --lovely-chart-button-radius: 8px;
+  --lovely-chart-button-font-size: 12px;
+}
+```
 
 #### Placing elements over the plot
 

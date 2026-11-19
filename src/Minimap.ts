@@ -11,7 +11,6 @@ import {
   MINIMAP_EAR_WIDTH,
   MINIMAP_HEIGHT,
   MINIMAP_LINE_WIDTH,
-  MINIMAP_MARGIN,
   MINIMAP_MAX_ANIMATED_DATASETS,
   NO_FOCUS,
   SIMPLIFIER_MINIMAP_FACTOR,
@@ -108,12 +107,12 @@ export class Minimap {
 
     this.#element.className = 'lovely-chart--minimap';
     this.#element.style.height = `${MINIMAP_HEIGHT}px`;
+    // The canvas measures the minimap in the document, inside the margins `--lovely-chart-inset` sets
+    this.#container.appendChild(this.#element);
 
     this.#setupCanvas();
     this.#setupRuler();
     this.#setupLimitMask();
-
-    this.#container.appendChild(this.#element);
 
     this.#canvasSize = {
       width: this.#canvas.offsetWidth,
@@ -123,7 +122,7 @@ export class Minimap {
 
   #getSize(): Size {
     return {
-      width: this.#container.offsetWidth - MINIMAP_MARGIN * 2,
+      width: this.#element.clientWidth,
       height: MINIMAP_HEIGHT,
     };
   }

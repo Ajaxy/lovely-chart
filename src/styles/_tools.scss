@@ -1,6 +1,13 @@
 .lovely-chart--tools {
-  padding: 0 10px 16px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lovely-chart-legend-gap, 8px 6px);
+  align-items: flex-start;
+
+  padding: 0 var(--lovely-chart-inset, 10px) var(--lovely-chart-legend-padding-bottom, 24px);
+
   opacity: 1;
+
   transition: opacity 400ms ease;
 
   &.lovely-chart--state-hidden {
@@ -18,11 +25,10 @@
   gap: 6px;
   align-items: center;
 
-  margin-block: 0 8px;
-  padding: 7px 0;
+  padding: var(--lovely-chart-button-padding, 7px) 0;
 
+  font-size: var(--lovely-chart-button-font-size, 1em);
   color: var(--text-color);
-  vertical-align: top;
 
   &::before {
     content: '';

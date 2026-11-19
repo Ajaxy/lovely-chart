@@ -43,7 +43,6 @@ export const X_AXIS_HEIGHT = 30;
 export const Y_AXIS_ZERO_BASED_THRESHOLD = 0.75;
 
 export const MINIMAP_HEIGHT = 40;
-export const MINIMAP_MARGIN = 10;
 export const MINIMAP_LINE_WIDTH = 1;
 export const MINIMAP_EAR_WIDTH = 8;
 export const MINIMAP_MAX_ANIMATED_DATASETS = 4;

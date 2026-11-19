@@ -5,7 +5,7 @@
   direction: ltr;
   overflow: hidden;
 
-  margin: 0 10px 16px 10px;
+  margin: 0 var(--lovely-chart-inset, 10px) var(--lovely-chart-minimap-margin-bottom, 16px);
   border-radius: 6px;
 
   opacity: 1;

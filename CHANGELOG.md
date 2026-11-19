@@ -22,6 +22,7 @@
 - Every colour parameter takes a `var()` of the page's custom properties, alone or inside a colour function such as `color-mix()`. The chart computes it on a hidden element inside it, so any colour the property holds works, and computes it again on each change of the `class` of `<html>` and, with `colorScheme: 'system'`, of `prefers-color-scheme`, repainting in place.
 - `refreshColors()`: reads the `var()` colours again, for custom properties that the page changes on another trigger than the skin, keeping the zoom, the range, the legend filter and the selection.
 - `DEFAULT_COLORS`, `getDefaultColors(datasetCount)` and `DEFAULT_COMPARISON_COLOR`, exported for elements of the page that show the same series as a chart. `getDefaultColors` returns a colour per dataset, those the chart gives in order to the datasets with no `color`: a subset of the eight `DEFAULT_COLORS` for fewer datasets, and the eight again from the first for more.
+- `--lovely-chart-inset`, `--lovely-chart-minimap-margin-bottom`, `--lovely-chart-legend-gap`, `--lovely-chart-legend-padding-bottom`, `--lovely-chart-button-padding`, `--lovely-chart-button-radius` and `--lovely-chart-button-font-size`: the side inset of the header, the minimap and the legend, the space under the minimap, between the legend entries and under the legend, and the padding, corner radius and font size of the legend buttons. They apply from the chart's element or any ancestor, and from the `legendContainer` of a legend there; the minimap canvas fits the inset.
 
 ### Changed
 
@@ -30,6 +31,7 @@
 - The total on the `secondaryYAxis` scale in the tooltip is formatted as the dataset values are, by `formatTooltipValue` when given, and otherwise with its digits grouped and no trailing zeros: `$1 250` rather than `$1250.00`.
 - Dataset, comparison, axis text and background colours take any CSS colour, not only `#RRGGBB`. Reference line, hatched range and area border colours take any CSS colour, such as `light-dark()`, and `#RRGGBB/alpha`, not only those the canvas takes.
 - Legend buttons take their outline, label and checked fill from `--lovely-chart-series-color`, in place of a `lovely-chart--color-*` class and the rules the chart added to the page for each colour.
+- The legend sets its entries `--lovely-chart-legend-gap` apart in a wrapping flex row, in place of a margin after and under each entry. A row fits entries up to its end, so a legend can take a row fewer, and the 24px under its last row are its own padding. A `text-align` of the page no longer places the entries, and margins of the page on them add to the gap. A negative bottom margin on `.lovely-chart--tools` that offset the 8px under the entries now clips their last row; `--lovely-chart-legend-padding-bottom: 0` in its place ends the chart at that row.
 
 ### Fixed
 

@@ -1,7 +1,7 @@
 .lovely-chart--header {
   display: flex;
   height: 30px;
-  margin: 0 10px;
+  margin: 0 var(--lovely-chart-inset, 10px);
   font-weight: bold;
 
   &-title, &-caption {

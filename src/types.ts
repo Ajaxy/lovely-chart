@@ -335,7 +335,10 @@ export interface LovelyChartParams {
    * reports with the balloon hidden by `--lovely-chart-balloon-display: none` too, for a readout of the page.
    */
   onTooltipChange?: (tooltip: TooltipContent | undefined) => void;
-  /** Element that holds the legend, in place of the chart container. */
+  /**
+   * Element that holds the legend, in place of the chart container. The legend takes its spacing variables, such as
+   * `--lovely-chart-legend-gap`, from this element and its ancestors.
+   */
   legendContainer?: HTMLElement;
   noZoom?: boolean;
   zoomType?: 'pie' | 'donut';

@@ -2,15 +2,12 @@
   // transition: background-color 300ms ease-out, border-color 300ms ease-out;
   position: relative;
 
-  display: inline-block;
-
-  margin-block: 0 8px;
-  margin-inline: 0 6px;
-  padding: 7px 7px;
+  padding: var(--lovely-chart-button-padding, 7px);
   border: 1px solid #E6ECF0;
   border-color: var(--lovely-chart-series-color);
-  border-radius: 18px;
+  border-radius: var(--lovely-chart-button-radius, 18px);
 
+  font-size: var(--lovely-chart-button-font-size, 1em);
   color: var(--lovely-chart-series-color);
   text-align: center;
   text-decoration: none;
@@ -67,8 +64,8 @@
 
 .lovely-chart--button-check {
   position: absolute;
-  top: 7px;
-  inset-inline-start: 7px;
+  top: var(--lovely-chart-button-padding, 7px);
+  inset-inline-start: var(--lovely-chart-button-padding, 7px);
 
   display: inline-block;
 
