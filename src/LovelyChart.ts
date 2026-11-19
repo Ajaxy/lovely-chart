@@ -39,6 +39,7 @@ export type {
   ChartType, Comparison, DateLocale, HatchedRange, LabelType, LovelyChartDatasetParams, LovelyChartParams,
   ReferenceLine, SecondaryYAxisConfig, ThemedColor, TooltipContent, TooltipNotes,
 } from './types.js';
+export { DEFAULT_COLORS, DEFAULT_COMPARISON_COLOR, getDefaultColors } from './data.js';
 
 const REDRAW_DEBOUNCE_MS = 500;
 const PLOT_HEIGHT_PROPERTY = '--lovely-chart-plot-height';

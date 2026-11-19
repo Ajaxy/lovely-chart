@@ -51,6 +51,12 @@ export interface SecondaryYAxisConfig {
 
 export interface LovelyChartDatasetParams {
   name: string;
+  /**
+   * Colour of the dataset. In the chart's own data, the datasets with none take the colours of
+   * `getDefaultColors(datasets.length)` in order, so where no dataset has one, each takes the colour at its index. In
+   * data that `onZoom` returns, one with none and no entry in `colors` keeps the colour of the chart's dataset at its
+   * place, and one past the chart's datasets takes a default colour.
+   */
   color?: ThemedColor;
   values: (number | null)[];
   /** Starts the dataset hidden, its legend button unchecked, so a reader can show it from the legend. */
@@ -131,7 +137,10 @@ export interface TooltipNotes {
 export interface Comparison {
   /** Name in the legend and in the tooltip, as `'Previous period'`. */
   name: string;
-  /** Colour of the line and of its swatches in the legend and the tooltip; defaults to `#6B7280`. */
+  /**
+   * Colour of the line and of its swatches in the legend and the tooltip; defaults to `DEFAULT_COMPARISON_COLOR`,
+   * `#6B7280`.
+   */
   color?: ThemedColor;
   /**
    * Previous values per dataset, in the order of `datasets`, each aligned with `labels`. The line draws their

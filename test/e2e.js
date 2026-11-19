@@ -160,6 +160,10 @@ const MIN_LEGEND_LABEL_CONTRAST = 2;
 // The eight colours of the default palette in order, and the pale ones of them, whose legend buttons take dark labels
 const DEFAULT_PALETTE = ['#3497ED', '#2373DB', '#9ED448', '#5FB641', '#F5BD25', '#F79E39', '#E65850', '#5D5CDC'];
 const DARK_LABEL_DEFAULT_COLORS = ['#9ED448', '#F5BD25'];
+// Dataset counts from one to past the eight default colours, which a chart of more datasets takes again from the first,
+// and a colour of a dataset's own, past which the next datasets take the default colours
+const PALETTE_DATASET_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
+const OWN_DATASET_COLOR = '#FF00FF';
 // The space between the edge of the canvas and the plot or the Y-axis labels
 const GUTTER = 10;
 // How far contrast Y-axis labels stand in from their side of the chart
@@ -3741,6 +3745,76 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     JSON.stringify(defaultPaletteLabels
       .map(({ color, isLabelWhite }) => `${color} ${isLabelWhite ? 'white' : 'dark'}`)));
   await unmountProbe(page);
+
+  // --- The default colours the package exports are those a chart gives the datasets with no colour of their own ---
+  const exportedPalette = await page.evaluate(async ({ datasetCounts, ownColor }) => {
+    const {
+      default: LovelyChart, DEFAULT_COLORS, DEFAULT_COMPARISON_COLOR, getDefaultColors,
+    } = await import('./LovelyChart.js');
+    const toHex = (value) => `#${value.match(/\d+/g).slice(0, 3)
+      .map((channel) => Number(channel).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+    // The colours of the legend buttons and of the comparison entry of a chart, which sets them as it is built
+    const readLegendColors = (datasets, comparison) => {
+      const element = document.createElement('div');
+      document.getElementById('container').appendChild(element);
+      const chart = new LovelyChart(element, {
+        type: 'line', labels: [1, 2].map((day) => Date.UTC(2026, 10, day)), datasets, comparison,
+      });
+      const readColor = (entry) => toHex(entry.style.getPropertyValue('--lovely-chart-series-color'));
+      const colors = Array.from(element.querySelectorAll('.lovely-chart--button')).map(readColor);
+      const comparisonEntry = element.querySelector('.lovely-chart--comparison-legend');
+      const comparisonColor = comparisonEntry ? readColor(comparisonEntry) : undefined;
+      chart.destroy();
+      element.remove();
+      return { colors, comparisonColor };
+    };
+    const createDatasets = (count) => Array.from({ length: count }, (_, i) => ({
+      name: `Dataset ${i + 1}`,
+      values: [1, 2],
+    }));
+
+    const countMismatches = datasetCounts
+      .map((count) => ({
+        count,
+        exported: getDefaultColors(count),
+        drawn: readLegendColors(createDatasets(count)).colors,
+      }))
+      .filter(({ exported, drawn }) => JSON.stringify(exported) !== JSON.stringify(drawn));
+    const [ownDataset, ...otherDatasets] = createDatasets(3);
+    const mixedColors = readLegendColors([{ ...ownDataset, color: ownColor }, ...otherDatasets]).colors;
+    const changedColors = getDefaultColors(DEFAULT_COLORS.length);
+    changedColors.fill(ownColor);
+    const comparison = { name: 'Previous period', values: [[1, 2], [2, 1]] };
+
+    return {
+      palette: [...DEFAULT_COLORS],
+      isPaletteFrozen: Object.isFrozen(DEFAULT_COLORS),
+      comparisonColor: DEFAULT_COMPARISON_COLOR,
+      drawnComparisonColor: readLegendColors(createDatasets(2), comparison).comparisonColor,
+      countMismatches,
+      mixedColors,
+      expectedMixedColors: [ownColor, ...getDefaultColors(3).slice(0, otherDatasets.length)],
+      colorsAfterChange: getDefaultColors(DEFAULT_COLORS.length),
+      drawnAfterChange: readLegendColors(createDatasets(DEFAULT_COLORS.length)).colors,
+    };
+  }, { datasetCounts: PALETTE_DATASET_COUNTS, ownColor: OWN_DATASET_COLOR });
+  check('the package exports the eight default colours in order, frozen, and the default comparison colour',
+    JSON.stringify(exportedPalette.palette) === JSON.stringify(DEFAULT_PALETTE) && exportedPalette.isPaletteFrozen
+    && exportedPalette.comparisonColor === DEFAULT_COMPARISON_COLOR
+    && exportedPalette.drawnComparisonColor === DEFAULT_COMPARISON_COLOR,
+    JSON.stringify([
+      exportedPalette.palette, exportedPalette.isPaletteFrozen,
+      exportedPalette.comparisonColor, exportedPalette.drawnComparisonColor,
+    ]));
+  check(`getDefaultColors() gives the colours a chart of ${PALETTE_DATASET_COUNTS.join(', ')} datasets takes, one each`,
+    !exportedPalette.countMismatches.length, JSON.stringify(exportedPalette.countMismatches));
+  check('datasets with no colour of their own take the default colours in order, past one with a colour',
+    JSON.stringify(exportedPalette.mixedColors) === JSON.stringify(exportedPalette.expectedMixedColors),
+    JSON.stringify(exportedPalette.mixedColors));
+  check('getDefaultColors() returns a new array, whose change reaches neither the next call nor a chart',
+    JSON.stringify(exportedPalette.colorsAfterChange) === JSON.stringify(DEFAULT_PALETTE)
+    && JSON.stringify(exportedPalette.drawnAfterChange) === JSON.stringify(DEFAULT_PALETTE),
+    JSON.stringify([exportedPalette.colorsAfterChange, exportedPalette.drawnAfterChange]));
 
   // --- Dashed and dotted datasets, comparison and its tooltip (demo charts) ---
   const limitChart = charts.nth(LIMIT_CHART);

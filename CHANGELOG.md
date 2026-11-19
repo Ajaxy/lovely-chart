@@ -21,6 +21,7 @@
 - `datasets[*].color`, `comparison.color` and the `colors` of data that `onZoom` returns take `{ light, dark }`, a colour per skin. The legend buttons, `--lovely-chart-series-color` and the tooltip swatches follow the skin, as the plot and the minimap do.
 - Every colour parameter takes a `var()` of the page's custom properties, alone or inside a colour function such as `color-mix()`. The chart computes it on a hidden element inside it, so any colour the property holds works, and computes it again on each change of the `class` of `<html>` and, with `colorScheme: 'system'`, of `prefers-color-scheme`, repainting in place.
 - `refreshColors()`: reads the `var()` colours again, for custom properties that the page changes on another trigger than the skin, keeping the zoom, the range, the legend filter and the selection.
+- `DEFAULT_COLORS`, `getDefaultColors(datasetCount)` and `DEFAULT_COMPARISON_COLOR`, exported for elements of the page that show the same series as a chart. `getDefaultColors` returns a colour per dataset, those the chart gives in order to the datasets with no `color`: a subset of the eight `DEFAULT_COLORS` for fewer datasets, and the eight again from the first for more.
 
 ### Changed
 

@@ -1,9 +1,9 @@
 // Resolves `lovely-chart` through the package's own `exports`, so it checks the built `dist/` declarations
 /* eslint-disable no-null/no-null -- The public API takes `null` for a gap and for an unknown total */
 import LovelyChart, {
-  type ChartType, type Comparison, type DateLocale, type HatchedRange, type LabelType, type LovelyChartDatasetParams,
-  type LovelyChartInstance, type LovelyChartParams, type ReferenceLine, type SecondaryYAxisConfig, type ThemedColor,
-  type TooltipContent, type TooltipNotes,
+  type ChartType, type Comparison, type DateLocale, DEFAULT_COLORS, DEFAULT_COMPARISON_COLOR, getDefaultColors,
+  type HatchedRange, type LabelType, type LovelyChartDatasetParams, type LovelyChartInstance, type LovelyChartParams,
+  type ReferenceLine, type SecondaryYAxisConfig, type ThemedColor, type TooltipContent, type TooltipNotes,
 } from 'lovely-chart';
 
 declare const element: HTMLElement;
@@ -81,4 +81,9 @@ handle.update({ ...params, colorScheme: 'htmlClassName' });
 // @ts-expect-error A misspelled option fails, so the params are typed rather than `any`
 const misspelled: LovelyChartParams = { type: 'line', labels, datasets, sparkline: true };
 
-export { misspelled };
+// Swatches of the page in the default colours of a chart of two datasets and of its comparison line
+const swatches: string[] = [...getDefaultColors(2), DEFAULT_COMPARISON_COLOR];
+// @ts-expect-error The exported palette is read-only
+DEFAULT_COLORS[0] = DEFAULT_COMPARISON_COLOR;
+
+export { misspelled, swatches };

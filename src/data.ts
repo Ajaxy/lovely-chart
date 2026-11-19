@@ -10,12 +10,17 @@ import {
 import { getLabelFraction } from './formulas.js';
 import { getMaxMin } from './utils.js';
 
-const DEFAULT_COMPARISON_COLOR = '#6B7280';
+/** The colour of the `comparison` line, and of its swatches in the legend and the tooltip, when it sets none. */
+export const DEFAULT_COMPARISON_COLOR = '#6B7280';
 
-const DEFAULT_COLORS = [
+/**
+ * The eight default dataset colours, in order. A chart of fewer datasets takes a subset of them, as `getDefaultColors`
+ * returns it.
+ */
+export const DEFAULT_COLORS: readonly string[] = Object.freeze([
   '#3497ED', '#2373DB', '#9ED448', '#5FB641',
   '#F5BD25', '#F79E39', '#E65850', '#5D5CDC',
-];
+]);
 
 // For fewer datasets, a curated subset of `DEFAULT_COLORS` is used (indexed by dataset count).
 // Each step adds one color: lightblue, +lightgreen, +darkorange, +violet, +lightorange, +darkblue,
@@ -305,7 +310,7 @@ function prepareDatasets(
       const ownColor = datasetColors?.[key] || color;
       // A dataset with no colour of its own holds its place among the default colours under a fallback colour, so
       // the next one takes a default colour apart from those the fallback colours took
-      const defaultColor = ownColor ? undefined : defaultColors[nextDefaultColor++ % defaultColors.length];
+      const defaultColor = ownColor ? undefined : defaultColors[nextDefaultColor++];
 
       return {
         type: datasetType,
@@ -325,7 +330,15 @@ function prepareDatasets(
   };
 }
 
-function getDefaultColors(datasetsCount: number): string[] {
-  const subset = DEFAULT_COLORS_SUBSETS[datasetsCount];
-  return subset ? subset.map((index) => DEFAULT_COLORS[index]) : DEFAULT_COLORS;
+/**
+ * The default colours of a chart of `datasetCount` datasets, one per dataset. The chart gives them in order to the
+ * datasets with no colour of their own, so where none has one, each dataset takes the colour at its index. Fewer than
+ * eight datasets take a subset of `DEFAULT_COLORS` whose hues stand apart, and more take `DEFAULT_COLORS` again from
+ * the first. Each call returns a new array.
+ */
+export function getDefaultColors(datasetCount: number): string[] {
+  const subset = DEFAULT_COLORS_SUBSETS[datasetCount];
+  if (subset) return subset.map((index) => DEFAULT_COLORS[index]);
+
+  return Array.from({ length: datasetCount }, (_, i) => DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
 }

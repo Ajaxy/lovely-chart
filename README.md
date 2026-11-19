@@ -72,7 +72,7 @@ Parameter | Description |
 `isUtc`| `true` to read every date and time of the labels in UTC. Axis labels of days, hours and minutes and their tooltip titles otherwise follow the reader's time zone, while captions and day titles always read UTC. Default `false`.
 `datasets`| Array of params for each dataset
 `datasets[*].name`| Dataset name
-`datasets[*].color`| Dataset colour, in any of the forms under [Colours](#colours)
+`datasets[*].color`| Dataset colour, in any of the forms under [Colours](#colours). The datasets with none take the [default colours](#default-colours) in order.
 `datasets[*].values`| Array of dataset values; `null` leaves a gap
 `datasets[*].isInitiallyHidden`| `true` to start the dataset hidden, its legend button unchecked. Default `false`.
 `datasets[*].isDashed`| `true` to draw a `line` or `step` dataset in 6px dashes 4px apart. Its legend button gets a dashed outline and a `data-dashed` attribute, and its tooltip swatch a dashed outline. Other types ignore it, legend included. Default `false`.
@@ -140,13 +140,31 @@ document.documentElement.dataset.theme = 'dark';
 chart.refreshColors();
 ```
 
+#### Default colours
+
+The package exports the colours a chart gives the datasets with no `color`, for elements of the page that show the same series, such as a table beside the chart:
+
+Export | Description |
+---------|----|
+`DEFAULT_COLORS`| The eight default colours in order, as a frozen array: `#3497ED`, `#2373DB`, `#9ED448`, `#5FB641`, `#F5BD25`, `#F79E39`, `#E65850` and `#5D5CDC`.
+`getDefaultColors(datasetCount)`| The default colours of a chart of `datasetCount` datasets, one per dataset, in a new array. The chart gives them in order to the datasets with no `color`, so where none has one, the dataset at index `i` takes the colour at `i`. Fewer than eight datasets take a subset of `DEFAULT_COLORS` whose hues stand apart, as `#3497ED` and `#9ED448` for two; more take `DEFAULT_COLORS` again from the first.
+`DEFAULT_COMPARISON_COLOR`| The colour of the `comparison` line when it sets none, `#6B7280`.
+
+```js
+import { getDefaultColors } from 'lovely-chart';
+
+// The colours a chart of these providers gives them, for a table beside it
+const colors = getDefaultColors(providers.length);
+const providerColors = Object.fromEntries(providers.map((name, i) => [name, colors[i]]));
+```
+
 #### Reference and comparison parameters
 
 Parameter | Description |
 ---------|----|
 `referenceLines`| Dashed rules at fixed values of the main Y axis: `[{ value, label?, color? }]`. The Y range always reaches each value, stacked charts included, so a line with `color: 'transparent'` draws nothing and only pins the range. `label` is drawn above the right end of the line, none when empty. `color` is any CSS colour or `{ light, dark }`, and defaults to the Y-axis text colour. `label` reads in the direction of the page, so on a right-to-left page a sign before a number moves after it; a number wrapped in U+2066 and U+2069, as `'\u2066-1.2K\u2069'`, keeps its sign first. On a percentage chart `value` is a percentage from 0 to 100 and the range stays 0–100%. Ignored on pie and donut charts.
 `hatchedRanges`| Runs of labels whose values are estimated, partial, still accruing or forecast, hatched across the plot and the minimap: `[{ from, to, label?, color?, hasEdge?, isAccruing?, note?, titleNote? }]`, `from` and `to` inclusive label indexes, rounded and clamped to the labels. A `bar` or `step` chart hatches the columns of the range. A `line` or `area` chart starts the hatch at the point before the range, as the segment into an estimated value is estimated too, or halfway from it with `isAccruing`, for a period still filling, and ends it halfway to the label after the range. The hatch goes under the lines of a `line` or `step` chart and over the fills of a `bar` or `area` chart, under the comparison line, the mask over unfocused bars and the reference lines; ranges of one colour that touch hatch as one band. Each range keeps its own label and edge: `label` is drawn at the bottom left of the range's hatch, in the axis font size, clear of the Y-axis labels and of the next label, and dropped where it has no room. `hasEdge` draws a dashed rule where the range's hatch starts, none at the first label. `color` is any CSS colour or `{ light, dark }` for the hatch, the edge and the label, and defaults to the Y-axis text colour. `note` and `titleNote` are notes of the tooltip at each label of the range, under the rows and beside the title, as `resolveTooltipNotes` gives them. The minimap draws the hatch alone, and a sparkline the hatch and the edges. Ignored on pie and donut charts, a zoom into shares included; the data `onZoom` returns sets ranges of its own.
-`comparison`| A previous period, drawn as a dashed line: `{ name, color?, values }`. `values` holds the previous values per dataset, in the order of `datasets`, each aligned with `labels`; the line draws their sum over the datasets on screen, and a `null` leaves a gap. `color` takes any of the forms under [Colours](#colours), `#6B7280` by default. The legend names it beside a dashed swatch, and the tooltip lists it first with the change of the current total in percent. Ignored on percentage, pie and donut charts.
+`comparison`| A previous period, drawn as a dashed line: `{ name, color?, values }`. `values` holds the previous values per dataset, in the order of `datasets`, each aligned with `labels`; the line draws their sum over the datasets on screen, and a `null` leaves a gap. `color` takes any of the forms under [Colours](#colours), `DEFAULT_COMPARISON_COLOR`, `#6B7280`, by default. The legend names it beside a dashed swatch, and the tooltip lists it first with the change of the current total in percent. Ignored on percentage, pie and donut charts.
 
 #### Tooltip parameters
 
