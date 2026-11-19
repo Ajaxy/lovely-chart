@@ -111,10 +111,21 @@
   line-height: 20px;
   color: var(--text-color);
 
+  // Numbers read left to right, signs first, in a right-to-left row too, so the margin that keeps the values in a
+  // column at the end of the row is a physical one, on the side the row's own direction puts that end
   .lovely-chart--tooltip-dataset-value {
-    margin-inline-start: auto;
+    direction: ltr;
+    unicode-bidi: isolate;
+
+    margin-left: auto;
+
     font-weight: bold;
     font-variant-numeric: tabular-nums;
+  }
+
+  &:dir(rtl) .lovely-chart--tooltip-dataset-value {
+    margin-right: auto;
+    margin-left: 0;
   }
 
   &.lovely-chart--tooltip-dataset-total {
@@ -129,26 +140,25 @@
   border-bottom: 1px solid var(--grid-lines);
   opacity: 0.7;
 
-  // The value and its change read left to right, signs first, in a right-to-left page too, so the margin that keeps
-  // the value at the end of the row is a physical one
   .lovely-chart--tooltip-dataset-value {
-    direction: ltr;
-    unicode-bidi: isolate;
-    margin-left: auto;
     font-weight: normal;
-  }
-
-  [dir='rtl'] & .lovely-chart--tooltip-dataset-value {
-    margin-right: auto;
-    margin-left: 0;
   }
 }
 
+// A share reads left to right, its sign first, in a right-to-left page too, beside the swatch
 .lovely-chart--percentage-title {
+  direction: ltr;
+  unicode-bidi: isolate;
   display: inline-block;
+
   width: var(--lovely-chart-percentage-width, 35px);
+
   font-weight: bold;
-  text-align: end;
+  text-align: right;
+
+  &:dir(rtl) {
+    text-align: left;
+  }
 }
 
 // `:where()` keeps the specificity of `html.theme-dark .lovely-chart--tooltip-balloon`

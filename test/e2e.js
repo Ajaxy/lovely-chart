@@ -3072,12 +3072,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       comparison: { name: 'Before', values: [[5, 10], [2, 5]] },
     },
   });
-  // The characters of each number in the order they show, left to right
-  const rtlNumbers = await page.evaluate(async () => {
-    window.probeChart.selectLabel(1);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
-    const readVisualOrder = (element) => {
+  // The characters of an element's text in the order they show, left to right
+  await page.evaluate(() => {
+    window.readVisualOrder = (element) => {
       const range = document.createRange();
       const characters = [];
       const walk = (node) => {
@@ -3094,16 +3091,77 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       walk(element);
       return characters.sort((a, b) => a[1] - b[1]).map(([character]) => character).join('');
     };
+  });
+  const rtlNumbers = await page.evaluate(async () => {
+    window.probeChart.selectLabel(1);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    const { readVisualOrder } = window;
     return {
       comparison: readVisualOrder(balloon.querySelector(
         '.lovely-chart--tooltip-dataset-comparison .lovely-chart--tooltip-dataset-value',
       )),
+      sales: readVisualOrder(balloon.querySelector('[data-name="Sales"] .lovely-chart--tooltip-dataset-value')),
       titleTotal: readVisualOrder(balloon.querySelector('.lovely-chart--tooltip-title-total')),
     };
   });
-  check('an rtl tooltip puts the signs of its comparison and its title total before the digits',
-    rtlNumbers.comparison === '15·-233%' && rtlNumbers.titleTotal === '-20',
+  check('an rtl tooltip puts the signs of its numbers before the digits',
+    rtlNumbers.comparison === '15·-233%' && rtlNumbers.sales === '-30' && rtlNumbers.titleTotal === '-20',
     JSON.stringify(rtlNumbers));
+  await unmountProbe(page);
+  await mountProbe(page, {
+    config: {
+      type: 'bar', isPercentage: true, isStacked: true, labelType: 'text', labels: ['A', 'B'],
+      datasets: [
+        { name: 'Gains', values: [50, 50] }, { name: 'Losses', values: [-10, -10] }, { name: 'Flat', values: [7, 7] },
+      ],
+    },
+  });
+  const rtlColumns = await page.evaluate(async () => {
+    window.probeChart.selectLabel(1);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    const balloonLeft = balloon.getBoundingClientRect().left;
+    const range = document.createRange();
+    const shares = [...balloon.querySelectorAll('.lovely-chart--percentage-title')];
+    return {
+      valueLefts: [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset-value')]
+        .map((value) => Math.round(value.getBoundingClientRect().left - balloonLeft)),
+      loss: window.readVisualOrder(balloon.querySelector('[data-name="Losses"] .lovely-chart--percentage-title')),
+      // Each share's text starts at the left of its box, beside the swatch
+      shareInsets: shares.map((share) => {
+        range.selectNodeContents(share);
+        return Math.round(range.getBoundingClientRect().left - share.getBoundingClientRect().left);
+      }),
+    };
+  });
+  check('an rtl tooltip keeps its values in a column and its shares, signs first, beside their swatches',
+    rtlColumns.valueLefts.length === 4 && new Set(rtlColumns.valueLefts).size === 1 && rtlColumns.loss === '-21%'
+    && rtlColumns.shareInsets.length === 3 && rtlColumns.shareInsets.every((inset) => inset === 0),
+    JSON.stringify(rtlColumns));
+  // A chart of left-to-right direction on the right-to-left page sets its rows left to right
+  const nestedColumns = await page.evaluate(async () => {
+    document.getElementById('probe').dir = 'ltr';
+    window.probeChart.selectLabel(1);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    const range = document.createRange();
+    return {
+      valueEnds: [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset')].map((row) => Math.round(
+        row.getBoundingClientRect().right
+        - row.querySelector('.lovely-chart--tooltip-dataset-value').getBoundingClientRect().right,
+      )),
+      // Each share's text ends at the right of its box, beside the swatch
+      shareInsets: [...balloon.querySelectorAll('.lovely-chart--percentage-title')].map((share) => {
+        range.selectNodeContents(share);
+        return Math.round(share.getBoundingClientRect().right - range.getBoundingClientRect().right);
+      }),
+    };
+  });
+  check('an ltr chart on an rtl page keeps its values in a column at the end of its rows, its shares by their swatches',
+    nestedColumns.valueEnds.length === 4 && nestedColumns.valueEnds.every((end) => end === 0)
+    && nestedColumns.shareInsets.length === 3 && nestedColumns.shareInsets.every((inset) => inset === 0),
+    JSON.stringify(nestedColumns));
   await unmountProbe(page);
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
   await sleep(300);

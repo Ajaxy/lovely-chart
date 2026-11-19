@@ -50,6 +50,7 @@
 - An area splits at a missing value and fills each run down to its own stack base; a lone value draws as a dot.
 - A line run of one or two points between gaps draws its points as dots.
 - The type declarations resolve under `moduleResolution` `node16` and `nodenext`, so the parameters type-check there.
+- Tooltip values, totals and shares read left to right on a right-to-left page, each sign before its digits.
 
 ## 2.0.6
 
