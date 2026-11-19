@@ -18,16 +18,19 @@ export function captureEvents(element: HTMLElement, options: CaptureEventsOption
   let captureEvent: CaptureEvent | undefined;
   let longPressTimeout: number | undefined;
 
+  // The document hears the moves and the release before any element of the page, which can stop them
   function onCapture(e: CaptureEvent) {
     captureEvent = e;
 
     if (e.type === 'mousedown') {
-      addEventListener(document, 'mousemove', onMove);
-      addEventListener(document, 'mouseup', onRelease);
+      addEventListener(document, 'mousemove', onMove, true);
+      addEventListener(document, 'mouseup', onRelease, true);
+      // A context menu opened by the press, as a secondary or Control click opens it on macOS, takes its release
+      addEventListener(document, 'contextmenu', onRelease, true);
     } else if (e.type === 'touchstart') {
-      addEventListener(document, 'touchmove', onMove);
-      addEventListener(document, 'touchend', onRelease);
-      addEventListener(document, 'touchcancel', onRelease);
+      addEventListener(document, 'touchmove', onMove, true);
+      addEventListener(document, 'touchend', onRelease, true);
+      addEventListener(document, 'touchcancel', onRelease, true);
 
       // https://stackoverflow.com/questions/11287877/how-can-i-get-e-offsetx-on-mobile-ipad
       // Android does not have this value, and iOS has it but as read-only
@@ -37,7 +40,7 @@ export function captureEvents(element: HTMLElement, options: CaptureEventsOption
     }
 
     if (options.draggingCursor) {
-      document.documentElement.classList.add(`cursor-${options.draggingCursor}`);
+      document.documentElement.classList.add(`lovely-chart--cursor-${options.draggingCursor}`);
     }
 
     options.onCapture?.(e);
@@ -64,19 +67,26 @@ export function captureEvents(element: HTMLElement, options: CaptureEventsOption
     }
 
     if (options.draggingCursor) {
-      document.documentElement.classList.remove(`cursor-${options.draggingCursor}`);
+      document.documentElement.classList.remove(`lovely-chart--cursor-${options.draggingCursor}`);
     }
 
-    removeEventListener(document, 'mouseup', onRelease);
-    removeEventListener(document, 'mousemove', onMove);
-    removeEventListener(document, 'touchcancel', onRelease);
-    removeEventListener(document, 'touchend', onRelease);
-    removeEventListener(document, 'touchmove', onMove);
+    removeEventListener(document, 'mouseup', onRelease, true);
+    removeEventListener(document, 'mousemove', onMove, true);
+    removeEventListener(document, 'contextmenu', onRelease, true);
+    removeEventListener(document, 'touchcancel', onRelease, true);
+    removeEventListener(document, 'touchend', onRelease, true);
+    removeEventListener(document, 'touchmove', onMove, true);
 
     captureEvent = undefined;
   }
 
   function onMove(e: CaptureEvent) {
+    // A release over a frame never reaches the document, which hears the pointer's next move with no button pressed
+    if (captureEvent && e.type === 'mousemove' && (e as MouseEvent).buttons === 0) {
+      onRelease(e);
+      return;
+    }
+
     if (captureEvent) {
       if (longPressTimeout) {
         clearTimeout(longPressTimeout);

@@ -196,3 +196,14 @@
     }
   }
 }
+
+// A minimap drag holds its cursor over the whole page, wherever the pointer goes until the release
+html.lovely-chart--cursor-grabbing,
+html.lovely-chart--cursor-grabbing * {
+  cursor: var(--custom-cursor, grabbing) !important;
+}
+
+html.lovely-chart--cursor-ew-resize,
+html.lovely-chart--cursor-ew-resize * {
+  cursor: var(--custom-cursor, ew-resize) !important;
+}

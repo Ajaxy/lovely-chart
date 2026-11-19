@@ -718,7 +718,9 @@ async function sweepProbe(page, stepPx = 3) {
     const host = document.getElementById('probe');
     const { left, right, top, height } = host.querySelector('.lovely-chart--minimap canvas').getBoundingClientRect();
     const fire = (target, type, clientX) => {
-      const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY: top + height / 2 });
+      const event = new MouseEvent(type, {
+        bubbles: true, cancelable: true, buttons: type === 'mouseup' ? 0 : 1, clientX, clientY: top + height / 2,
+      });
       (type === 'mousedown' ? target : document).dispatchEvent(event);
     };
     const drag = async (target, fromX, toX) => {
@@ -892,7 +894,8 @@ function interruptProbe(page, action) {
     await wait(800);
 
     const fire = (target, type, x, y) => {
-      target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      const buttons = type === 'mouseup' || type === 'click' ? 0 : 1;
+      target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, buttons, clientX: x, clientY: y }));
     };
     const center = (target) => {
       const { left, top, width, height } = target.getBoundingClientRect();
@@ -1350,6 +1353,110 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('destroy() ends a drag and leaves no frame or timer running',
     !destroyed.htmlClass.includes('cursor-') && destroyed.lateCallbacks === 0,
     `html: "${destroyed.htmlClass}", callbacks after destroy(): ${destroyed.lateCallbacks}`);
+
+  // --- Minimap: a drag holds its cursor over the page until the release ---
+  const cursorConfig = {
+    title: 'Probe — Drag cursor',
+    type: 'line',
+    withMinimap: true,
+    labels: Array.from({ length: INTERRUPTED_LABELS }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+    datasets: [{ name: 'A', values: Array.from({ length: INTERRUPTED_LABELS }, (_, i) => 10 + (i % 4) * 10) }],
+  };
+  const cursorProbe = await mountProbe(page, { config: cursorConfig });
+  await cursorProbe.scrollIntoViewIfNeeded();
+  // The cursor classes on `<html>`, and the cursor of the page under them
+  const readDragCursor = () => page.evaluate(() => ({
+    classes: [...document.documentElement.classList].filter((name) => name.includes('cursor-')),
+    cursor: getComputedStyle(document.body).cursor,
+  }));
+  const cursorSlider = await cursorProbe.locator('.lovely-chart--minimap-slider-inner').boundingBox();
+  const offHandle = { x: cursorSlider.x + cursorSlider.width / 2, y: cursorSlider.y - 200 };
+  const dragCursor = {};
+  await page.mouse.move(cursorSlider.x + cursorSlider.width / 2, cursorSlider.y + cursorSlider.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(offHandle.x, offHandle.y, { steps: 5 });
+  dragCursor.slider = await readDragCursor();
+  await page.mouse.move(-20, -20, { steps: 5 });
+  await page.mouse.up();
+  dragCursor.releasedOutsideWindow = await readDragCursor();
+  const cursorEar = await cursorProbe.locator('.lovely-chart--minimap-slider-handle').first().boundingBox();
+  await page.mouse.move(cursorEar.x + cursorEar.width / 2, cursorEar.y + cursorEar.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(offHandle.x, offHandle.y, { steps: 5 });
+  dragCursor.ear = await readDragCursor();
+  await page.evaluate(() => document.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+  dragCursor.contextMenu = await readDragCursor();
+  await page.mouse.up();
+  dragCursor.touchCancelled = await page.evaluate(() => {
+    const ear = document.querySelector('#probe .lovely-chart--minimap-slider-handle');
+    const { left, top } = ear.getBoundingClientRect();
+    const touch = new Touch({ identifier: 1, target: ear, clientX: left + 4, clientY: top + 4, pageX: left + 4 });
+    const init = { bubbles: true, cancelable: true, touches: [touch], targetTouches: [touch], changedTouches: [touch] };
+    ear.dispatchEvent(new TouchEvent('touchstart', init));
+    const classes = [...document.documentElement.classList].filter((name) => name.includes('cursor-'));
+    document.dispatchEvent(new TouchEvent('touchcancel', { ...init, touches: [], targetTouches: [] }));
+    return {
+      during: classes,
+      after: [...document.documentElement.classList].filter((name) => name.includes('cursor-')),
+    };
+  });
+  await unmountProbe(page);
+  check('a slider drag holds the grabbing cursor over the page through a prefixed class',
+    JSON.stringify(dragCursor.slider) === '{"classes":["lovely-chart--cursor-grabbing"],"cursor":"grabbing"}',
+    JSON.stringify(dragCursor.slider));
+  check('an ear drag holds the resize cursor over the page through a prefixed class',
+    JSON.stringify(dragCursor.ear) === '{"classes":["lovely-chart--cursor-ew-resize"],"cursor":"ew-resize"}',
+    JSON.stringify(dragCursor.ear));
+  check('a drag lets the cursor go on a release outside the window, a context menu and a cancelled touch',
+    [dragCursor.releasedOutsideWindow, dragCursor.contextMenu].every(({ classes, cursor }) => (
+      classes.length === 0 && cursor === 'auto'
+    ))
+    && JSON.stringify(dragCursor.touchCancelled) === '{"during":["lovely-chart--cursor-ew-resize"],"after":[]}',
+    JSON.stringify(dragCursor));
+
+  const stopperProbe = await mountProbe(page, { config: { ...cursorConfig, title: 'Probe — Drag released unseen' } });
+  await stopperProbe.scrollIntoViewIfNeeded();
+  // A release the document never sees in the bubbling phase, over an element of the page that stops it
+  const stoppedSlider = await stopperProbe.locator('.lovely-chart--minimap-slider-inner').boundingBox();
+  const stopperCenter = { x: stoppedSlider.x + stoppedSlider.width / 2, y: stoppedSlider.y - 200 };
+  await page.evaluate(({ x, y }) => {
+    const stopper = document.createElement('div');
+    stopper.id = 'probe-stopper';
+    stopper.style.cssText = `position: fixed; left: ${x - 50}px; top: ${y - 50}px; width: 100px; height: 100px`;
+    stopper.addEventListener('mouseup', (e) => e.stopPropagation());
+    document.body.appendChild(stopper);
+  }, stopperCenter);
+  await page.mouse.move(stoppedSlider.x + stoppedSlider.width / 2, stoppedSlider.y + stoppedSlider.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(stopperCenter.x, stopperCenter.y, { steps: 5 });
+  dragCursor.overStopper = await readDragCursor();
+  await page.mouse.up();
+  dragCursor.releasedOverStopper = await readDragCursor();
+  await page.evaluate(() => document.getElementById('probe-stopper').remove());
+  await sleep(600);
+  // A release over a frame reaches neither the document nor the chart, whose next move comes with no button pressed
+  dragCursor.movedWithoutButton = await page.evaluate(async () => {
+    const slider = document.querySelector('#probe .lovely-chart--minimap-slider-inner');
+    const { left, top, width, height } = slider.getBoundingClientRect();
+    const fire = (target, type, clientX, buttons) => target.dispatchEvent(new MouseEvent(type, {
+      bubbles: true, cancelable: true, buttons, clientX, clientY: top + height / 2,
+    }));
+    fire(slider, 'mousedown', left + width / 2, 1);
+    fire(document, 'mousemove', left + width / 2 + 40, 0);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return {
+      classes: [...document.documentElement.classList].filter((name) => name.includes('cursor-')),
+      sliderShift: slider.getBoundingClientRect().left - left,
+    };
+  });
+  await unmountProbe(page);
+  check('a drag ends on a release over an element that stops it, and on a move with no button pressed',
+    dragCursor.overStopper.classes.length === 1
+    && dragCursor.releasedOverStopper.classes.length === 0 && dragCursor.releasedOverStopper.cursor === 'auto'
+    && dragCursor.movedWithoutButton.classes.length === 0 && dragCursor.movedWithoutButton.sliderShift === 0,
+    JSON.stringify({
+      over: dragCursor.overStopper, stopped: dragCursor.releasedOverStopper, moved: dragCursor.movedWithoutButton,
+    }));
 
   // A month-granularity chart must not caption its zoom with a single day.
   const monthZoomCaption = await page.evaluate(async () => {
