@@ -12,6 +12,7 @@
 - `resolveTooltipNotes`: notes of the tooltip at a label, `(labelValue, datasetIndexes, labelIndex) => { titleNote?, notes? } | undefined`, in `--tooltip-muted-text-color`. A `titleNote` follows the date in `.lovely-chart--tooltip-title-note`, before a title total, and `notes` are lines below the rows in `.lovely-chart--tooltip-notes`, under a rule in `--tooltip-separator-color`, wrapped to the width of the rows. They change with the rows, for a pointer, a touch or `selectLabel()`; ignored on pie and donut charts.
 - `hatchedRanges[*].note` and `hatchedRanges[*].titleNote`: notes of the tooltip at each label of a range. Range notes come first, in range order, then those of `resolveTooltipNotes`; each splits into lines at `\n`, and a line shown already is left out. The `titleNote` of `resolveTooltipNotes` wins over a range's, and among ranges the first wins.
 - `TooltipNotes` type.
+- `onZoomChange(labelValue, labelIndex)` and `resolveTooltipTotal(labelValue, datasetIndexes, labelIndex)`: the label's index in `labels` as the last argument, beside its value, the timestamp of a date label or the index of a text label. `onZoomChange` passes `undefined` for both once zoomed out.
 
 ### Changed
 

@@ -174,7 +174,7 @@ export class Zoomer {
     const shouldZoomToLines = Object.keys(this.#data.datasets).length !== Object.keys(newData.datasets).length;
 
     if (isInstant) {
-      this.#applyZoomData(newData, shouldZoomToLines, zoomInLabel, true);
+      this.#applyZoomData(newData, shouldZoomToLines, zoomInLabel, labelIndex, true);
       this.#container.style.visibility = '';
 
       return;
@@ -198,7 +198,7 @@ export class Zoomer {
     clearTimeout(this.#stateAnimatingTimeout);
     this.#swapDataTimeout = window.setTimeout(() => {
       this.#swapDataTimeout = undefined;
-      this.#applyZoomData(newData, shouldZoomToLines, zoomInLabel, false);
+      this.#applyZoomData(newData, shouldZoomToLines, zoomInLabel, labelIndex, false);
     }, this.#stateManager.hasAnimations() ? ZOOM_TIMEOUT : 0);
 
     this.#stateAnimatingTimeout = window.setTimeout(() => {
@@ -213,6 +213,7 @@ export class Zoomer {
     newData: AnalyzedData,
     shouldZoomToLines: boolean,
     zoomInLabel: XLabel | undefined,
+    labelIndex: number,
     isInstant: boolean,
   ) {
     const legendBefore = describeLegend(this.#data);
@@ -306,7 +307,11 @@ export class Zoomer {
     }
 
     // The report goes last, as its callback can update or destroy the chart
-    this.#overviewData.onZoomChange?.(this.#isZoomed ? zoomInLabel?.value : undefined);
+    if (zoomInLabel) {
+      this.#overviewData.onZoomChange?.(zoomInLabel.value, labelIndex);
+    } else {
+      this.#overviewData.onZoomChange?.(undefined, undefined);
+    }
   }
 
   // The hourly window in zoomed data may be clamped at the data edges, so the

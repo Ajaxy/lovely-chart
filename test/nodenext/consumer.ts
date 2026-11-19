@@ -37,7 +37,7 @@ const params: LovelyChartParams = {
   isTooltipOrderFixed: true,
   isTooltipTotalInTitle: true,
   formatTooltipValue: (value) => value.toFixed(1),
-  resolveTooltipTotal: (labelValue, datasetIndexes) => (datasetIndexes.length ? labelValue : null),
+  resolveTooltipTotal: (labelValue, datasetIndexes, labelIndex) => (datasetIndexes.length ? labels[labelIndex] : null),
   resolveTooltipNotes: (labelValue, datasetIndexes, labelIndex) => (
     labelIndex === labels.length - 1 && datasetIndexes.length ? notes : undefined
   ),
@@ -58,7 +58,7 @@ const params: LovelyChartParams = {
   dateLocale,
   secondaryYAxis,
   onZoom: (labelValue) => Promise.resolve({ type: 'line', labels: [labelValue], datasets, colors: { y0: '#3497ED' } }),
-  onZoomChange: (labelValue) => labelValue?.toFixed(),
+  onZoomChange: (labelValue, labelIndex) => [labelValue?.toFixed(), labelIndex?.toFixed()],
   onHiddenSeriesChange: (names, datasetIndexes) => names.length + datasetIndexes.length,
   onSelectedIndexChange: (labelIndex) => labelIndex?.toFixed(),
 };

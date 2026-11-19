@@ -402,7 +402,7 @@ export default class LovelyChart {
   // A rebuild opens the overview, so a zoom the reader saw ends
   #reportZoomOut() {
     if (this.#zoomer?.isZoomed()) {
-      this.#originalData.onZoomChange?.(undefined);
+      this.#originalData.onZoomChange?.(undefined, undefined);
     }
   }
 

@@ -4919,6 +4919,96 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   }
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
 
+  // --- The index of a label that `onZoomChange` and `resolveTooltipTotal` pass after its value ---
+  // A text label's value is its index, and a date label's its timestamp. The data `onZoom` returns passes its own
+  // `resolveTooltipTotal` the indexes of its own labels.
+  const readLabelArguments = (labels) => page.evaluate(async (spec) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const log = [];
+    const buildDatasets = (length) => ['A', 'B'].map((name, i) => ({
+      name, values: Array.from({ length }, (_, j) => 10 * (i + 1) + j),
+    }));
+    const isText = typeof spec.labels[0] === 'string';
+    const params = {
+      type: 'bar',
+      isStacked: true,
+      title: 'Probe — Label indexes',
+      labels: spec.labels,
+      datasets: buildDatasets(spec.labels.length),
+      zoomToShares: isText,
+      onZoom: isText ? undefined : (day) => Promise.resolve({
+        type: 'bar',
+        isStacked: true,
+        labels: Array.from({ length: 24 }, (_, hour) => day + hour * spec.hourMs),
+        datasets: buildDatasets(24),
+        resolveTooltipTotal: (value, datasetIndexes, index) => {
+          log.push(['zoomed total', value, index]);
+        },
+      }),
+      resolveTooltipTotal: (value, datasetIndexes, index) => {
+        log.push(['total', value, index]);
+      },
+      onZoomChange: (value, index) => log.push(['zoom', value ?? 'none', index ?? 'none']),
+    };
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    // The calls of the callbacks while a step settles, each distinct call once
+    const readStep = async (action, ms) => {
+      log.length = 0;
+      action();
+      await wait(ms);
+      return [...new Set(log.map((entry) => JSON.stringify(entry)))].map((entry) => JSON.parse(entry));
+    };
+    const clickColumn = (labelIndex) => {
+      const plot = element.querySelector('.lovely-chart--tooltip');
+      const { left, top, width, height } = plot.getBoundingClientRect();
+      plot.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        clientX: left + (width * (labelIndex + 0.5)) / spec.labels.length,
+        clientY: top + height / 2,
+      }));
+    };
+    const steps = {
+      initialZoom: await readStep(() => {
+        window.probeChart = new LovelyChart(element, { ...params, initialZoom: 2 });
+      }, 1800),
+      zoomedSelection: await readStep(() => window.probeChart.selectLabel(5), 300),
+      zoomOut: await readStep(() => (
+        element.querySelector('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').click()
+      ), 1500),
+      selection: await readStep(() => window.probeChart.selectLabel(3), 300),
+      zoomIn: await readStep(() => clickColumn(1), 1500),
+      update: await readStep(() => window.probeChart.update(params), 300),
+    };
+    window.probeChart.destroy();
+    element.remove();
+    return steps;
+  }, { labels, hourMs: HOUR_MS });
+  const readZoomCalls = (calls) => JSON.stringify(calls.filter(([kind]) => kind === 'zoom'));
+  const labelDays = Array.from({ length: 5 }, (_, i) => Date.UTC(2026, 10, 1 + i));
+  const dateArguments = await readLabelArguments(labelDays);
+  const textArguments = await readLabelArguments(['North', 'South', 'East', 'West', 'Central']);
+  check('onZoomChange passes a date label\'s timestamp and its index, and undefined for both once zoomed out',
+    readZoomCalls(dateArguments.initialZoom) === JSON.stringify([['zoom', labelDays[2], 2]])
+    && readZoomCalls(dateArguments.zoomIn) === JSON.stringify([['zoom', labelDays[1], 1]])
+    && readZoomCalls(dateArguments.zoomOut) === '[["zoom","none","none"]]'
+    && readZoomCalls(dateArguments.update) === '[["zoom","none","none"]]',
+    JSON.stringify(dateArguments));
+  const zoomedHourTotal = ['zoomed total', labelDays[2] + 5 * HOUR_MS, 5];
+  check('resolveTooltipTotal passes a date label\'s timestamp, then its index in the labels of its own data',
+    JSON.stringify(dateArguments.selection) === JSON.stringify([['total', labelDays[3], 3]])
+    && JSON.stringify(dateArguments.zoomedSelection) === JSON.stringify([zoomedHourTotal]),
+    JSON.stringify(dateArguments));
+  check('a text label\'s value is its index, in onZoomChange and resolveTooltipTotal',
+    readZoomCalls(textArguments.initialZoom) === '[["zoom",2,2]]'
+    && readZoomCalls(textArguments.zoomIn) === '[["zoom",1,1]]'
+    && readZoomCalls(textArguments.zoomOut) === '[["zoom","none","none"]]'
+    && readZoomCalls(textArguments.update) === '[["zoom","none","none"]]'
+    && JSON.stringify(textArguments.selection) === '[["total",3,3]]',
+    JSON.stringify(textArguments));
+
   // --- Colour schemes: the `theme-dark` class on <html>, or the system scheme, each against the other ---
   // A reference line of a colour per skin shows the skin of the canvas, and `--background-color` that of the CSS
   const schemeConfig = {

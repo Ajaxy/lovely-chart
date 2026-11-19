@@ -415,7 +415,7 @@ export class Tooltip {
 
   #updateBalloon(datasetStatistics: StatisticsItem[], labelIndex: number) {
     const resolvedTotal = this.#data.isCircle ? undefined : this.#data.resolveTooltipTotal?.(
-      this.#data.xLabels[labelIndex].value, datasetStatistics.map(({ originalIndex }) => originalIndex),
+      this.#data.xLabels[labelIndex].value, datasetStatistics.map(({ originalIndex }) => originalIndex), labelIndex,
     );
     const statistics = this.#data.comparison
       ? [this.#buildComparisonItem(datasetStatistics, labelIndex, resolvedTotal), ...datasetStatistics]

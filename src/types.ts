@@ -228,11 +228,11 @@ export interface LovelyChartParams {
   /** Formats a number of the tooltip; `valuePrefix` and `valueSuffix` still wrap the result. */
   formatTooltipValue?: (value: number) => string;
   /**
-   * The total of a tooltip, for the label's value (its timestamp, or the index of a text label) and the indexes
-   * of the datasets on screen. `undefined` keeps the sum of the rows and `null` shows "—". The comparison change
-   * reads this total too.
+   * The total of a tooltip, for the label's value (its timestamp, or the index of a text label), the indexes of the
+   * datasets on screen and the label's index. `undefined` keeps the sum of the rows and `null` shows "—". The
+   * comparison change reads this total too.
    */
-  resolveTooltipTotal?: (labelValue: number, datasetIndexes: number[]) => number | null | undefined;
+  resolveTooltipTotal?: (labelValue: number, datasetIndexes: number[], labelIndex: number) => number | null | undefined;
   /**
    * The notes of a tooltip, for the label's value (its timestamp, or the index of a text label), the indexes of the
    * datasets on screen and the label's index. Its notes follow those of the `hatchedRanges` that hold the label, and
@@ -251,15 +251,16 @@ export interface LovelyChartParams {
   secondaryYAxis?: SecondaryYAxisConfig;
   onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
   /**
-   * Called once a zoom settles, with the value of the zoomed-in label, and with `undefined` once zoomed out, also
-   * when `update()`, a resize or an orientation change returns a zoomed chart to its overview.
+   * Called once a zoom settles, with the value of the zoomed-in label (its timestamp, or the index of a text label)
+   * and its index in `labels`, and with `undefined` for both once zoomed out, also when `update()`, a resize or an
+   * orientation change returns a zoomed chart to its overview.
    */
-  onZoomChange?: (labelValue: number | undefined) => void;
+  onZoomChange?: (labelValue: number | undefined, labelIndex: number | undefined) => void;
   /** Called when the reader shows or hides a dataset in the legend, with the names and indexes of the hidden ones. */
   onHiddenSeriesChange?: (names: string[], datasetIndexes: number[]) => void;
   /**
-   * Called when the selected label changes, by pointer, touch or `selectLabel()`, with its index, and with
-   * `undefined` once nothing is selected; a pie or donut selects no label.
+   * Called when the selected label changes, by pointer, touch or `selectLabel()`, with its index, not its value, and
+   * with `undefined` once nothing is selected; a pie or donut selects no label.
    */
   onSelectedIndexChange?: (labelIndex: number | undefined) => void;
   /** Element that holds the legend, in place of the chart container. */
