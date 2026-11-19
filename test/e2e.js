@@ -1113,6 +1113,13 @@ async function hoverWiggle(page, box, fx, fy) {
   await sleep(500);
 }
 
+// Whether a console message reports a resource of another site failing to load, as a badge on the demo page can
+// while its service is down
+function isOtherSiteLoadFailure(message, pageUrl) {
+  return message.text().startsWith('Failed to load resource')
+    && new URL(message.location().url || pageUrl).origin !== new URL(pageUrl).origin;
+}
+
 async function drag(page, x, y, dx, dy, steps = 10) {
   await page.mouse.move(x, y);
   await page.mouse.down();
@@ -1129,7 +1136,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const errors = [];
   page.on('pageerror', (err) => errors.push(`[pageerror] ${err.message}`));
   page.on('console', (m) => {
-    if (m.type() === 'error') errors.push(`[console] ${m.text()}`);
+    if (m.type() === 'error' && !isOtherSiteLoadFailure(m, url)) errors.push(`[console] ${m.text()}`);
   });
 
   await page.goto(url);
