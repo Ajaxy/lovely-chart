@@ -58,6 +58,10 @@ const params: LovelyChartParams = {
   isUtc: true,
   plotHeight: 52,
   isSparkline: false,
+  noHeader: true,
+  noTooltip: false,
+  noCaption: true,
+  noZoomOutControl: true,
   axisFontSize: 11,
   areLinesSmooth: true,
   areaOpacity: 0.5,
@@ -83,6 +87,7 @@ chart.refreshColors();
 chart.setLegendContainer(element);
 chart.setLegendContainer(undefined);
 const labelX: number | undefined = chart.getLabelX(1, 0.5) ?? chart.getLabelX(1);
+chart.zoomOut();
 
 const keptView: LovelyChartUpdateOptions = { shouldKeepFilter: true, shouldKeepZoom: true, shouldKeepSelection: false };
 chart.update(params, keptView);

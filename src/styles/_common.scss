@@ -90,6 +90,50 @@
   }
 }
 
+// Without the band, or with nothing in it to show, the header holds the zoom-out control alone, which floats over the
+// top inline-start corner of the plot while zoomed, on a backdrop over the top label of the main axis. It stacks over
+// the hover layer, which comes after it, and under the balloon, in a stacking context of the chart's own.
+.lovely-chart--container-no-header,
+.lovely-chart--container-empty-header {
+  isolation: isolate;
+
+  .lovely-chart--header {
+    pointer-events: none;
+
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    inset-inline: 0;
+  }
+
+  .lovely-chart--header-caption {
+    display: none;
+  }
+
+  .lovely-chart--header-zoom-out-control {
+    pointer-events: auto;
+
+    margin-inline-start: -6px;
+    padding-inline: 6px;
+    border-radius: 4px;
+
+    background: var(--background-color);
+  }
+
+  .lovely-chart--tooltip-balloon {
+    z-index: 2;
+  }
+}
+
+// A page keeps the band of a header with nothing to show by its height, as to level the plots of a row
+.lovely-chart--container-empty-header {
+  &::before {
+    content: '';
+    display: block;
+    height: var(--lovely-chart-empty-header-height, 0);
+  }
+}
+
 .lovely-chart--container-type-circle {
   &.lovely-chart--state-animating {
     > canvas {

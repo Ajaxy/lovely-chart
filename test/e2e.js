@@ -297,6 +297,12 @@ const LINES_ZOOM_LAST_LABEL_INDEX = 9;
 // The labels of the balloon placement probe, the newest of them at the right edge of the plot
 const EDGE_LABEL_COUNT = 8;
 const HOUR_MS = 3_600_000;
+// The band in px a page keeps for a header with nothing to show, and the time a zoom in or out takes to settle
+const EMPTY_HEADER_BAND = 20;
+const ZOOM_SETTLE_MS = 1500;
+// The distance in px from the left of the plot at which the pointer opens the balloon of a label left of the middle
+// over the floating zoom-out control
+const FLOATING_CONTROL_HOVER_X = 40;
 // The fewest pixels of its colour that show a dataset drawn on a canvas
 const MIN_DATASET_PIXELS = 100;
 // The fewest pixels of its colour that show a thin line or a halo drawn on a canvas, as a dashed comparison line
@@ -7107,6 +7113,288 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       JSON.stringify({ calledEmpty, calledWider, hovered }));
   }
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
+
+  // --- The header, the tooltip and the legend left out, the band of an empty header, and `zoomOut()` ---
+  // The plot, its hover layer and the plot area start under the header: at the top of a chart without the band or with
+  // no title and no caption, and under the band a page keeps for such a header. A legend in a hidden element takes its
+  // spacing along, as the legend a lone dataset hides.
+  const headerLayouts = await page.evaluate(async (band) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const labels = [1, 2, 3, 4].map((day) => Date.UTC(2026, 0, day));
+    const textLabels = labels.map((_, i) => `Label ${i}`);
+    const specs = {
+      titled: { title: 'Probe — Header' },
+      untitled: {},
+      noHeader: { title: 'Probe — No header', noHeader: true },
+      noCaption: { noCaption: true },
+      textLabels: { labels: textLabels },
+      keptBand: { labels: textLabels },
+      hiddenLegend: { title: 'Probe — Hidden legend' },
+      loneDataset: { title: 'Probe — Lone dataset', datasets: [{ name: 'A', values: [3, 5, 2, 6] }] },
+    };
+    const layouts = {};
+    for (const [name, config] of Object.entries(specs)) {
+      const element = document.createElement('div');
+      const legend = document.createElement('div');
+      legend.hidden = true;
+      if (name === 'keptBand') {
+        element.style.setProperty('--lovely-chart-empty-header-height', `${band}px`);
+      }
+      document.getElementById('container').append(element, legend);
+      const chart = new LovelyChart(element, {
+        type: 'line',
+        labels,
+        datasets: [{ name: 'A', values: [3, 5, 2, 6] }, { name: 'B', values: [1, 2, 3, 2] }],
+        legendContainer: name === 'hiddenLegend' ? legend : undefined,
+        ...config,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      const container = element.querySelector('.lovely-chart--container');
+      const top = container.getBoundingClientRect().top;
+      const plot = container.querySelector(':scope > canvas').getBoundingClientRect();
+      const caption = container.querySelector('.lovely-chart--header-caption');
+      layouts[name] = {
+        plotTop: plot.top - top,
+        hoverTop: container.querySelector('.lovely-chart--tooltip canvas').getBoundingClientRect().top - top,
+        areaInset: parseFloat(element.style.getPropertyValue('--lovely-chart-plot-area-top')) - (plot.top - top),
+        headerHeight: container.querySelector('.lovely-chart--header').getBoundingClientRect().height,
+        title: container.querySelector('.lovely-chart--header-title').textContent,
+        caption: getComputedStyle(caption).display === 'none' ? '' : caption.textContent,
+        bottomSpace: container.getBoundingClientRect().bottom - plot.bottom,
+        legendButtons: legend.querySelectorAll('.lovely-chart--button').length,
+      };
+      chart.destroy();
+      element.remove();
+      legend.remove();
+    }
+    return layouts;
+  }, EMPTY_HEADER_BAND);
+  const { titled, untitled, noHeader, noCaption, textLabels, keptBand, hiddenLegend, loneDataset } = headerLayouts;
+  const isUnderPlot = ({ hoverTop, plotTop, areaInset }) => (
+    isNear(hoverTop, plotTop) && isNear(areaInset, titled.areaInset)
+  );
+  check('noHeader starts the plot, its hover layer and the plot area at the top, with no title or caption',
+    isNear(noHeader.plotTop, titled.plotTop - titled.headerHeight) && isUnderPlot(noHeader)
+    && !noHeader.title && !noHeader.caption,
+    JSON.stringify({ titled, noHeader }));
+  check('a header with no title folds by noCaption or text labels, and keeps its band for a caption of dates',
+    isNear(noCaption.plotTop, noHeader.plotTop) && isNear(textLabels.plotTop, noHeader.plotTop)
+    && isNear(untitled.plotTop, titled.plotTop) && Boolean(untitled.caption)
+    && [noCaption, textLabels, untitled].every(isUnderPlot),
+    JSON.stringify({ untitled, noCaption, textLabels }));
+  check('--lovely-chart-empty-header-height keeps the band of an empty header over the plot and its hover layer',
+    isNear(keptBand.plotTop, noHeader.plotTop + EMPTY_HEADER_BAND) && isUnderPlot(keptBand), JSON.stringify(keptBand));
+  check('a legend in a hidden element takes its spacing along, ending the chart where a lone dataset ends it',
+    hiddenLegend.legendButtons === 2 && isNear(hiddenLegend.bottomSpace, loneDataset.bottomSpace)
+    && titled.bottomSpace > loneDataset.bottomSpace,
+    JSON.stringify({ hiddenLegend, loneDataset, titled }));
+
+  // While zoomed, the zoom-out control of a chart without the band, or with nothing in it to show, floats over the top
+  // inline-start corner of the plot, above the hover layer, and zooms out. `zoomOut()` is ignored while a zoom in
+  // settles.
+  const mountZoomProbe = (config) => page.evaluate(async (probeConfig) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeLog = [];
+    window.probeSelections = [];
+    const labels = Array.from({ length: 14 }, (_, i) => Date.UTC(2026, 0, 1 + i));
+    window.probeChart = new LovelyChart(element, {
+      type: 'area',
+      isPercentage: true,
+      isStacked: true,
+      labels,
+      datasets: [
+        { name: 'A', values: labels.map((_, i) => 10 + i) }, { name: 'B', values: labels.map((_, i) => 30 - i) },
+      ],
+      onZoomChange: (labelValue) => {
+        window.probeLog.push(labelValue === undefined ? 'out' : 'in');
+        if (labelValue !== undefined && window.shouldZoomOutOnZoom) {
+          window.probeChart.zoomOut();
+        }
+      },
+      onSelectedIndexChange: (labelIndex) => window.probeSelections.push(labelIndex),
+      ...probeConfig,
+    });
+    element.scrollIntoView({ block: 'center' });
+  }, config);
+  const clickProbeMiddle = async (selector) => {
+    const box = await page.locator(selector).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  };
+  // The shown zoom-out control against the plot, the top of the plot in the chart, and whether the control is on top
+  const readFloatingControl = () => page.evaluate(() => {
+    const host = document.getElementById('probe');
+    const control = host.querySelector('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)');
+    const log = [...window.probeLog];
+    const hasHoverLayer = Boolean(host.querySelector('.lovely-chart--tooltip'));
+    if (!control) return { isShown: false, hasHoverLayer, log };
+    const box = control.getBoundingClientRect();
+    const plot = host.querySelector('.lovely-chart--container > canvas').getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return {
+      isShown: true,
+      left: box.left - plot.left,
+      top: box.top - plot.top,
+      bottom: box.bottom - plot.top,
+      plotTop: plot.top - host.querySelector('.lovely-chart--container').getBoundingClientRect().top,
+      isOnTop: control.contains(hit),
+      hasHoverLayer,
+      log,
+    };
+  });
+  const isFloating = ({ isShown, left, top, bottom, plotTop, isOnTop }) => (
+    isShown && left >= 0 && left <= GUTTER && top < 0 && bottom > 0 && isNear(plotTop, noHeader.plotTop) && isOnTop
+  );
+  await mountZoomProbe({ title: 'Probe — Zoom without the header', noHeader: true });
+  await sleep(1200);
+  await clickProbeMiddle('#probe .lovely-chart--tooltip');
+  await page.evaluate(() => window.probeChart.zoomOut());
+  await sleep(ZOOM_SETTLE_MS);
+  await page.mouse.move(0, 0);
+  const floatingControl = await readFloatingControl();
+  await page.locator('#probe .lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').click();
+  await sleep(ZOOM_SETTLE_MS);
+  const floatingLog = await page.evaluate(() => window.probeLog);
+  await unmountProbe(page);
+  check('zoomOut() is ignored while a zoom in settles', JSON.stringify(floatingControl.log) === '["in"]',
+    JSON.stringify(floatingControl.log));
+  check('without the band, the zoom-out control floats over the top inline-start corner of the plot and zooms out',
+    isFloating(floatingControl) && JSON.stringify(floatingLog) === '["in","out"]',
+    JSON.stringify({ ...floatingControl, log: floatingLog }));
+
+  // Without the tooltip, neither a pointer nor `selectLabel()` selects a label or zooms in, while `initialZoom` opens a
+  // zoom whose control floats from an empty header, and which `zoomOut()` leaves once
+  await mountZoomProbe({ noCaption: true, noTooltip: true, initialZoom: 'last' });
+  await sleep(ZOOM_SETTLE_MS);
+  const openedZoom = await readFloatingControl();
+  await page.evaluate(() => window.probeChart.zoomOut());
+  await sleep(ZOOM_SETTLE_MS);
+  await page.evaluate(() => window.probeChart.zoomOut());
+  await clickProbeMiddle('#probe .lovely-chart--container > canvas');
+  await page.evaluate(() => window.probeChart.selectLabel(2));
+  await sleep(ZOOM_SETTLE_MS);
+  await page.mouse.move(0, 0);
+  const tooltipless = await page.evaluate(() => {
+    const log = { zooms: window.probeLog, selections: window.probeSelections };
+    window.probeChart.destroy();
+    window.probeChart.zoomOut();
+    document.getElementById('probe').remove();
+    return log;
+  });
+  check('noTooltip leaves out the hover layer, and initialZoom opens a zoom whose control floats from an empty header',
+    !openedZoom.hasHoverLayer && isFloating(openedZoom) && JSON.stringify(openedZoom.log) === '["in"]',
+    JSON.stringify(openedZoom));
+  check('zoomOut() zooms out once, and neither a pointer nor selectLabel() selects or zooms in without the tooltip',
+    JSON.stringify(tooltipless.zooms) === '["in","out"]' && !tooltipless.selections.length,
+    JSON.stringify(tooltipless));
+
+  // `zoomOut()` from within `onZoomChange` waits for the zoomed view to draw, then leaves it for the overview
+  await page.evaluate(() => {
+    window.shouldZoomOutOnZoom = true;
+  });
+  await mountZoomProbe({ title: 'Probe — Zoom out as the zoom settles', initialZoom: 'last' });
+  await sleep(ZOOM_SETTLE_MS);
+  const settledZoomOut = await page.evaluate(() => {
+    delete window.shouldZoomOutOnZoom;
+    return {
+      log: window.probeLog,
+      caption: document.querySelector('#probe .lovely-chart--header-caption').textContent,
+    };
+  });
+  await unmountProbe(page);
+  check('zoomOut() from within onZoomChange leaves the zoom it reports for the overview',
+    JSON.stringify(settledZoomOut.log) === '["in","out"]' && settledZoomOut.caption.includes('—'),
+    JSON.stringify(settledZoomOut));
+
+  // `noZoomOutControl` keeps the title while zoomed, with no zoom-out control, and `zoomOut()` still zooms out
+  await mountZoomProbe({ title: 'Probe — No zoom-out control', noZoomOutControl: true, initialZoom: 'last' });
+  await sleep(ZOOM_SETTLE_MS);
+  const controlless = await page.evaluate(() => ({
+    title: document.querySelector('#probe .lovely-chart--header-title').textContent,
+    controls: document.querySelectorAll('#probe .lovely-chart--header-zoom-out-control').length,
+    log: [...window.probeLog],
+  }));
+  await page.evaluate(() => window.probeChart.zoomOut());
+  await sleep(ZOOM_SETTLE_MS);
+  const controllessLog = await page.evaluate(() => window.probeLog);
+  await unmountProbe(page);
+  check('noZoomOutControl keeps the title while zoomed, with no zoom-out control, and zoomOut() still zooms out',
+    controlless.title === 'Probe — No zoom-out control' && !controlless.controls
+    && JSON.stringify(controlless.log) === '["in"]' && JSON.stringify(controllessLog) === '["in","out"]',
+    JSON.stringify({ ...controlless, log: controllessLog }));
+
+  // While zoomed into a day, the balloon of a label left of the middle stacks over the floating zoom-out control, and the
+  // control beside the balloon takes a click. The control sits on a backdrop of `--background-color` over the top label
+  // of the main axis.
+  await page.evaluate(async (hourMs) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeLog = [];
+    const buildValues = (length) => Array.from({ length }, (_, i) => 50 + ((i * 37) % 101));
+    window.probeChart = new LovelyChart(element, {
+      type: 'line',
+      noHeader: true,
+      labels: Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 10, 1 + i)),
+      datasets: [{ name: 'A', values: buildValues(10) }],
+      onZoom: (day) => Promise.resolve({
+        type: 'line',
+        labels: Array.from({ length: 24 }, (_, hour) => day + hour * hourMs),
+        datasets: [{ name: 'A', values: buildValues(24) }],
+      }),
+      onZoomChange: (labelValue) => window.probeLog.push(labelValue === undefined ? 'out' : 'in'),
+    });
+    element.scrollIntoView({ block: 'center' });
+  }, HOUR_MS);
+  await sleep(1200);
+  await clickProbeMiddle('#probe .lovely-chart--tooltip');
+  await sleep(ZOOM_SETTLE_MS);
+  const hoverLayer = await page.locator('#probe .lovely-chart--tooltip').boundingBox();
+  await page.mouse.move(hoverLayer.x + FLOATING_CONTROL_HOVER_X, hoverLayer.y + hoverLayer.height / 2, { steps: 5 });
+  await sleep(400);
+  const stacking = await page.evaluate(() => {
+    const host = document.getElementById('probe');
+    const control = host.querySelector('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)');
+    const balloon = host.querySelector('.lovely-chart--tooltip-balloon.lovely-chart--state-shown');
+    if (!control || !balloon) return { isControlShown: Boolean(control), isBalloonShown: Boolean(balloon) };
+    const controlBox = control.getBoundingClientRect();
+    const balloonBox = balloon.getBoundingClientRect();
+    const left = Math.max(controlBox.left, balloonBox.left);
+    const right = Math.min(controlBox.right, balloonBox.right);
+    const top = Math.max(controlBox.top, balloonBox.top);
+    const bottom = Math.min(controlBox.bottom, balloonBox.bottom);
+    const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+    const swatch = document.createElement('div');
+    swatch.style.background = 'var(--background-color)';
+    control.parentNode.appendChild(swatch);
+    const skinBackground = getComputedStyle(swatch).backgroundColor;
+    swatch.remove();
+    return {
+      overlap: [right - left, bottom - top],
+      isBalloonOnTop: balloon.contains(hit),
+      background: getComputedStyle(control).backgroundColor,
+      skinBackground,
+    };
+  });
+  const controlBox = await page.locator(
+    '#probe .lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)',
+  ).boundingBox();
+  await page.mouse.move(controlBox.x + GUTTER, controlBox.y + controlBox.height / 2, { steps: 5 });
+  await page.mouse.click(controlBox.x + GUTTER, controlBox.y + controlBox.height / 2);
+  await sleep(ZOOM_SETTLE_MS);
+  const stackingLog = await page.evaluate(() => window.probeLog);
+  await unmountProbe(page);
+  check('while zoomed, a balloon stacks over the floating zoom-out control, and the control beside it takes a click',
+    Boolean(stacking.overlap?.every((side) => side > 0)) && stacking.isBalloonOnTop
+    && JSON.stringify(stackingLog) === '["in","out"]',
+    JSON.stringify({ ...stacking, log: stackingLog }));
+  check('the floating zoom-out control sits on a backdrop of --background-color',
+    stacking.background === stacking.skinBackground && stacking.background !== 'rgba(0, 0, 0, 0)',
+    JSON.stringify(stacking));
 
   // --- Keyboard selection, the tooltip content `onTooltipChange` reports and a balloon the page hides ---
   // The keys step inside the window the minimap opens on, the last 20% of 101 labels, from 80 to 100

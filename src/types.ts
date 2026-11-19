@@ -234,6 +234,11 @@ export interface LovelyChartParams {
   /** Draws the datasets alone, with no axes, grid, header or legend, inset by 2px. */
   isSparkline?: boolean;
   /**
+   * Leaves out the band of the title and the caption, so the plot starts at the top of the chart. While zoomed, the
+   * zoom-out control floats over the top inline-start corner of the plot.
+   */
+  noHeader?: boolean;
+  /**
    * Centers each Y-axis label on its grid line, over the line, instead of above it, inside a halo of the background
    * colour, and moves the labels of either axis 2px in from their side of the chart.
    */
@@ -292,6 +297,11 @@ export interface LovelyChartParams {
    * Total row.
    */
   isTooltipTotalInTitle?: boolean;
+  /**
+   * Leaves out the hover layer, its line, dots and balloon, and the pointer handling of the plot: no pointer selects a
+   * label, focuses a bar or zooms in, and `selectLabel()` and `isKeyboardSelectable` are ignored.
+   */
+  noTooltip?: boolean;
   /**
    * Formats a number of the tooltip, the total on the `secondaryYAxis` scale included; `valuePrefix` and
    * `valueSuffix` still wrap the result, or the `prefix` and `suffix` of `secondaryYAxis` around that total.
@@ -393,8 +403,14 @@ export interface LovelyChartParams {
    * `[0.8, 1]` with the minimap, otherwise `'full'`.
    */
   minimapRange?: [number, number] | 'full' | { from: number; to: number };
+  /**
+   * Leaves out the caption of the header, the dates on screen; with no `title`, the header has nothing to show and
+   * folds to `--lovely-chart-empty-header-height`.
+   */
   noCaption?: boolean;
   zoomOutLabel?: string;
+  /** Leaves out the zoom-out control, for a page that zooms out with `zoomOut()` from a control of its own. */
+  noZoomOutControl?: boolean;
   valuePrefix?: string;
   valueSuffix?: string;
   /**
@@ -470,6 +486,8 @@ export interface AnalyzedData {
   isShares: boolean;
   plotHeight?: number;
   isSparkline?: boolean;
+  noHeader?: boolean;
+  noTooltip?: boolean;
   areLabelsContrast?: boolean;
   isYAxisOutward?: boolean;
   noFloatSteps?: boolean;
@@ -515,6 +533,7 @@ export interface AnalyzedData {
   minimapRange?: Range;
   noCaption?: boolean;
   zoomOutLabel?: string;
+  noZoomOutControl?: boolean;
   limitBegin: number | undefined;
   onLimitedRangeClick?: () => void;
   shouldZoomToShares: boolean;

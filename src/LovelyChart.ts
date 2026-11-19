@@ -96,6 +96,7 @@ export default class LovelyChart {
   #isDestroyed = false;
   // The label the first frame zooms into, as `initialZoom` asks or a zoom `update()` keeps
   #pendingZoomIndex?: number;
+  #isZoomOutPending = false;
   #selectedLabelIndex?: number;
   #tooltipKey?: string;
   // The selection `update()` keeps, which the first frame of the rebuilt chart selects again
@@ -173,7 +174,7 @@ export default class LovelyChart {
     this.#hiddenDatasetsKey = undefined;
     this.#originalData = newData;
     this.#legendContainer = newData.legendContainer;
-    const isPlotFocused = this.#tooltip!.isFocused();
+    const isPlotFocused = this.#tooltip?.isFocused();
     const shouldCrossFade = isAnimated && !isMotionReduced();
     const nextSiblings = this.#destroyComponents(shouldCrossFade);
     this.#data = data;
@@ -190,7 +191,7 @@ export default class LovelyChart {
       this.#fadeIn();
     }
     if (isPlotFocused) {
-      this.#tooltip!.focus();
+      this.#tooltip?.focus();
     }
 
     // The legend's first filter goes unreported, so a kept filter that hides other datasets is reported last
@@ -202,7 +203,7 @@ export default class LovelyChart {
 
   /**
    * Selects the label at `labelIndex` as hovering it would, showing its tooltip, and `undefined` clears the
-   * selection. Pointer moves outside the chart keep it; ignored on pie and donut charts.
+   * selection. Pointer moves outside the chart keep it; ignored on pie and donut charts and with `noTooltip`.
    */
   selectLabel(labelIndex: number | undefined) {
     if (this.#isDestroyed) return;
@@ -252,6 +253,17 @@ export default class LovelyChart {
     return projection.toPixels(getIntervalPosition(this.#data, labelIndex, offset), 0)[0] - projection.getArea().left;
   }
 
+  /**
+   * Zooms a zoomed chart out to its overview as its zoom-out control does, for a page that draws a header or a
+   * zoom-out control of its own. Starts on the next frame, and only if the chart is zoomed in then: from the moment
+   * `onZoomChange` reports a zoom until a zoom out starts.
+   */
+  zoomOut() {
+    if (this.#isDestroyed) return;
+    this.#isZoomOutPending = true;
+    this.#stateManager!.update();
+  }
+
   destroy() {
     if (this.#isDestroyed) return;
     this.#isDestroyed = true;
@@ -283,7 +295,10 @@ export default class LovelyChart {
     this.#overviewLabels = [...this.#originalData.labels];
     this.#setupContainer(nextSiblings?.chart);
     this.#colors = createColors(this.#data.colors, this.#data, this.#setupColorProbe());
-    this.#header = new Header(this.#element!, this.#data.title!, this.#data.zoomOutLabel, this.#onZoomOut);
+    this.#header = new Header(
+      this.#element!, this.#data.noHeader ? '' : this.#data.title!, this.#data.zoomOutLabel, this.#onZoomOut,
+      this.#data.noZoomOutControl,
+    );
     // A style of the page that folds or resizes the header moves the plot in an element that keeps its size, as one of
     // fixed height
     this.#layoutObserver?.observe(this.#header.getElement());
@@ -296,9 +311,11 @@ export default class LovelyChart {
     } else {
       this.#stateManager.update({ range: this.#data.minimapRange });
     }
-    this.#tooltip = new Tooltip(
-      this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus, this.#reportTooltip,
-    );
+    this.#tooltip = this.#data.noTooltip
+      ? undefined
+      : new Tooltip(
+        this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus, this.#reportTooltip,
+      );
     this.#tools = new Tools(
       this.#legendContainer ?? this.#element!, this.#data, this.#colors, this.#onFilterChange, nextSiblings?.legend,
     );
@@ -321,6 +338,10 @@ export default class LovelyChart {
     }
     if (this.#data.isSparkline) {
       this.#element.classList.add('lovely-chart--container-sparkline');
+    } else if (this.#data.noHeader) {
+      this.#element.classList.add('lovely-chart--container-no-header');
+    } else if (!this.#data.title && !hasCaption(this.#data)) {
+      this.#element.classList.add('lovely-chart--container-empty-header');
     }
     if (this.#data.colorScheme === 'system') {
       this.#element.classList.add('lovely-chart--container-scheme-system');
@@ -408,7 +429,7 @@ export default class LovelyChart {
       secondaryProjection = projection.copy(bounds);
     }
 
-    if (!this.#data.noCaption && this.#data.labelType !== 'text') {
+    if (hasCaption(this.#data)) {
       this.#header!.setCaption(this.#getCaption(state));
     }
     // A page that folds the header while its caption is empty moves the plot as the first caption arrives
@@ -455,7 +476,14 @@ export default class LovelyChart {
       this.#axes!.drawXAxis(state, projection);
     }
     this.#minimap?.update(state);
-    this.#tooltip!.update(state, points, projection, secondaryPoints, secondaryProjection);
+    this.#tooltip?.update(state, points, projection, secondaryPoints, secondaryProjection);
+
+    // A zoom out starts from the state drawn, which catches up with a zoom that settles on the frame after it, so
+    // `zoomOut()` waits for a frame
+    if (this.#isZoomOutPending) {
+      this.#isZoomOutPending = false;
+      this.#header!.zoomOut();
+    }
     this.#reportPlotArea();
 
     // The state callback is rAF-deferred, so this is the earliest point where both
@@ -470,7 +498,7 @@ export default class LovelyChart {
       const { labelIndex, isByPointer } = this.#keptSelection;
       this.#keptSelection = undefined;
       // A label outside the window the chart opens on ends the selection
-      if (!this.#tooltip!.selectLabel(labelIndex, isByPointer)) {
+      if (!this.#tooltip?.selectLabel(labelIndex, isByPointer)) {
         this.#reportSelectedLabel(undefined);
         this.#reportTooltip(undefined);
       }
@@ -506,7 +534,7 @@ export default class LovelyChart {
 
   #placePlotArea() {
     const plot = this.#plot!;
-    this.#tooltip!.placeLayer(plot.offsetTop, parseFloat(getComputedStyle(plot).marginTop));
+    this.#tooltip?.placeLayer(plot.offsetTop, parseFloat(getComputedStyle(plot).marginTop));
     const area = this.#plotArea!;
     const [offsetLeft, offsetTop] = this.#measurePlotOffset();
     const placedArea = { ...area, left: offsetLeft + area.left, top: offsetTop + area.top };
@@ -608,7 +636,7 @@ export default class LovelyChart {
   #findKeptSelection(labels: LovelyChartParams['labels']): KeptSelection | undefined {
     let selection = this.#keptSelection;
     if (!selection && this.#selectedLabelIndex !== undefined) {
-      selection = { labelIndex: this.#selectedLabelIndex, isByPointer: this.#tooltip!.isSelectionByPointer() };
+      selection = { labelIndex: this.#selectedLabelIndex, isByPointer: this.#tooltip?.isSelectionByPointer() ?? false };
     }
     if (!selection) return undefined;
 
@@ -828,13 +856,13 @@ export default class LovelyChart {
     // A callback of the reports can destroy the chart
     if (this.#isDestroyed) return;
     const filter = this.#zoomer?.getOverviewState()?.filter ?? this.#stateManager?.getFilter() ?? {};
-    const isPlotFocused = this.#tooltip!.isFocused();
+    const isPlotFocused = this.#tooltip?.isFocused();
     const nextSiblings = this.#destroyComponents();
     this.#data = analyzeData(this.#originalData);
     this.#keepFilter(filter);
     this.#setupComponents(nextSiblings);
     if (isPlotFocused) {
-      this.#tooltip!.focus();
+      this.#tooltip?.focus();
     }
   }
 
@@ -880,4 +908,8 @@ function areSameLabels(labels: LovelyChartParams['labels'], otherLabels: LovelyC
 // DOM emulations such as jsdom leave out `matchMedia`
 function isMotionReduced() {
   return typeof matchMedia === 'function' && matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+function hasCaption({ noCaption, labelType }: AnalyzedData) {
+  return !noCaption && labelType !== 'text';
 }

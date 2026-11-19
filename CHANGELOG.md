@@ -34,6 +34,11 @@
 - `LovelyChartUpdateOptions` type.
 - `update(newData, { isAnimated })`: cross-fades the chart into the new data over 400ms within the one instance: the plot, the axes, the header, the minimap and the legend, one in `legendContainer` included. The replaced chart stays in the new one's place, under it, out of the layout and of the reader's reach, until it has faded out, and another animated update fades the chart out from the opacity it has reached. With reduced motion the data swaps at once.
 - `--lovely-chart-header-height`, `--lovely-chart-header-margin-top` and `--lovely-chart-plot-margin-top`, read from the chart element or an ancestor: the height of the header band and the line height of its title and caption, the space above the band, and the space between the band and the plot canvas, `30px`, `0` and `10px` by default.
+- `noHeader`: leaves out the band of the title and the caption, so the plot starts at the top of the chart. While zoomed, the zoom-out control floats over the top inline-start corner of the plot, on a backdrop of `--background-color`.
+- `noTooltip`: leaves out the hover layer and the pointer handling of the plot, so no pointer selects a label, focuses a bar or zooms in, and `selectLabel()` and `isKeyboardSelectable` are ignored.
+- `zoomOut()`: zooms a zoomed chart out as its zoom-out control does, for a page that draws a header of its own.
+- `noZoomOutControl`: leaves out the zoom-out control, for a page that zooms out with `zoomOut()` from a control of its own.
+- `--lovely-chart-empty-header-height`: the height of a header with nothing to show, 0 by default; a page keeps a band with it, as to level the plots of a row.
 
 ### Changed
 
@@ -43,6 +48,7 @@
 - Dataset, comparison, axis text and background colours take any CSS colour, not only `#RRGGBB`. Reference line, hatched range and area border colours take any CSS colour, such as `light-dark()`, and `#RRGGBB/alpha`, not only those the canvas takes.
 - Legend buttons take their outline, label and checked fill from `--lovely-chart-series-color`, in place of a `lovely-chart--color-*` class and the rules the chart added to the page for each colour.
 - The legend sets its entries `--lovely-chart-legend-gap` apart in a wrapping flex row, in place of a margin after and under each entry. A row fits entries up to its end, so a legend can take a row fewer, and the 24px under its last row are its own padding. A `text-align` of the page no longer places the entries, and margins of the page on them add to the gap. A negative bottom margin on `.lovely-chart--tools` that offset the 8px under the entries now clips their last row; `--lovely-chart-legend-padding-bottom: 0` in its place ends the chart at that row.
+- A header with nothing to show, with no `title` and no caption because of `noCaption` or text labels, folds to `--lovely-chart-empty-header-height`, 0 by default, in place of its 30px band, and the hover layer follows the plot up. While zoomed, its zoom-out control floats over the top inline-start corner of the plot, on a backdrop of `--background-color` and without a caption.
 
 ### Fixed
 

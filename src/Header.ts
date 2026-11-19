@@ -11,21 +11,27 @@ export class Header {
   readonly #title: string;
   readonly #zoomOutLabel: string;
   readonly #zoomOutCallback: () => void;
+  readonly #noZoomOutControl: boolean;
 
   #element!: HTMLElement;
   #titleElement!: HTMLElement;
   #zoomOutElement?: HTMLElement;
   #captionElement!: HTMLElement;
+  #isZoomed = false;
   #isZooming?: boolean;
   #zoomBindTimeout?: number;
 
   readonly setCaption = throttle((caption: string) => this.#setCaption(caption), CAPTION_THROTTLE_MS);
 
-  constructor(container: HTMLElement, title: string, zoomOutLabel = 'Zoom out', zoomOutCallback: () => void) {
+  constructor(
+    container: HTMLElement, title: string, zoomOutLabel = 'Zoom out', zoomOutCallback: () => void,
+    noZoomOutControl = false,
+  ) {
     this.#container = container;
     this.#title = title;
     this.#zoomOutLabel = zoomOutLabel;
     this.#zoomOutCallback = zoomOutCallback;
+    this.#noZoomOutControl = noZoomOutControl;
 
     this.#setupLayout();
   }
@@ -35,15 +41,36 @@ export class Header {
   }
 
   zoom(caption: string) {
-    this.#zoomOutElement = toggleText(
-      this.#titleElement, this.#zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control',
-    );
-    this.#zoomBindTimeout = window.setTimeout(() => {
-      this.#zoomBindTimeout = undefined;
-      addEventListener(this.#zoomOutElement!, 'click', this.#onZoomOut);
-    }, ZOOM_OUT_BIND_DELAY);
+    this.#isZoomed = true;
+    if (!this.#noZoomOutControl) {
+      this.#zoomOutElement = toggleText(
+        this.#titleElement, this.#zoomOutLabel, 'lovely-chart--header-title lovely-chart--header-zoom-out-control',
+      );
+      this.#zoomBindTimeout = window.setTimeout(() => {
+        this.#zoomBindTimeout = undefined;
+        addEventListener(this.#zoomOutElement!, 'click', this.#onZoomOut);
+      }, ZOOM_OUT_BIND_DELAY);
+    }
 
     this.#setCaption(caption);
+  }
+
+  zoomOut() {
+    if (!this.#isZoomed) {
+      return;
+    }
+
+    this.#isZoomed = false;
+    if (this.#zoomOutElement) {
+      // A call can replace the control before its slide-in ends and it takes clicks
+      clearTimeout(this.#zoomBindTimeout);
+      this.#zoomBindTimeout = undefined;
+      this.#titleElement = toggleText(this.#zoomOutElement, this.#title, 'lovely-chart--header-title', true);
+      this.#titleElement.classList.remove('lovely-chart--transition');
+      this.#zoomOutElement = undefined;
+    }
+
+    this.#zoomOutCallback();
   }
 
   destroy() {
@@ -83,9 +110,6 @@ export class Header {
   }
 
   readonly #onZoomOut = () => {
-    this.#titleElement = toggleText(this.#zoomOutElement!, this.#title, 'lovely-chart--header-title', true);
-    this.#titleElement.classList.remove('lovely-chart--transition');
-
-    this.#zoomOutCallback();
+    this.zoomOut();
   };
 }

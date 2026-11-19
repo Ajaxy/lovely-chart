@@ -28,7 +28,7 @@ export class Zoomer {
   readonly #plotSize: Size;
   readonly #header: Header;
   readonly #minimap: Minimap | undefined;
-  readonly #tooltip: Tooltip;
+  readonly #tooltip: Tooltip | undefined;
   readonly #tools: Tools;
   readonly #onZoomStart: () => void;
   readonly #onZoomChange: (labelValue: number | undefined, labelIndex: number | undefined) => void;
@@ -54,7 +54,7 @@ export class Zoomer {
     plotSize: Size,
     header: Header,
     minimap: Minimap | undefined,
-    tooltip: Tooltip,
+    tooltip: Tooltip | undefined,
     tools: Tools,
     onZoomStart: () => void,
     onZoomChange: (labelValue: number | undefined, labelIndex: number | undefined) => void,
@@ -83,8 +83,8 @@ export class Zoomer {
 
     this.#stateBeforeZoomIn = state;
     this.#header.toggleIsZooming(true);
-    this.#tooltip.toggleLoading(true);
-    this.#tooltip.toggleIsZoomed(true);
+    this.#tooltip?.toggleLoading(true);
+    this.#tooltip?.toggleIsZoomed(true);
     if (this.#data.shouldZoomToShares) {
       this.#isZoomedIntoShares = true;
       this.#container.classList.add('lovely-chart--state-zoomed-in');
@@ -119,8 +119,8 @@ export class Zoomer {
     this.#zoomedLabelIndex = undefined;
     this.#stateBeforeZoomOut = state;
     this.#header.toggleIsZooming(true);
-    this.#tooltip.toggleLoading(true);
-    this.#tooltip.toggleIsZoomed(false);
+    this.#tooltip?.toggleLoading(true);
+    this.#tooltip?.toggleIsZoomed(false);
     if (this.#data.shouldZoomToShares) {
       this.#isZoomedIntoShares = false;
       this.#container.classList.remove('lovely-chart--state-zoomed-in');
@@ -189,8 +189,8 @@ export class Zoomer {
 
     if (!newRawData) {
       this.#zoomedLabelIndex = undefined;
-      this.#tooltip.toggleLoading(false);
-      this.#tooltip.toggleIsZoomed(false);
+      this.#tooltip?.toggleLoading(false);
+      this.#tooltip?.toggleIsZoomed(false);
       this.#header.toggleIsZooming(false);
       // Reveal the overview fallback so the chart is not stuck hidden
       if (isInstant) {
@@ -202,7 +202,7 @@ export class Zoomer {
       return;
     }
 
-    this.#tooltip.toggleLoading(false);
+    this.#tooltip?.toggleLoading(false);
 
     // Only data that `onZoom` returns colours its datasets by `colors`, and a dataset of it with no colour of its own
     // keeps the colour of the chart's dataset of its key
