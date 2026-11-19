@@ -2953,6 +2953,42 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('destroy() removes the plot-area properties', destroyedValues.every((value) => value === ''),
     JSON.stringify(destroyedValues));
 
+  // A page that folds the header while its caption is empty shows it as the first caption arrives, and folding it for
+  // good moves the plot up, with the overlay following it each time
+  // The scroll anchoring of the page holds the canvas in the viewport, so its top counts from the element
+  const readCanvasTop = () => page.evaluate(() => {
+    const host = document.getElementById('probe');
+    return host.querySelector('.lovely-chart--container > canvas').getBoundingClientRect().top
+      - host.getBoundingClientRect().top;
+  });
+  await page.evaluate(() => {
+    const style = document.createElement('style');
+    style.id = 'probe-header-fold';
+    style.textContent = '#probe .lovely-chart--header:has(.lovely-chart--header-caption:empty) { display: none; }';
+    document.head.appendChild(style);
+  });
+  await mountProbe(page, {
+    config: { ...areaConfig, title: 'Probe — Plot area under a folding header' }, hostStyle: PADDED_HOST_STYLE,
+  });
+  await addPlotAreaOverlay(page);
+  const captionedFit = await readPlotAreaFit(page, ['#FF0000']);
+  const captionedCanvasTop = await readCanvasTop();
+  await page.evaluate(() => {
+    document.getElementById('probe-header-fold').textContent = '#probe .lovely-chart--header { display: none; }';
+  });
+  await sleep(200);
+  const foldedFit = await readPlotAreaFit(page, ['#FF0000']);
+  const foldedCanvasTop = await readCanvasTop();
+  await page.evaluate(() => document.getElementById('probe-header-fold').remove());
+  await unmountProbe(page);
+  check('a plot-area overlay frames the plot under a header the page shows once its caption arrives',
+    isFramedBy(captionedFit.overlay, captionedFit.boxes[0]),
+    `overlay ${formatBox(captionedFit.overlay)}, line ${formatBox(captionedFit.boxes[0])}`);
+  check('a plot-area overlay follows the plot up when the page folds the header',
+    foldedCanvasTop < captionedCanvasTop && isFramedBy(foldedFit.overlay, foldedFit.boxes[0]),
+    `canvas at ${foldedCanvasTop} after ${captionedCanvasTop}, overlay ${formatBox(foldedFit.overlay)}, `
+    + `line ${formatBox(foldedFit.boxes[0])}`);
+
   // A pie fills the square around its circle, and a sparkline its plot inset from every edge
   await mountProbe(page, {
     config: {

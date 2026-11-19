@@ -58,8 +58,10 @@ export default class LovelyChart {
   #plot?: HTMLCanvasElement;
   #context?: CanvasRenderingContext2D;
   #plotSize?: Size;
-  // The data area of the plot in the coordinates of the canvas, as last written to the element
+  // The data area of the plot in the coordinates of the canvas, as last placed on the element
   #plotArea?: Rect;
+  // The data area in px of the padding box of the element, as last written to it
+  #placedPlotArea?: Rect;
 
   #header?: Header;
   #axes?: Axes;
@@ -77,6 +79,7 @@ export default class LovelyChart {
   #hiddenDatasetsKey?: string;
 
   #themeObserver?: MutationObserver;
+  #layoutObserver?: ResizeObserver;
   #systemSchemeQuery?: MediaQueryList;
   #fontFaces?: FontFaceSet;
   #onWindowResize?: () => void;
@@ -95,6 +98,11 @@ export default class LovelyChart {
     this.#colors = createColors(this.#data.colors, this.#data);
     this.#initialZoomPending = this.#data.initialZoomIndex !== undefined;
 
+    // The page can move the plot inside the element with the data area unchanged, as by folding the header while its
+    // caption is empty. DOM emulations such as jsdom leave out `ResizeObserver`.
+    if (typeof ResizeObserver === 'function') {
+      this.#layoutObserver = new ResizeObserver(this.#onLayoutResize);
+    }
     this.#setupComponents();
     this.#setupGlobalListeners();
   }
@@ -130,6 +138,8 @@ export default class LovelyChart {
 
     this.#themeObserver!.disconnect();
     this.#themeObserver = undefined;
+    this.#layoutObserver?.disconnect();
+    this.#layoutObserver = undefined;
     this.#systemSchemeQuery?.removeEventListener('change', this.#onSystemSchemeChange);
     this.#systemSchemeQuery = undefined;
     this.#fontFaces?.removeEventListener('loadingdone', this.#onFontsLoaded);
@@ -188,6 +198,7 @@ export default class LovelyChart {
     } else {
       this.#container.appendChild(this.#element);
     }
+    this.#layoutObserver?.observe(this.#element);
   }
 
   #setupPlotCanvas() {
@@ -254,7 +265,6 @@ export default class LovelyChart {
       this.#data, datasets, range, visibilities, boundsAndParams, undefined, circleSums,
     );
     const projection = new Projection(boundsAndParams);
-    this.#updatePlotArea(this.#data.isCircle ? getCircleArea(projection) : projection.getArea());
 
     let secondaryPoints: Point[] | undefined;
     let secondaryProjection: Projection | undefined;
@@ -271,6 +281,8 @@ export default class LovelyChart {
     if (!this.#data.noCaption && this.#data.labelType !== 'text') {
       this.#header!.setCaption(this.#getCaption(state));
     }
+    // A page that folds the header while its caption is empty moves the plot as the first caption arrives
+    this.#updatePlotArea(this.#data.isCircle ? getCircleArea(projection) : projection.getArea());
 
     clearCanvas(this.#plot!, this.#context!);
 
@@ -310,15 +322,24 @@ export default class LovelyChart {
     }
   };
 
-  // The element carries the data area for overlays of the page, rewritten only when it changes, as on a build or a
-  // zoom into data of another label column
+  // The element carries the data area for overlays of the page, measured only when it changes, as on a build or a
+  // zoom into data of another label column, or when the layout of the chart resizes
   #updatePlotArea(area: Rect) {
     const previousArea = this.#plotArea;
-    if (previousArea && PLOT_AREA_PROPERTIES.every(([key]) => area[key] === previousArea[key])) return;
+    if (previousArea && isSameArea(area, previousArea)) return;
 
     this.#plotArea = area;
+    this.#placePlotArea();
+  }
+
+  #placePlotArea() {
+    const area = this.#plotArea!;
     const [offsetLeft, offsetTop] = this.#measurePlotOffset();
     const placedArea = { ...area, left: offsetLeft + area.left, top: offsetTop + area.top };
+    const previousPlacedArea = this.#placedPlotArea;
+    if (previousPlacedArea && isSameArea(placedArea, previousPlacedArea)) return;
+
+    this.#placedPlotArea = placedArea;
     PLOT_AREA_PROPERTIES.forEach(([key, property]) => {
       this.#container.style.setProperty(property, `${placedArea[key]}px`);
     });
@@ -408,6 +429,11 @@ export default class LovelyChart {
     this.#stateManager.update();
   };
 
+  readonly #onLayoutResize = () => {
+    if (this.#isDestroyed || !this.#plotArea) return;
+    this.#placePlotArea();
+  };
+
   // A web font that arrives after the build changes the width of the Y-axis labels the column was measured for, and
   // can move the plot inside the element
   #resetFontMeasures() {
@@ -455,6 +481,9 @@ export default class LovelyChart {
     this.#header?.destroy();
     this.#stateManager?.destroy();
 
+    if (this.#element) {
+      this.#layoutObserver?.unobserve(this.#element);
+    }
     if (this.#element?.parentNode) {
       this.#element.remove();
     }
@@ -463,6 +492,7 @@ export default class LovelyChart {
     this.#plot = undefined;
     this.#context = undefined;
     this.#plotArea = undefined;
+    this.#placedPlotArea = undefined;
     this.#header = undefined;
     this.#axes = undefined;
     this.#minimap = undefined;
@@ -522,3 +552,7 @@ export default class LovelyChart {
 // structural and consumers can type their own stubs with it
 /** The structural shape of a chart instance, satisfiable by consumer stubs. */
 export type LovelyChartInstance = Pick<LovelyChart, 'update' | 'destroy'>;
+
+function isSameArea(area: Rect, otherArea: Rect) {
+  return PLOT_AREA_PROPERTIES.every(([key]) => area[key] === otherArea[key]);
+}
