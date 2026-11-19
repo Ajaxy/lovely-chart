@@ -1,9 +1,11 @@
 import type { Projection } from './Projection.js';
-import type { AnalyzedDataset, ChartState, LabelRange, LinePattern, Rect, Size, XLabel } from './types.js';
+import type {
+  AnalyzedData, AnalyzedDataset, ChartState, LabelRange, LinePattern, Rect, Size, XLabel,
+} from './types.js';
 
 import {
-  AXES_MAX_ROW_HEIGHT, GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, PLOT_TOP_PADDING, SIMPLIFIER_MIN_POINTS,
-  SPARKLINE_PADDING, X_AXIS_HEIGHT, Y_AXIS_LABEL_GAP, Y_AXIS_ZERO_BASED_THRESHOLD,
+  AXES_MAX_ROW_HEIGHT, GUTTER, MILLISECONDS_IN_DAY, PLOT_BARS_WIDTH_SHIFT, PLOT_CIRCLE_RADIUS_FACTOR, PLOT_TOP_PADDING,
+  SIMPLIFIER_MIN_POINTS, SPARKLINE_PADDING, X_AXIS_HEIGHT, Y_AXIS_LABEL_GAP, Y_AXIS_ZERO_BASED_THRESHOLD,
 } from './constants.js';
 
 const EDGE_FADE_DISTANCE = GUTTER * 4;
@@ -219,6 +221,15 @@ export function getVisibleLabelRange({ lastLabelIndex, begin, end }: ChartState)
     from: Math.max(0, Math.ceil(lastLabelIndex * begin)),
     to: Math.min(Math.floor(lastLabelIndex * end), lastLabelIndex),
   };
+}
+
+// The position in labels `offset` through the interval of a label, from its point to the next one or across its column,
+// or where the label's value draws without an offset; a column starts half a label before its label
+export function getIntervalPosition(
+  { hasBars, hasSteps }: AnalyzedData, labelIndex: number, offset: number | undefined,
+): number {
+  const columnShift = hasBars || hasSteps ? PLOT_BARS_WIDTH_SHIFT : 0;
+  return labelIndex - columnShift + (offset ?? columnShift);
 }
 
 export function getLabelFraction(labelIndex: number, lastLabelIndex: number): number {

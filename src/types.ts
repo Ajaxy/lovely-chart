@@ -133,6 +133,26 @@ export interface TooltipNotes {
   notes?: string[];
 }
 
+/**
+ * A dashed vertical rule at a moment of the labels, such as a launch or a change in how the data is collected, from the
+ * bottom of the Y range through the room above it, labelled beside its top.
+ */
+export interface EventLine {
+  /** Index of the label the rule stands at. */
+  labelIndex: number;
+  /**
+   * How far through the label's interval the rule stands, from 0 to 1: from its point to the next one on a line or area
+   * chart, and across its column from its start on a bar or step chart, or one with bars or steps among its datasets.
+   * Defaults to the point, or the column centre. The last point of a line or area chart has no interval after it and
+   * keeps its rule at the point.
+   */
+  offset?: number;
+  /** Text reading bottom to top beside the top of the rule, in its colour; dropped where it has no room. */
+  label?: string;
+  /** Any CSS colour of the rule and the label, or one per skin; defaults to the axis text colour. */
+  color?: ThemedColor;
+}
+
 /** The values of a previous period, drawn as one dashed line under the name of its legend entry. */
 export interface Comparison {
   /** Name in the legend and in the tooltip, as `'Previous period'`. */
@@ -237,8 +257,8 @@ export interface LovelyChartParams {
   axisTextColor?: ThemedColor;
   /**
    * Colour of the surface behind the chart. The chart paints it inside the hover dots, in the mask over
-   * unfocused bars and as a halo around the Y-axis labels and the labels of reference lines and hatched ranges;
-   * defaults to the skin's own background.
+   * unfocused bars and as a halo around the Y-axis labels and the labels of reference lines, hatched ranges and event
+   * lines; defaults to the skin's own background.
    */
   backgroundColor?: ThemedColor;
   /**
@@ -260,6 +280,8 @@ export interface LovelyChartParams {
   referenceLines?: ReferenceLine[];
   /** Runs of labels to hatch, such as estimated or forecast ones; ignored on pie and donut charts. */
   hatchedRanges?: HatchedRange[];
+  /** Dashed vertical rules at moments of the labels, drawn over the datasets; ignored on pie and donut charts. */
+  eventLines?: EventLine[];
   /**
    * Lists the tooltip rows in the order of the legend, after the comparison row, rather than from the largest
    * value down. When more rows would show than the tooltip holds, the largest values still decide which do.
@@ -417,6 +439,7 @@ export interface AnalyzedData {
   backgroundColor?: ThemedColor;
   referenceLines: ReferenceLine[];
   hatchedRanges: HatchedRange[];
+  eventLines: EventLine[];
   isUtc?: boolean;
   colorScheme?: LovelyChartParams['colorScheme'];
   comparison?: Comparison & { color: ThemedColor };

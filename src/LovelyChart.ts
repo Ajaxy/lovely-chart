@@ -7,7 +7,6 @@ import { Axes } from './Axes.js';
 import { clearCanvas, setupCanvas } from './canvas.js';
 import {
   GUTTER,
-  PLOT_BARS_WIDTH_SHIFT,
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
   PLOT_TOP_PADDING,
@@ -18,11 +17,12 @@ import {
 } from './constants.js';
 import { analyzeData } from './data.js';
 import { drawDatasets } from './drawDatasets.js';
+import { drawEventLineLabels, drawEventLines } from './drawEventLines.js';
 import { drawHatchedRangeLabels } from './drawHatchedRanges.js';
 import { drawReferenceLines } from './drawReferenceLines.js';
 import { getRangeCaption, getZoomCaption } from './format.js';
 import {
-  getCircleArea, getPlotStart, getSimplificationDelta, getVisibleLabelRange, isDataRange,
+  getCircleArea, getIntervalPosition, getPlotStart, getSimplificationDelta, getVisibleLabelRange, isDataRange,
 } from './formulas.js';
 import { Header } from './Header.js';
 import { createElement } from './minifiers.js';
@@ -37,7 +37,7 @@ import { debounce } from './utils.js';
 import { Zoomer } from './Zoomer.js';
 
 export type {
-  ChartType, Comparison, DateLocale, HatchedRange, LabelType, LovelyChartDatasetParams, LovelyChartParams,
+  ChartType, Comparison, DateLocale, EventLine, HatchedRange, LabelType, LovelyChartDatasetParams, LovelyChartParams,
   ReferenceLine, SecondaryYAxisConfig, ThemedColor, TooltipContent, TooltipNotes,
 } from './types.js';
 export { DEFAULT_COLORS, DEFAULT_COMPARISON_COLOR, getDefaultColors } from './data.js';
@@ -184,10 +184,8 @@ export default class LovelyChart {
     if (!Number.isInteger(labelIndex) || labelIndex < from || labelIndex > to) return undefined;
 
     const projection = new Projection(this.#buildProjectionParams(state, this.#axes!.getLabelColumnWidth()));
-    // A column starts half a label before its label, which draws at its centre
-    const columnShift = this.#data.hasBars || this.#data.hasSteps ? PLOT_BARS_WIDTH_SHIFT : 0;
 
-    return projection.toPixels(labelIndex - columnShift + (offset ?? columnShift), 0)[0] - projection.getArea().left;
+    return projection.toPixels(getIntervalPosition(this.#data, labelIndex, offset), 0)[0] - projection.getArea().left;
   }
 
   destroy() {
@@ -368,6 +366,14 @@ export default class LovelyChart {
       drawHatchedRangeLabels(
         this.#context!, this.#data, projection, this.#colors, this.#axes!.getInnerLabelWidths(),
       );
+    }
+    if (this.#data.eventLines.length) {
+      drawEventLines(this.#context!, this.#data, projection, this.#colors);
+      if (!this.#data.isSparkline) {
+        drawEventLineLabels(
+          this.#context!, this.#data, projection, this.#colors, this.#axes!.getInnerLabelWidths(true),
+        );
+      }
     }
     if (labelColumnWidth !== undefined) {
       this.#context!.restore();

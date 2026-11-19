@@ -74,10 +74,11 @@ export class Axes {
   }
 
   // The widths the Y-axis labels take inside the plot at its start and at its end, on the row above each grid line,
-  // which text drawn there keeps clear of; a contrast label sits on its line and leaves that row free
-  getInnerLabelWidths(): [number, number] {
+  // which text drawn there keeps clear of. A contrast label sits on its line and leaves that row free, so only text that
+  // runs `isAcrossRows` keeps clear of it.
+  getInnerLabelWidths(isAcrossRows = false): [number, number] {
     const { areLabelsContrast, datasets } = this.#data;
-    if (areLabelsContrast) return [0, 0];
+    if (areLabelsContrast && !isAcrossRows) return [0, 0];
 
     if (datasets !== this.#innerMeasuredDatasets) {
       this.#innerMeasuredDatasets = datasets;

@@ -1,5 +1,5 @@
 import type {
-  AnalyzedData, AnalyzedDataset, HatchedRange, LabelType, LovelyChartParams, Range, ThemedColor, XLabel,
+  AnalyzedData, AnalyzedDataset, EventLine, HatchedRange, LabelType, LovelyChartParams, Range, ThemedColor, XLabel,
 } from './types.js';
 
 import { AXES_FONT_SIZE, MILLISECONDS_IN_DAY } from './constants.js';
@@ -56,7 +56,7 @@ export function analyzeData(
   const {
     title, labelFormatter: labelFormatterRaw, tooltipFormatter, dateLocale, isStacked, isPercentage,
     percentPrecision, secondaryYAxis, areLinesSmooth, areaOpacity, areaBorderColor,
-    isUtc, colorScheme, referenceLines, hatchedRanges, comparison,
+    isUtc, colorScheme, referenceLines, hatchedRanges, eventLines, comparison,
     isTooltipOrderFixed, isTooltipTotalInTitle, formatTooltipValue, resolveTooltipTotal, resolveTooltipNotes,
     isKeyboardSelectable, plotHeight, isSparkline, areLabelsContrast, isYAxisOutward, noFloatSteps,
     axisFontSize, axisTextColor, backgroundColor,
@@ -70,6 +70,8 @@ export function analyzeData(
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : undefined);
   const { datasets, labels } = prepareDatasets(data, datasetColors, fallbackColors);
+  // Bars or steps among the datasets give every label a column
+  const hasColumns = datasets.some(({ type }) => type === 'bar' || type === 'step');
 
   const isShares = Boolean(isPercentage) || isCircle;
   const analyzedComparison = comparison && !isShares
@@ -152,6 +154,7 @@ export function analyzeData(
     backgroundColor,
     referenceLines: isCircle ? [] : (referenceLines ?? []).filter(({ value }) => Number.isFinite(value)),
     hatchedRanges: isCircle ? [] : prepareHatchedRanges(hatchedRanges ?? [], xLabels.length),
+    eventLines: isCircle ? [] : prepareEventLines(eventLines ?? [], xLabels.length, hasColumns),
     isUtc,
     colorScheme,
     comparison: analyzedComparison,
@@ -286,6 +289,20 @@ function prepareHatchedRanges(ranges: HatchedRange[], labelsCount: number): Hatc
     const from = Math.max(0, Math.round(range.from));
     const to = Math.min(labelsCount - 1, Math.round(range.to));
     return from <= to ? [{ ...range, from, to }] : [];
+  });
+}
+
+// The last point of a line or area chart has no interval after it, so a rule there stands at the point
+function prepareEventLines(lines: EventLine[], labelsCount: number, hasColumns: boolean): EventLine[] {
+  return lines.flatMap((line) => {
+    const labelIndex = Math.round(line.labelIndex);
+    const { offset } = line;
+    if (!Number.isFinite(labelIndex) || labelIndex < 0 || labelIndex >= labelsCount) return [];
+    if (offset === undefined) return [{ ...line, labelIndex }];
+    if (!Number.isFinite(offset)) return [];
+
+    const isLastPoint = !hasColumns && labelIndex === labelsCount - 1;
+    return [{ ...line, labelIndex, offset: isLastPoint ? 0 : Math.min(1, Math.max(0, offset)) }];
   });
 }
 

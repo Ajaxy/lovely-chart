@@ -27,6 +27,8 @@
 - `getLabelX(labelIndex, offset?)`: the x of a label in px from the left of the plot area, in the range and the zoom the chart shows: at its point, or the centre of its bar or step column, or with `offset` that fraction through its interval. A zoom into the data `onZoom` returns maps that data's labels. `undefined` outside the visible range, before the first paint, on pie and donut charts and while zoomed into shares.
 - `onPlotAreaChange`: called with the plot area whenever the chart writes the `--lovely-chart-plot-area-*` variables, as a zoom starts to move the labels under the area, once the data `onZoom` returns arrives, and with `undefined` as `destroy()` removes the variables.
 - `--lovely-chart-plot-padding-top`, set by the chart on its element beside the plot-area variables: the room above the Y range, 15px, or 2px on a sparkline, for marks that rise above the data.
+- `eventLines`: dashed vertical rules at moments of the labels, `[{ labelIndex, offset?, label?, color? }]`, from the bottom of the Y range through the room above it, over the datasets, following the range and the zoom. `offset` places a rule through its label's interval as `getLabelX()` maps it, and the last point of a `line` or `area` chart, with no interval after it, keeps its rule at the point. Each rule's `label` reads bottom to top from its top, before the rule, or after it where it would cover the Y-axis labels or leave the plot area, and gives way to the label of a later rule that crowds it.
+- `EventLine` type.
 
 ### Changed
 

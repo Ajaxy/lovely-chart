@@ -1,7 +1,10 @@
 import type { Size } from './types.js';
 
-import { DPR, HALO_WIDTH } from './constants.js';
+import { DPR, HALO_WIDTH, REFERENCE_LINE_DASH } from './constants.js';
 import { createElement } from './minifiers.js';
+
+const RULE_WIDTH = 1;
+const HALF_PIXEL = 0.5;
 
 export function setupCanvas(container: HTMLElement, { width, height }: Size) {
   const canvas = createElement<HTMLCanvasElement>('canvas');
@@ -26,6 +29,22 @@ export function drawHalo(context: CanvasRenderingContext2D, text: string, x: num
   context.lineJoin = 'round';
   context.strokeStyle = color;
   context.strokeText(text, x, y);
+  context.restore();
+}
+
+// A 1px rule on the pixel grid stays sharp
+export function drawDashedRule(
+  context: CanvasRenderingContext2D, x: number, top: number, bottom: number, color: string,
+) {
+  const pixelX = Math.round(x) + HALF_PIXEL;
+  context.save();
+  context.lineWidth = RULE_WIDTH;
+  context.setLineDash(REFERENCE_LINE_DASH);
+  context.strokeStyle = color;
+  context.beginPath();
+  context.moveTo(pixelX, top);
+  context.lineTo(pixelX, bottom);
+  context.stroke();
   context.restore();
 }
 

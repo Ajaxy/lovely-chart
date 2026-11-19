@@ -178,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // the chart, which paints the line and the tooltip over it.
     const forecastDays = 28;
     const forecastWeek = 7;
+    const forecastPromoDay = 9;
     const lemons = fruits.datasets[2];
     const forecastValues = lemons.values.slice(-forecastDays);
     const forecastTotal = forecastValues.slice(-forecastWeek).reduce((sum, value) => sum + value, 0);
@@ -202,6 +203,8 @@ document.addEventListener('DOMContentLoaded', () => {
         color: { light: '#108BE3', dark: '#48AAF0' },
         note: 'Forecast',
       }],
+      // A promotion that started halfway through a day
+      eventLines: [{ labelIndex: forecastPromoDay, offset: 0.5, label: 'Promo' }],
     });
 
     // The last week of the bars as a list whose rows select their day in the chart on hover and focus, and buttons

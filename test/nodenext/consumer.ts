@@ -1,9 +1,10 @@
 // Resolves `lovely-chart` through the package's own `exports`, so it checks the built `dist/` declarations
 /* eslint-disable no-null/no-null -- The public API takes `null` for a gap and for an unknown total */
 import LovelyChart, {
-  type ChartType, type Comparison, type DateLocale, DEFAULT_COLORS, DEFAULT_COMPARISON_COLOR, getDefaultColors,
-  type HatchedRange, type LabelType, type LovelyChartDatasetParams, type LovelyChartInstance, type LovelyChartParams,
-  type ReferenceLine, type SecondaryYAxisConfig, type ThemedColor, type TooltipContent, type TooltipNotes,
+  type ChartType, type Comparison, type DateLocale, DEFAULT_COLORS, DEFAULT_COMPARISON_COLOR, type EventLine,
+  getDefaultColors, type HatchedRange, type LabelType, type LovelyChartDatasetParams, type LovelyChartInstance,
+  type LovelyChartParams, type ReferenceLine, type SecondaryYAxisConfig, type ThemedColor, type TooltipContent,
+  type TooltipNotes,
 } from 'lovely-chart';
 
 declare const element: HTMLElement;
@@ -19,6 +20,7 @@ const surface: ThemedColor = { light: '#F5F6F7', dark: '#212A33' };
 const forecast: HatchedRange = { from: 1, to: 2, label: 'Forecast', hasEdge: true, isAccruing: false, color: surface };
 const estimate: HatchedRange = { from: 0, to: 0, note: 'Estimated\nFrom partial data', titleNote: 'est.' };
 const notes: TooltipNotes = { titleNote: 'upd. 14:05 UTC', notes: ['Today is still in progress'] };
+const launch: EventLine = { labelIndex: 1, offset: 0.5, label: 'Launch', color: surface };
 const dateLocale: DateLocale = { weekOf: 'Semana de' };
 const secondaryYAxis: SecondaryYAxisConfig = { label: 'x', multiplier: 1 };
 const type: ChartType = 'area';
@@ -39,6 +41,7 @@ const params: LovelyChartParams = {
   comparison,
   referenceLines: [reference, { value: 1200, label: 'Stall', color: surface }],
   hatchedRanges: [forecast, { from: 0, to: 0, color: 'rgba(0, 0, 0, 0.5)' }, estimate],
+  eventLines: [launch, { labelIndex: 0, color: 'rgba(0, 0, 0, 0.5)' }],
   isTooltipOrderFixed: true,
   isTooltipTotalInTitle: true,
   formatTooltipValue: (value) => value.toFixed(1),

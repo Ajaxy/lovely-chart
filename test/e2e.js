@@ -37,19 +37,19 @@ const FORECAST_WEEK = 7;
 const FORECAST_LINE_COLOR = '#3497ED';
 const FORECAST_ACCENTS = { day: '#108BE3', night: '#48AAF0' };
 const FORECAST_BADGE_INSET = 6;
-// The colour probe charts hatch in, and the bounds of each channel that pick its pixels: the hatch over a clear canvas
-// at a fraction of its opacity, its dashed edge and its label at full opacity, the hatch over blue fills, and that under
-// the focus mask of the night skin, about (54, 24, 159), not a hatch over the mask, about (84, 17, 186). Any of them
-// counts where the hatch must not show at all, its green too low for the antialiased edge of white text over blue.
-const HATCH_COLOR = '#FF00FF';
+// The colours probe charts hatch and draw event rules in, and the bounds of each channel that pick their pixels: the
+// hatch over a clear canvas at a fraction of its opacity, a dashed rule and a label at full opacity, the hatch over
+// blue fills, and that under the focus mask of the night skin, about (54, 24, 159), not a hatch over the mask, about
+// (84, 17, 186). Any of the hatch ones counts where the hatch must not show at all, its green too low for the
+// antialiased edge of white text over blue.
+const PROBE_MAGENTA = '#FF00FF';
+const PROBE_CYAN = '#00FFFF';
 const CLEAR_HATCH_PIXEL = { red: [200, 255], green: [0, 60], blue: [200, 255], alpha: [5, 120] };
-const OPAQUE_HATCH_PIXEL = { red: [200, 255], green: [0, 60], blue: [200, 255], alpha: [200, 255] };
+const OPAQUE_MAGENTA_PIXEL = { red: [200, 255], green: [0, 60], blue: [200, 255], alpha: [200, 255] };
 const BAR_HATCH_PIXEL = { red: [40, 120], green: [0, 30], blue: [200, 255], alpha: [200, 255] };
 const MASKED_BAR_HATCH_PIXEL = { red: [44, 64], green: [14, 34], blue: [148, 170], alpha: [200, 255] };
 const ANY_HATCH_PIXEL = { red: [40, 255], green: [0, 30], blue: [200, 255], alpha: [5, 255] };
-// A second colour probe charts hatch in, cyan, and the bounds that pick it over a clear canvas, at full opacity and over
-// blue fills
-const CYAN_HATCH_COLOR = '#00FFFF';
+// The bounds that pick the cyan probe colour over a clear canvas, at full opacity and over blue fills
 const CLEAR_CYAN_PIXEL = { red: [0, 60], green: [200, 255], blue: [200, 255], alpha: [5, 120] };
 const OPAQUE_CYAN_PIXEL = { red: [0, 60], green: [200, 255], blue: [200, 255], alpha: [200, 255] };
 const BAR_CYAN_HATCH_PIXEL = { red: [0, 30], green: [40, 120], blue: [200, 255], alpha: [200, 255] };
@@ -84,6 +84,17 @@ const DEFAULT_AXIS_FONT_SIZE = 10;
 const HATCH_COLOR_TOLERANCE = 12;
 // The least share of its pixels a line over a hatch keeps, its antialiased edges blending into the stripes
 const MIN_LINE_SHARE_OVER_HATCH = 0.97;
+// The day of the forecast demo chart a promotion starts halfway through, marked by an event rule in the axis text colour
+// of each skin, which draws at 60% opacity
+const FORECAST_PROMO_DAY = 9;
+const FORECAST_PROMO_OFFSET = 0.5;
+const AXIS_TEXT_COLORS = { day: '#252529', night: '#A3B1C2' };
+const AXIS_TEXT_ALPHA = [100, 210];
+// The length of a dash and a gap of a dashed rule, the space between an event label and its rule, and the columns
+// beside a rule that hold its label
+const RULE_DASH_PERIOD = 10;
+const EVENT_LABEL_GAP = 4;
+const EVENT_LABEL_COLUMNS = 30;
 // The width of a small phone, which the demo page fits
 const PHONE_WIDTH = 375;
 
@@ -1219,6 +1230,39 @@ function isSpacingAt(readings, spacing) {
 }
 
 // Reads the dataset colour of each legend button, as its `--lovely-chart-series-color` gives it, the contrast of its
+// The box of the canvas pixels of the chart in the element `hostSelector` names that `bounds` pick, in the columns from
+// `start` to `end`, all in px from the top left of the plot area, so the room above the area is negative
+function readPickedBox(page, hostSelector, bounds, [start, end]) {
+  return page.evaluate(([selector, { red, green, blue, alpha }, [from, to]]) => {
+    const host = document.querySelector(selector);
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    const canvasBox = canvas.getBoundingClientRect();
+    const hostBox = host.getBoundingClientRect();
+    const [left, top] = ['left', 'top']
+      .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+    const areaX = left - (canvasBox.left - hostBox.left - host.clientLeft);
+    const areaY = top - (canvasBox.top - hostBox.top - host.clientTop);
+    const scale = canvas.width / canvas.clientWidth;
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const box = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, count: 0 };
+    const startX = Math.max(0, Math.round((areaX + from) * scale));
+    const endX = Math.min(canvas.width, Math.round((areaX + to) * scale));
+    for (let x = startX; x < endX; x++) {
+      for (let y = 0; y < canvas.height; y++) {
+        const j = (y * canvas.width + x) * 4;
+        if (![red, green, blue, alpha].every(([min, max], k) => data[j + k] >= min && data[j + k] <= max)) continue;
+        box.left = Math.min(box.left, x / scale - areaX);
+        box.right = Math.max(box.right, (x + 1) / scale - areaX);
+        box.top = Math.min(box.top, y / scale - areaY);
+        box.bottom = Math.max(box.bottom, (y + 1) / scale - areaY);
+        box.count++;
+      }
+    }
+    return box;
+  }, [hostSelector, bounds, [start, end]]);
+}
+
+// Reads the dataset colour of each legend button, as its `lovely-chart--color-*` class names it, the contrast of its
 // label on its fill, the contrast a white label would have there and whether the label is white
 function readLegendLabels(chart) {
   return chart.evaluate((el) => {
@@ -2674,7 +2718,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     `labels ${JSON.stringify(negativeLabelValues)}, above 0 ${JSON.stringify(mixedLabelValues)}`);
 
   // A hatch goes over the bars and under the line, which keeps every pixel it has without the hatch
-  const mixedHatchedRanges = [{ from: 0, to: mixedLabels.length - 1, color: HATCH_COLOR }];
+  const mixedHatchedRanges = [{ from: 0, to: mixedLabels.length - 1, color: PROBE_MAGENTA }];
   const mixedHatched = await mountProbe(page, {
     config: { ...mixedConfig, title: 'Probe — A hatch between bars and a line', hatchedRanges: mixedHatchedRanges },
   });
@@ -5162,10 +5206,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       withMinimap: true,
       minimapRange: 'full',
       hatchedRanges: [
-        { from: 0, to: 0, label: 'Too long for a sliver', hasEdge: true, color: CYAN_HATCH_COLOR },
-        { from: 3, to: 4, color: HATCH_COLOR },
-        { from: 8, to: 8, isAccruing: true, color: HATCH_COLOR },
-        { from: 9, to: 10, label: 'Estimated', hasEdge: true, color: HATCH_COLOR },
+        { from: 0, to: 0, label: 'Too long for a sliver', hasEdge: true, color: PROBE_CYAN },
+        { from: 3, to: 4, color: PROBE_MAGENTA },
+        { from: 8, to: 8, isAccruing: true, color: PROBE_MAGENTA },
+        { from: 9, to: 10, label: 'Estimated', hasEdge: true, color: PROBE_MAGENTA },
       ],
     },
   });
@@ -5193,7 +5237,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const tintedLine = sumColumns(lineTint, 2 * lineStep, 4.5 * lineStep)
     + sumColumns(lineTint, 7.5 * lineStep, edgeX - 2) + sumColumns(lineTint, edgeX + 2, 10 * lineStep);
   check('a line runs over its hatch, the opaque core of the line untinted', tintedLine === 0, `${tintedLine}px tinted`);
-  const lineEdges = await readAreaColumns(page, '#probe', OPAQUE_HATCH_PIXEL);
+  const lineEdges = await readAreaColumns(page, '#probe', OPAQUE_MAGENTA_PIXEL);
   const minEdgePixels = lineEdges.height * lineEdges.scale * MIN_EDGE_COVER;
   const edgeCover = Math.max(...lineEdges.columns) / (lineEdges.height * lineEdges.scale);
   const edgeRuns = findColumnRuns(lineEdges, minEdgePixels);
@@ -5209,12 +5253,12 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const estimatedX = hatchAreaLeft + edgeX + HATCH_LABEL_INSET;
   check('a range label stands at the start of its band in the range colour, and one wider than its band is dropped',
     estimatedTexts.length > 0 && estimatedTexts.every(({ x, width, color }) => (
-      Math.abs(x - estimatedX) <= 1 && x + width <= hatchAreaLeft + 10 * lineStep && isTextColor(color, HATCH_COLOR)
+      Math.abs(x - estimatedX) <= 1 && x + width <= hatchAreaLeft + 10 * lineStep && isTextColor(color, PROBE_MAGENTA)
     )) && !hatchTexts.some(({ text }) => text === 'Too long for a sliver'),
     `${JSON.stringify(estimatedTexts.slice(-1))} for x ${estimatedX.toFixed(1)}`);
   const hatchMinimap = hatchLine.locator('.lovely-chart--minimap');
   const minimapHatch = await countPickedPixels(hatchMinimap, CLEAR_HATCH_PIXEL);
-  const minimapEdge = await countPickedPixels(hatchMinimap, OPAQUE_HATCH_PIXEL);
+  const minimapEdge = await countPickedPixels(hatchMinimap, OPAQUE_MAGENTA_PIXEL);
   check('the minimap hatches the ranges without their edges', minimapHatch > 0 && minimapEdge === 0,
     `${minimapHatch}px of hatch, ${minimapEdge}px of edges`);
   // The stripes of a narrowed window, then of one panned by a fraction of a step, each read over the redraws of a skin
@@ -5282,10 +5326,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       labels: hatchLabels.slice(0, hatchBarValues.length),
       datasets: [{ name: 'Bars', color: '#0000FF', values: hatchBarValues }],
       hatchedRanges: [
-        { from: 2, to: 3, color: HATCH_COLOR },
-        { from: -3, to: 1.4, color: CYAN_HATCH_COLOR },
-        { from: 5, to: 2, color: CYAN_HATCH_COLOR },
-        { from: NaN, to: 1, color: CYAN_HATCH_COLOR },
+        { from: 2, to: 3, color: PROBE_MAGENTA },
+        { from: -3, to: 1.4, color: PROBE_CYAN },
+        { from: 5, to: 2, color: PROBE_CYAN },
+        { from: NaN, to: 1, color: PROBE_CYAN },
       ],
     },
   });
@@ -5333,7 +5377,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       circleLabelsAround: 0,
       initialZoom: 'last',
       hatchedRanges: [{
-        from: 0, to: hatchBarValues.length - 1, label: 'Estimated', hasEdge: true, color: HATCH_COLOR,
+        from: 0, to: hatchBarValues.length - 1, label: 'Estimated', hasEdge: true, color: PROBE_MAGENTA,
       }],
     },
   });
@@ -5356,7 +5400,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       datasets: [{ name: 'Area', color: '#0000FF', values: [1, 9, 8, 10, 4, 10, 9, 8, 9, 10, 9] }],
       areaOpacity: 1,
       areaBorderColor: '#00FF00',
-      hatchedRanges: [{ from: 3, to: 4, color: HATCH_COLOR }],
+      hatchedRanges: [{ from: 3, to: 4, color: PROBE_MAGENTA }],
     },
   });
   const areaHatch = await readAreaColumns(page, '#probe', BAR_HATCH_PIXEL);
@@ -5375,7 +5419,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       title: 'Probe — Hatched steps',
       labels: hatchLabels.slice(0, hatchBarValues.length),
       datasets: [{ name: 'Steps', color: '#0000FF', values: hatchBarValues }],
-      hatchedRanges: [{ from: 2, to: 3, color: HATCH_COLOR }],
+      hatchedRanges: [{ from: 2, to: 3, color: PROBE_MAGENTA }],
     },
   });
   const stepHatch = await readAreaColumns(page, '#probe', CLEAR_HATCH_PIXEL);
@@ -5395,7 +5439,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       title: 'Probe — Hatched single label',
       labels: hatchLabels.slice(0, 1),
       datasets: [{ name: 'Line', color: '#0000FF', values: [5] }],
-      hatchedRanges: [{ from: 0, to: 0, color: HATCH_COLOR }],
+      hatchedRanges: [{ from: 0, to: 0, color: PROBE_MAGENTA }],
     },
   });
   const singleHatch = await readAreaColumns(page, '#probe', CLEAR_HATCH_PIXEL);
@@ -5419,7 +5463,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       hatchedRanges: [
         { from: 0, to: 0, label: 'First' },
         { from: 1, to: 1, isAccruing: true, label: ACCRUING_LABEL },
-        { from: 2, to: 3, label: 'Estimated', color: { light: HATCH_COLOR, dark: CYAN_HATCH_COLOR } },
+        { from: 2, to: 3, label: 'Estimated', color: { light: PROBE_MAGENTA, dark: PROBE_CYAN } },
       ],
     },
   });
@@ -5478,7 +5522,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       isSparkline: true,
       labels: hatchLabels,
       datasets: [{ name: 'Line', color: '#0000FF', values: [5, 6, 5, 7, 6, 8, 7, 6, 7, 8, 7] }],
-      hatchedRanges: [{ from: 8, to: 10, label: 'Estimated', color: HATCH_COLOR }],
+      hatchedRanges: [{ from: 8, to: 10, label: 'Estimated', color: PROBE_MAGENTA }],
     },
   });
   const sparklineHatch = await countPickedPixels(hatchSparkline, CLEAR_HATCH_PIXEL);
@@ -5547,7 +5591,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     getColorBounds(forecastAccent, CLEAR_HATCH_PIXEL.alpha, HATCH_COLOR_TOLERANCE));
   const forecastRuns = findColumnRuns(forecastHatch, MIN_HATCH_COLUMN_PIXELS);
   const forecastEdges = await readAreaColumns(page, '.forecast-chart',
-    getColorBounds(forecastAccent, OPAQUE_HATCH_PIXEL.alpha, HATCH_COLOR_TOLERANCE));
+    getColorBounds(forecastAccent, OPAQUE_MAGENTA_PIXEL.alpha, HATCH_COLOR_TOLERANCE));
   const forecastEdgePixels = forecastEdges.height * forecastEdges.scale;
   const forecastEdgeRuns = findColumnRuns(forecastEdges, forecastEdgePixels * MIN_EDGE_COVER);
   const forecastEdgeCover = Math.max(...forecastEdges.columns) / forecastEdgePixels;
@@ -5579,6 +5623,197 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await page.mouse.move(5, 5);
   check('the pointer over the demo forecast badge reaches the tooltip', forecastBalloon.isShown,
     JSON.stringify(forecastBalloon));
+
+  // --- Event lines: their place by chart kind and offset, the room above the Y range, their labels, a pan and shares ---
+  const isRuleAt = (run, x) => Math.abs((run[0] + run[1]) / 2 - x) <= PLOT_AREA_TOLERANCE;
+  const findRules = (columns) => findColumnRuns(columns, columns.height * columns.scale * MIN_EDGE_COVER);
+  const promoColumns = await readAreaColumns(page, '.forecast-chart',
+    getColorBounds(AXIS_TEXT_COLORS[forecastFit.skin], AXIS_TEXT_ALPHA, COLOR_TOLERANCE));
+  const promoRuns = findRules(promoColumns);
+  const promoX = (FORECAST_PROMO_DAY + FORECAST_PROMO_OFFSET) * forecastStep;
+  // The recording of the forecast section holds the plot drawn in each skin
+  const promoLabels = forecastDrawing.texts.filter(({ text }) => text === 'Promo');
+  check('the demo forecast marks a promotion halfway through its day by an event rule labelled in the axis text colour',
+    promoRuns.length === 1 && isRuleAt(promoRuns[0], promoX)
+    && Object.values(AXIS_TEXT_COLORS).every((hex) => promoLabels.some(({ color }) => isTextColor(color, hex))),
+    `rules ${formatRuns(promoRuns)} for ${promoX.toFixed(1)}, labels ${JSON.stringify(promoLabels)}`);
+
+  // The texts the probe prints, with their colour and whether they read bottom to top
+  await page.evaluate(() => {
+    const { fillText } = CanvasRenderingContext2D.prototype;
+    window.eventTexts = [];
+    window.stopEventTextRecording = () => {
+      CanvasRenderingContext2D.prototype.fillText = fillText;
+    };
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+      if (this.canvas.closest('#probe')) {
+        window.eventTexts.push({ text: String(text), color: this.fillStyle, isRising: this.getTransform().b < 0 });
+      }
+      return fillText.call(this, text, ...args);
+    };
+  });
+  const readEventTexts = () => page.evaluate(() => window.eventTexts.splice(0));
+  const readLabelXs = (spots) => page.evaluate((labelSpots) => (
+    labelSpots.map(([labelIndex, offset]) => window.probeChart.getLabelX(labelIndex, offset))
+  ), spots);
+  const eventDays = Array.from({ length: 11 }, (_, i) => Date.UTC(2026, 1, i + 1));
+  const eventValues = [5, 6, 5, 7, 6, 8, 7, 6, 7, 8, 7];
+  const tooLongEventLabel = 'A label longer than the plot is high, which no rule of it has the room to carry';
+  await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Event lines',
+      labels: eventDays,
+      datasets: [{ name: 'Line', color: '#0000FF', values: eventValues }],
+      eventLines: [
+        { labelIndex: 1, label: tooLongEventLabel },
+        { labelIndex: 3, label: 'Launch', color: PROBE_MAGENTA },
+        { labelIndex: 6, label: 'Crowded', color: PROBE_CYAN },
+        { labelIndex: 6, offset: 0.1, label: 'Crowding', color: PROBE_CYAN },
+        { labelIndex: 8, offset: 0.5, color: PROBE_MAGENTA },
+        { labelIndex: eventDays.length, label: 'Past the labels', color: PROBE_MAGENTA },
+      ],
+    },
+  });
+  const [launchX, halfwayX] = await readLabelXs([[3], [8, 0.5]]);
+  const eventColumns = await readAreaColumns(page, '#probe', OPAQUE_MAGENTA_PIXEL);
+  const eventRuns = findRules(eventColumns);
+  check('event rules stand where `getLabelX()` places their labels and offsets, and one past the labels draws none',
+    eventRuns.length === 2 && isRuleAt(eventRuns[0], launchX) && isRuleAt(eventRuns[1], halfwayX),
+    `${formatRuns(eventRuns)} for ${launchX.toFixed(1)} and ${halfwayX.toFixed(1)}`);
+  const launchRule = await readPickedBox(page, '#probe', OPAQUE_MAGENTA_PIXEL, [launchX - 1, launchX + 2]);
+  check('an event rule runs from the bottom of the Y range through the room above it',
+    launchRule.top <= 1 - PLOT_TOP && launchRule.bottom >= eventColumns.height - RULE_DASH_PERIOD,
+    `${formatBox(launchRule)} over an area ${eventColumns.height}px high`);
+  const launchLabel = await readPickedBox(
+    page, '#probe', OPAQUE_MAGENTA_PIXEL, [launchX - EVENT_LABEL_COLUMNS, launchX - 1],
+  );
+  const eventTexts = await readEventTexts();
+  const launchTexts = eventTexts.filter(({ text }) => text === 'Launch');
+  check('an event label reads bottom to top from the top of its rule, before it, in its colour',
+    launchTexts.length > 0 && launchTexts.every(({ color, isRising }) => isRising && isTextColor(color, PROBE_MAGENTA))
+    && launchLabel.right <= launchX - EVENT_LABEL_GAP / 2 && launchLabel.top < -PLOT_TOP / 2
+    && launchLabel.bottom - launchLabel.top > launchLabel.right - launchLabel.left,
+    `${formatBox(launchLabel)} beside ${launchX.toFixed(1)}, ${JSON.stringify(launchTexts.slice(-1))}`);
+  const otherRuns = findRules(await readAreaColumns(page, '#probe', OPAQUE_CYAN_PIXEL));
+  const eventTextSet = new Set(eventTexts.map(({ text }) => text));
+  check('an event label crowded by that of a later rule, or longer than its rule, is dropped, and the rule stays',
+    eventTextSet.has('Crowding') && !eventTextSet.has('Crowded') && !eventTextSet.has(tooLongEventLabel)
+    && !eventTextSet.has('Past the labels') && otherRuns.length === 2,
+    `rules ${formatRuns(otherRuns)}, labels ${JSON.stringify([...eventTextSet].filter((text) => /[a-z]/.test(text)))}`);
+  await unmountProbe(page);
+
+  const eventBarValues = [4, 10, 6, 10, 8, 10, 6, 10];
+  await mountProbe(page, {
+    config: {
+      type: 'bar',
+      title: 'Probe — Event lines over bars',
+      labels: eventDays.slice(0, eventBarValues.length),
+      datasets: [{ name: 'Bars', color: '#0000FF', values: eventBarValues }],
+      isYAxisOutward: true,
+      eventLines: [
+        { labelIndex: 0, offset: 0, label: 'Start', color: PROBE_MAGENTA },
+        { labelIndex: 3, color: PROBE_CYAN },
+      ],
+    },
+  });
+  const [columnStartX, columnCentreX] = await readLabelXs([[0, 0], [3]]);
+  const barRuleColumns = await readAreaColumns(page, '#probe', OPAQUE_CYAN_PIXEL);
+  const barRuleRuns = findRules(barRuleColumns);
+  const barStartRuns = findRules(await readAreaColumns(page, '#probe', OPAQUE_MAGENTA_PIXEL));
+  const eventBarWidth = barRuleColumns.width / eventBarValues.length;
+  check('on bars an event rule stands at its column centre, or `offset` through its column from the start, over bars',
+    barRuleRuns.length === 1 && isRuleAt(barRuleRuns[0], 3.5 * eventBarWidth) && isRuleAt(barRuleRuns[0], columnCentreX)
+    && barStartRuns.length === 1 && isRuleAt(barStartRuns[0], 0) && isRuleAt(barStartRuns[0], columnStartX),
+    `${formatRuns(barRuleRuns)} for ${columnCentreX.toFixed(1)}, ${formatRuns(barStartRuns)} for ${columnStartX}`);
+  const barAreaLeft = await readPlotAreaLeft(page);
+  const startLabel = await readPickedBox(
+    page, '#probe', OPAQUE_MAGENTA_PIXEL, [columnStartX + 1, columnStartX + EVENT_LABEL_COLUMNS],
+  );
+  const columnEvents = await readPickedBox(page, '#probe', OPAQUE_MAGENTA_PIXEL, [-barAreaLeft, columnStartX - 1]);
+  check('an event label that would cover the outward Y-label column reads after its rule',
+    (await readEventTexts()).some(({ text }) => text === 'Start') && startLabel.count > 0
+    && startLabel.left >= columnStartX + EVENT_LABEL_GAP / 2 && columnEvents.count === 0,
+    `label ${formatBox(startLabel)}, ${columnEvents.count}px in the column`);
+  await unmountProbe(page);
+
+  const pannedEvents = await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Panned event lines',
+      labels: eventDays,
+      datasets: [{ name: 'Line', color: '#0000FF', values: eventValues }],
+      isYAxisOutward: true,
+      withMinimap: true,
+      minimapRange: [0.25, 0.75],
+      eventLines: [{ labelIndex: 2, offset: 0.3, color: PROBE_MAGENTA }, { labelIndex: 4, color: PROBE_CYAN }],
+    },
+  });
+  const [hiddenEventX, shownEventX, nextLabelX] = await readLabelXs([[2, 0.3], [4], [5]]);
+  // The hidden rule's x in the panned window, which `getLabelX()` leaves out of it
+  const columnEventX = shownEventX - (4 - 2.3) * (nextLabelX - shownEventX);
+  const pannedAreaLeft = await readPlotAreaLeft(page);
+  const pannedRuns = findRules(await readAreaColumns(page, '#probe', OPAQUE_CYAN_PIXEL));
+  const pannedHidden = await countPickedPixels(pannedEvents, OPAQUE_MAGENTA_PIXEL);
+  check('a pan moves an event rule with its label, and the outward Y-label column hides one under it',
+    pannedRuns.length === 1 && isRuleAt(pannedRuns[0], shownEventX) && hiddenEventX === undefined
+    && columnEventX < -Y_AXIS_LABEL_GAP && columnEventX >= -pannedAreaLeft && pannedHidden === 0,
+    `${formatRuns(pannedRuns)} for ${shownEventX.toFixed(1)}, ${pannedHidden}px of the rule at `
+    + `${columnEventX.toFixed(1)}`);
+  await unmountProbe(page);
+
+  const sparkEvents = await mountProbe(page, {
+    config: {
+      type: 'area',
+      title: 'Probe — Sparkline event lines',
+      labels: eventDays,
+      datasets: [{ name: 'Area', color: '#0000FF', values: eventValues }],
+      isSparkline: true,
+      plotHeight: 64,
+      eventLines: [
+        { labelIndex: 5, label: 'Spark', color: PROBE_MAGENTA },
+        { labelIndex: eventDays.length - 1, offset: 0.5, color: PROBE_CYAN },
+      ],
+    },
+  });
+  const sparkRule = await countPickedPixels(sparkEvents, OPAQUE_MAGENTA_PIXEL);
+  const sparkTexts = await readEventTexts();
+  const [lastPointX] = await readLabelXs([[eventDays.length - 1]]);
+  const lastPointRule = await readPickedBox(
+    page, '#probe', OPAQUE_CYAN_PIXEL, [lastPointX - EVENT_LABEL_COLUMNS, lastPointX + EVENT_LABEL_COLUMNS],
+  );
+  await unmountProbe(page);
+  check('a sparkline draws event rules without their labels',
+    sparkRule > 0 && !sparkTexts.some(({ text }) => text === 'Spark'), `${sparkRule}px of the rule`);
+  check('the last point of an area chart has no interval after it and keeps an event rule with an offset at the point',
+    lastPointRule.count > 0
+    && Math.abs((lastPointRule.left + lastPointRule.right) / 2 - lastPointX) <= PLOT_AREA_TOLERANCE,
+    `${formatBox(lastPointRule)} for ${lastPointX.toFixed(1)}`);
+
+  const sharesEvents = await mountProbe(page, {
+    config: {
+      type: 'bar',
+      title: 'Probe — Event lines in shares',
+      isStacked: true,
+      labels: eventDays.slice(0, eventBarValues.length),
+      datasets: [
+        { name: 'Blue', color: '#0000FF', values: eventBarValues },
+        { name: 'Green', color: '#00FF00', values: eventBarValues },
+      ],
+      zoomToShares: true,
+      circleLabelsAround: 0,
+      initialZoom: 'last',
+      eventLines: [{ labelIndex: 2, label: 'Launch', color: PROBE_MAGENTA }],
+    },
+  });
+  const zoomedEvents = await countPickedPixels(sharesEvents, OPAQUE_MAGENTA_PIXEL);
+  await sharesEvents.locator('.lovely-chart--header-zoom-out-control').first().click();
+  await sleep(2000);
+  const overviewEvents = await countPickedPixels(sharesEvents, OPAQUE_MAGENTA_PIXEL);
+  await unmountProbe(page);
+  await page.evaluate(() => window.stopEventTextRecording());
+  check('a zoom into shares draws no event rule, and its overview draws it again',
+    zoomedEvents === 0 && overviewEvents > 0, `${zoomedEvents}px zoomed, ${overviewEvents}px in the overview`);
 
   // --- `selectLabel()` from the page and `onSelectedIndexChange` (demo chart) ---
   const pickerChart = charts.nth(DAY_PICKER_CHART);
@@ -5620,7 +5855,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     isPickedDay(focusedDay, 5) && isPickedDay(steppedBackDay, 4) && isPickedDay(steppedOnDay, 5)
     && isPickedDay(lastDay, 6) && isPickedDay(pastLastDay, 6),
     JSON.stringify({ focusedDay, steppedBackDay, steppedOnDay, lastDay, pastLastDay }));
-  const pickerPlot = await pickerChart.locator('.lovely-chart--tooltip').boundingBox();
+  // The pointer reaches the plot only on screen, which the scroll to the list under the chart can leave above it
+  const pickerTooltip = pickerChart.locator('.lovely-chart--tooltip');
+  await pickerTooltip.scrollIntoViewIfNeeded();
+  const pickerPlot = await pickerTooltip.boundingBox();
   await hoverWiggle(page, pickerPlot, 0.2, 0.5);
   const pointedDay = await readDayPicker();
   await page.mouse.move(5, 5);

@@ -1,8 +1,7 @@
 import type { Projection } from './Projection.js';
 import type { AnalyzedData, ChartColors, HatchedRange } from './types.js';
 
-import { drawHalo } from './canvas.js';
-import { REFERENCE_LINE_DASH } from './constants.js';
+import { drawDashedRule, drawHalo } from './canvas.js';
 import { getCssColor, pickSkinColor } from './skin.js';
 
 const STRIPE_WIDTH = 2;
@@ -12,8 +11,6 @@ const STRIPE_PERIOD = 8;
 const STRIPE_X_STEP = STRIPE_PERIOD * Math.SQRT2;
 const UNDER_LINES_OPACITY = 0.14;
 const OVER_FILLS_OPACITY = 0.28;
-const EDGE_WIDTH = 1;
-const HALF_PIXEL = 0.5;
 const HALF_LABEL = 0.5;
 const LABEL_FONT_WEIGHT = 500;
 const LABEL_INSET_X = 4;
@@ -76,21 +73,12 @@ function drawEdges(
 ) {
   const firstStart = projection.hasColumns() ? -HALF_LABEL : 0;
 
-  context.save();
-  context.lineWidth = EDGE_WIDTH;
-  context.setLineDash(REFERENCE_LINE_DASH);
   data.hatchedRanges.forEach((range) => {
     const [start] = getSpan(range, projection);
     if (!range.hasEdge || start <= firstStart) return;
 
-    const x = Math.round(projection.toPixels(start, 0)[0]) + HALF_PIXEL;
-    context.strokeStyle = getRangeColor(colors, range);
-    context.beginPath();
-    context.moveTo(x, top);
-    context.lineTo(x, bottom);
-    context.stroke();
+    drawDashedRule(context, projection.toPixels(start, 0)[0], top, bottom, getRangeColor(colors, range));
   });
-  context.restore();
 }
 
 // Each label stays inside the part of its range's span within the plot area, clear of the Y-axis labels on its row and
