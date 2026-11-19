@@ -143,6 +143,8 @@ export class Tooltip {
   destroy() {
     removeEventListener(document, this.#documentMoveEvent!, this.#onDocumentMove);
     this.#documentMoveEvent = undefined;
+    this.#selectLabelOnRaf.cancel();
+    this.#throttledUpdateContent.cancel();
   }
 
   #setupLayout() {
@@ -218,7 +220,8 @@ export class Tooltip {
   };
 
   readonly #onClick = (e: MouseEvent) => {
-    if (this.#isZooming || !this.#data.isZoomable) {
+    // A click before the first frame of the data finds no label under it
+    if (this.#isZooming || !this.#data.isZoomable || !this.#state) {
       return;
     }
 

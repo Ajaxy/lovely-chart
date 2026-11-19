@@ -13,7 +13,8 @@ interface CaptureEventsOptions {
   onLongPress?: () => void;
 }
 
-export function captureEvents(element: HTMLElement, options: CaptureEventsOptions) {
+// Returns a function that detaches every listener, cancels a pending long press and ends a drag without `onRelease`
+export function captureEvents(element: HTMLElement, options: CaptureEventsOptions): () => void {
   let captureEvent: CaptureEvent | undefined;
   let longPressTimeout: number | undefined;
 
@@ -42,31 +43,37 @@ export function captureEvents(element: HTMLElement, options: CaptureEventsOption
     options.onCapture?.(e);
 
     if (options.onLongPress) {
+      // A second press before the release, such as another finger, restarts the one pending
+      clearTimeout(longPressTimeout);
       longPressTimeout = window.setTimeout(() => options.onLongPress!(), LONG_PRESS_TIMEOUT);
     }
   }
 
   function onRelease(e: CaptureEvent) {
     if (captureEvent) {
-      if (longPressTimeout) {
-        clearTimeout(longPressTimeout);
-        longPressTimeout = undefined;
-      }
-
-      if (options.draggingCursor) {
-        document.documentElement.classList.remove(`cursor-${options.draggingCursor}`);
-      }
-
-      removeEventListener(document, 'mouseup', onRelease);
-      removeEventListener(document, 'mousemove', onMove);
-      removeEventListener(document, 'touchcancel', onRelease);
-      removeEventListener(document, 'touchend', onRelease);
-      removeEventListener(document, 'touchmove', onMove);
-
-      captureEvent = undefined;
+      endCapture();
 
       options.onRelease?.(e);
     }
+  }
+
+  function endCapture() {
+    if (longPressTimeout) {
+      clearTimeout(longPressTimeout);
+      longPressTimeout = undefined;
+    }
+
+    if (options.draggingCursor) {
+      document.documentElement.classList.remove(`cursor-${options.draggingCursor}`);
+    }
+
+    removeEventListener(document, 'mouseup', onRelease);
+    removeEventListener(document, 'mousemove', onMove);
+    removeEventListener(document, 'touchcancel', onRelease);
+    removeEventListener(document, 'touchend', onRelease);
+    removeEventListener(document, 'touchmove', onMove);
+
+    captureEvent = undefined;
   }
 
   function onMove(e: CaptureEvent) {
@@ -88,4 +95,13 @@ export function captureEvents(element: HTMLElement, options: CaptureEventsOption
 
   addEventListener(element, 'mousedown', onCapture);
   addEventListener(element, 'touchstart', onCapture);
+
+  return () => {
+    if (captureEvent) {
+      endCapture();
+    }
+
+    removeEventListener(element, 'mousedown', onCapture);
+    removeEventListener(element, 'touchstart', onCapture);
+  };
 }

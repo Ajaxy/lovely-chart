@@ -4,6 +4,7 @@ import { captureEvents } from './captureEvents.js';
 import { getDrawnPattern } from './formulas.js';
 import { createElement } from './minifiers.js';
 import { isLightContentTooFaint } from './skin.js';
+import { throttleWithRaf } from './utils.js';
 
 // Matches the fade-out transition of the replaced controls
 const HIDE_TIMEOUT = 500;
@@ -14,6 +15,15 @@ export class Tools {
   readonly #filterCallback: (filter: Filter) => void;
 
   #element!: HTMLElement;
+  // The controls a redraw replaced, which fade out before they leave
+  #hiddenElement?: HTMLElement;
+  #hideTimeout?: number;
+  #captureDetachers: (() => void)[] = [];
+
+  readonly #revealOnRaf = throttleWithRaf(() => this.#element.classList.remove('lovely-chart--state-transparent'));
+  readonly #shakeOnRaf = throttleWithRaf((button: HTMLAnchorElement) => {
+    button.classList.add('lovely-chart--state-shake');
+  });
 
   constructor(container: HTMLElement, data: AnalyzedData, filterCallback: (filter: Filter) => void) {
     this.#container = container;
@@ -26,20 +36,22 @@ export class Tools {
 
   // Rebuilds the buttons for the datasets of a zoomed or restored view, checked as `filter` shows them
   redraw(filter: Filter) {
-    const oldElement = this.#element;
-    oldElement.classList.add('lovely-chart--state-hidden');
-    setTimeout(() => {
-      oldElement.remove();
-    }, HIDE_TIMEOUT);
+    this.#removeHiddenElement();
+    this.#detachCaptures();
+    this.#hiddenElement = this.#element;
+    this.#hiddenElement.classList.add('lovely-chart--state-hidden');
+    this.#hideTimeout = window.setTimeout(() => this.#removeHiddenElement(), HIDE_TIMEOUT);
 
     this.#setupLayout(filter);
     this.#element.classList.add('lovely-chart--state-transparent');
-    requestAnimationFrame(() => {
-      this.#element.classList.remove('lovely-chart--state-transparent');
-    });
+    this.#revealOnRaf();
   }
 
   destroy() {
+    this.#removeHiddenElement();
+    this.#detachCaptures();
+    this.#revealOnRaf.cancel();
+    this.#shakeOnRaf.cancel();
     this.#element.remove();
   }
 
@@ -98,13 +110,13 @@ export class Tools {
         delete control.dataset.clickPrevented;
       });
 
-      captureEvents(control, {
+      this.#captureDetachers.push(captureEvents(control, {
         onLongPress: () => {
           control.dataset.clickPrevented = 'true';
 
           this.#updateFilter(control, true);
         },
-      });
+      }));
 
       this.#element.appendChild(control);
     });
@@ -131,9 +143,7 @@ export class Tools {
           button.classList.remove('lovely-chart--state-checked');
         } else {
           button.classList.remove('lovely-chart--state-shake');
-          requestAnimationFrame(() => {
-            button.classList.add('lovely-chart--state-shake');
-          });
+          this.#shakeOnRaf(button);
         }
       } else if (isLongPress) {
         buttons.forEach((b) => b.classList.remove('lovely-chart--state-checked'));
@@ -152,5 +162,17 @@ export class Tools {
     });
 
     this.#filterCallback(filter);
+  }
+
+  #removeHiddenElement() {
+    clearTimeout(this.#hideTimeout);
+    this.#hideTimeout = undefined;
+    this.#hiddenElement?.remove();
+    this.#hiddenElement = undefined;
+  }
+
+  #detachCaptures() {
+    this.#captureDetachers.forEach((detach) => detach());
+    this.#captureDetachers = [];
   }
 }

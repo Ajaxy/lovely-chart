@@ -82,8 +82,9 @@ export default class LovelyChart {
   #onWindowResize?: () => void;
   #onWindowOrientationChange?: () => void;
 
-  readonly #data: AnalyzedData;
-  readonly #colors: ChartColors;
+  // Each rebuild analyzes the data into a new object, out of reach of the components it destroyed
+  #data: AnalyzedData;
+  #colors: ChartColors;
   readonly #redrawDebounced = debounce(() => this.#redraw(), REDRAW_DEBOUNCE_MS, false, true);
 
   constructor(container: HTMLElement, originalData: LovelyChartParams) {
@@ -109,12 +110,8 @@ export default class LovelyChart {
     this.#originalData = newData;
     const nextSibling = this.#element!.nextSibling ?? undefined;
     this.#destroyComponents();
-    const fresh = analyzeData(this.#originalData);
-    Object.keys(this.#data).forEach((k) => {
-      delete (this.#data as unknown as Record<string, unknown>)[k];
-    });
-    Object.assign(this.#data, fresh);
-    Object.assign(this.#colors, createColors(this.#data.colors, this.#data));
+    this.#data = analyzeData(this.#originalData);
+    this.#colors = createColors(this.#data.colors, this.#data);
     this.#setupComponents(nextSibling);
   }
 
@@ -141,6 +138,7 @@ export default class LovelyChart {
     this.#onWindowResize = undefined;
     window.removeEventListener('orientationchange', this.#onWindowOrientationChange!);
     this.#onWindowOrientationChange = undefined;
+    this.#redrawDebounced.cancel();
 
     this.#destroyComponents();
     PLOT_AREA_PROPERTIES.forEach(([, property]) => this.#container.style.removeProperty(property));
@@ -451,6 +449,7 @@ export default class LovelyChart {
 
   #destroyComponents() {
     this.#zoomer?.destroy();
+    this.#minimap?.destroy();
     this.#tools?.destroy();
     this.#tooltip?.destroy();
     this.#header?.destroy();
@@ -482,8 +481,8 @@ export default class LovelyChart {
     const filter = this.#zoomer?.getOverviewFilter() ?? this.#stateManager?.getFilter() ?? {};
     const nextSibling = this.#element!.nextSibling ?? undefined;
     this.#destroyComponents();
-    Object.assign(this.#data, analyzeData(this.#originalData));
-    Object.assign(this.#colors, createColors(this.#data.colors, this.#data));
+    this.#data = analyzeData(this.#originalData);
+    this.#colors = createColors(this.#data.colors, this.#data);
     // The rebuilt chart keeps the datasets the reader hid
     this.#data.datasets.forEach((dataset) => {
       if (filter[dataset.key] !== undefined) {

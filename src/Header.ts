@@ -47,6 +47,7 @@ export class Header {
       clearTimeout(this.#zoomBindTimeout);
       this.#zoomBindTimeout = undefined;
     }
+    this.setCaption.cancel();
   }
 
   toggleIsZooming(isZooming: boolean) {

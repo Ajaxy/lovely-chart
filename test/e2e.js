@@ -4,7 +4,7 @@
  * rendering and every interaction work: tooltips, minimap dragging, legend
  * toggling, zoom in/out, pie hover, reference lines, comparison, selection
  * callbacks, the plot-area variables, a late web font, colour schemes, theme
- * switch and resize redraw.
+ * switch, resize redraw, and `update()` and `destroy()` mid-interaction.
  *
  * Run via `npm test` (builds first). Requires Google Chrome, or a Playwright
  * chromium (`npx playwright install chromium`) as fallback.
@@ -157,6 +157,11 @@ const DOUBLE_ZOOM_CLICK_GAP = 50;
 // The labels of a bar chart that a callback destroys or rebuilds, and the fewer labels it rebuilds it with
 const CALLBACK_CHART_LABELS = 30;
 const CALLBACK_UPDATE_LABELS = 5;
+// The labels of a chart that `update()` or `destroy()` interrupts, and the fewer labels `update()` brings
+const INTERRUPTED_LABELS = 30;
+const INTERRUPTING_LABELS = 7;
+// The colours of the two datasets of an interrupted chart
+const INTERRUPTED_COLORS = ['#3497ED', '#F34C44'];
 
 const SPANISH_DATE_LOCALE = {
   months: 'ene,feb,mar,abr,may,jun,jul,ago,sep,oct,nov,dic'.split(','),
@@ -847,6 +852,104 @@ function readLegendLabels(chart) {
   });
 }
 
+/**
+ * Mounts a zoomable stacked bar chart of `INTERRUPTED_LABELS` labels, with a minimap and callbacks that log what they
+ * report, and runs `update()` to `INTERRUPTING_LABELS` labels or `destroy()` in the task that leaves it mid-interaction:
+ * a legend toggle animating, a legend button pressed twice towards a long press, a minimap drag and a pointer move whose
+ * frame is pending. `update()` is followed in that task by a click on the new chart, and `destroy()` follows an
+ * orientation change, whose redraw is pending. The drag then carries on and ends
+ * after the long press would have fired. Reads the callbacks, the errors, the `<html>` classes right after the call,
+ * the caption before and after the drag carries on and the frames and timers that fired after the call, when the page
+ * counts them.
+ */
+function interruptProbe(page, action) {
+  return page.evaluate(async ({ action, labels, newLabels, colors }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => (window.realSetTimeout ?? window.setTimeout)(resolve, ms));
+    const log = [];
+    const errors = [];
+    const onError = (e) => errors.push(e.message);
+    window.addEventListener('error', onError);
+    const buildParams = (length) => ({
+      type: 'bar',
+      title: 'Probe — Interrupted',
+      isStacked: true,
+      zoomToShares: true,
+      withMinimap: true,
+      labels: Array.from({ length }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+      datasets: colors.map((color, i) => ({
+        name: `Dataset ${i}`, color, values: Array.from({ length }, (_, j) => 10 + ((i + j) % 4) * 10),
+      })),
+      onSelectedIndexChange: (index) => log.push(`select ${index}`),
+      onHiddenSeriesChange: (names) => log.push(`hidden ${names}`),
+      onZoomChange: (value) => log.push(`zoom ${value}`),
+    });
+
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.body.appendChild(element);
+    window.probeChart = new LovelyChart(element, buildParams(labels));
+    await wait(800);
+
+    const fire = (target, type, x, y) => {
+      target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+    };
+    const center = (target) => {
+      const { left, top, width, height } = target.getBoundingClientRect();
+      return [left + width / 2, top + height / 2];
+    };
+    const [legendButton, longPressButton] = element.querySelectorAll('.lovely-chart--button');
+    const slider = element.querySelector('.lovely-chart--minimap-slider-inner');
+    const [sliderX, sliderY] = center(slider);
+    const plot = element.querySelector('.lovely-chart--tooltip');
+    const plotBox = plot.getBoundingClientRect();
+    legendButton.click();
+    await wait(50);
+    fire(longPressButton, 'mousedown', ...center(longPressButton));
+    fire(longPressButton, 'mousedown', ...center(longPressButton));
+    fire(slider, 'mousedown', sliderX, sliderY);
+    fire(document, 'mousemove', sliderX - 20, sliderY);
+    fire(plot, 'mousemove', plotBox.right - 10, plotBox.top + plotBox.height / 2);
+    log.length = 0;
+    window.lateCallbacks = 0;
+    if (action === 'update') {
+      window.probeChart.update(buildParams(newLabels));
+      fire(element.querySelector('.lovely-chart--tooltip'), 'click', ...center(plot));
+    } else {
+      window.dispatchEvent(new Event('orientationchange'));
+      window.probeChart.destroy();
+    }
+    window.isCountingLateCallbacks = true;
+    const htmlClass = document.documentElement.className;
+
+    const readCaption = () => element.querySelector('.lovely-chart--header-caption')?.textContent;
+    await wait(300);
+    const captionBefore = readCaption();
+    fire(document, 'mousemove', sliderX - 80, sliderY);
+    await wait(700);
+    const captionAfter = readCaption();
+    fire(document, 'mouseup', sliderX - 80, sliderY);
+    window.isCountingLateCallbacks = false;
+    window.removeEventListener('error', onError);
+
+    return { log, errors, htmlClass, captionBefore, captionAfter, lateCallbacks: window.lateCallbacks };
+  }, { action, labels: INTERRUPTED_LABELS, newLabels: INTERRUPTING_LABELS, colors: INTERRUPTED_COLORS });
+}
+
+// Counts the frame and timer callbacks that fire while `window.isCountingLateCallbacks` is set
+function countLateCallbacks(page) {
+  return page.evaluate(() => {
+    window.realSetTimeout = window.setTimeout.bind(window);
+    ['setTimeout', 'setInterval', 'requestAnimationFrame'].forEach((name) => {
+      const schedule = window[name].bind(window);
+      window[name] = (callback, ...args) => schedule((...callbackArgs) => {
+        if (window.isCountingLateCallbacks) window.lateCallbacks++;
+        callback(...callbackArgs);
+      }, ...args);
+    });
+  });
+}
+
 async function hoverWiggle(page, box, fx, fy) {
   await page.mouse.move(box.x + box.width * (fx - 0.05), box.y + box.height * fy, { steps: 5 });
   await sleep(200);
@@ -1182,6 +1285,71 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('update() out of a zoom reports the zoom-out',
     JSON.stringify(zoomedBeforeUpdate) === '["in"]' && JSON.stringify(zoomAfterUpdate) === '["in","out"]',
     JSON.stringify(zoomAfterUpdate));
+
+  // --- update() and destroy() of a chart mid-interaction ---
+  const updated = await interruptProbe(page, 'update');
+  const updatedProbe = page.locator('#probe .lovely-chart--container');
+  const updatedPaint = [];
+  for (const color of INTERRUPTED_COLORS) updatedPaint.push((await findColor(updatedProbe, parseHex(color))).count);
+  await unmountProbe(page);
+  check('update() mid-interaction throws nothing', updated.errors.length === 0, updated.errors.join('; '));
+  check('update() mid-interaction reports nothing of the replaced chart', updated.log.length === 0,
+    JSON.stringify(updated.log));
+  check('update() ends a drag of the replaced chart',
+    !updated.htmlClass.includes('cursor-') && updated.captionBefore === updated.captionAfter,
+    JSON.stringify(updated));
+  check('update() mid-interaction draws every dataset of the new data in full colour',
+    updatedPaint.every((count) => count > MIN_DATASET_PIXELS), JSON.stringify(updatedPaint));
+
+  // The tooltip that calls `onSelectedIndexChange` carries on after it, with the data of the chart it belongs to
+  const rebuildFromCallbackErrors = await page.evaluate(async ({ labels, newLabels }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const errors = [];
+    const onError = (e) => errors.push(e.message);
+    window.addEventListener('error', onError);
+    let isUpdated = false;
+    const buildParams = (length) => ({
+      type: 'line',
+      title: 'Probe — Rebuilt from a callback',
+      labels: Array.from({ length }, (_, i) => Date.UTC(2026, 0, 1 + i)),
+      datasets: [{ name: 'A', values: Array.from({ length }, (_, i) => i) }],
+      onSelectedIndexChange: (index) => {
+        if (index === undefined || isUpdated) return;
+        isUpdated = true;
+        window.probeChart.update(buildParams(newLabels));
+      },
+    });
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.body.appendChild(element);
+    window.probeChart = new LovelyChart(element, buildParams(labels));
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    const plot = element.querySelector('.lovely-chart--tooltip');
+    const { right, top, height } = plot.getBoundingClientRect();
+    plot.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: right - 10, clientY: top + height / 2 }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    window.removeEventListener('error', onError);
+    return isUpdated ? errors : ['onSelectedIndexChange not called'];
+  }, { labels: INTERRUPTED_LABELS, newLabels: INTERRUPTING_LABELS });
+  await unmountProbe(page);
+  check('update() from onSelectedIndexChange to fewer labels throws nothing', rebuildFromCallbackErrors.length === 0,
+    rebuildFromCallbackErrors.join('; '));
+
+  // A page of its own counts every frame and timer, which the demo charts would add to
+  const isolatedPage = await browser.newPage({ viewport: { width: 900, height: 1200 } });
+  const isolatedErrors = [];
+  isolatedPage.on('pageerror', (err) => isolatedErrors.push(err.message));
+  await isolatedPage.goto(`${url}isolated`);
+  await isolatedPage.addStyleTag({ url: `${url}LovelyChart.css` });
+  await countLateCallbacks(isolatedPage);
+  const destroyed = await interruptProbe(isolatedPage, 'destroy');
+  await isolatedPage.close();
+  check('destroy() mid-interaction throws nothing and reports nothing',
+    destroyed.errors.length === 0 && isolatedErrors.length === 0 && destroyed.log.length === 0,
+    JSON.stringify([...isolatedErrors, ...destroyed.log]));
+  check('destroy() ends a drag and leaves no frame or timer running',
+    !destroyed.htmlClass.includes('cursor-') && destroyed.lateCallbacks === 0,
+    `html: "${destroyed.htmlClass}", callbacks after destroy(): ${destroyed.lateCallbacks}`);
 
   // A month-granularity chart must not caption its zoom with a single day.
   const monthZoomCaption = await page.evaluate(async () => {

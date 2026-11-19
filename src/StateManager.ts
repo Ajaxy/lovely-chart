@@ -1,4 +1,5 @@
 import type { AnalyzedData, ChartState, Filter, FocusOn, PointerVector, Range, Size } from './types.js';
+import type { Cancelable } from './utils.js';
 
 import { extendComparisonRanges } from './comparison.js';
 import {
@@ -51,7 +52,7 @@ export class StateManager {
   readonly #filter: Filter;
   #transitionConfig: TransitionConfigItem[];
   readonly #transitions: TransitionManager;
-  readonly #runCallbackOnRaf: () => void;
+  readonly #runCallbackOnRaf: Cancelable<[]>;
 
   #state = {} as ChartState;
   #isDestroyed = false;
@@ -120,6 +121,7 @@ export class StateManager {
   destroy() {
     this.#isDestroyed = true;
     this.#transitions.destroy();
+    this.#runCallbackOnRaf.cancel();
   }
 
   #buildTransitionConfig(): TransitionConfigItem[] {

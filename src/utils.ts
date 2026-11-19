@@ -46,16 +46,25 @@ export function mergeProxied<T extends object, U extends object>(base: T, overri
   }) as T & U;
 }
 
+// A deferred function, whose `cancel` drops the call it holds
+export type Cancelable<A extends unknown[]> = ((...args: A) => void) & { cancel: () => void };
+
 export function throttle<A extends unknown[]>(
   fn: (...args: A) => void,
   ms: number,
   shouldRunFirst = true,
-): (...args: A) => void {
+): Cancelable<A> {
   let interval: number | undefined;
   let isPending: boolean;
   let args: A;
 
-  return (..._args: A) => {
+  function cancel() {
+    window.clearInterval(interval);
+    interval = undefined;
+    isPending = false;
+  }
+
+  return Object.assign((..._args: A) => {
     isPending = true;
     args = _args;
 
@@ -67,8 +76,7 @@ export function throttle<A extends unknown[]>(
 
       interval = window.setInterval(() => {
         if (!isPending) {
-          window.clearInterval(interval);
-          interval = undefined;
+          cancel();
           return;
         }
 
@@ -76,31 +84,36 @@ export function throttle<A extends unknown[]>(
         fn(...args);
       }, ms);
     }
-  };
+  }, { cancel });
 }
 
-export function throttleWithRaf<A extends unknown[]>(fn: (...args: A) => void): (...args: A) => void {
-  let isWaiting = false;
+export function throttleWithRaf<A extends unknown[]>(fn: (...args: A) => void): Cancelable<A> {
+  let frame: number | undefined;
   let args: A;
 
-  return function (..._args: A) {
+  return Object.assign(function (..._args: A) {
     args = _args;
 
-    if (!isWaiting) {
-      isWaiting = true;
-
-      requestAnimationFrame(() => {
-        isWaiting = false;
+    if (frame === undefined) {
+      frame = requestAnimationFrame(() => {
+        frame = undefined;
         fn(...args);
       });
     }
-  };
+  }, {
+    cancel() {
+      if (frame === undefined) return;
+
+      cancelAnimationFrame(frame);
+      frame = undefined;
+    },
+  });
 }
 
-export function debounce(fn: () => void, ms: number, shouldRunFirst = true, shouldRunLast = true): () => void {
+export function debounce(fn: () => void, ms: number, shouldRunFirst = true, shouldRunLast = true): Cancelable<[]> {
   let waitingTimeout: number | undefined;
 
-  return function () {
+  return Object.assign(function () {
     if (waitingTimeout) {
       clearTimeout(waitingTimeout);
       waitingTimeout = undefined;
@@ -115,5 +128,10 @@ export function debounce(fn: () => void, ms: number, shouldRunFirst = true, shou
 
       waitingTimeout = undefined;
     }, ms);
-  };
+  }, {
+    cancel() {
+      clearTimeout(waitingTimeout);
+      waitingTimeout = undefined;
+    },
+  });
 }

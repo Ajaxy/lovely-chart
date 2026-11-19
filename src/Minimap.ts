@@ -44,8 +44,12 @@ export class Minimap {
   #drawnDatasets?: AnalyzedDataset[];
 
   readonly #limitBegin: number | undefined;
+  readonly #captureDetachers: (() => void)[] = [];
 
   readonly #updateRulerOnRaf = throttleWithRaf(() => this.#updateRuler());
+  readonly #toggleTransparencyOnRaf = throttleWithRaf((shouldShow: boolean) => {
+    this.#element.classList.toggle('lovely-chart--state-transparent', !shouldShow);
+  });
 
   constructor(container: HTMLElement, data: AnalyzedData, colors: ChartColors, rangeCallback: (range: Range) => void) {
     this.#container = container;
@@ -82,10 +86,13 @@ export class Minimap {
 
   toggle(shouldShow: boolean) {
     this.#element.classList.toggle('lovely-chart--state-hidden', !shouldShow);
+    this.#toggleTransparencyOnRaf(shouldShow);
+  }
 
-    requestAnimationFrame(() => {
-      this.#element.classList.toggle('lovely-chart--state-transparent', !shouldShow);
-    });
+  destroy() {
+    this.#captureDetachers.forEach((detach) => detach());
+    this.#updateRulerOnRaf.cancel();
+    this.#toggleTransparencyOnRaf.cancel();
   }
 
   #setupLayout() {
@@ -138,7 +145,7 @@ export class Minimap {
 
     this.#slider = this.#ruler.children[1] as HTMLElement;
 
-    captureEvents(
+    this.#captureDetachers.push(captureEvents(
       this.#slider.children[1] as HTMLElement,
       {
         onCapture: this.#onDragCapture,
@@ -146,9 +153,9 @@ export class Minimap {
         onRelease: this.#onDragRelease,
         draggingCursor: 'grabbing',
       },
-    );
+    ));
 
-    captureEvents(
+    this.#captureDetachers.push(captureEvents(
       this.#slider.children[0] as HTMLElement,
       {
         onCapture: this.#onDragCapture,
@@ -156,9 +163,9 @@ export class Minimap {
         onRelease: this.#onDragRelease,
         draggingCursor: 'ew-resize',
       },
-    );
+    ));
 
-    captureEvents(
+    this.#captureDetachers.push(captureEvents(
       this.#slider.children[2] as HTMLElement,
       {
         onCapture: this.#onDragCapture,
@@ -166,7 +173,7 @@ export class Minimap {
         onRelease: this.#onDragRelease,
         draggingCursor: 'ew-resize',
       },
-    );
+    ));
 
     this.#element.appendChild(this.#ruler);
   }
