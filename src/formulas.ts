@@ -1,9 +1,9 @@
 import type { Projection } from './Projection.js';
-import type { AnalyzedDataset, ChartState, LabelRange, LinePattern, Rect, XLabel } from './types.js';
+import type { AnalyzedDataset, ChartState, LabelRange, LinePattern, Rect, Size, XLabel } from './types.js';
 
 import {
   AXES_MAX_ROW_HEIGHT, GUTTER, MILLISECONDS_IN_DAY, PLOT_CIRCLE_RADIUS_FACTOR, PLOT_TOP_PADDING, SIMPLIFIER_MIN_POINTS,
-  X_AXIS_HEIGHT, Y_AXIS_LABEL_GAP, Y_AXIS_ZERO_BASED_THRESHOLD,
+  SPARKLINE_PADDING, X_AXIS_HEIGHT, Y_AXIS_LABEL_GAP, Y_AXIS_ZERO_BASED_THRESHOLD,
 } from './constants.js';
 
 const EDGE_FADE_DISTANCE = GUTTER * 4;
@@ -163,6 +163,18 @@ export function getCircleArea(projection: Projection): Rect {
   const radius = getCircleRadius(projection);
 
   return { left: xCenter - radius, top: yCenter - radius, width: radius * 2, height: radius * 2 };
+}
+
+// The circle on a plot canvas of this size, under its top padding and over the X-axis band, or inside the insets of a
+// sparkline
+export function getPlotCircle({ width, height }: Size, isSparkline = false): { centerY: number; radius: number } {
+  const top = isSparkline ? SPARKLINE_PADDING : PLOT_TOP_PADDING;
+  const bottom = isSparkline ? SPARKLINE_PADDING : X_AXIS_HEIGHT;
+
+  return {
+    centerY: (top + height - bottom) / 2,
+    radius: Math.max(0, Math.min(width, height - bottom - top)) * PLOT_CIRCLE_RADIUS_FACTOR,
+  };
 }
 
 export function getCircleTextSize(percent: number, radius: number): number {

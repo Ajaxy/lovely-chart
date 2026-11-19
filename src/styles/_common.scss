@@ -81,7 +81,7 @@
 .lovely-chart--container-type-circle {
   &.lovely-chart--state-animating {
     > canvas {
-      transform-origin: center calc(50% - 7.5px);
+      transform-origin: center var(--lovely-chart-circle-center-y);
     }
 
     &.lovely-chart--state-zoomed-in > canvas {
@@ -96,87 +96,45 @@
   }
 }
 
+// `Zoomer` sets `--lovely-chart-circle-clip` to the circle radius plus the shift of a focused sector, and
+// `--lovely-chart-circle-center-y` to the height of the circle center on the plot canvas
 @keyframes lovely-chart--animation-circle-transition-in {
   0% {
     transform: rotate(-360deg);
-    -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
-    clip-path: circle(80% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(80% at center var(--lovely-chart-circle-center-y));
+    clip-path: circle(80% at center var(--lovely-chart-circle-center-y));
   }
 
   25% {
     transform: rotate(-360deg);
-    -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
-    clip-path: circle(32% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(var(--lovely-chart-circle-clip) at center var(--lovely-chart-circle-center-y));
+    clip-path: circle(var(--lovely-chart-circle-clip) at center var(--lovely-chart-circle-center-y));
   }
 
   75% {
     transform: rotate(0);
-    -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
-    clip-path: circle(32% at center calc(50% - 7.5px));
-  }
-}
-
-@media (max-width: 480px) {
-  @keyframes lovely-chart--animation-circle-transition-in {
-    0% {
-      transform: rotate(-360deg);
-      -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
-      clip-path: circle(80% at center calc(50% - 7.5px));
-    }
-
-    25% {
-      transform: rotate(-360deg);
-      -webkit-clip-path: circle(40% at center calc(50% - 7.5px));
-      clip-path: circle(40% at center calc(50% - 7.5px));
-    }
-
-    75% {
-      transform: rotate(0);
-      -webkit-clip-path: circle(40% at center calc(50% - 7.5px));
-      clip-path: circle(40% at center calc(50% - 7.5px));
-    }
+    -webkit-clip-path: circle(var(--lovely-chart-circle-clip) at center var(--lovely-chart-circle-center-y));
+    clip-path: circle(var(--lovely-chart-circle-clip) at center var(--lovely-chart-circle-center-y));
   }
 }
 
 @keyframes lovely-chart--animation-circle-transition-out {
   0% {
     transform: rotate(360deg);
-    -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
-    clip-path: circle(32% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(var(--lovely-chart-circle-clip) at center var(--lovely-chart-circle-center-y));
+    clip-path: circle(var(--lovely-chart-circle-clip) at center var(--lovely-chart-circle-center-y));
   }
 
   50% {
     transform: rotate(0);
-    -webkit-clip-path: circle(32% at center calc(50% - 7.5px));
-    clip-path: circle(32% at center calc(50% - 7.5px));
+    -webkit-clip-path: circle(var(--lovely-chart-circle-clip) at center var(--lovely-chart-circle-center-y));
+    clip-path: circle(var(--lovely-chart-circle-clip) at center var(--lovely-chart-circle-center-y));
   }
 
   75% {
     transform: rotate(0);
-    -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
-    clip-path: circle(80% at center calc(50% - 7.5px));
-  }
-}
-
-@media (max-width: 480px) {
-  @keyframes lovely-chart--animation-circle-transition-out {
-    0% {
-      transform: rotate(360deg);
-      -webkit-clip-path: circle(40% at center calc(50% - 7.5px));
-      clip-path: circle(40% at center calc(50% - 7.5px));
-    }
-
-    50% {
-      transform: rotate(0);
-      -webkit-clip-path: circle(40% at center calc(50% - 7.5px));
-      clip-path: circle(40% at center calc(50% - 7.5px));
-    }
-
-    75% {
-      transform: rotate(0);
-      -webkit-clip-path: circle(80% at center calc(50% - 7.5px));
-      clip-path: circle(80% at center calc(50% - 7.5px));
-    }
+    -webkit-clip-path: circle(80% at center var(--lovely-chart-circle-center-y));
+    clip-path: circle(80% at center var(--lovely-chart-circle-center-y));
   }
 }
 

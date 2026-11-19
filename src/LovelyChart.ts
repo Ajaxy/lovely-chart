@@ -163,7 +163,7 @@ export default class LovelyChart {
     this.#zoomer = this.#data.isZoomable
       ? new Zoomer(
         this.#data, this.#originalData, this.#colors, this.#stateManager,
-        this.#element!, this.#header, this.#minimap, this.#tooltip, this.#tools,
+        this.#element!, this.#plotSize!, this.#header, this.#minimap, this.#tooltip, this.#tools,
       )
       : undefined;
   }

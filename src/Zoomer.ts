@@ -3,17 +3,21 @@ import type { Minimap } from './Minimap.js';
 import type { StateManager } from './StateManager.js';
 import type { Tools } from './Tools.js';
 import type { Tooltip } from './Tooltip.js';
-import type { AnalyzedData, ChartColors, ChartState, Filter, LovelyChartParams, Range, XLabel } from './types.js';
+import type { AnalyzedData, ChartColors, ChartState, Filter, LovelyChartParams, Range, Size, XLabel } from './types.js';
 
-import { MILLISECONDS_IN_DAY, NO_FOCUS, ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT } from './constants.js';
+import {
+  MILLISECONDS_IN_DAY, NO_FOCUS, PLOT_CIRCLE_SHIFT, ZOOM_RANGE_DELTA, ZOOM_RANGE_MIDDLE, ZOOM_TIMEOUT,
+} from './constants.js';
 import { analyzeData } from './data.js';
 import { getZoomCaption } from './format.js';
-import { getDrawnPattern, getLabelFraction } from './formulas.js';
+import { getDrawnPattern, getLabelFraction, getPlotCircle } from './formulas.js';
 import { createColors } from './skin.js';
 
 const ZOOM_ANIMATING_TIMEOUT = 1_000;
 // Days taken around the zoomed label to build the circle data
 const CIRCLE_LABELS_AROUND = 3;
+const CIRCLE_CLIP_PROPERTY = '--lovely-chart-circle-clip';
+const CIRCLE_CENTER_Y_PROPERTY = '--lovely-chart-circle-center-y';
 
 export class Zoomer {
   readonly #data: AnalyzedData;
@@ -21,6 +25,7 @@ export class Zoomer {
   readonly #colors: ChartColors;
   readonly #stateManager: StateManager;
   readonly #container: HTMLElement;
+  readonly #plotSize: Size;
   readonly #header: Header;
   readonly #minimap: Minimap | undefined;
   readonly #tooltip: Tooltip;
@@ -39,6 +44,7 @@ export class Zoomer {
     colors: ChartColors,
     stateManager: StateManager,
     container: HTMLElement,
+    plotSize: Size,
     header: Header,
     minimap: Minimap | undefined,
     tooltip: Tooltip,
@@ -49,6 +55,7 @@ export class Zoomer {
     this.#colors = colors;
     this.#stateManager = stateManager;
     this.#container = container;
+    this.#plotSize = plotSize;
     this.#header = header;
     this.#minimap = minimap;
     this.#tooltip = tooltip;
@@ -70,7 +77,7 @@ export class Zoomer {
       this.#container.classList.add('lovely-chart--state-zoomed-in');
       // Cancel CSS animation for `isInstant` display
       if (!isInstant) {
-        this.#container.classList.add('lovely-chart--state-animating');
+        this.#startCircleTransition();
       }
     }
     if (isInstant) {
@@ -102,7 +109,7 @@ export class Zoomer {
     this.#tooltip.toggleIsZoomed(false);
     if (this.#data.shouldZoomToShares) {
       this.#container.classList.remove('lovely-chart--state-zoomed-in');
-      this.#container.classList.add('lovely-chart--state-animating');
+      this.#startCircleTransition();
     }
 
     const labelIndex = Math.round((state.labelFromIndex + state.labelToIndex) / 2);
@@ -128,6 +135,15 @@ export class Zoomer {
       clearTimeout(this.#stateAnimatingTimeout);
       this.#stateAnimatingTimeout = undefined;
     }
+  }
+
+  // The CSS transition turns the plot canvas about the circle and closes its clip on it, leaving room for a focused
+  // sector's shift
+  #startCircleTransition() {
+    const { centerY, radius } = getPlotCircle(this.#plotSize, this.#data.isSparkline);
+    this.#container.style.setProperty(CIRCLE_CLIP_PROPERTY, `${radius + PLOT_CIRCLE_SHIFT}px`);
+    this.#container.style.setProperty(CIRCLE_CENTER_Y_PROPERTY, `${centerY}px`);
+    this.#container.classList.add('lovely-chart--state-animating');
   }
 
   #replaceData(

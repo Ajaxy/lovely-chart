@@ -8,13 +8,11 @@ import {
   CIRCLE_STATIC_PROPS,
   GAP,
   NO_FOCUS,
-  PLOT_CIRCLE_RADIUS_FACTOR,
-  PLOT_TOP_PADDING,
   TRANSITION_DEFAULT_DURATION,
-  X_AXIS_HEIGHT,
 } from './constants.js';
 import {
-  calculateYAxisScale, floorToStep, getYRangeBottom, isConstantRange, xStepToScaleLevel, yScaleLevelToStep,
+  calculateYAxisScale, floorToStep, getPlotCircle, getYRangeBottom, isConstantRange, xStepToScaleLevel,
+  yScaleLevelToStep,
 } from './formulas.js';
 import { TransitionManager } from './TransitionManager.js';
 import { getMaxMin, mergeProxied, throttleWithRaf } from './utils.js';
@@ -279,10 +277,7 @@ function calculateCircleShifts(
   labelFromIndex: number,
   labelToIndex: number,
 ): Record<string, number> {
-  const radius = Math.max(0, Math.min(
-    viewportSize.width,
-    viewportSize.height - X_AXIS_HEIGHT - PLOT_TOP_PADDING,
-  )) * PLOT_CIRCLE_RADIUS_FACTOR;
+  const { radius } = getPlotCircle(viewportSize, data.isSparkline);
 
   const sums = data.datasets.map(({ key, values }) => (
     filter[key]

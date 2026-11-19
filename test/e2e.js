@@ -162,6 +162,17 @@ const INTERRUPTED_LABELS = 30;
 const INTERRUPTING_LABELS = 7;
 // The colours of the two datasets of an interrupted chart
 const INTERRUPTED_COLORS = ['#3497ED', '#F34C44'];
+// How far a focused sector of a pie or donut moves out of the circle
+const CIRCLE_SHIFT = 10;
+// The colour a probe paints over its whole plot canvas, to show what a clip leaves of it
+const CLIP_PROBE_COLOR = [255, 0, 255];
+// The pixels over which the antialiased edge of a clip or a circle may land
+const CLIP_EDGE_TOLERANCE = 2;
+// Fractions of the zoom-in and zoom-out transitions of a circle, and those of them that clip it the tightest
+const CIRCLE_IN_FRACTIONS = [0, 0.1, 0.25, 0.5, 0.75, 0.85];
+const CIRCLE_IN_TIGHT_FRACTIONS = [0.25, 0.5, 0.75];
+const CIRCLE_OUT_FRACTIONS = [0, 0.25, 0.5, 0.6, 0.7, 0.9];
+const CIRCLE_OUT_TIGHT_FRACTIONS = [0, 0.25, 0.5];
 
 const SPANISH_DATE_LOCALE = {
   months: 'ene,feb,mar,abr,may,jun,jul,ago,sep,oct,nov,dic'.split(','),
@@ -476,12 +487,14 @@ function paintedPixels(page, chartIndex) {
 /**
  * Mounts a chart for the checks that follow. Fixtures live here rather than on
  * the demo page: they exist to make one failure unmistakable, not to be looked
- * at. `dataUrl` seeds them from a demo dataset, `config` overrides it, and
+ * at. `dataUrl` seeds them from a demo dataset, `config` overrides it,
  * `zoomDataSource` attaches the day-drilling `onZoom` the demo page uses, its
  * day data overridden by `zoomConfig`. `hostStyle` styles the element the
- * chart is built in.
+ * chart is built in, and `width` sets the chart width in px.
  */
-async function mountProbe(page, { dataUrl, config = {}, zoomDataSource, zoomConfig = {}, hostStyle = '' } = {}) {
+async function mountProbe(page, {
+  dataUrl, config = {}, zoomDataSource, zoomConfig = {}, hostStyle = '', width,
+} = {}) {
   await page.evaluate(async (spec) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
     const base = spec.dataUrl ? await fetch(spec.dataUrl).then((response) => response.json()) : {};
@@ -503,9 +516,12 @@ async function mountProbe(page, { dataUrl, config = {}, zoomDataSource, zoomConf
     const element = document.createElement('div');
     element.id = 'probe';
     element.style.cssText = spec.hostStyle;
+    if (spec.width) {
+      element.style.width = `${spec.width}px`;
+    }
     document.getElementById('container').appendChild(element);
     window.probeChart = new LovelyChart(element, params);
-  }, { dataUrl, config, zoomDataSource, zoomConfig, hostStyle });
+  }, { dataUrl, config, zoomDataSource, zoomConfig, hostStyle, width });
   await sleep(1800);
 
   return page.locator('#probe .lovely-chart--container');
@@ -953,6 +969,96 @@ function countLateCallbacks(page) {
   });
 }
 
+// Paints the whole plot canvas of the probe chart in `CLIP_PROBE_COLOR`, and returns the center and the radius, in CSS
+// px, of the circle it drew before
+function paintOverProbeCircle(page) {
+  return page.evaluate((color) => {
+    const canvas = document.querySelector('#probe .lovely-chart--container > canvas');
+    const context = canvas.getContext('2d');
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    const scale = canvas.width / canvas.clientWidth;
+    let left = Infinity;
+    let right = -1;
+    let top = Infinity;
+    let bottom = -1;
+    for (let j = 3; j < data.length; j += 4) {
+      if (data[j] > 128) {
+        const x = (j - 3) / 4 % canvas.width;
+        const y = Math.floor((j - 3) / 4 / canvas.width);
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
+    }
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.fillStyle = `rgb(${color.join(', ')})`;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.restore();
+    return {
+      center: [(left + right + 1) / 2 / scale, (top + bottom + 1) / 2 / scale],
+      radius: (right - left + 1) / 2 / scale,
+    };
+  }, CLIP_PROBE_COLOR);
+}
+
+// Replays the zoom-in or the zoom-out transition of the zoomed probe circle, painted over, and reads at each fraction
+// of it how far the plot canvas shows from the circle center along its row and its column, on screen
+async function measureCircleTransition(page, { isOut, fractions, box, center }) {
+  await page.evaluate((shouldZoomOut) => {
+    const container = document.querySelector('#probe .lovely-chart--container');
+    container.classList.remove('lovely-chart--state-animating');
+    if (shouldZoomOut) {
+      container.classList.remove('lovely-chart--state-zoomed-in');
+    }
+    container.getBoundingClientRect();
+    container.classList.add('lovely-chart--state-animating');
+  }, isOut);
+
+  const reaches = [];
+  for (const fraction of fractions) {
+    await page.evaluate((at) => {
+      document.querySelector('#probe .lovely-chart--container > canvas').getAnimations().forEach((animation) => {
+        animation.pause();
+        animation.currentTime = animation.effect.getTiming().duration * at;
+      });
+    }, fraction);
+    const screenshot = await page.screenshot({ clip: box });
+    reaches.push(await page.evaluate(async ({ source, origin, color, at }) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${source}`;
+      await image.decode();
+      const canvas = new OffscreenCanvas(image.width, image.height);
+      const context = canvas.getContext('2d');
+      context.drawImage(image, 0, 0);
+      const { data, width, height } = context.getImageData(0, 0, image.width, image.height);
+      const [cx, cy] = origin;
+      const [x0, y0] = origin.map(Math.floor);
+      const isShown = (x, y) => {
+        const j = (y * width + x) * 4;
+        return x >= 0 && x < width && y >= 0 && y < height
+          && color.every((channel, k) => Math.abs(data[j + k] - channel) < 60);
+      };
+      const countShown = (dx, dy) => {
+        let count = 0;
+        while (isShown(x0 + dx * (count + 1), y0 + dy * (count + 1))) count++;
+        return count;
+      };
+      // From the center to the outer side of the last pixel shown each way
+      const distances = [
+        cx - x0 + countShown(-1, 0),
+        x0 + 1 + countShown(1, 0) - cx,
+        cy - y0 + countShown(0, -1),
+        y0 + 1 + countShown(0, 1) - cy,
+      ];
+      return { fraction: at, shortest: Math.min(...distances), longest: Math.max(...distances) };
+    }, { source: screenshot.toString('base64'), origin: center, color: CLIP_PROBE_COLOR, at: fraction }));
+  }
+
+  return reaches;
+}
+
 async function hoverWiggle(page, box, fx, fy) {
   await page.mouse.move(box.x + box.width * (fx - 0.05), box.y + box.height * fy, { steps: 5 });
   await sleep(200);
@@ -1141,6 +1247,74 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
   }
   await unmountProbe(page);
+
+  // --- A zoom transition clips the plot to the circle and a focused sector's shift, at any plot size ---
+  // A narrow column shows the whole circle on a wide page, a short plot closes the clip on its small circle, and a
+  // sparkline centers it on its circle, which no axis band moves
+  const circleClips = [];
+  for (const { name, width, plotHeight, zoomType, isSparkline = false } of [
+    { name: 'narrow donut', width: 392, zoomType: 'donut' },
+    { name: 'short pie', plotHeight: 160, zoomType: 'pie' },
+    { name: 'sparkline pie', plotHeight: 200, zoomType: 'pie', isSparkline: true },
+  ]) {
+    const circleProbe = await mountProbe(page, {
+      width,
+      config: {
+        type: 'bar',
+        isStacked: true,
+        title: `Probe — Zoom transition (${name})`,
+        zoomToShares: true,
+        circleLabelsAround: 0,
+        zoomType,
+        labels: [0, 1, 2, 3, 4].map((month) => Date.UTC(2029, month, 1)),
+        labelType: 'month',
+        datasets: [
+          { name: 'Alpha', color: '#3497ED', values: [500, 400, 300, 400, 500] },
+          { name: 'Beta', color: '#9ED448', values: [500, 600, 700, 600, 500] },
+        ],
+        plotHeight,
+        isSparkline,
+      },
+    });
+    await circleProbe.scrollIntoViewIfNeeded();
+    const circlePlot = await circleProbe.locator('.lovely-chart--tooltip').boundingBox();
+    await hoverWiggle(page, circlePlot, 0.5, 0.6);
+    await page.mouse.click(circlePlot.x + circlePlot.width * 0.5, circlePlot.y + circlePlot.height * 0.6);
+    await sleep(2000);
+    // A pointer off the chart leaves every sector in place
+    await page.mouse.move(0, 0);
+    await sleep(600);
+
+    const isCircleZoomed = await circleProbe.evaluate((el) => el.classList.contains('lovely-chart--state-zoomed-in'));
+    const box = await circleProbe.locator('canvas').first().boundingBox();
+    const { center, radius } = await paintOverProbeCircle(page);
+    const zoomIn = await measureCircleTransition(page, { isOut: false, fractions: CIRCLE_IN_FRACTIONS, box, center });
+    const zoomOut = await measureCircleTransition(page, { isOut: true, fractions: CIRCLE_OUT_FRACTIONS, box, center });
+    const tight = [
+      ...zoomIn.filter(({ fraction }) => CIRCLE_IN_TIGHT_FRACTIONS.includes(fraction)),
+      ...zoomOut.filter(({ fraction }) => CIRCLE_OUT_TIGHT_FRACTIONS.includes(fraction)),
+    ];
+    circleClips.push({
+      name,
+      isCircleZoomed,
+      radius,
+      shortest: Math.min(...[...zoomIn, ...zoomOut].map(({ shortest }) => shortest)),
+      tightest: Math.max(...tight.map(({ longest }) => longest)),
+    });
+    await unmountProbe(page);
+  }
+  const describeClips = (key) => circleClips.map((clip) => `${clip.name}: radius ${clip.radius}, reach ${clip[key]}`)
+    .join('; ');
+  check('a zoom transition never clips the circle or a focused sector',
+    circleClips.every(({ isCircleZoomed, radius, shortest }) => (
+      isCircleZoomed && shortest >= radius + CIRCLE_SHIFT - CLIP_EDGE_TOLERANCE
+    )),
+    describeClips('shortest'));
+  check('a zoom transition closes its clip on the circle',
+    circleClips.every(({ isCircleZoomed, radius, tightest }) => (
+      isCircleZoomed && tightest <= radius + CIRCLE_SHIFT + CLIP_EDGE_TOLERANCE
+    )),
+    describeClips('tightest'));
 
   // A zoom out of a pie as soon as the zoom in allows it keeps its transition class to the end of the transition
   const quickZoomOut = await page.evaluate(async ({ watch }) => {
