@@ -75,6 +75,8 @@ export default class LovelyChart {
   #state?: ChartState;
   #windowWidth = window.innerWidth;
   #originalData: LovelyChartParams;
+  // Where each rebuild puts the legend: the `legendContainer` of the params, or the element `setLegendContainer()` gave
+  #legendContainer?: HTMLElement;
   #isDestroyed = false;
   #initialZoomPending = false;
   #selectedLabelIndex?: number;
@@ -96,6 +98,7 @@ export default class LovelyChart {
   constructor(container: HTMLElement, originalData: LovelyChartParams) {
     this.#container = container;
     this.#originalData = originalData;
+    this.#legendContainer = originalData.legendContainer;
 
     this.#data = analyzeData(this.#originalData);
     this.#initialZoomPending = this.#data.initialZoomIndex !== undefined;
@@ -119,6 +122,7 @@ export default class LovelyChart {
     if (this.#isDestroyed) return;
     this.#hiddenDatasetsKey = undefined;
     this.#originalData = newData;
+    this.#legendContainer = newData.legendContainer;
     const nextSibling = this.#element!.nextSibling ?? undefined;
     const isPlotFocused = this.#tooltip!.isFocused();
     this.#destroyComponents();
@@ -147,6 +151,18 @@ export default class LovelyChart {
     recreateColors(this.#colors, this.#data.colors, this.#data);
     this.#tools!.updateColors();
     this.#stateManager.update();
+  }
+
+  /**
+   * Moves the legend into `element`, or back to the end of the chart with `undefined`, without a rebuild: its buttons
+   * keep the datasets they hide, and the chart its zoom, range and selection. A zoom, a resize and an orientation
+   * change keep the legend there, and `update()` places it by the `legendContainer` of its data.
+   */
+  setLegendContainer(element: HTMLElement | undefined) {
+    if (this.#isDestroyed) return;
+    this.#legendContainer = element;
+    this.#tools!.setContainer(element ?? this.#element!);
+    this.#zoomer?.releaseSize();
   }
 
   destroy() {
@@ -188,7 +204,7 @@ export default class LovelyChart {
       this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus, this.#reportTooltip,
     );
     this.#tools = new Tools(
-      this.#originalData.legendContainer ?? this.#element!, this.#data, this.#colors, this.#onFilterChange,
+      this.#legendContainer ?? this.#element!, this.#data, this.#colors, this.#onFilterChange,
     );
     this.#zoomer = this.#data.isZoomable
       ? new Zoomer(

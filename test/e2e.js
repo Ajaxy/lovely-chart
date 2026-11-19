@@ -3945,6 +3945,185 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('a legend in a `legendContainer` takes the spacing variables of that element',
     isSpacingAt(externalSpacing, PAGE_SPACING), JSON.stringify(externalSpacing.spacing));
 
+  // --- `setLegendContainer()` moves the live legend in and out of the chart, its buttons in their state, through a
+  // rebuild of the layout, a zoom and `update()` ---
+  const movedLegend = await page.evaluate(async ({ config, width, style }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.createElement('div');
+    element.id = 'probe';
+    element.style.width = `${width}px`;
+    const slot = document.createElement('div');
+    slot.id = 'probe-legend';
+    slot.style.cssText = `width: ${width}px; ${style}`;
+    document.getElementById('container').append(element, slot);
+    window.probeLegendLog = [];
+    window.probeChart = new LovelyChart(element, {
+      ...config,
+      onHiddenSeriesChange: (names) => window.probeLegendLog.push(names.join()),
+    });
+    await wait(800);
+    const legend = element.querySelector('.lovely-chart--tools');
+    const plot = element.querySelector('canvas');
+    legend.querySelector('.lovely-chart--button').click();
+    window.probeChart.setLegendContainer(slot);
+    const firstButton = slot.querySelector('.lovely-chart--button');
+    return {
+      isSameLegend: slot.firstElementChild === legend && slot.childElementCount === 1,
+      isLeftByLegend: !element.querySelector('.lovely-chart--tools'),
+      isSamePlot: element.querySelector('canvas') === plot,
+      isFirstHidden: !firstButton.classList.contains('lovely-chart--state-checked')
+        && firstButton.getAttribute('aria-pressed') === 'false',
+      log: [...window.probeLegendLog],
+    };
+  }, { config: spacingConfig, width: SPACING_PROBE_WIDTH, style: PAGE_SPACING_STYLE });
+  const movedSpacing = await readSpacing(page, '#probe-legend');
+  check('setLegendContainer() moves the legend itself into the page, its buttons as they were, without a rebuild',
+    movedLegend.isSameLegend && movedLegend.isLeftByLegend && movedLegend.isSamePlot && movedLegend.isFirstHidden
+    && JSON.stringify(movedLegend.log) === '["Dataset 1"]', JSON.stringify(movedLegend));
+  check('a moved legend takes the spacing variables of its new element',
+    isSpacingAt(movedSpacing, PAGE_SPACING), JSON.stringify(movedSpacing.spacing));
+
+  const rebuiltLegend = await page.evaluate(async () => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.getElementById('probe');
+    const slot = document.getElementById('probe-legend');
+    const legend = slot.querySelector('.lovely-chart--tools');
+    legend.querySelectorAll('.lovely-chart--button')[1].click();
+    const pageItem = document.createElement('span');
+    slot.append(pageItem);
+    window.probeChart.setLegendContainer(slot);
+    const isPageItemLast = slot.lastElementChild === pageItem;
+    window.dispatchEvent(new Event('orientationchange'));
+    await wait(1200);
+    const rebuilt = slot.querySelector('.lovely-chart--tools');
+    return {
+      log: [...window.probeLegendLog],
+      isPageItemLast,
+      isRebuiltInSlot: Boolean(rebuilt) && rebuilt !== legend
+        && slot.querySelectorAll('.lovely-chart--tools').length === 1,
+      isLeftByLegend: !element.querySelector('.lovely-chart--tools'),
+      checked: rebuilt ? Array.from(rebuilt.querySelectorAll('.lovely-chart--button'))
+        .map((button) => button.classList.contains('lovely-chart--state-checked')) : [],
+    };
+  });
+  check('a button of a moved legend toggles its dataset and reports it',
+    JSON.stringify(rebuiltLegend.log) === '["Dataset 1","Dataset 1,Dataset 2"]', JSON.stringify(rebuiltLegend.log));
+  check('setLegendContainer() with the element that holds the legend leaves it among the elements of the page',
+    rebuiltLegend.isPageItemLast);
+  check('a rebuild of the layout builds the legend in the element it moved to, its datasets still hidden',
+    rebuiltLegend.isRebuiltInSlot && rebuiltLegend.isLeftByLegend
+    && JSON.stringify(rebuiltLegend.checked) === '[false,false,true,true,true]', JSON.stringify(rebuiltLegend));
+
+  const returnedLegend = await page.evaluate(() => {
+    const element = document.getElementById('probe');
+    const slot = document.getElementById('probe-legend');
+    const legend = slot.querySelector('.lovely-chart--tools');
+    window.probeChart.setLegendContainer(undefined);
+    return {
+      isAtChartEnd: element.querySelector('.lovely-chart--container').lastElementChild === legend,
+      slotChildren: slot.childElementCount,
+    };
+  });
+  const returnedSpacing = await readSpacing(page, '#probe');
+  check('setLegendContainer(undefined) moves the legend back to the end of the chart, in its own spacing',
+    returnedLegend.isAtChartEnd && returnedLegend.slotChildren === 1 && isSpacingAt(returnedSpacing, DEFAULT_SPACING),
+    `${JSON.stringify(returnedLegend)}, ${JSON.stringify(returnedSpacing.spacing)}`);
+
+  const placedLegend = await page.evaluate(async (config) => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const element = document.getElementById('probe');
+    const slot = document.getElementById('probe-legend');
+    const countLegends = () => [
+      element.querySelectorAll('.lovely-chart--tools').length, slot.querySelectorAll('.lovely-chart--tools').length,
+    ];
+    window.probeChart.setLegendContainer(slot);
+    window.probeChart.update(config);
+    await wait(300);
+    const afterUpdate = countLegends();
+    window.probeChart.update({ ...config, legendContainer: slot });
+    await wait(300);
+    const afterSlotUpdate = countLegends();
+    window.probeChart.destroy();
+    const afterDestroy = countLegends();
+    let error = 'none';
+    try {
+      window.probeChart.setLegendContainer(slot);
+      window.probeChart.setLegendContainer(undefined);
+    } catch (err) {
+      error = err.message;
+    }
+    return {
+      afterUpdate, afterSlotUpdate, afterDestroy, afterLateMove: countLegends(), slotChildren: slot.childElementCount,
+      error,
+    };
+  }, spacingConfig);
+  await page.evaluate(() => {
+    document.getElementById('probe').remove();
+    document.getElementById('probe-legend').remove();
+  });
+  check('update() places the legend by the `legendContainer` of its data',
+    JSON.stringify(placedLegend.afterUpdate) === '[1,0]' && JSON.stringify(placedLegend.afterSlotUpdate) === '[0,1]',
+    JSON.stringify(placedLegend));
+  check('destroy() takes a moved legend out of the page, and setLegendContainer() after it does nothing',
+    JSON.stringify(placedLegend.afterDestroy) === '[0,0]' && JSON.stringify(placedLegend.afterLateMove) === '[0,0]'
+    && placedLegend.slotChildren === 1 && placedLegend.error === 'none', JSON.stringify(placedLegend));
+
+  // A zoom out rebuilds a legend moved while zoomed in the element it moved to, and a move from there takes out at once
+  // the legend the rebuild replaced, which fades out. A zoom into lines fixes the size of the chart, and a move of the
+  // legend out after the zoom in, or in after the zoom out, resizes it.
+  await mountLinesZoom(page, {
+    overview: [{ name: 'Red', color: '#FF0000' }, { name: 'Green', color: '#00FF00' }],
+    zoomed: [{ name: 'Blue', color: '#0000FF' }, { name: 'Magenta', color: '#FF00FF' }, { name: 'Palette' }],
+    config: { initialZoom: 'last' },
+  });
+  const zoomedLegend = await page.evaluate(async () => {
+    const element = document.getElementById('probe');
+    const chart = element.querySelector('.lovely-chart--container');
+    const slot = document.createElement('div');
+    slot.id = 'probe-legend';
+    document.getElementById('container').append(slot);
+    const readNames = (container) => Array.from(container.querySelectorAll('.lovely-chart--button-label'))
+      .map((label) => label.textContent);
+    const readHeight = (node) => node.getBoundingClientRect().height;
+    const zoomedHeight = readHeight(chart);
+    const zoomedLegendHeight = readHeight(chart.querySelector('.lovely-chart--tools'));
+    window.probeChart.setLegendContainer(slot);
+    const zoomedNames = readNames(slot);
+    const movedOutShrink = zoomedHeight - readHeight(chart);
+    element.querySelector('.lovely-chart--header-zoom-out-control').click();
+    const startedAt = performance.now();
+    while (slot.querySelectorAll('.lovely-chart--tools').length < 2 && performance.now() - startedAt < 3000) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    const slotLegends = slot.querySelectorAll('.lovely-chart--tools').length;
+    const overviewHeight = readHeight(chart);
+    window.probeChart.setLegendContainer(undefined);
+    const legend = chart.querySelector('.lovely-chart--tools');
+    return {
+      zoomedNames,
+      slotLegends,
+      slotChildren: slot.childElementCount,
+      chartLegends: element.querySelectorAll('.lovely-chart--tools').length,
+      overviewNames: readNames(element),
+      movedOutShrink,
+      zoomedLegendHeight,
+      movedInGrowth: readHeight(chart) - overviewHeight,
+      legendHeight: readHeight(legend),
+      legendOverhang: legend.getBoundingClientRect().bottom - chart.getBoundingClientRect().bottom,
+    };
+  });
+  await unmountProbe(page);
+  await page.evaluate(() => document.getElementById('probe-legend').remove());
+  check('a zoom out rebuilds a legend moved while zoomed in its new element, and a move back leaves nothing there',
+    JSON.stringify(zoomedLegend.zoomedNames) === '["Blue","Magenta","Palette"]' && zoomedLegend.slotLegends === 2
+    && zoomedLegend.slotChildren === 0 && zoomedLegend.chartLegends === 1
+    && JSON.stringify(zoomedLegend.overviewNames) === '["Red","Green"]', JSON.stringify(zoomedLegend));
+  check('a zoomed chart shrinks by the legend that moves out of it and grows by the legend that moves in, in view',
+    Math.abs(zoomedLegend.movedOutShrink - zoomedLegend.zoomedLegendHeight) <= SPACING_TOLERANCE
+    && Math.abs(zoomedLegend.movedInGrowth - zoomedLegend.legendHeight) <= SPACING_TOLERANCE
+    && zoomedLegend.legendOverhang <= SPACING_TOLERANCE, JSON.stringify(zoomedLegend));
+
   // --- Dashed and dotted datasets, comparison and its tooltip (demo charts) ---
   const limitChart = charts.nth(LIMIT_CHART);
   const legendOutlines = await limitChart.locator('.lovely-chart--button')

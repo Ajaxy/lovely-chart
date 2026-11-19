@@ -336,8 +336,8 @@ export interface LovelyChartParams {
    */
   onTooltipChange?: (tooltip: TooltipContent | undefined) => void;
   /**
-   * Element that holds the legend, in place of the chart container. The legend takes its spacing variables, such as
-   * `--lovely-chart-legend-gap`, from this element and its ancestors.
+   * Element that holds the legend, in place of the chart container; `setLegendContainer()` moves the legend later. The
+   * legend takes its spacing variables, such as `--lovely-chart-legend-gap`, from this element and its ancestors.
    */
   legendContainer?: HTMLElement;
   noZoom?: boolean;

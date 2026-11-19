@@ -120,6 +120,12 @@ export class Zoomer {
     return this.#isZoomed;
   }
 
+  // A zoom into lines fixes the size of the chart with the legend where it was, so a move of the legend releases it
+  releaseSize() {
+    this.#container.style.removeProperty('width');
+    this.#container.style.removeProperty('height');
+  }
+
   // While a zoomed view shows, or one is on its way in, the overview's filter lives only in the saved state
   getOverviewFilter(): Filter | undefined {
     return this.#isZoomed || this.#swapDataTimeout !== undefined ? this.#stateBeforeZoomIn?.filter : undefined;

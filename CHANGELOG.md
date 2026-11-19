@@ -23,6 +23,7 @@
 - `refreshColors()`: reads the `var()` colours again, for custom properties that the page changes on another trigger than the skin, keeping the zoom, the range, the legend filter and the selection.
 - `DEFAULT_COLORS`, `getDefaultColors(datasetCount)` and `DEFAULT_COMPARISON_COLOR`, exported for elements of the page that show the same series as a chart. `getDefaultColors` returns a colour per dataset, those the chart gives in order to the datasets with no `color`: a subset of the eight `DEFAULT_COLORS` for fewer datasets, and the eight again from the first for more.
 - `--lovely-chart-inset`, `--lovely-chart-minimap-margin-bottom`, `--lovely-chart-legend-gap`, `--lovely-chart-legend-padding-bottom`, `--lovely-chart-button-padding`, `--lovely-chart-button-radius` and `--lovely-chart-button-font-size`: the side inset of the header, the minimap and the legend, the space under the minimap, between the legend entries and under the legend, and the padding, corner radius and font size of the legend buttons. They apply from the chart's element or any ancestor, and from the `legendContainer` of a legend there; the minimap canvas fits the inset.
+- `setLegendContainer(element)`: moves the legend into an element of the page, or back into the chart with `undefined`, without a rebuild, so its buttons keep the datasets they hide and the chart its zoom, range and selection. A zoom, a resize and an orientation change keep the legend there, and `update()` places it by the `legendContainer` of its data.
 
 ### Changed
 

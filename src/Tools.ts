@@ -10,7 +10,7 @@ import { throttleWithRaf } from './utils.js';
 const HIDE_TIMEOUT = 500;
 
 export class Tools {
-  readonly #container: HTMLElement;
+  #container: HTMLElement;
   readonly #data: AnalyzedData;
   readonly #colors: ChartColors;
   readonly #filterCallback: (filter: Filter) => void;
@@ -49,6 +49,15 @@ export class Tools {
     this.#setupLayout(filter);
     this.#element.classList.add('lovely-chart--state-transparent');
     this.#revealOnRaf();
+  }
+
+  // Moves the legend into `container`, where a later redraw also builds it. The controls a redraw replaced leave at
+  // once, so the element that held the legend keeps nothing of it.
+  setContainer(container: HTMLElement) {
+    if (container === this.#container) return;
+    this.#removeHiddenElement();
+    this.#container = container;
+    container.appendChild(this.#element);
   }
 
   // Paints the buttons and the comparison entry in the colours of the skin on screen

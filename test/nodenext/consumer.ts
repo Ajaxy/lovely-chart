@@ -74,6 +74,8 @@ const chart = new LovelyChart(element, params);
 chart.selectLabel(2);
 chart.selectLabel(undefined);
 chart.refreshColors();
+chart.setLegendContainer(element);
+chart.setLegendContainer(undefined);
 
 const handle: LovelyChartInstance = chart;
 handle.update({ ...params, colorScheme: 'htmlClassName' });
