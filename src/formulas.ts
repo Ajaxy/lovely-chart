@@ -69,7 +69,9 @@ export function yStepToScaleLevel(neededStep: number): number {
 
 export function calculateYAxisScale(plotHeight: number, yMin: number, yMax: number, noFloatSteps = false): number {
   const availableHeight = plotHeight - X_AXIS_HEIGHT;
-  const viewportLabelsCount = yMax - yMin;
+  // A constant range labels its one value and takes the step of the range from 0 to it, which suits the ranges that
+  // a transition into or out of it passes
+  const viewportLabelsCount = isConstantRange(yMin, yMax) ? Math.max(Math.abs(yMin), Math.abs(yMax)) : yMax - yMin;
   const level = yStepToScaleLevel(viewportLabelsCount / getYAxisRowCount(plotHeight));
 
   // Labels in the band under the top edge fade out, so a coarse step that leaves a short plot fewer than

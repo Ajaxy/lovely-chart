@@ -5,8 +5,8 @@ import { drawHalo } from './canvas.js';
 import { AXES_FONT_STYLE, AXES_FONT_WEIGHT, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { humanize } from './format.js';
 import {
-  applyXEdgeOpacity, applyYEdgeOpacity, ceilToStep, floorToStep, getEdgePin, getPlotStart, isConstantRange,
-  xScaleLevelToStep, yScaleLevelToStep,
+  applyXEdgeOpacity, applyYEdgeOpacity, ceilToStep, floorToStep, getEdgePin, getPlotStart, getYAxisRowCount,
+  isConstantRange, xScaleLevelToStep, yScaleLevelToStep,
 } from './formulas.js';
 import { getCssColor } from './skin.js';
 import { listYAxisValues } from './yAxisValues.js';
@@ -18,6 +18,8 @@ const DIGITS = '0123456789';
 // A text in the axis font that a font of other digits or units measures apart
 const FONT_PROBE_TEXT = `${DIGITS}KMBT%`;
 const DIGIT_PATTERN = /\d/g;
+// A pass of more ticks than this per axis row is a step far finer than its range, mid-transition, and draws nothing
+const MAX_Y_TICKS_PER_ROW = 20;
 
 interface AxisLabel {
   text: string;
@@ -373,6 +375,9 @@ export class Axes {
 
     const firstIndex = Math.round(ceilToStep(yMin, step) / step);
     const count = Math.round(floorToStep(yMax, step) / step) - firstIndex + 1;
+    if (count > getYAxisRowCount(this.#plotSize.height) * MAX_Y_TICKS_PER_ROW) {
+      return [];
+    }
 
     return Array.from({ length: Math.max(0, count) }, (_, i) => (firstIndex + i) * step);
   }

@@ -96,6 +96,10 @@ const TRILLION_LABEL_TOLERANCE = 0.05;
 const FREEZE_TIMEOUT_MS = 15_000;
 // A sparkline insets its plot from every edge of the canvas
 const SPARKLINE_INSET = 2;
+// A pan step of the minimap slider, in px, that lands each frame on a window a little further on
+const NARROW_PAN_STEP = 4;
+// The texts a frame of a panned chart prints, its X-axis and Y-axis labels, the fading ones included
+const MAX_PAN_TEXTS_PER_FRAME = 100;
 // The least contrast of a white legend label on its fill, below which the dark label takes over, so every label
 // reaches it
 const MIN_LEGEND_LABEL_CONTRAST = 2;
@@ -1558,6 +1562,28 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     ))),
     trillionTexts ? JSON.stringify(trillionTexts) : `no frame in ${FREEZE_TIMEOUT_MS}ms`);
 
+  // --- Panning the narrowest window across single labels keeps the Y axis to a few labels a frame ---
+  await recordProbeNumbers(page);
+  const panLabels = Array.from({ length: 40 }, (_, i) => Date.UTC(2026, 0, 1 + i));
+  await mountProbe(page, {
+    config: {
+      type: 'line',
+      withMinimap: true,
+      title: 'Probe — Narrow pan',
+      labels: panLabels,
+      datasets: [{ name: 'Visitors', values: panLabels.map((_, i) => Math.round(3000 + 1400 * Math.cos(i / 3))) }],
+    },
+  });
+  await sweepProbe(page, NARROW_PAN_STEP);
+  const panTexts = (await readProbeTexts(page)).texts;
+  await unmountProbe(page);
+  const textsPerFrame = panTexts.reduce((counts, { frame }) => (
+    counts.set(frame, (counts.get(frame) ?? 0) + 1)
+  ), new Map());
+  const mostTextsInFrame = Math.max(...textsPerFrame.values());
+  check('panning the narrowest window keeps the Y axis to a few labels a frame',
+    mostTextsInFrame <= MAX_PAN_TEXTS_PER_FRAME, `at most ${mostTextsInFrame} texts in a frame`);
+
   // --- A dashed or dotted line or step draws its pattern, on the plot and the minimap, and outlines its legend button
   // and tooltip swatch in it; a dataset both dashed and dotted draws dots, and an area or bars draw neither ---
   const linePatterns = [
@@ -1903,6 +1929,13 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     + `overflowing: ${JSON.stringify(smallCountsColumn.overflowing)}`);
 
   const columnSweeps = [{
+    name: 'small counts against a previous period',
+    config: {
+      labels: sweepLabels(7),
+      datasets: [{ name: 'Signups', values: [3, 2, 3, 2, 3, 3, 3] }],
+      comparison: { name: 'Week before', values: [[4, 2, 2, 2, 4, 2, 3]] },
+    },
+  }, {
     name: 'a dataset missing a previous value',
     config: {
       labels: sweepLabels(6),

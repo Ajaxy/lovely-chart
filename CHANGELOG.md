@@ -46,6 +46,7 @@
 ### Fixed
 
 - A constant series draws at the middle height, its value the one Y-axis label on it, on the main and the second axis; a single-label chart draws in a centered column. Neither draws `NaN` paths. A bar or an unstacked area of a constant range, such as a single label or equal values, spans from zero at the plot edge to the middle height: up from the bottom for a positive value and down from the top for a negative one, on both Y axes and in the minimap.
+- A constant range takes the Y-axis step of the range from 0 to its value, so panning a narrow window across single labels keeps the page responsive, a few Y-axis labels a frame. A Y-axis pass of far more ticks than the axis has rows, as a step can be mid-transition, draws nothing.
 - A Y-axis tick at 0 reads `0`, never float noise such as `-0.000000000000000056`, and a constant range in the trillions, such as a single label, labels its value instead of freezing the page.
 - A Y range that starts on a multiple of its axis step, such as 0.3 in steps of 0.1, starts on that label.
 - An area splits at a missing value and fills each run down to its own stack base; a lone value draws as a dot.
