@@ -5,8 +5,8 @@ import { drawHalo } from './canvas.js';
 import { AXES_FONT_STYLE, AXES_FONT_WEIGHT, GUTTER, PLOT_TOP_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { humanize } from './format.js';
 import {
-  applyXEdgeOpacity, applyYEdgeOpacity, ceilToStep, floorToStep, getEdgePin, getPlotStart, getYAxisRowCount,
-  isConstantRange, xScaleLevelToStep, yScaleLevelToStep,
+  applyXEdgeOpacity, applyYEdgeOpacity, ceilToStep, floorToStep, getConstantLabelStep, getEdgePin, getPlotStart,
+  getYAxisRowCount, isConstantRange, xScaleLevelToStep, yScaleLevelToStep,
 } from './formulas.js';
 import { getCssColor } from './skin.js';
 import { listYAxisValues } from './yAxisValues.js';
@@ -268,6 +268,7 @@ export class Axes {
     const labelColumnWidth = this.getLabelColumnWidth();
     const step = yScaleLevelToStep(scaleLevel);
     const ticks = this.#listYTicks(yMin, yMax, step);
+    const labelStep = isConstantRange(yMin, yMax) ? getConstantLabelStep(yMin) : step;
     const labelX = isSecondary ? this.#getSecondaryLabelX() : this.#getMainLabelX(labelColumnWidth);
     const labels: AxisLabel[] = [];
 
@@ -281,7 +282,7 @@ export class Axes {
       const textOpacity = this.#data.areLabelsContrast ? opacity : applyXEdgeOpacity(opacity, yPx);
 
       labels.push({
-        text: isSecondary ? humanize(value) : this.#formatPrimaryAxisLabel(value),
+        text: isSecondary ? humanize(value, labelStep) : this.#formatPrimaryAxisLabel(value, labelStep),
         x: labelX,
         y: this.#getLabelY(yPx),
         colorKey: colorKey ?? 'y-axis-text',
@@ -349,13 +350,14 @@ export class Axes {
     const { multiplier, prefix = '', suffix = '' } = secondaryYAxis;
     const step = yScaleLevelToStep(scaleLevel);
     const ticks = this.#listYTicks(yMin, yMax, step);
+    const labelStep = isConstantRange(yMin, yMax) ? getConstantLabelStep(yMin * multiplier) : step * multiplier;
     const labels: AxisLabel[] = [];
 
     ticks.forEach((value) => {
       const [, yPx] = projection.toPixels(0, value);
 
       labels.push({
-        text: `${prefix}${humanize(value * multiplier)}${suffix}`,
+        text: `${prefix}${humanize(value * multiplier, labelStep)}${suffix}`,
         x: this.#getSecondaryLabelX(),
         y: this.#getLabelY(yPx),
         colorKey: 'y-axis-text',
@@ -427,8 +429,8 @@ export class Axes {
     const context = this.#context;
     const texts = this.#data.isPercentage
       ? PERCENT_VALUES.map(formatPercentLabel)
-      : [...new Set(listYAxisValues(this.#data, this.#plotSize.height))].map((value) => (
-        this.#formatPrimaryAxisLabel(value)
+      : listYAxisValues(this.#data, this.#plotSize.height).map(({ value, step }) => (
+        this.#formatPrimaryAxisLabel(value, step)
       ));
 
     context.save();
@@ -443,8 +445,8 @@ export class Axes {
     return Math.ceil(width);
   }
 
-  #formatPrimaryAxisLabel(value: number): string {
-    const formatted = String(humanize(value));
+  #formatPrimaryAxisLabel(value: number, step: number): string {
+    const formatted = humanize(value, step);
     const prefix = this.#data.valuePrefix || '';
     const suffix = this.#data.valueSuffix || '';
     if (this.#data.isCurrencyPrefix && prefix && formatted.charCodeAt(0) === 45) {

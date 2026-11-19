@@ -3,7 +3,8 @@ import type { AnalyzedData } from './types.js';
 import { getComparisonValues } from './comparison.js';
 import { GAP } from './constants.js';
 import {
-  calculateYAxisScale, ceilToStep, floorToStep, getYAxisRowCount, getYRangeBottom, isConstantRange, yScaleLevelToStep,
+  calculateYAxisScale, ceilToStep, floorToStep, getConstantLabelStep, getYAxisRowCount, getYRangeBottom,
+  isConstantRange, yScaleLevelToStep,
 } from './formulas.js';
 import { getMaxMin } from './utils.js';
 
@@ -26,12 +27,18 @@ interface LatestValue {
   narrowestRange: number;
 }
 
+interface YAxisValue {
+  value: number;
+  // The step of the window that labels the value, which sets the digits after its point
+  step: number;
+}
+
 /**
  * The values the main Y axis can label for the data, whatever window the reader picks and whichever datasets they
- * hide: the one value of each constant window and, at every step a window can take, the longest labels of each
- * order of magnitude that window reaches.
+ * hide, each with its step: the one value of each constant window and, at every step a window can take, the longest
+ * labels of each order of magnitude that window reaches.
  */
-export function listYAxisValues(data: AnalyzedData, plotHeight: number): number[] {
+export function listYAxisValues(data: AnalyzedData, plotHeight: number): YAxisValue[] {
   const { isStacked, noFloatSteps } = data;
   const length = data.xLabels.length;
   const series = data.datasets.flatMap(({ values, hasOwnYAxis }, i): Series[] => (
@@ -52,7 +59,7 @@ export function listYAxisValues(data: AnalyzedData, plotHeight: number): number[
   const top = Math.max(max, comparison.max ?? -Infinity);
 
   if (isConstantRange(bottom, top)) {
-    return [bottom];
+    return [getConstantValue(bottom)];
   }
 
   const referenceBounds = { min: Math.min(...references), max: Math.max(...references) };
@@ -66,12 +73,12 @@ export function listYAxisValues(data: AnalyzedData, plotHeight: number): number[
   const rowCount = getYAxisRowCount(plotHeight);
   const finestLevel = calculateYAxisScale(plotHeight, 0, narrowestRange, noFloatSteps);
   const coarsestLevel = calculateYAxisScale(plotHeight, bottom, top, noFloatSteps);
-  const values = isStacked ? [] : listConstantValues(series, references, length);
+  const values = isStacked ? [] : listConstantValues(series, references, length).map(getConstantValue);
   const reachedValues = new Float64Array(anchors.length);
 
-  // Every step labels 0 when the range spans it, also where no other label of that step fits
+  // Every step labels 0 when the range spans it, also where no other label of that step fits, each as `0`
   if (bottom <= 0 && top >= 0) {
-    values.push(0);
+    values.push({ value: 0, step: yScaleLevelToStep(finestLevel) });
   }
 
   for (let level = finestLevel; level <= coarsestLevel; level++) {
@@ -89,10 +96,14 @@ export function listYAxisValues(data: AnalyzedData, plotHeight: number): number[
     values.push(...listStepValues(
       reachedValues.subarray(0, reachedCount), floorToStep(bottom, step), floorToStep(top, step), step,
       widestRange + step,
-    ));
+    ).map((value) => ({ value, step })));
   }
 
   return values;
+}
+
+function getConstantValue(value: number): YAxisValue {
+  return { value, step: getConstantLabelStep(value) };
 }
 
 // Per label, the lowest and the highest total of some of the values: the sum of the negative ones and the sum of
@@ -223,7 +234,8 @@ function narrowDown(narrowest: number, range: number): number {
   return range > 0 ? Math.min(narrowest, range) : narrowest;
 }
 
-// Every order of magnitude has labels of one length at a step, the longest among the first two and the last two
+// At a step, no label of an order of magnitude is longer than the longest of its first two and its last two: of two
+// neighbouring multiples of the step, one has every digit after the point that the step has
 function listStepValues(
   reachedValues: Float64Array, lowest: number, highest: number, step: number, reach: number,
 ): number[] {

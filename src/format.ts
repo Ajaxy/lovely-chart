@@ -4,6 +4,15 @@ import {
   MILLISECONDS_IN_DAY, MILLISECONDS_IN_WEEK, MONTHS, MONTHS_FULL, WEEK_DAYS, WEEK_DAYS_SHORT,
 } from './constants.js';
 
+const DECIMAL_BASE = 10;
+// Digits after the point of an abbreviated value whose step needs none
+const SHORT_FORM_DECIMALS = 1;
+// The most significant digits of a step its labels show: an axis step has two at most, a `multiplier` can add more
+const MAX_STEP_DIGITS = 3;
+// A step within this fraction of itself from a whole number of units of a digit ends at that digit
+const STEP_DIGIT_EPSILON = 1e-9;
+const TRAILING_ZEROS = /(\.\d*?[1-9])0+$|\.0+$/;
+
 export function formatDayHour(labels: number[], dateLocale?: DateLocale, isUtc = false): XLabel[] {
   return labels.map((value) => ({
     value,
@@ -76,39 +85,62 @@ export function formatText(labels: (number | string)[]): XLabel[] {
   });
 }
 
-export function humanize(value: number, decimals = 1): string {
+// An axis label of a value at a step, with every digit after the point that the step has in the label's unit, so the
+// labels of neighbouring multiples of the step differ
+export function humanize(value: number, step: number): string {
   const abs = Math.abs(value);
   const sign = value < 0 ? '-' : '';
 
   if (abs >= 1e12) {
-    return sign + keepThreeDigits(abs / 1e12, decimals) + 'T';
+    return sign + formatInUnit(abs / 1e12, step / 1e12) + 'T';
   } else if (abs >= 1e9) {
-    return sign + keepThreeDigits(abs / 1e9, decimals) + 'B';
+    return sign + formatInUnit(abs / 1e9, step / 1e9) + 'B';
   } else if (abs >= 1e6) {
-    return sign + keepThreeDigits(abs / 1e6, decimals) + 'M';
+    return sign + formatInUnit(abs / 1e6, step / 1e6) + 'M';
   } else if (abs >= 1e3) {
-    return sign + keepThreeDigits(abs / 1e3, decimals) + 'K';
+    return sign + formatInUnit(abs / 1e3, step / 1e3) + 'K';
   }
 
   // Delegate to formatInteger: gives thousand separators, decimal trimming
   // and incidentally strips IEEE-754 noise via toFixed rounding
-  return formatInteger(value);
+  return formatInteger(value, countDecimals(step));
 }
 
+// A step of whole units keeps the short form, one digit after the point and none past three before it
 // TODO perf
-function keepThreeDigits(value: number, decimals: number): string {
+function formatInUnit(value: number, step: number): string {
+  const decimals = countDecimals(step);
+  if (decimals > 0) {
+    return value.toFixed(decimals).replace(TRAILING_ZEROS, '$1');
+  }
+
   return value
-    .toFixed(decimals)
+    .toFixed(SHORT_FORM_DECIMALS)
     .replace(/(\d{3,})\.\d+/, '$1')
     .replace(/\.0+$/, '');
 }
 
-export function formatInteger(n: number): string {
+// The digits after the point of a step, up to its `MAX_STEP_DIGITS`th significant one
+function countDecimals(step: number): number {
+  const size = Math.abs(step);
+  const maxDecimals = Math.max(0, MAX_STEP_DIGITS - 1 - Math.floor(Math.log10(size)));
+
+  for (let decimals = 0; decimals < maxDecimals; decimals++) {
+    const shifted = size * DECIMAL_BASE ** decimals;
+    if (Math.abs(shifted - Math.round(shifted)) <= shifted * STEP_DIGIT_EPSILON) {
+      return decimals;
+    }
+  }
+
+  return maxDecimals;
+}
+
+export function formatInteger(n: number, minDecimals = 0): string {
   if (!Number.isInteger(n)) {
     const abs = Math.abs(n);
-    const decimals = (abs > 0 && abs < 1)
+    const decimals = Math.max(minDecimals, (abs > 0 && abs < 1)
       ? Math.max(2, -Math.floor(Math.log10(abs)) + 1)
-      : 2;
+      : 2);
     const [intPart, decPart] = n.toFixed(decimals).split('.');
     const trimmed = decPart.replace(/0+$/, '');
     return trimmed ? addThousandSeparators(intPart) + '.' + trimmed : addThousandSeparators(intPart);

@@ -49,6 +49,7 @@
 - A constant range takes the Y-axis step of the range from 0 to its value, so panning a narrow window across single labels keeps the page responsive, a few Y-axis labels a frame. A Y-axis pass of far more ticks than the axis has rows, as a step can be mid-transition, draws nothing.
 - A Y-axis tick at 0 reads `0`, never float noise such as `-0.000000000000000056`, and a constant range in the trillions, such as a single label, labels its value instead of freezing the page.
 - A Y range that starts on a multiple of its axis step, such as 0.3 in steps of 0.1, starts on that label.
+- A Y-axis label shows every digit after the point that its step has in the label's unit, so the labels of a narrow window differ and read exactly, on both Y axes: `6.02K` in steps of 20, `6.25K` in steps of 250 and `6.2K` in steps of 100, never `6.1K` four times or `6.3K` for 6,250. The one label of a constant window, such as equal values or a single label, reads its value in full, as `6.25K` for 6,250. A step of whole units keeps the short form, such as `6K`, and the `isYAxisOutward` column fits the longer labels.
 - An area splits at a missing value and fills each run down to its own stack base; a lone value draws as a dot.
 - A line run of one or two points between gaps draws its points as dots.
 - The type declarations resolve under `moduleResolution` `node16` and `nodenext`, so the parameters type-check there.

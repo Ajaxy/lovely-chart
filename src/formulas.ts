@@ -12,6 +12,8 @@ const CONSTANT_RANGE_EPSILONS = 4;
 // A value within this fraction of a step from a step multiple counts as on it, so float error never moves it a step
 const STEP_EPSILON = 1e-9;
 const MIN_LEGIBLE_Y_LABELS = 2;
+// The significant digits to which the one label of a constant window reads its value
+const MAX_CONSTANT_LABEL_DIGITS = 7;
 // Height of the band under the plot top where the axis labels fade out (`applyXEdgeOpacity`)
 const Y_AXIS_TOP_FADE_HEIGHT = GUTTER * 3 - PLOT_TOP_PADDING;
 
@@ -96,6 +98,22 @@ export function getYRangeBottom(yMin: number, yMax: number): number {
 // height, that noise would draw as a trend
 export function isConstantRange(yMin: number, yMax: number): boolean {
   return Math.abs(yMax - yMin) <= CONSTANT_RANGE_EPSILONS * Number.EPSILON * Math.max(Math.abs(yMin), Math.abs(yMax));
+}
+
+// The coarsest power of ten that a constant value is a whole number of, so the one label of a constant window reads
+// the value in full, as `6.25K` for 6,250
+export function getConstantLabelStep(value: number): number {
+  if (value === 0) return 1;
+
+  const magnitude = Math.floor(Math.log10(Math.abs(value)));
+  let exponent = magnitude;
+  while (exponent > magnitude - MAX_CONSTANT_LABEL_DIGITS + 1) {
+    const units = Math.abs(value) / 10 ** exponent;
+    if (Math.abs(units - Math.round(units)) <= units * STEP_EPSILON) break;
+    exponent--;
+  }
+
+  return 10 ** exponent;
 }
 
 export function floorToStep(value: number, step: number): number {

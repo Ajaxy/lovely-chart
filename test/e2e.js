@@ -122,6 +122,12 @@ const PLOT_AREA_PATTERN = /^-?\d+(\.\d+)?px$/;
 const SCALED_HOST_WIDTH = 600;
 const HOST_SCALE = 0.75;
 const PLOT_AREA_SCALE_TOLERANCE = 0.01;
+// The units an axis label abbreviates its value in
+const AXIS_UNITS = { '': 1, K: 1e3, M: 1e6, B: 1e9, T: 1e12 };
+// A digit after the point that adds nothing, as `6.10K` or `6.0K` shows
+const TRAILING_ZERO_PATTERN = /\.\d*0\D*$/;
+// The float error two steps of a pass of exact labels can differ by, relative to the step
+const EVEN_STEP_TOLERANCE = 1e-9;
 
 // A sloped series that a window of a fifth of its labels pans across, the steps of the pan, the first of which settle
 // the window, and how far the pattern may move at one point of the series as the window pans, a smooth line's curves
@@ -530,7 +536,8 @@ async function mountProbe(page, {
 }
 
 // Collects the numbers the probe chart prints on its canvas, its Y-axis labels among them, with their heights, and
-// every text it prints, with its position, alignment, width, direction and the animation frame that drew it
+// every text it prints, with its position, alignment, width, direction, the animation frame that drew it and its
+// pass: a pass of axis labels sets their alignment once before it prints them
 async function recordProbeNumbers(page) {
   await page.evaluate(() => {
     window.probeNumbers = [];
@@ -538,11 +545,20 @@ async function recordProbeNumbers(page) {
     if (window.isFillTextRecorded) return;
     window.isFillTextRecorded = true;
     window.probeFrame = 0;
+    window.probePass = 0;
     const countFrame = () => {
       window.probeFrame++;
       requestAnimationFrame(countFrame);
     };
     requestAnimationFrame(countFrame);
+    const textAlign = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'textAlign');
+    Object.defineProperty(CanvasRenderingContext2D.prototype, 'textAlign', {
+      ...textAlign,
+      set(value) {
+        window.probePass++;
+        textAlign.set.call(this, value);
+      },
+    });
     const { fillText } = CanvasRenderingContext2D.prototype;
     CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...args) {
       if (this.canvas.closest('#probe')) {
@@ -552,6 +568,7 @@ async function recordProbeNumbers(page) {
           align: this.textAlign,
           width: this.measureText(text).width,
           frame: window.probeFrame,
+          pass: window.probePass,
           color: typeof this.fillStyle === 'string' ? this.fillStyle : '',
           direction: this.direction,
         });
@@ -598,6 +615,31 @@ function getYLabelColumn({ texts, canvasWidth }, isLastFrame = false) {
     overflowing: [...new Set(shownLabels.filter(({ x, width }) => x - width < GUTTER).map(({ text }) => text))],
     texts: [...new Set(shownLabels.map(({ text }) => text))],
   };
+}
+
+// The passes of Y-axis labels among the texts that repeat a value, step unevenly or end in a 0 after the point, each
+// as its texts; `affixes` are the prefixes and suffixes the chart adds around the values
+function listInexactYLabelPasses({ texts }, affixes) {
+  const passes = new Map();
+  texts.filter(({ align }) => align !== 'center').forEach(({ text, pass }) => {
+    passes.set(pass, [...(passes.get(pass) ?? []), text]);
+  });
+
+  return [...passes.values()].filter((passTexts) => passTexts.length > 1).filter((passTexts) => {
+    const values = passTexts
+      .map((text) => parseAxisLabel(affixes.reduce((bare, affix) => bare.replace(affix, ''), text)))
+      .sort((a, b) => a - b);
+    const steps = values.slice(1).map((value, i) => value - values[i]);
+    return passTexts.some((text) => TRAILING_ZERO_PATTERN.test(text)) || !steps.every((step) => (
+      step > 0 && Math.abs(step - steps[0]) <= steps[0] * EVEN_STEP_TOLERANCE
+    ));
+  });
+}
+
+// The value of an axis label, abbreviated or not
+function parseAxisLabel(text) {
+  const [, number, unit] = /^(-?[\d ]+(?:\.\d+)?)([KMBT]?)$/.exec(text) ?? [];
+  return number === undefined ? NaN : Number(number.replace(/ /g, '')) * AXIS_UNITS[unit];
 }
 
 function readProbeNumbers(page) {
@@ -2245,6 +2287,96 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('panning the narrowest window keeps the Y axis to a few labels a frame',
     mostTextsInFrame <= MAX_PAN_TEXTS_PER_FRAME, `at most ${mostTextsInFrame} texts in a frame`);
 
+  // --- The Y-axis labels of narrow windows read every digit of their step, so neighbours differ, on both axes ---
+  const preciseLabels = Array.from({ length: 60 }, (_, i) => Date.UTC(2026, 0, 1 + i));
+  const preciseSweeps = [{
+    name: 'the main axis, its column and the second axis',
+    affixes: ['$', '/d'],
+    config: {
+      hasSecondYAxis: true,
+      isYAxisOutward: true,
+      valuePrefix: '$',
+      valueSuffix: '/d',
+      datasets: [
+        { name: 'Sales', values: preciseLabels.map((_, i) => Math.round(6100 + 120 * Math.sin(i / 3))) },
+        { name: 'Revenue', values: preciseLabels.map((_, i) => Math.round(6.1e6 + 1.2e5 * Math.cos(i / 4))) },
+      ],
+    },
+  }, {
+    name: 'a secondary axis of a multiplier',
+    affixes: ['€'],
+    config: {
+      secondaryYAxis: { label: 'EUR', multiplier: 0.92, prefix: '€' },
+      datasets: [{ name: 'Sales', values: preciseLabels.map((_, i) => Math.round(6100 + 120 * Math.sin(i / 3))) }],
+    },
+  }];
+  for (const { name, affixes, config } of preciseSweeps) {
+    await recordProbeNumbers(page);
+    const preciseChart = await mountProbe(page, {
+      config: {
+        type: 'line', withMinimap: true, title: `Probe — Precise labels, ${name}`, labels: preciseLabels, ...config,
+      },
+    });
+    await preciseChart.scrollIntoViewIfNeeded();
+    await sweepProbe(page);
+    const preciseTexts = await readProbeTexts(page);
+    await unmountProbe(page);
+    const inexactPasses = listInexactYLabelPasses(preciseTexts, affixes);
+    const yLabelTexts = preciseTexts.texts.filter(({ align }) => align !== 'center');
+    const passCount = new Set(yLabelTexts.map(({ pass }) => pass)).size;
+    check(`narrow windows label each Y-axis step in full, apart from its neighbours, on ${name}`,
+      passCount > 100 && inexactPasses.length === 0,
+      `${inexactPasses.length} of ${passCount} passes, such as ${JSON.stringify(inexactPasses.slice(0, 3))}`);
+    if (config.isYAxisOutward) {
+      const preciseColumn = getYLabelColumn(preciseTexts);
+      check('an outward column fits every label of a narrow window read in full',
+        preciseColumn.ends.length === 1 && preciseColumn.overflowing.length === 0
+        && preciseColumn.texts.some((text) => /\.\d{3}K/.test(text)),
+        `ends at ${JSON.stringify(preciseColumn.ends)}, widest ${preciseColumn.widest.toFixed(2)}px, `
+        + `overflowing: ${JSON.stringify(preciseColumn.overflowing)}`);
+    }
+  }
+
+  // --- A constant window labels its one value in full, on the main axis, its column, the second axis and a
+  // secondary axis ---
+  const constantLabelDays = [1, 2, 3, 4, 5, 6, 7].map((day) => Date.UTC(2026, 10, day));
+  const constantLabelCases = [{
+    name: 'equal values on an outward column and the second axis',
+    texts: ['6.25K', '1.234567M'],
+    config: {
+      type: 'line',
+      isYAxisOutward: true,
+      hasSecondYAxis: true,
+      labels: constantLabelDays,
+      datasets: [
+        { name: 'Main', values: constantLabelDays.map(() => 6250) },
+        { name: 'Second', values: constantLabelDays.map(() => 1234567) },
+      ],
+    },
+  }, {
+    name: 'a single bar and its secondary axis',
+    texts: ['6.125K', '€12.25K'],
+    config: {
+      type: 'bar',
+      labels: constantLabelDays.slice(0, 1),
+      datasets: [{ name: 'Single', values: [6125] }],
+      secondaryYAxis: { label: 'EUR', multiplier: 2, prefix: '€' },
+    },
+  }];
+  for (const { name, texts, config } of constantLabelCases) {
+    await recordProbeNumbers(page);
+    await mountProbe(page, { config: { ...config, title: `Probe — Constant labels, ${name}` } });
+    const constantTexts = await readProbeTexts(page);
+    await unmountProbe(page);
+    const yLabels = [...new Set(getLastFrameTexts(constantTexts)
+      .filter(({ align }) => align !== 'center').map(({ text }) => text))].sort();
+    const constantColumn = getYLabelColumn(constantTexts, true);
+    check(`a constant window labels its value in full: ${name}`,
+      JSON.stringify(yLabels) === JSON.stringify([...texts].sort())
+      && (!config.isYAxisOutward || constantColumn.overflowing.length === 0),
+      `labels ${JSON.stringify(yLabels)}, overflowing the column: ${JSON.stringify(constantColumn.overflowing)}`);
+  }
+
   // --- A dashed or dotted line or step draws its pattern, on the plot and the minimap, and outlines its legend button
   // and tooltip swatch in it; a dataset both dashed and dotted draws dots, and an area or bars draw neither ---
   const linePatterns = [
@@ -2470,13 +2602,19 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     withMinimap: true,
     isYAxisOutward: true,
     labels: columnLabels,
+    // Whole tens, each high value 30 or more from the one before, so the narrowest window the minimap selects brings
+    // up labels with as many digits after the point as any window of two labels
     datasets: [
       {
         name: 'High',
         color: '#FF0000',
-        values: columnLabels.map((_, i) => 6000 + Math.round(300 * Math.sin(i / 7)) + i * 3),
+        values: columnLabels.map((_, i) => 6000 + Math.round(3 * Math.sin(i / 7)) * 100 + i * 30),
       },
-      { name: 'Low', color: '#0000FF', values: columnLabels.map((_, i) => 2000 + Math.round(900 * Math.cos(i / 5))) },
+      {
+        name: 'Low',
+        color: '#0000FF',
+        values: columnLabels.map((_, i) => 2000 + Math.round(9 * Math.cos(i / 5)) * 100),
+      },
     ],
   };
   await recordProbeNumbers(page);
@@ -2534,7 +2672,8 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && largeFontColumn.overflowing.length === 0,
     `ends at ${JSON.stringify(largeFontColumn.ends)} at 14px, ${pannedColumn.end} at 10px`);
 
-  // A zoom swaps in the day's data, which brings a column of its own, and a zoom out brings back the overview's
+  // A zoom swaps in the day's data, which brings a column of its own for its labels in US dollars, and a zoom out
+  // brings back the overview's
   const zoomColumnConfig = { title: 'Probe — Label column zoom', isYAxisOutward: true };
   await recordProbeNumbers(page);
   await mountProbe(page, { dataUrl: './data/bars.json', config: zoomColumnConfig });
@@ -2546,7 +2685,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     dataUrl: './data/bars.json',
     config: { ...zoomColumnConfig, initialZoom: 'last' },
     zoomDataSource: 'data/zoom_bars',
-    zoomConfig: { isYAxisOutward: true },
+    zoomConfig: { isYAxisOutward: true, valuePrefix: 'US$' },
   });
   await sleep(1000);
   const dayColumn = getYLabelColumn(await readProbeTexts(page), true);
