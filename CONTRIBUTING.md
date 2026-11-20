@@ -19,7 +19,7 @@ Runs the full suite: typecheck, ESLint, Stylelint, build and an end-to-end smoke
 npx playwright-core install --only-shell chromium
 ```
 
-The e2e test runs its sections on 4 pages of the demo at once, each section a `section()` call that relies on no other, as a page may run it after any other; `E2E_WORKERS=1` runs them in turn on one page, to follow one in its log. `E2E_CHANNEL=chrome npm test` runs the e2e test in the installed Google Chrome instead, and `E2E_TIMINGS=1` lists the sections that took the longest, as CI does.
+The e2e test runs its sections on 4 pages of the demo at once, each section a `section()` call that relies on no other, as a page may run it after any other; `E2E_WORKERS=1` runs them in turn on one page, to follow one in its log. A check waits for the page to go idle, with `waitForIdle(page, ms)` or, in the page, `window.idleTracker.wait(ms)`, at most `ms`; a fixed wait whose time itself matters, such as the gap of a double click, says why in an `eslint-disable` comment. `E2E_CHANNEL=chrome npm test` runs the e2e test in the installed Google Chrome instead, and `E2E_TIMINGS=1` lists the sections that took the longest, as CI does.
 
 A pre-commit hook runs `eslint --fix` and `stylelint --fix` on staged files automatically.
 

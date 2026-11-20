@@ -178,8 +178,10 @@ const MIME = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// How many of the sections that took the longest `E2E_TIMINGS` lists
+// How many of the sections that took the longest `E2E_TIMINGS` lists, and of the commonest things that kept a page busy
+// to the cap of a wait the run names
 const SLOWEST_SECTIONS = 20;
+const COMMONEST_CAP_CAUSES = 5;
 // The pages of the demo that run the sections at once, 4 unless `E2E_WORKERS` sets another count, the least time the
 // demo page settles after it loads, and the longest its charts take to paint, each over more pixels than the least
 // that tell a chart drew its data
@@ -804,9 +806,10 @@ function printTimings(browserName, startedAt) {
   console.log(`\n${checkCount} checks in ${seconds.toFixed(1)} s, in ${browserName}`);
   const cappedCounts = new Map();
   idleWaits.capped.forEach((busy) => cappedCounts.set(busy, (cappedCounts.get(busy) ?? 0) + 1));
-  const capped = [...cappedCounts].map(([busy, count]) => `${busy} (${count}×)`).join('; ');
+  const capped = [...cappedCounts].sort(([, a], [, b]) => b - a).slice(0, COMMONEST_CAP_CAUSES)
+    .map(([busy, count]) => `${busy} (${count}×)`).join('; ');
   console.log(`${idleWaits.count} waits for an idle page in ${(idleWaits.ms / 1000).toFixed(1)} s, `
-    + `${idleWaits.capped.length} of them cut at their cap${capped ? `: ${capped}` : ''}`);
+    + `${idleWaits.capped.length} of them cut at their cap${capped ? `, the commonest causes ${capped}` : ''}`);
   if (!process.env.E2E_TIMINGS && !process.env.CI) return;
 
   [...sectionTimes].sort((a, b) => b.ms - a.ms).slice(0, SLOWEST_SECTIONS).forEach(({ title, ms }) => {
@@ -1041,10 +1044,10 @@ function stopCanvasRecording(page) {
 // Switches the skin of the page and back, each switch redrawing the charts, and runs `whileSwitched` in between
 async function switchSkinAndBack(page, whileSwitched) {
   await page.evaluate(() => document.documentElement.classList.toggle('theme-dark'));
-  await sleep(500);
+  await waitForIdle(page, 500);
   await whileSwitched?.();
   await page.evaluate(() => document.documentElement.classList.toggle('theme-dark'));
-  await sleep(500);
+  await waitForIdle(page, 500);
 }
 
 // Whether the words of each element's text, in reading order, run from right to left on screen
@@ -1266,7 +1269,7 @@ function readProbeNumberLabels(page) {
 function readProbeTooltip(page, labelIndex) {
   return page.evaluate(async (index) => {
     window.probeChart.selectLabel(index);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
     const rows = [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset')];
     const swatchedRows = rows.filter((row) => row.querySelector('.lovely-chart--tooltip-swatch'));
@@ -1317,7 +1320,7 @@ function readProbeTooltip(page, labelIndex) {
 function readProbeTypography(page, labelIndex) {
   return page.evaluate(async (index) => {
     window.probeChart.selectLabel(index);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const container = document.querySelector('#probe .lovely-chart--container');
     const parts = {
       legend: '.lovely-chart--button-label',
@@ -1417,7 +1420,6 @@ function isPaintedWith(paint, shownColors, absentColors, isMinimapShown = true) 
 // Narrows the probe chart's window to the narrowest the minimap selects, then pans it across the data, `stepPx` a frame
 async function sweepProbe(page, stepPx = 3) {
   await page.evaluate(async (step) => {
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const host = document.getElementById('probe');
     const { left, right, top, height } = host.querySelector('.lovely-chart--minimap canvas').getBoundingClientRect();
     const fire = (target, type, clientX) => {
@@ -1430,7 +1432,7 @@ async function sweepProbe(page, stepPx = 3) {
       fire(target, 'mousedown', fromX);
       fire(target, 'mousemove', toX);
       fire(target, 'mouseup', toX);
-      await wait(500);
+      await window.idleTracker.wait(500);
     };
     const center = (element) => {
       const rect = element.getBoundingClientRect();
@@ -1447,7 +1449,7 @@ async function sweepProbe(page, stepPx = 3) {
       await new Promise((resolve) => requestAnimationFrame(resolve));
     }
     fire(slider, 'mouseup', start + right - left);
-    await wait(600);
+    await window.idleTracker.wait(600);
   }, stepPx);
 }
 
@@ -1921,7 +1923,7 @@ function interruptProbe(page, action) {
     element.id = 'probe';
     document.body.appendChild(element);
     window.probeChart = new LovelyChart(element, buildParams(labels));
-    await wait(800);
+    await window.idleTracker.wait(800);
 
     const fire = (target, type, x, y) => {
       const buttons = type === 'mouseup' || type === 'click' ? 0 : 1;
@@ -2075,9 +2077,9 @@ async function measureCircleTransition(page, { isOut, fractions, box, center }) 
 
 async function hoverWiggle(page, box, fx, fy) {
   await page.mouse.move(box.x + box.width * (fx - 0.05), box.y + box.height * fy, { steps: 5 });
-  await sleep(200);
+  await waitForIdle(page, 200);
   await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy, { steps: 5 });
-  await sleep(500);
+  await waitForIdle(page, 500);
 }
 
 // Whether a console message reports a resource of another site failing to load, as a badge on the demo page can
@@ -2108,7 +2110,7 @@ async function openDemoPage(browser, url, errors) {
 
   await page.goto(url);
   await page.waitForSelector('.lovely-chart--container', { timeout: 10000 });
-  await sleep(DEMO_SETTLE_TIME);
+  await waitForIdle(page, DEMO_SETTLE_TIME);
   await page.waitForFunction(({ count, minPainted }) => {
     const canvases = [...document.querySelectorAll('.lovely-chart--container')].map((el) => el.querySelector('canvas'));
     return canvases.length === count && canvases.every((canvas) => {
@@ -2196,14 +2198,14 @@ section('Rendering', async ({ page, charts }) => {
   const capBefore = await caption0();
   const slider = await chart0.locator('.lovely-chart--minimap-slider-inner').boundingBox();
   await drag(page, slider.x + slider.width / 2, slider.y + slider.height / 2, -150, 0);
-  await sleep(600);
+  await waitForIdle(page, 600);
   const capAfterSlider = await caption0();
   check('minimap slider drag changes range', capAfterSlider !== capBefore, `${capBefore} -> ${capAfterSlider}`);
 
   // --- Minimap: ear drag resizes the range ---
   const ear = await chart0.locator('.lovely-chart--minimap-slider-handle').first().boundingBox();
   await drag(page, ear.x + ear.width / 2, ear.y + ear.height / 2, -120, 0, 8);
-  await sleep(600);
+  await waitForIdle(page, 600);
   const capAfterEar = await caption0();
   check('minimap ear drag changes range', capAfterEar !== capAfterSlider, `${capAfterSlider} -> ${capAfterEar}`);
 
@@ -2214,14 +2216,14 @@ section('Rendering', async ({ page, charts }) => {
   const plotForSelection = await chart0.locator('.lovely-chart--tooltip').boundingBox();
   const selectionY = plotForSelection.y + plotForSelection.height * RANGE_DRAG_HEIGHT;
   await drag(page, plotForSelection.x + plotForSelection.width * 0.3, selectionY, plotForSelection.width * 0.3, 0);
-  await sleep(RANGE_SETTLE_MS);
+  await waitForIdle(page, RANGE_SETTLE_MS);
   const capAfterSelection = await caption0();
   const sliderAfterSelection = await sliderBox0();
   check('a drag across the plot narrows the range and the minimap window',
     capAfterSelection !== capAfterEar && sliderAfterSelection.width < sliderBeforeSelection.width,
     `${capAfterEar} -> ${capAfterSelection}, slider ${sliderBeforeSelection.width} -> ${sliderAfterSelection.width}`);
   await page.mouse.dblclick(plotForSelection.x + plotForSelection.width / 2, selectionY);
-  await sleep(RANGE_SETTLE_MS);
+  await waitForIdle(page, RANGE_SETTLE_MS);
   const capAfterReset = await caption0();
   const sliderAfterReset = await sliderBox0();
   check('a double click on the plot shows the whole range, the minimap window over all of it',
@@ -2234,17 +2236,17 @@ section('Rendering', async ({ page, charts }) => {
   const btn = chart0.locator('.lovely-chart--button').first();
   const isChecked = () => btn.evaluate((el) => el.classList.contains('lovely-chart--state-checked'));
   await btn.click();
-  await sleep(600);
+  await waitForIdle(page, 600);
   const offWorked = !(await isChecked());
   await btn.click();
-  await sleep(400);
+  await waitForIdle(page, 400);
   check('legend toggle unchecks and re-checks', offWorked && (await isChecked()));
 
   // Guard: the last checked dataset must refuse to uncheck (with a shake)
   const buttons = chart0.locator('.lovely-chart--button');
   const nBtns = await buttons.count();
   for (let i = 0; i < nBtns; i++) await buttons.nth(i).click();
-  await sleep(400);
+  await waitForIdle(page, 400);
   const checkedLeft = await chart0.locator('.lovely-chart--button.lovely-chart--state-checked').count();
   const shaken = await chart0.locator('.lovely-chart--state-shake').count();
   check('last checked dataset refuses to uncheck', checkedLeft === 1 && shaken === 1,
@@ -2253,7 +2255,7 @@ section('Rendering', async ({ page, charts }) => {
     const b = buttons.nth(i);
     if (!(await b.evaluate((el) => el.classList.contains('lovely-chart--state-checked')))) await b.click();
   }
-  await sleep(400);
+  await waitForIdle(page, 400);
 });
 
 section('Zoom in/out (chart 2: zoomable bars)', async ({ page, charts }) => {
@@ -2263,7 +2265,7 @@ section('Zoom in/out (chart 2: zoomable bars)', async ({ page, charts }) => {
   await chart2.scrollIntoViewIfNeeded();
   const slider2 = await chart2.locator('.lovely-chart--minimap-slider-inner').boundingBox();
   await drag(page, slider2.x + slider2.width / 2, slider2.y + slider2.height / 2, 600, 0, 12);
-  await sleep(800);
+  await waitForIdle(page, 800);
 
   const caption2 = () => chart2.locator('.lovely-chart--header-caption').textContent();
   const rangeCaption = await caption2();
@@ -2274,7 +2276,7 @@ section('Zoom in/out (chart 2: zoomable bars)', async ({ page, charts }) => {
   await hoverWiggle(page, plot2, lastColumnFx, 0.6);
   const clickedDay = await chart2.locator('.lovely-chart--tooltip-title').textContent();
   await page.mouse.click(plot2.x + plot2.width * lastColumnFx, plot2.y + plot2.height * 0.6);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
 
   const zoomOutCtl = chart2.locator('.lovely-chart--header-zoom-out-control');
   const zoomedIn = (await zoomOutCtl.count()) > 0;
@@ -2284,7 +2286,7 @@ section('Zoom in/out (chart 2: zoomable bars)', async ({ page, charts }) => {
 
   if (zoomedIn) {
     await zoomOutCtl.first().click();
-    await sleep(2000);
+    await waitForIdle(page, 2000);
     // The control element lingers hidden until the next text transition, so
     // the restored caption is the reliable signal that zoom-out completed.
     check('zoom-out restores the range', (await caption2()) === rangeCaption, JSON.stringify(await caption2()));
@@ -2317,7 +2319,7 @@ section('Start-zoomed init: shares, opened already as a pie, no morph', async ({
 
   if (hasZoomOut) {
     await startZoomOut.first().click();
-    await sleep(2000);
+    await waitForIdle(page, 2000);
     const stillZoomed = await startZoomed.evaluate((el) =>
       el.classList.contains('lovely-chart--state-zoomed-in'));
     check('start-zoomed zoom-out returns to overview', !stillZoomed, `still zoomed: ${stillZoomed}`);
@@ -2348,7 +2350,7 @@ section('Zoom to shares on an absolute stacked bar chart', async ({ page }) => {
 
   if (shareHasZoomOut) {
     await shareZoomOut.first().click();
-    await sleep(2000);
+    await waitForIdle(page, 2000);
     const stillCircle = await shareBars.evaluate((el) =>
       el.classList.contains('lovely-chart--state-zoomed-in'));
     check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
@@ -2389,10 +2391,10 @@ section('A zoom transition clips the plot to the circle and a focused sector\'s 
     const circlePlot = await circleProbe.locator('.lovely-chart--tooltip').boundingBox();
     await hoverWiggle(page, circlePlot, 0.5, 0.6);
     await page.mouse.click(circlePlot.x + circlePlot.width * 0.5, circlePlot.y + circlePlot.height * 0.6);
-    await sleep(2000);
+    await waitForIdle(page, 2000);
     // A pointer off the chart leaves every sector in place
     await page.mouse.move(0, 0);
-    await sleep(600);
+    await waitForIdle(page, 600);
 
     const isCircleZoomed = await circleProbe.evaluate((el) => el.classList.contains('lovely-chart--state-zoomed-in'));
     const box = await circleProbe.locator('canvas').first().boundingBox();
@@ -2442,7 +2444,7 @@ section('A zoom transition clips the plot to the circle and a focused sector\'s 
         { name: 'B', values: Array.from({ length: 20 }, (_, i) => 500 + (i % 3) * 100) },
       ],
     });
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    await window.idleTracker.wait(800);
     const container = element.querySelector('.lovely-chart--container');
     const plot = element.querySelector('.lovely-chart--tooltip');
     const { left, top, width, height } = plot.getBoundingClientRect();
@@ -2520,10 +2522,11 @@ section('A zoom transition clips the plot to the circle and a focused sector\'s 
         plot.dispatchEvent(new MouseEvent('click', pointer));
       };
       clickAt(0.9);
+      // eslint-disable-next-line no-restricted-syntax -- the second click falls within the double-click gap
       await new Promise((resolve) => setTimeout(resolve, gap));
       clickAt(0.85);
     }, DOUBLE_ZOOM_CLICK_GAP);
-    await sleep(2000);
+    await waitForIdle(page, 2000);
     const isZoomedIn = (await doubleZoomChart
       .locator('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').count()) > 0;
     const doubleZoomErrors = errors.filter((error) => error.startsWith('[pageerror]')).slice(pageErrorsBefore);
@@ -2547,21 +2550,21 @@ section('A zoom transition clips the plot to the circle and a focused sector\'s 
       onZoomChange: (labelValue) => window.probeLog.push(labelValue === undefined ? 'out' : 'in'),
     };
     window.probeChart = new LovelyChart(element, { ...window.probeParams, initialZoom: 'last' });
-    await new Promise((resolve) => setTimeout(resolve, 1800));
+    await window.idleTracker.wait(1800);
     return [...window.probeLog];
   });
   const zoomedBeforeResize = await mountZoomedShares();
   const viewport = page.viewportSize();
   await page.setViewportSize({ width: viewport.width - 20, height: viewport.height });
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   await page.setViewportSize(viewport);
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   const zoomAfterResize = await page.evaluate(() => window.probeLog);
   await unmountProbe(page);
   const zoomedBeforeUpdate = await mountZoomedShares();
   const zoomAfterUpdate = await page.evaluate(async () => {
     window.probeChart.update(window.probeParams);
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await window.idleTracker.wait(600);
     return window.probeLog;
   });
   await unmountProbe(page);
@@ -2610,11 +2613,11 @@ section('update() and destroy() of a chart mid-interaction', async ({ page, brow
     element.id = 'probe';
     document.body.appendChild(element);
     window.probeChart = new LovelyChart(element, buildParams(labels));
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    await window.idleTracker.wait(800);
     const plot = element.querySelector('.lovely-chart--tooltip');
     const { right, top, height } = plot.getBoundingClientRect();
     plot.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: right - 10, clientY: top + height / 2 }));
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     window.removeEventListener('error', onError);
     return isUpdated ? errors : ['onSelectedIndexChange not called'];
   }, { labels: INTERRUPTED_LABELS, newLabels: INTERRUPTING_LABELS });
@@ -2643,7 +2646,6 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
   + 'to', async ({ page }) => {
   const keptFilter = await page.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     document.getElementById('container').appendChild(element);
@@ -2659,18 +2661,18 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
     });
     const hideSecond = async () => {
       element.querySelectorAll('.lovely-chart--button')[1].click();
-      await wait(300);
+      await window.idleTracker.wait(300);
     };
     const chart = new LovelyChart(element, buildParams(['A', 'B', 'C']));
     const readUpdate = async (names, options) => {
       chart.update(buildParams(names), options);
-      await wait(300);
+      await window.idleTracker.wait(300);
       const hidden = [...element.querySelectorAll('.lovely-chart--button')]
         .filter((button) => !button.classList.contains('lovely-chart--state-checked'))
         .map((button) => button.textContent);
       return { hidden: hidden.join(), log: log.join(' ') };
     };
-    await wait(300);
+    await window.idleTracker.wait(300);
     await hideSecond();
     const byPlace = await readUpdate(['A', 'B', 'C'], { shouldKeepFilter: true });
     // D starts hidden of its own
@@ -2695,7 +2697,6 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
 
   const keptWindow = await page.evaluate(async ({ keptRange, updateRange, otherLabelsRange }) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     document.getElementById('container').appendChild(element);
@@ -2710,12 +2711,12 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
     const chart = new LovelyChart(element, buildParams(1, keptRange));
     const readUpdate = async (params, options) => {
       chart.update(params, options);
-      await wait(300);
+      await window.idleTracker.wait(300);
       const [mask, slider] = element.querySelector('.lovely-chart--minimap-ruler').children;
       const begin = parseFloat(mask.style.width);
       return [begin, begin + parseFloat(slider.style.width)].map((edge) => Math.round(edge) / 100);
     };
-    await wait(300);
+    await window.idleTracker.wait(300);
     const kept = await readUpdate(buildParams(1, updateRange), { shouldKeepZoom: true });
     const otherLabels = await readUpdate(buildParams(2, otherLabelsRange), { shouldKeepZoom: true });
     const reset = await readUpdate(buildParams(2, updateRange), {});
@@ -2733,7 +2734,6 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
 
   const keptZoom = await page.evaluate(async (keptRange) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const data = await fetch('./data/bars.json').then((response) => response.json());
     const element = document.createElement('div');
     element.id = 'probe';
@@ -2762,19 +2762,19 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
       };
     };
     let chart = new LovelyChart(element, { ...params, initialZoom: 'last' });
-    await wait(1800);
+    await window.idleTracker.wait(1800);
     chart.update({ ...params, minimapRange: 'full' }, { shouldKeepZoom: true });
-    await wait(1800);
+    await window.idleTracker.wait(1800);
     const kept = readView();
     element.querySelector('.lovely-chart--header-zoom-out-control').click();
-    await wait(1800);
+    await window.idleTracker.wait(1800);
     const zoomedOut = readView();
     chart.destroy();
     log.length = 0;
     chart = new LovelyChart(element, { ...params, initialZoom: 'last' });
-    await wait(1800);
+    await window.idleTracker.wait(1800);
     chart.update(otherParams, { shouldKeepZoom: true });
-    await wait(1800);
+    await window.idleTracker.wait(1800);
     const otherLabels = readView();
     chart.destroy();
     element.remove();
@@ -2790,7 +2790,6 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
 
   const zoomedFilter = await page.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const data = await fetch('./data/bars.json').then((response) => response.json());
     const element = document.createElement('div');
     element.id = 'probe';
@@ -2814,24 +2813,24 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
     const mountZoomed = async () => {
       log.length = 0;
       const chart = new LovelyChart(element, { ...params, initialZoom: 'last' });
-      await wait(1800);
+      await window.idleTracker.wait(1800);
       element.querySelectorAll('.lovely-chart--button')[1].click();
-      await wait(600);
+      await window.idleTracker.wait(600);
       return chart;
     };
     let chart = await mountZoomed();
     chart.update({ ...params }, { shouldKeepFilter: true, shouldKeepZoom: true });
-    await wait(1800);
+    await window.idleTracker.wait(1800);
     const zoomed = readView();
     // The zoom out on its way clears the live filter, which it carries back to the overview
     element.querySelector('.lovely-chart--header-zoom-out-control').click();
     chart.update({ ...params }, { shouldKeepFilter: true });
-    await wait(1800);
+    await window.idleTracker.wait(1800);
     const zoomingOut = readView();
     chart.destroy();
     chart = await mountZoomed();
     chart.update({ ...params }, { shouldKeepFilter: true });
-    await wait(1800);
+    await window.idleTracker.wait(1800);
     const overview = readView();
     chart.destroy();
     element.remove();
@@ -2849,7 +2848,6 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
 
   const keptSelection = await page.evaluate(async (selectedIndex) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     document.getElementById('container').appendChild(element);
@@ -2872,18 +2870,18 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
     });
     const moveOutside = async () => {
       document.body.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
-      await wait(300);
+      await window.idleTracker.wait(300);
       return readSelection();
     };
     const chart = new LovelyChart(element, buildParams(2));
     const readUpdate = async (firstDay) => {
       chart.update(buildParams(firstDay), { shouldKeepSelection: true });
-      await wait(300);
+      await window.idleTracker.wait(300);
       return readSelection();
     };
-    await wait(300);
+    await window.idleTracker.wait(300);
     chart.selectLabel(selectedIndex);
-    await wait(300);
+    await window.idleTracker.wait(300);
     const kept = await readUpdate(2);
     const moved = await readUpdate(1);
     const held = await moveOutside();
@@ -2893,7 +2891,7 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
     plot.dispatchEvent(new MouseEvent('mousemove', {
       bubbles: true, clientX: left + width / 2, clientY: top + height / 2,
     }));
-    await wait(300);
+    await window.idleTracker.wait(300);
     const hovered = readSelection();
     const pointerKept = await readUpdate(selectedIndex + 3);
     const pointerLeft = await moveOutside();
@@ -2921,7 +2919,6 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
 
   const reassignedLabels = await page.evaluate(async (selectedIndex) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     document.getElementById('container').appendChild(element);
@@ -2936,12 +2933,12 @@ section('update() keeps the hidden datasets, the window, the zoom and the select
       onSelectedIndexChange: (index) => log.push(index ?? 'none'),
     };
     const chart = new LovelyChart(element, params);
-    await wait(300);
+    await window.idleTracker.wait(300);
     chart.selectLabel(selectedIndex);
-    await wait(300);
+    await window.idleTracker.wait(300);
     params.labels = buildLabels(4);
     chart.update(params, { shouldKeepSelection: true });
-    await wait(300);
+    await window.idleTracker.wait(300);
     chart.destroy();
     element.remove();
     return log.join();
@@ -2954,6 +2951,7 @@ section('update() with isAnimated cross-fades the chart into the new data', asyn
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   const crossFade = await page.evaluate(async ({ fromColor, toColor, midFadeMs, pastFadeMs, tolerance }) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
+    // eslint-disable-next-line no-restricted-syntax -- its waits read the cross-fade halfway through
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
@@ -2979,7 +2977,7 @@ section('update() with isAnimated cross-fades the chart into the new data', asyn
     };
     const chart = new LovelyChart(element, buildParams(fromColor, 2));
     element.scrollIntoView({ behavior: 'instant', block: 'center' });
-    await wait(300);
+    await window.idleTracker.wait(300);
     chart.update(buildParams(toColor, 3), { isAnimated: true });
     const [replaced, rebuilt] = element.children;
     const replacedBox = replaced.getBoundingClientRect();
@@ -3001,7 +2999,7 @@ section('update() with isAnimated cross-fades the chart into the new data', asyn
       rebuiltPixels: countPixels(rebuilt, toColor),
       isHitOnRebuilt: rebuilt.contains(hit),
     };
-    await wait(pastFadeMs);
+    await window.idleTracker.wait(pastFadeMs);
     const end = [...element.children].map((child) => child.className).join(' | ');
     const readOpacities = () => [...element.children].map((child) => Number(getComputedStyle(child).opacity));
     chart.update(buildParams(fromColor, 2), { isAnimated: true });
@@ -3038,6 +3036,7 @@ section('update() with isAnimated cross-fades the chart into the new data', asyn
 
   const legendCrossFade = await page.evaluate(async ({ midFadeMs, pastFadeMs }) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
+    // eslint-disable-next-line no-restricted-syntax -- its waits read the cross-fade of the legend halfway through
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const legend = document.createElement('div');
     const element = document.createElement('div');
@@ -3058,7 +3057,7 @@ section('update() with isAnimated cross-fades the chart into the new data', asyn
     chip.style.height = '30px';
     legend.appendChild(chip);
     legend.scrollIntoView({ behavior: 'instant', block: 'center' });
-    await wait(300);
+    await window.idleTracker.wait(300);
     chart.update(buildParams(['C', 'D', 'E']), { isAnimated: true });
     const [replaced, rebuilt] = legend.children;
     const replacedBox = replaced.getBoundingClientRect();
@@ -3073,7 +3072,7 @@ section('update() with isAnimated cross-fades the chart into the new data', asyn
     const buttonBox = rebuilt.querySelector('.lovely-chart--button').getBoundingClientRect();
     const hit = document.elementFromPoint(buttonBox.left + buttonBox.width / 2, buttonBox.top + buttonBox.height / 2);
     const isHitOnRebuilt = rebuilt.contains(hit);
-    await wait(pastFadeMs);
+    await window.idleTracker.wait(pastFadeMs);
     const end = readClassNames(legend);
     chart.update(buildParams(['A', 'B']), { isAnimated: true });
     chart.update(buildParams(['C', 'D']), { isAnimated: true });
@@ -3107,7 +3106,6 @@ section('update() with isAnimated cross-fades the chart into the new data', asyn
 
   const sharedCrossFade = await page.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     element.style.position = 'relative';
@@ -3126,7 +3124,7 @@ section('update() with isAnimated cross-fades the chart into the new data', asyn
     overlay.className = 'probe-overlay';
     overlay.style.cssText = 'position: absolute; inset: 0; pointer-events: none';
     element.appendChild(overlay);
-    await wait(300);
+    await window.idleTracker.wait(300);
     chart.update(buildParams(['C', 'D']), { isAnimated: true });
     chart.update(buildParams(['A', 'B']), { isAnimated: true });
     const [rebuiltChart, rebuiltLegend] = ['container', 'tools'].map((kind) => (
@@ -3164,7 +3162,7 @@ section('update() with isAnimated cross-fades the chart into the new data', asyn
       datasets: [{ name: 'A', values: Array.from({ length: 10 }, (_, i) => 1 + (i % 3)) }],
     };
     const chart = new LovelyChart(element, params);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     chart.update({ ...params }, { isAnimated: true });
     const classNames = [...element.children].map((child) => child.className).join(' | ');
     chart.destroy();
@@ -3194,7 +3192,7 @@ section('update() with isAnimated cross-fades the chart into the new data', asyn
       datasets: [{ name: 'A', values: Array.from({ length: 10 }, (_, i) => 1 + (i % 3)) }],
     };
     const chart = new LovelyChart(element, params);
-    await wait(300);
+    await window.idleTracker.wait(300);
     chart.update({ ...params }, { isAnimated: true });
     const fadingCount = element.children.length;
     chart.destroy();
@@ -3289,7 +3287,7 @@ section('Minimap: a drag holds its cursor over the page until the release', asyn
   await page.mouse.up();
   dragCursor.releasedOverStopper = await readDragCursor();
   await page.evaluate(() => document.getElementById('probe-stopper').remove());
-  await sleep(600);
+  await waitForIdle(page, 600);
   // A release over a frame reaches neither the document nor the chart, whose next move comes with no button pressed
   dragCursor.movedWithoutButton = await page.evaluate(async () => {
     const slider = document.querySelector('#probe .lovely-chart--minimap-slider-inner');
@@ -3299,7 +3297,7 @@ section('Minimap: a drag holds its cursor over the page until the release', asyn
     }));
     fire(slider, 'mousedown', left + width / 2, 1);
     fire(document, 'mousemove', left + width / 2 + 40, 0);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     return {
       classes: [...document.documentElement.classList].filter((name) => name.includes('cursor-')),
       sliderShift: slider.getBoundingClientRect().left - left,
@@ -3335,7 +3333,7 @@ section('Minimap: a drag holds its cursor over the page until the release', asyn
       ],
       initialZoom: 'last',
     });
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await window.idleTracker.wait(1500);
     const caption = element.querySelector('.lovely-chart--header-caption').textContent;
 
     chart.destroy();
@@ -3382,7 +3380,7 @@ section('Minimap: a drag holds its cursor over the page until the release', asyn
   const labelWidth = (await singleLabel.locator('.lovely-chart--minimap').boundingBox()).width / 5;
   await drag(page, singleSlider.x + singleSlider.width / 2, singleSlider.y + singleSlider.height / 2,
     -labelWidth, 0);
-  await sleep(700);
+  await waitForIdle(page, 700);
   const capDragged = (await singleCaption()).trim();
   check('zoomed minimap drag steps whole labels',
     capZoomed === 'March 2029'
@@ -3407,6 +3405,7 @@ section('Minimap: a drag holds its cursor over the page until the release', asyn
   const donutFrames = [];
   for (let i = 0; i < 10; i++) {
     donutFrames.push(await donutSignature());
+    // eslint-disable-next-line no-restricted-syntax -- samples the frames of the donut over time
     await sleep(30);
   }
   check('zoomed circle animates towards a new range',
@@ -3475,9 +3474,9 @@ section('Minimap: a drag holds its cursor over the page until the release', asyn
   const dragFromPointer = async (grabFraction) => {
     const plotBox = await clickZoom.locator('.lovely-chart--tooltip').boundingBox();
     await page.mouse.move(plotBox.x + plotBox.width * 0.5, plotBox.y + plotBox.height * 0.6);
-    await sleep(250);
+    await waitForIdle(page, 250);
     await page.mouse.click(plotBox.x + plotBox.width * 0.5, plotBox.y + plotBox.height * 0.6);
-    await sleep(2200);
+    await waitForIdle(page, 2200);
 
     const caption = async () => (await clickZoom.locator('.lovely-chart--header-caption').textContent()).trim();
     const canvasBox = await clickZoom.locator('.lovely-chart--minimap canvas').boundingBox();
@@ -3494,6 +3493,7 @@ section('Minimap: a drag holds its cursor over the page until the release', asyn
     for (let travelled = 0.05; travelled <= 1.4; travelled += 0.05) {
       const x = startX - labelWidth * travelled;
       await page.mouse.move(x, startY, { steps: 2 });
+      // eslint-disable-next-line no-restricted-syntax -- paces the drag against the caption throttle
       await sleep(80);
       if ((await caption()) !== before) {
         labelWhenChanged = labelAt(x);
@@ -3501,11 +3501,11 @@ section('Minimap: a drag holds its cursor over the page until the release', asyn
       }
     }
     await page.mouse.up();
-    await sleep(300);
+    await waitForIdle(page, 300);
     const zoomOut = clickZoom.locator('.lovely-chart--header-zoom-out-control');
     if (await zoomOut.count()) {
       await zoomOut.first().click();
-      await sleep(2000);
+      await waitForIdle(page, 2000);
     }
 
     return { start: labelAt(startX), changed: labelWhenChanged };
@@ -3541,7 +3541,7 @@ section('Start-zoomed init: async `onZoom`, opened already on the zoomed day', a
 
   if (asyncHasZoomOut) {
     await asyncZoomOut.first().click();
-    await sleep(2000);
+    await waitForIdle(page, 2000);
     const backCaption = await startZoomedAsync.locator('.lovely-chart--header-caption').textContent();
     check('start-zoomed onZoom zoom-out returns to overview', backCaption.includes('—'), JSON.stringify(backCaption));
   }
@@ -3604,16 +3604,16 @@ section('A zoom paints the zoomed datasets in their own colours, names them, and
       const linesZoomPlot = await linesZoom.locator('.lovely-chart--tooltip').boundingBox();
       await hoverWiggle(page, linesZoomPlot, 0.5, 0.5);
       await page.mouse.click(linesZoomPlot.x + linesZoomPlot.width / 2, linesZoomPlot.y + linesZoomPlot.height / 2);
-      await sleep(2000);
+      await waitForIdle(page, 2000);
     }
     const zoomedTexts = getLastFrameTexts(await readProbeTexts(page));
     const zoomedPaint = await readDatasetPaint(linesZoom, allColors);
     const zoomedNames = await readTooltipNames(1);
     // Rows the tooltip makes while zoomed take the overview's names after a zoom out
     await linesZoom.locator('.lovely-chart--button').first().click();
-    await sleep(500);
+    await waitForIdle(page, 500);
     await linesZoom.locator('.lovely-chart--button').first().click();
-    await sleep(500);
+    await waitForIdle(page, 500);
     const reshownNames = await readTooltipNames(1);
     await page.evaluate(() => window.probeChart.selectLabel(undefined));
     check(`a zoom into ${name} datasets ${isLinesView ? 'than' : 'as'} the overview paints and names them as their own`,
@@ -3627,7 +3627,7 @@ section('A zoom paints the zoomed datasets in their own colours, names them, and
       + `text colours ${JSON.stringify([...new Set(zoomedTexts.map(({ color }) => color))])}`);
 
     await linesZoom.locator('.lovely-chart--header-zoom-out-control').first().click();
-    await sleep(2000);
+    await waitForIdle(page, 2000);
     const overviewPaint = await readDatasetPaint(linesZoom, allColors);
     const overviewNames = await readTooltipNames(LINES_ZOOM_LAST_LABEL_INDEX);
     check(`a zoom out of ${name} datasets paints and names the overview's as before`,
@@ -3653,7 +3653,7 @@ section('A lines zoom draws its datasets in the `colors` its data gives them, ov
   const keyedZoomPlot = await keyedZoom.locator('.lovely-chart--tooltip').boundingBox();
   await hoverWiggle(page, keyedZoomPlot, 0.5, 0.5);
   await page.mouse.click(keyedZoomPlot.x + keyedZoomPlot.width / 2, keyedZoomPlot.y + keyedZoomPlot.height / 2);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   const keyedPaint = await readDatasetPaint(keyedZoom, keyedPaintColors);
   const keyedSwatches = (await readProbeTooltip(page, 1)).swatchColors.sort();
   await page.evaluate(() => window.probeChart.selectLabel(undefined));
@@ -3663,7 +3663,7 @@ section('A lines zoom draws its datasets in the `colors` its data gives them, ov
     `${JSON.stringify(keyedPaint)}, tooltip swatches ${JSON.stringify(keyedSwatches)}`);
 
   await keyedZoom.locator('.lovely-chart--header-zoom-out-control').first().click();
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   const keyedOverviewPaint = await readDatasetPaint(keyedZoom, keyedPaintColors);
   await unmountProbe(page);
   check('a zoom out of a lines view of colors paints the overview in its own colours',
@@ -3683,13 +3683,13 @@ section('A resize returns a chart zoomed into datasets of other colours to the o
   const resizedZoomPlot = await resizedZoom.locator('.lovely-chart--tooltip').boundingBox();
   await hoverWiggle(page, resizedZoomPlot, 0.5, 0.5);
   await page.mouse.click(resizedZoomPlot.x + resizedZoomPlot.width / 2, resizedZoomPlot.y + resizedZoomPlot.height / 2);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   await page.mouse.move(0, 0);
   const resizeViewport = page.viewportSize();
   await page.setViewportSize({ width: resizeViewport.width - 20, height: resizeViewport.height });
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   await page.setViewportSize(resizeViewport);
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   const resizedPaint = await readDatasetPaint(resizedZoom, [...resizedOverviewColors, ...resizedZoomColors]);
   await unmountProbe(page);
   check('a resize while zoomed into datasets of other colours paints the overview in its own colours',
@@ -3704,7 +3704,7 @@ section('Localized captions (own chart, so the demo page stays English)', async 
     document.body.appendChild(element);
 
     const chart = new LovelyChart(element, { ...data, initialZoom: 'last', dateLocale: locale });
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await window.idleTracker.wait(1500);
     const caption = element.querySelector('.lovely-chart--header-caption').textContent;
 
     chart.destroy();
@@ -4021,7 +4021,7 @@ section('A dataset of another type than the chart\'s: a line over bars from 0, o
   await page.evaluate(() => window.probeChart.selectLabel(undefined));
   await targetChart.locator('.lovely-chart--button').nth(0).click();
   await targetChart.locator('.lovely-chart--button').nth(1).click();
-  await sleep(1000);
+  await waitForIdle(page, 1000);
   const targetAloneLabels = await readMainYLabels();
   await unmountProbe(page);
   check('a line of another type than a stacked chart\'s draws its own value beside the stack, on the main Y axis',
@@ -4186,13 +4186,14 @@ section('A single label in the trillions labels its value instead of freezing th
         const chart = new LovelyChart(element, {
           type, labels: [Date.UTC(2026, 10, 1)], datasets: [{ name: 'Huge', values: [value] }],
         });
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        await window.idleTracker.wait(800);
         textsByType[type] = [...new Set(texts)];
         chart.destroy();
         element.remove();
       }
       return textsByType;
     }, { types: ['line', 'bar'], value: TRILLION_VALUE }),
+    // eslint-disable-next-line no-restricted-syntax -- bounds the race that tells a frozen page, and waits for nothing
     sleep(FREEZE_TIMEOUT_MS).then(() => undefined),
   ]);
   await trillionPage.close();
@@ -4546,7 +4547,7 @@ section('A themed area outline takes the colour of the theme, and follows a chan
   ];
   const lightOutline = await readOutlinePixels();
   await page.evaluate(() => document.documentElement.classList.add('theme-dark'));
-  await sleep(300);
+  await waitForIdle(page, 300);
   const darkOutline = await readOutlinePixels();
   await unmountProbe(page);
   await page.evaluate((isDark) => document.documentElement.classList.toggle('theme-dark', isDark), wasOutlineThemeDark);
@@ -4585,12 +4586,12 @@ section('The outward Y-label column fits the widest label the data can show, and
   // The narrowest window, panned, then with the low dataset hidden, so the window starts above 0
   const columnEar = await columnChart.locator('.lovely-chart--minimap-slider-handle').first().boundingBox();
   await drag(page, columnEar.x + columnEar.width / 2, columnEar.y + columnEar.height / 2, 600, 0, 20);
-  await sleep(700);
+  await waitForIdle(page, 700);
   const columnSlider = await columnChart.locator('.lovely-chart--minimap-slider-inner').boundingBox();
   await drag(page, columnSlider.x + columnSlider.width / 2, columnSlider.y + columnSlider.height / 2, -300, 0, 30);
-  await sleep(700);
+  await waitForIdle(page, 700);
   await columnChart.locator('.lovely-chart--button').nth(1).click();
-  await sleep(1000);
+  await waitForIdle(page, 1000);
   const pannedColumn = getYLabelColumn(await readProbeTexts(page));
   const pannedEnds = [...new Set([...initialColumn.ends, ...pannedColumn.ends])];
   check('an outward Y-label column holds still while the reader narrows, pans and hides datasets',
@@ -4617,7 +4618,7 @@ section('The outward Y-label column fits the widest label the data can show, and
     labels: [1, 2, 3].map((day) => Date.UTC(2026, 0, day)),
     datasets: [{ name: 'Small', values: [0.5, 1.25, 0.75] }],
   }));
-  await sleep(1500);
+  await waitForIdle(page, 1500);
   const updatedColumn = getYLabelColumn(await readProbeTexts(page), true);
   await unmountProbe(page);
   check('update() measures the outward column for the new data',
@@ -4648,11 +4649,11 @@ section('The outward Y-label column fits the widest label the data can show, and
     zoomDataSource: 'data/zoom_bars',
     zoomConfig: { isYAxisOutward: true, valuePrefix: 'US$' },
   });
-  await sleep(1000);
+  await waitForIdle(page, 1000);
   const dayColumn = getYLabelColumn(await readProbeTexts(page), true);
   const dayAreaLeft = await readPlotAreaLeft(page);
   await zoomColumnChart.locator('.lovely-chart--header-zoom-out-control').first().click();
-  await sleep(2500);
+  await waitForIdle(page, 2500);
   const zoomedOutColumn = getYLabelColumn(await readProbeTexts(page), true);
   const zoomedOutAreaLeft = await readPlotAreaLeft(page);
   await unmountProbe(page);
@@ -4995,7 +4996,7 @@ section('The X-axis grid counts from the newest label and steps coarser where la
         };
       });
       window.probeChart.refreshColors();
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.idleTracker.wait(300);
       Object.keys(methods).forEach((name) => delete context[name]);
 
       const frame = calls.slice(calls.findLastIndex(({ kind, y }) => kind === 'clear' && y === 0) + 1);
@@ -5120,7 +5121,7 @@ section('The plot-area properties place an overlay over the data area, inside a 
     isYAxisOutward: true,
     plotHeight: 240,
   }), { config: areaConfig, fraction: updatedReferenceFraction });
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   const updatedFit = await readPlotAreaFit(page, ['#FF0000', '#0000FF']);
   const [updatedLine, updatedReference] = updatedFit.boxes;
   const updatedChildren = await page.evaluate(() => [...document.getElementById('probe').children]
@@ -5172,7 +5173,7 @@ section('The plot-area properties place an overlay over the data area, inside a 
   await page.evaluate(() => {
     document.getElementById('probe-header-fold').textContent = '#probe .lovely-chart--header { display: none; }';
   });
-  await sleep(200);
+  await waitForIdle(page, 200);
   const foldedFit = await readPlotAreaFit(page, ['#FF0000']);
   const foldedCanvasTop = await readCanvasTop();
   await page.evaluate(() => document.getElementById('probe-header-fold').remove());
@@ -5358,7 +5359,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
       };
     }, labelIndex);
     await page.mouse.move(point.x, point.y);
-    await sleep(100);
+    await waitForIdle(page, 100);
     await page.mouse.click(point.x, point.y);
   };
   const geometryLabels = Array.from({ length: 11 }, (_, i) => Date.UTC(2026, 0, i + 1));
@@ -5394,7 +5395,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     ...window.probeParams,
     datasets: [{ name: 'Line', color: '#FF0000', values: [5, 8, 4, 9, 3] }],
   }));
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   const updatedReports = await page.evaluate(() => window.probeAreaReports);
   const destroyedGeometry = await page.evaluate(() => {
     const host = document.getElementById('probe');
@@ -5467,7 +5468,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     fire(document, 'mousemove', end);
     fire(document, 'mouseup', end);
     const moving = readXs();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await window.idleTracker.wait(1000);
     return { moving, settled: readXs() };
   });
   await unmountProbe(page);
@@ -5497,10 +5498,10 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
   const sharesArea = (await readGeometry([])).area;
   await clickProbeLabel(3);
   const zoomStartX = await page.evaluate(() => window.probeChart.getLabelX(3));
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   await page.mouse.move(5, 5);
   await sharesGeometry.locator('.lovely-chart--header-zoom-out-control').first().click();
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   const sharesReports = await readGeometry([]);
   await unmountProbe(page);
   const [sharesFirst] = sharesReports.areaReports;
@@ -5532,7 +5533,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
   }, hoursXArgs, true);
   await hoursGeometry.scrollIntoViewIfNeeded();
   await clickProbeLabel(5);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   await page.mouse.move(5, 5);
   const hoursReports = await readGeometry(hoursXArgs);
   await unmountProbe(page);
@@ -5669,7 +5670,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
       await new Promise((resolve) => requestAnimationFrame(resolve));
     }
     fire(document, 'mouseup', start - minimap.width * shift);
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await window.idleTracker.wait(600);
     delete context.moveTo;
     window.probeRangeExtras = undefined;
     return { reports: window.probeRangeReports, frames: [...frameXs] };
@@ -5679,7 +5680,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
   await page.evaluate(
     (range) => window.probeChart.update({ ...window.probeParams, minimapRange: range }), draggedRange,
   );
-  await sleep(600);
+  await waitForIdle(page, 600);
   const reopenedLine = await page.evaluate(() => {
     const range = window.probeRangeReports[window.probeRangeReports.length - 1]?.range;
     return { range, xs: range ? [-1, 0, 1].map((i) => window.probeChart.getLabelX(range.from + i)) : [] };
@@ -5753,13 +5754,13 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
   const plotBox = await rangeBars.locator('canvas').first().boundingBox();
   for (const fraction of [0.3, 0.5, 0.7]) {
     await page.mouse.move(plotBox.x + plotBox.width * fraction, plotBox.y + plotBox.height / 2);
-    await sleep(300);
+    await waitForIdle(page, 300);
   }
   await page.mouse.move(5, 5);
   await page.evaluate(() => window.probeChart.selectLabel(6));
-  await sleep(300);
+  await waitForIdle(page, 300);
   await page.evaluate(() => window.probeChart.selectLabel(undefined));
-  await sleep(300);
+  await waitForIdle(page, 300);
   await switchSkinAndBack(page);
   const stillBars = await page.evaluate(() => ({
     frames: window.probeFrames,
@@ -5768,7 +5769,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
   await page.evaluate(
     (range) => window.probeChart.update({ ...window.probeParams, minimapRange: range }), stillBars.reports[0]?.range,
   );
-  await sleep(600);
+  await waitForIdle(page, 600);
   const reopenedBars = await page.evaluate(() => {
     const range = window.probeRangeReports[window.probeRangeReports.length - 1]?.range;
     return {
@@ -5798,7 +5799,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     ...window.probeParams,
     minimapRange: window.probeRangeReports[0]?.range,
   }));
-  await sleep(600);
+  await waitForIdle(page, 600);
   const lockedReports = await page.evaluate(() => window.probeRangeReports);
   await unmountProbe(page);
   check('a range of a line from the first label limitDate leaves open reopens one label wider at its end',
@@ -5853,10 +5854,10 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     );
   }, { swapTimeout: ZOOM_SWAP_TIMEOUT, delay: LATE_SWAP_DELAY });
   await clickProbeLabel(5);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   await page.mouse.move(5, 5);
   await page.evaluate(() => window.probeChart.zoomOut());
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   const lateSwapReports = await page.evaluate(() => {
     window.setTimeout = window.nativeSetTimeout;
     delete window.nativeSetTimeout;
@@ -5880,6 +5881,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     const element = document.createElement('div');
     element.id = 'probe';
     document.getElementById('container').appendChild(element);
+    // eslint-disable-next-line no-restricted-syntax -- its waits hold the zoom data back and read before it arrives
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const events = [];
     const waitingXs = [];
@@ -5902,16 +5904,16 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     window.probeChart = new LovelyChart(element, params);
     await wait(dataMs / 2);
     waitingXs.push(window.probeChart.getLabelX(5));
-    await wait(dataMs * 3);
+    await window.idleTracker.wait(dataMs * 3);
     events.push('|');
     window.probeChart.update(params, { shouldKeepZoom: true });
     await wait(dataMs / 2);
     waitingXs.push(window.probeChart.getLabelX(0));
-    await wait(dataMs * 3);
+    await window.idleTracker.wait(dataMs * 3);
     events.push('|');
     shouldFail = true;
     window.probeChart.update(params, { shouldKeepZoom: true });
-    await wait(dataMs * 3);
+    await window.idleTracker.wait(dataMs * 3);
     return { events: events.join(' '), waitingXs };
   }, {
     config: {
@@ -5949,7 +5951,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
       },
     };
     window.probeChart = new LovelyChart(element, params);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await window.idleTracker.wait(1000);
     window.removeEventListener('error', onError);
     const childCount = element.childElementCount;
     element.remove();
@@ -5982,7 +5984,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
       ...probeConfig,
     });
     element.scrollIntoView({ block: 'center' });
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await window.idleTracker.wait(1200);
   }, [config, geometryLabels]);
   // The range the last frame reported, the caption, the labels Home and End select and whether `selectLabel()` selects
   // the label of `labelIndex`, each from no selection
@@ -6029,7 +6031,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
       fire(ear, 'mousedown', startX);
       fire(document, 'mousemove', startX + shift);
       fire(document, 'mouseup', startX + shift);
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await window.idleTracker.wait(600);
     }, { isBegin: edge === 'begin', centre: (labelIndex + 0.5) / count, offset: nudge });
     return readColumnWindow(labelIndex);
   };
@@ -6280,9 +6282,9 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     return { x: box.left + host.clientLeft + left + width / 2, y: box.top + host.clientTop + top + height / 2 };
   });
   await page.mouse.move(pieCenter.x, pieCenter.y + 30, { steps: 5 });
-  await sleep(200);
+  await waitForIdle(page, 200);
   await page.mouse.move(pieCenter.x + 20, pieCenter.y + 40, { steps: 5 });
-  await sleep(500);
+  await waitForIdle(page, 500);
   const pieWindowText = (await windowPie.locator('.lovely-chart--tooltip-balloon').textContent())
     .replace(/\s+/g, ' ').trim();
   await page.mouse.move(5, 5);
@@ -6308,10 +6310,10 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
       minimapRange: { from: 6, to: 11 },
     }),
   }), HOUR_MS);
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   await zoomWindow.scrollIntoViewIfNeeded();
   await clickProbeLabel(5);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   await page.mouse.move(5, 5);
   const zoomedWindow = await readGeometry(zoomWindowArgs);
   await unmountProbe(page);
@@ -6364,7 +6366,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     const band = await readRangeBand();
     if (!shouldHold) {
       await page.mouse.up();
-      await sleep(RANGE_SETTLE_MS);
+      await waitForIdle(page, RANGE_SETTLE_MS);
     }
     return { fromX, toX, y, area, band };
   };
@@ -6376,7 +6378,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
       return host.getBoundingClientRect().left + host.clientLeft;
     });
     await page.mouse.dblclick(hostLeft + area.left + area.width / 2, y);
-    await sleep(RANGE_SETTLE_MS);
+    await waitForIdle(page, RANGE_SETTLE_MS);
   };
   const readLastRange = () => page.evaluate(() => {
     const range = window.probeRangeReports.at(-1)?.range;
@@ -6409,7 +6411,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
 
   // `update()` keeps the selected window with `shouldKeepZoom` alone
   await page.evaluate(() => window.probeChart.update(window.probeParams, { shouldKeepZoom: true }));
-  await sleep(RANGE_SETTLE_MS);
+  await waitForIdle(page, RANGE_SETTLE_MS);
   const keptRangeSelection = await readLastRange();
   await doubleClickProbe();
   const resetSelection = { range: await readLastRange(), slider: await readSliderEdges() };
@@ -6424,7 +6426,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
   await page.keyboard.press('Escape');
   const escapedBand = await readRangeBand();
   await page.mouse.up();
-  await sleep(RANGE_SETTLE_MS);
+  await waitForIdle(page, RANGE_SETTLE_MS);
   const unselected = await page.evaluate(() => window.probeRangeReports.length);
   check('a band over a single point of a line and a drag Escape ends select no range',
     unselected === reportCountBefore && !escapedBand.isShown, `${reportCountBefore} -> ${unselected} range reports`);
@@ -6442,7 +6444,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
   await page.mouse.down();
   await page.mouse.move(plotEdges[1] - 1, edgeDragY, { steps: RANGE_DRAG_STEPS });
   await page.mouse.up();
-  await sleep(RANGE_SETTLE_MS);
+  await waitForIdle(page, RANGE_SETTLE_MS);
   const wholePlotSelection = await readLastRange();
   const { xs: [touchDragFromX, touchDragToX], y: touchDragY } = await readProbePlotPoints([[3], [6]]);
   const lostReleaseBands = await page.evaluate(async ({ fromX, toX, y, pointerId }) => {
@@ -6451,14 +6453,13 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     const fire = (target, type, clientX, init) => target.dispatchEvent(new PointerEvent(type, {
       bubbles: true, cancelable: true, isPrimary: true, clientX, clientY: y, ...init,
     }));
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const touch = { pointerType: 'touch', pointerId };
     fire(plot, 'pointerdown', fromX, touch);
     fire(document, 'pointermove', (fromX + toX) / 2, touch);
     fire(document, 'pointermove', toX, touch);
     fire(document, 'pointerup', toX, touch);
     plot.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: toX, clientY: y, detail: 2 }));
-    await wait(700);
+    await window.idleTracker.wait(700);
     // A press whose release a context menu takes, and one whose next move comes with the main button up
     const mouse = { pointerType: 'mouse', pointerId: 1, button: 0 };
     fire(plot, 'pointerdown', fromX, { ...mouse, buttons: 1 });
@@ -6470,7 +6471,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     fire(document, 'pointermove', toX, { ...mouse, buttons: 0 });
     const afterRelease = getComputedStyle(band).display;
     fire(document, 'pointerup', toX, { ...mouse, buttons: 0 });
-    await wait(700);
+    await window.idleTracker.wait(700);
     return [afterMenu, afterRelease];
   }, { fromX: touchDragFromX, toX: touchDragToX, y: touchDragY, pointerId: TOUCH_POINTER_ID });
   const keptLabels = await readLastRange();
@@ -6493,13 +6494,13 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
   await page.mouse.down();
   await page.mouse.move(barCentreX + RANGE_CLICK_MOVE / 2, barY);
   await page.mouse.up();
-  await sleep(RANGE_SETTLE_MS);
+  await waitForIdle(page, RANGE_SETTLE_MS);
   const rangeAfterPress = await page.evaluate(() => window.probeRanges.at(-1));
   await page.mouse.move(barFromX, barY);
   await page.mouse.down();
   await page.mouse.move(barToX, barY, { steps: RANGE_DRAG_STEPS });
   await page.mouse.up();
-  await sleep(RANGE_SETTLE_MS);
+  await waitForIdle(page, RANGE_SETTLE_MS);
   const barSelection = await readColumnWindow(3);
   await unmountProbe(page);
   check('a short press across a column centre is a click, and a drag selects the columns whose centres it holds',
@@ -6565,7 +6566,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
     zooms: await page.evaluate(() => window.probeZoomReports.length),
   };
   await clickProbeLabel(4);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   const zoomAfterClick = await page.evaluate(() => window.probeZoomReports.at(-1)?.value);
   await page.mouse.move(5, 5);
   await unmountProbe(page);
@@ -6593,7 +6594,7 @@ section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` report
   const pieMiddleY = pieBox.y + pieBox.height / 2;
   await drag(page, pieBox.x + pieBox.width * 0.2, pieMiddleY, pieBox.width * 0.5, 0);
   await page.mouse.dblclick(pieBox.x + pieBox.width / 2, pieMiddleY);
-  await sleep(RANGE_SETTLE_MS);
+  await waitForIdle(page, RANGE_SETTLE_MS);
   const pieCaptionAfter = (await selectablePie.locator('.lovely-chart--header-caption').textContent()).trim();
   const pieSelectionErrors = errors.filter((error) => error.startsWith('[pageerror]')).slice(pageErrorsBeforePie);
   await page.mouse.move(5, 5);
@@ -6614,7 +6615,7 @@ section('The hover line and dots stay on the plot wherever the header variables 
   };
   const selectHoverLabel = async () => {
     await page.evaluate(() => window.probeChart.selectLabel(1));
-    await sleep(300);
+    await waitForIdle(page, 300);
   };
   await mountProbe(page, { config: hoverConfig });
   await selectHoverLabel();
@@ -6659,11 +6660,11 @@ section('The hover line and dots stay on the plot wherever the header variables 
   await mountProbe(page, { config: hoverConfig });
   await setProbeStyle(`#probe .lovely-chart--header { height: ${RESTYLED_HEADER.height}px; `
     + `margin-top: ${RESTYLED_HEADER.marginTop}px; } #probe .lovely-chart--tooltip { top: 0; }`);
-  await sleep(200);
+  await waitForIdle(page, 200);
   await selectHoverLabel();
   const restyledHover = await readHoverAlignment(page, '#FF0000');
   await setProbeStyle('#probe .lovely-chart--header { display: none; }');
-  await sleep(200);
+  await waitForIdle(page, 200);
   await selectHoverLabel();
   const foldedHover = await readHoverAlignment(page, '#FF0000');
   await removeProbeStyle();
@@ -6691,17 +6692,17 @@ section('The hover line and dots stay on the plot wherever the header variables 
   // leaves unchanged
   await mountProbe(page, { config: hoverConfig });
   await setProbeStyle(`#probe .lovely-chart--container { height: ${FIXED_CHART_HEIGHT}px; }`);
-  await sleep(200);
+  await waitForIdle(page, 200);
   await selectHoverLabel();
   const fixedHover = await readHoverAlignment(page, '#FF0000');
   await setProbeStyle(`#probe .lovely-chart--container { height: ${FIXED_CHART_HEIGHT}px; }
     #probe .lovely-chart--header { display: none; }`);
-  await sleep(200);
+  await waitForIdle(page, 200);
   await selectHoverLabel();
   const fixedFoldedHover = await readHoverAlignment(page, '#FF0000');
   await setProbeStyle(`#probe .lovely-chart--container { height: ${FIXED_CHART_HEIGHT}px; }
     #probe .lovely-chart--header { height: ${RESTYLED_HEADER.height}px; }`);
-  await sleep(200);
+  await waitForIdle(page, 200);
   await selectHoverLabel();
   const fixedTallHover = await readHoverAlignment(page, '#FF0000');
   await removeProbeStyle();
@@ -6742,11 +6743,12 @@ section('A web font that loads after the build widens the outward column to fit,
   const writesBeforeFont = await page.evaluate(() => window.plotAreaWrites);
   releaseWideFont();
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  // eslint-disable-next-line no-restricted-syntax -- the tracker cannot see the held web font load
   await sleep(500);
   const fontWrites = await page.evaluate(() => window.plotAreaWrites) - writesBeforeFont;
   // A redraw, as a legend toggle brings, prints the labels in the loaded font
   await lateFontChart.locator('.lovely-chart--button').nth(1).click();
-  await sleep(1000);
+  await waitForIdle(page, 1000);
   const wideFontColumn = getYLabelColumn(await readProbeTexts(page), true);
   const wideFontLeft = await readPlotAreaLeft(page);
   await unmountProbe(page);
@@ -6781,9 +6783,10 @@ section('A `FontFace` the page adds already loaded fires no `loadingdone`, and t
     await window.probeFontFace.load();
     document.fonts.add(window.probeFontFace);
   }, { family: loadedFontFamily, bytes: buildWideFont().toString('base64') });
+  // eslint-disable-next-line no-restricted-syntax -- the tracker cannot see the font face the page adds
   await sleep(500);
   await loadedFontChart.locator('.lovely-chart--button').nth(1).click();
-  await sleep(1000);
+  await waitForIdle(page, 1000);
   const loadedFontColumn = getYLabelColumn(await readProbeTexts(page), true);
   const loadedFontLeft = await readPlotAreaLeft(page);
   await unmountProbe(page);
@@ -6831,7 +6834,7 @@ section('The typography variables set the family and the weights of the chart\'s
     await startCanvasRecording(typographyChart);
     for (let i = 0; i < 2; i++) {
       await typographyChart.locator('.lovely-chart--button').nth(1).click();
-      await sleep(600);
+      await waitForIdle(page, 600);
     }
     const { texts } = await stopCanvasRecording(page);
     return {
@@ -6905,7 +6908,7 @@ section('The typography variables set the family and the weights of the chart\'s
       comparison,
       legendContainer: legend,
     });
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await window.idleTracker.wait(600);
     const readFont = (selector) => {
       const { fontWeight, fontSize, fontFamily } = getComputedStyle(host.querySelector(selector));
       return `${fontWeight} ${fontSize} ${fontFamily}`;
@@ -7124,7 +7127,6 @@ section('The spacing variables of a page inset the header, the minimap and the l
   // rebuild of the layout, a zoom and `update()` ---
   const movedLegend = await page.evaluate(async ({ config, width, style }) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     element.style.width = `${width}px`;
@@ -7137,7 +7139,7 @@ section('The spacing variables of a page inset the header, the minimap and the l
       ...config,
       onHiddenSeriesChange: (names) => window.probeLegendLog.push(names.join()),
     });
-    await wait(800);
+    await window.idleTracker.wait(800);
     const legend = element.querySelector('.lovely-chart--tools');
     const plot = element.querySelector('canvas');
     legend.querySelector('.lovely-chart--button').click();
@@ -7160,7 +7162,6 @@ section('The spacing variables of a page inset the header, the minimap and the l
     isSpacingAt(movedSpacing, PAGE_SPACING), JSON.stringify(movedSpacing.spacing));
 
   const rebuiltLegend = await page.evaluate(async () => {
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.getElementById('probe');
     const slot = document.getElementById('probe-legend');
     const legend = slot.querySelector('.lovely-chart--tools');
@@ -7170,7 +7171,7 @@ section('The spacing variables of a page inset the header, the minimap and the l
     window.probeChart.setLegendContainer(slot);
     const isPageItemLast = slot.lastElementChild === pageItem;
     window.dispatchEvent(new Event('orientationchange'));
-    await wait(1200);
+    await window.idleTracker.wait(1200);
     const rebuilt = slot.querySelector('.lovely-chart--tools');
     return {
       log: [...window.probeLegendLog],
@@ -7206,7 +7207,6 @@ section('The spacing variables of a page inset the header, the minimap and the l
     `${JSON.stringify(returnedLegend)}, ${JSON.stringify(returnedSpacing.spacing)}`);
 
   const placedLegend = await page.evaluate(async (config) => {
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.getElementById('probe');
     const slot = document.getElementById('probe-legend');
     const countLegends = () => [
@@ -7214,10 +7214,10 @@ section('The spacing variables of a page inset the header, the minimap and the l
     ];
     window.probeChart.setLegendContainer(slot);
     window.probeChart.update(config);
-    await wait(300);
+    await window.idleTracker.wait(300);
     const afterUpdate = countLegends();
     window.probeChart.update({ ...config, legendContainer: slot });
-    await wait(300);
+    await window.idleTracker.wait(300);
     const afterSlotUpdate = countLegends();
     window.probeChart.destroy();
     const afterDestroy = countLegends();
@@ -7386,7 +7386,7 @@ section('The accessible name of the plot, and the legend left exposed', async ({
       .map(([year, month, day]) => Date.UTC(year, month, day)),
     datasets: [{ name: 'Desktop', values: [1, 2, 3, 2] }],
   });
-  await sleep(600);
+  await waitForIdle(page, 600);
   const yearSpan = `30 Dec ${thisYear} — 2 Jan ${thisYear + 1}`;
   const crossYear = {
     ...await readPlotNaming(namedChart),
@@ -7405,7 +7405,7 @@ section('The accessible name of the plot, and the legend left exposed', async ({
   });
   const zoomedSummary = await readPlotNaming(summaryZoom);
   await page.evaluate(() => window.probeChart.zoomOut());
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   const overviewSummary = await readPlotNaming(summaryZoom);
   await unmountProbe(page);
   const sharesZoom = await mountProbe(page, {
@@ -7581,7 +7581,7 @@ section('Tooltip rows: their look, their order and the total', async ({ page, ch
     zoomTotalPlot.x + zoomTotalPlot.width * zoomTotalFx,
     zoomTotalPlot.y + zoomTotalPlot.height * 0.6,
   );
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   await hoverWiggle(page, zoomTotalPlot, 0.5, 0.6);
   const zoomedTotals = await readTotals();
   await unmountProbe(page);
@@ -7626,10 +7626,10 @@ section('Tooltip rows: their look, their order and the total', async ({ page, ch
     };
   });
   await page.evaluate(() => window.probeChart.selectLabel(3));
-  await sleep(300);
+  await waitForIdle(page, 300);
   const zoomableTitle = await readLongTitle();
   await page.locator('#probe .lovely-chart--tooltip-balloon').click();
-  await sleep(300);
+  await waitForIdle(page, 300);
   const loadingTitle = await readLongTitle();
   await unmountProbe(page);
   check('a long tooltip title stops short of the zoom chevron and the loading spinner',
@@ -7652,9 +7652,9 @@ section('Tooltip rows: their look, their order and the total', async ({ page, ch
       secondaryYAxis: { label: 'USD ≈', multiplier: 2.5, prefix: '$' },
       resolveTooltipTotal: () => total,
     });
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    await window.idleTracker.wait(800);
     window.probeChart.selectLabel(1);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
     const rows = [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset')].map((row) => [
       row.dataset.name ?? row.firstElementChild.textContent,
@@ -7688,7 +7688,7 @@ section('Tooltip rows: their look, their order and the total', async ({ page, ch
     });
     const totals = await page.evaluate(async () => {
       window.probeChart.selectLabel(1);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.idleTracker.wait(300);
       const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
       return {
         rows: [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset')].map((row) => [
@@ -7751,7 +7751,7 @@ section('The tooltip look: the muted comparison row, the rule under it, a neutra
   });
   const readTooltipLook = (labelIndex) => page.evaluate(async (index) => {
     window.probeChart.selectLabel(index);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
     const comparisonRow = balloon.querySelector('.lovely-chart--tooltip-dataset-comparison');
     const change = comparisonRow.querySelector('.lovely-chart--tooltip-change');
@@ -7870,7 +7870,7 @@ section('The tooltip balloon over an overlay added after the chart with no z-ind
     overlay.style.zIndex = overlayZIndex;
     host.insertBefore(overlay, isBefore ? host.firstChild : undefined);
     window.probeChart.selectLabel(1);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
   }, { overlayZIndex: zIndex, isBefore: isBeforeChart });
   // Scrolls the page until the balloon stands under the page header, in the probe's element or the one `selector` names
   const scrollBalloonUnderHeader = (selector = BALLOON_LAYER_SELECTORS.balloon) => page.evaluate(async (spec) => {
@@ -7938,7 +7938,7 @@ section('The tooltip balloon over an overlay added after the chart with no z-ind
   await settleMount(page);
   await page.evaluate(async () => {
     window.probeChart.selectLabel(1);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
   });
   await scrollBalloonUnderHeader();
   pageLayers.nextChart = await readOverlapLayers({ header: '#page-header', balloon: BALLOON_LAYER_SELECTORS.balloon });
@@ -7989,7 +7989,7 @@ section('The tooltip balloon over an overlay added after the chart with no z-ind
   });
   await page.evaluate(async () => {
     window.probeChart.selectLabel(1);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const balloonBox = document.querySelector('#probe .lovely-chart--tooltip-balloon').getBoundingClientRect();
     const button = [...document.querySelectorAll('#probe .lovely-chart--button')].find((candidate) => {
       const box = candidate.getBoundingClientRect();
@@ -8036,7 +8036,7 @@ const mountNotesProbe = (page, config, notesByLabel) => page.evaluate(async ({ s
       return resolved[labelIndex];
     },
   });
-  await new Promise((resolve) => setTimeout(resolve, 800));
+  await window.idleTracker.wait(800);
 }, { spec: config, resolved: notesByLabel });
 section('Tooltip notes: those of hatched ranges and `resolveTooltipNotes`, beside the title and under the '
   + 'rows', async ({ page, charts }) => {
@@ -8060,7 +8060,7 @@ section('Tooltip notes: those of hatched ranges and `resolveTooltipNotes`, besid
   const readTooltipNotes = (labelIndex) => page.evaluate(async (index) => {
     if (index !== undefined) {
       window.probeChart.selectLabel(index);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.idleTracker.wait(300);
     }
     const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
     const title = balloon.querySelector('.lovely-chart--tooltip-title');
@@ -8128,7 +8128,7 @@ section('Tooltip notes: those of hatched ranges and `resolveTooltipNotes`, besid
     const first = readStep();
     window.probeChart.selectLabel(3);
     const held = readStep();
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     return { first, held, settled: readStep() };
   });
   const notesPlot = await page.locator('#probe .lovely-chart--tooltip').boundingBox();
@@ -8191,7 +8191,7 @@ section('Tooltip notes: those of hatched ranges and `resolveTooltipNotes`, besid
   await hoverWiggle(page, sharesPlot, 0.5, 0.6);
   const barNotes = await readTooltipNotes();
   await page.mouse.click(sharesPlot.x + sharesPlot.width * 0.5, sharesPlot.y + sharesPlot.height * 0.6);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   await page.evaluate(() => window.noteCalls.splice(0));
   await hoverWiggle(page, sharesPlot, 0.5, 0.45);
   const pieNotes = await page.evaluate(() => {
@@ -8249,9 +8249,9 @@ section('The total on the `secondaryYAxis` scale takes the format of the dataset
         ...spec,
         ...(formatLocale && { formatTooltipValue: (value) => value.toLocaleString(formatLocale) }),
       });
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await window.idleTracker.wait(800);
       window.probeChart.selectLabel(1);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.idleTracker.wait(300);
       const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
       const rows = [...balloon.querySelectorAll('.lovely-chart--tooltip-dataset')].map((row) => [
         row.dataset.name ?? row.firstElementChild.textContent,
@@ -8296,18 +8296,18 @@ section('Smooth lines, a dataset that starts hidden and the axis font (demo char
   const hiddenPaint = await readSmoothPaint();
   await startCanvasRecording(smoothDemoChart);
   await smoothDemoButtons.nth(2).click();
-  await sleep(800);
+  await waitForIdle(page, 800);
   const nightAxisDrawing = await stopCanvasRecording(page);
   const shownPaint = await readSmoothPaint();
   // The day skin, while the dataset hides again
   await page.evaluate(() => document.documentElement.classList.remove('theme-dark'));
-  await sleep(800);
+  await waitForIdle(page, 800);
   await startCanvasRecording(smoothDemoChart);
   await smoothDemoButtons.nth(2).click();
-  await sleep(800);
+  await waitForIdle(page, 800);
   const dayAxisDrawing = await stopCanvasRecording(page);
   await page.evaluate(() => document.documentElement.classList.add('theme-dark'));
-  await sleep(800);
+  await waitForIdle(page, 800);
   check('a demo dataset that starts hidden leaves its legend button unchecked and its line out until it is checked',
     JSON.stringify(hiddenPaint.legend) === '[true,true,false]'
     && JSON.stringify(shownPaint.legend) === '[true,true,true]'
@@ -8432,17 +8432,17 @@ section('Hatched ranges: their span by chart kind, merging, edges, labels, the m
   const lineMinimapWidth = (await hatchMinimap.boundingBox()).width;
   const lineEar = await hatchLine.locator('.lovely-chart--minimap-slider-handle').first().boundingBox();
   await drag(page, lineEar.x + lineEar.width / 2, lineEar.y + lineEar.height / 2, lineMinimapWidth * 0.35, 0);
-  await sleep(600);
+  await waitForIdle(page, 600);
   const lineSlider = hatchLine.locator('.lovely-chart--minimap-slider-inner');
   const narrowSlider = await lineSlider.boundingBox();
   await drag(page, narrowSlider.x + narrowSlider.width / 2, narrowSlider.y + narrowSlider.height / 2,
     -lineMinimapWidth * 0.2, 0);
-  await sleep(600);
+  await waitForIdle(page, 600);
   const narrowStripes = await readStripes();
   const pannedSlider = await lineSlider.boundingBox();
   await drag(page, pannedSlider.x + pannedSlider.width / 2, pannedSlider.y + pannedSlider.height / 2,
     lineMinimapWidth / (hatchLabels.length - 1) / 3, 0);
-  await sleep(600);
+  await waitForIdle(page, 600);
   const pannedStripes = await readStripes();
   await unmountProbe(page);
   check('hatch stripes rise across the plot a stripe step apart, on the grid of the first label as the window pans',
@@ -8482,11 +8482,11 @@ section('Hatched ranges: their span by chart kind, merging, edges, labels, the m
   check('a range from before the first label hatches from it, and one backwards or of no number hatches nothing',
     areRunsNear(clampedRuns, expectedClampedRuns), `${formatRuns(clampedRuns)} for ${formatRuns(expectedClampedRuns)}`);
   await page.evaluate(() => window.probeChart.selectLabel(6));
-  await sleep(500);
+  await waitForIdle(page, 500);
   const elsewhereFocusRuns = await readBarHatchRuns(BAR_HATCH_PIXEL);
   const elsewhereMaskedRuns = await readBarHatchRuns(MASKED_BAR_HATCH_PIXEL);
   await page.evaluate(() => window.probeChart.selectLabel(2));
-  await sleep(500);
+  await waitForIdle(page, 500);
   const hatchedFocusRuns = await readBarHatchRuns(BAR_HATCH_PIXEL);
   const hatchedMaskedRuns = await readBarHatchRuns(MASKED_BAR_HATCH_PIXEL);
   await unmountProbe(page);
@@ -8518,7 +8518,7 @@ section('Hatched ranges: their span by chart kind, merging, edges, labels, the m
   });
   const zoomedHatch = await countPickedPixels(sharesHatch, ANY_HATCH_PIXEL);
   await sharesHatch.locator('.lovely-chart--header-zoom-out-control').first().click();
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   const overviewHatch = await countPickedPixels(sharesHatch, ANY_HATCH_PIXEL);
   await unmountProbe(page);
   check('a zoom into shares draws no hatch, and its overview hatches again', zoomedHatch === 0 && overviewHatch > 0,
@@ -8867,7 +8867,7 @@ section('A forecast week the chart hatches, and a badge over the plot by the plo
   const readHints = (labelIndex) => page.evaluate(async (index) => {
     if (index !== undefined) {
       window.probeChart.selectLabel(index);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.idleTracker.wait(300);
     }
     const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
     return {
@@ -9062,9 +9062,9 @@ section('A forecast week the chart hatches, and a badge over the plot by the plo
   await pinLayer.focus();
   for (const key of ['End', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft']) {
     await page.keyboard.press(key);
-    await sleep(150);
+    await waitForIdle(page, 150);
   }
-  await sleep(300);
+  await waitForIdle(page, 300);
   const keyedPinNotes = await readHints();
   await unmountProbe(page);
   const pinLabelNotes = ['Estimated', 'Promo starts', 'Ends Sunday', 'Resolved'];
@@ -9142,7 +9142,7 @@ section('A forecast week the chart hatches, and a badge over the plot by the plo
   await pannedEvents.scrollIntoViewIfNeeded();
   const eventSlider = await pannedEvents.locator('.lovely-chart--minimap-slider-inner').boundingBox();
   await drag(page, eventSlider.x + eventSlider.width / 2, eventSlider.y + eventSlider.height / 2, 40, 0);
-  await sleep(600);
+  await waitForIdle(page, 600);
   const [draggedEventX] = await readLabelXs([[4]]);
   const draggedHead = await readPinHead(draggedEventX, OPAQUE_CYAN_PIXEL);
   const minimapHeads = await countPickedPixels(pannedEvents.locator('.lovely-chart--minimap'), OPAQUE_CYAN_PIXEL);
@@ -9200,7 +9200,7 @@ section('A forecast week the chart hatches, and a badge over the plot by the plo
   });
   const zoomedEvents = await countPickedPixels(sharesEvents, OPAQUE_MAGENTA_PIXEL);
   await sharesEvents.locator('.lovely-chart--header-zoom-out-control').first().click();
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   const overviewEvents = await countPickedPixels(sharesEvents, OPAQUE_MAGENTA_PIXEL);
   const [overviewEventX] = await readLabelXs([[2]]);
   const overviewHead = await readPinHead(overviewEventX, OPAQUE_MAGENTA_PIXEL);
@@ -9221,12 +9221,12 @@ section('A forecast week the chart hatches, and a badge over the plot by the plo
   const hintZoomPlot = await hintZoom.locator('.lovely-chart--tooltip').boundingBox();
   await hoverWiggle(page, hintZoomPlot, 0.5, 0.5);
   await page.mouse.click(hintZoomPlot.x + hintZoomPlot.width / 2, hintZoomPlot.y + hintZoomPlot.height / 2);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   await page.mouse.move(5, 5);
   const zoomedHints = [await readHints(LINES_ZOOM_LAST_LABEL_INDEX), await readHints(12)];
   await page.evaluate(() => window.probeChart.selectLabel(undefined));
   await hintZoom.locator('.lovely-chart--header-zoom-out-control').first().click();
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   const overviewHints = [await readHints(LINES_ZOOM_LAST_LABEL_INDEX)];
   await unmountProbe(page);
   const zoomHints = [...zoomedHints, ...overviewHints];
@@ -9253,17 +9253,17 @@ section('`selectLabel()` from the page and `onSelectedIndexChange` (demo chart)'
   const isPickedDay = (picked, i) => picked.isShown && pickerDates[i].endsWith(` ${picked.title}`)
     && JSON.stringify(picked.marked) === JSON.stringify([pickerDates[i]]);
   await pickerDays.nth(2).hover();
-  await sleep(400);
+  await waitForIdle(page, 400);
   const hoveredDay = await readDayPicker();
   await pickerDays.nth(4).focus();
   await page.keyboard.press('Tab');
-  await sleep(400);
+  await waitForIdle(page, 400);
   const focusedDay = await readDayPicker();
   const previousDayButton = page.locator('.day-picker-step').first();
   const nextDayButton = page.locator('.day-picker-step').last();
   const readSteppedDay = async (button) => {
     await button.click();
-    await sleep(400);
+    await waitForIdle(page, 400);
     return readDayPicker();
   };
   const steppedBackDay = await readSteppedDay(previousDayButton);
@@ -9283,7 +9283,7 @@ section('`selectLabel()` from the page and `onSelectedIndexChange` (demo chart)'
   await hoverWiggle(page, pickerPlot, 0.2, 0.5);
   const pointedDay = await readDayPicker();
   await page.mouse.move(5, 5);
-  await sleep(400);
+  await waitForIdle(page, 400);
   const leftDay = await readDayPicker();
   check('the pointer over the demo chart takes the selection over, and leaving the chart clears it',
     pointedDay.isShown && !pickerDates.some((date) => date.endsWith(` ${pointedDay.title}`))
@@ -9294,7 +9294,7 @@ section('`selectLabel()` from the page and `onSelectedIndexChange` (demo chart)'
   const pointedListedDay = await readDayPicker();
   const pointedListIndex = pickerDates.findIndex((date) => date.endsWith(` ${pointedListedDay.title}`));
   await page.mouse.move(5, 5);
-  await sleep(400);
+  await waitForIdle(page, 400);
   const stepFromPointedDay = await readSteppedDay(previousDayButton);
   check('the demo buttons step from a day the pointer picked on the chart after it leaves',
     pointedListIndex > 0 && isPickedDay(stepFromPointedDay, pointedListIndex - 1),
@@ -9303,10 +9303,10 @@ section('`selectLabel()` from the page and `onSelectedIndexChange` (demo chart)'
   // The plot of the demo day picker takes the keys, and its list marks the day they select
   await pickerChart.locator('.lovely-chart--tooltip').focus();
   await page.keyboard.press('End');
-  await sleep(300);
+  await waitForIdle(page, 300);
   const keyEndDay = await readDayPicker();
   await page.keyboard.press('ArrowLeft');
-  await sleep(300);
+  await waitForIdle(page, 300);
   const keySteppedDay = await readDayPicker();
   await page.evaluate(() => document.activeElement.blur());
   check('the arrow keys on the plot of the demo day picker step its selection, and its list marks the day',
@@ -9319,9 +9319,9 @@ section('A right-to-left page (demo chart)', async ({ page, charts }) => {
   const rtlButton = rtlChart.locator('.lovely-chart--button').first();
   await startCanvasRecording(rtlChart);
   await rtlButton.click();
-  await sleep(600);
+  await waitForIdle(page, 600);
   await rtlButton.click();
-  await sleep(600);
+  await waitForIdle(page, 600);
   const rtlDrawing = await stopCanvasRecording(page);
   await hoverWiggle(page, await rtlChart.locator('.lovely-chart--tooltip').boundingBox(), 0.62, 0.5);
   const rtlTooltipNumbers = await readNegativeTooltipNumbers(rtlChart);
@@ -9431,7 +9431,7 @@ section('A readout of the page in place of the balloon, the bars and swatches in
   await hoverWiggle(page, readoutBox, 0.5, 0.5);
   const hoveredReadout = await readReadout();
   await page.mouse.move(5, 5);
-  await sleep(300);
+  await waitForIdle(page, 300);
   const leftReadout = await readReadout();
   const nightAccentBars = await findColor(readoutChart, parseHex(PAGE_ACCENTS.night), [0, 1], 6);
   const readoutSum = hoveredReadout.rows.reduce((sum, [, value]) => sum + parseReadoutNumber(value), 0);
@@ -9452,18 +9452,18 @@ section('A readout of the page in place of the balloon, the bars and swatches in
   // The arrow keys step the selection of the focused plot, and a dataset hidden in the legend leaves the readout
   await readoutLayer.focus();
   await page.keyboard.press('End');
-  await sleep(300);
+  await waitForIdle(page, 300);
   const lastDayReadout = await readReadout();
   await page.keyboard.press('ArrowLeft');
-  await sleep(300);
+  await waitForIdle(page, 300);
   const steppedReadout = await readReadout();
   const lemonsButton = readoutChart.locator('.lovely-chart--button').last();
   await lemonsButton.focus();
   await page.keyboard.press('Enter');
-  await sleep(600);
+  await waitForIdle(page, 600);
   const filteredReadout = await readReadout();
   await page.keyboard.press('Enter');
-  await sleep(600);
+  await waitForIdle(page, 600);
   await page.mouse.move(5, 5);
   check('the demo readout follows the keys on the focused plot, and leaves out a dataset hidden in the legend',
     lastDayReadout.title?.[0] === lastDayReadout.balloonTitle
@@ -9480,7 +9480,7 @@ section('A readout of the page in place of the balloon, the bars and swatches in
     await hoverWiggle(page, readoutBox, 0.5, 0.5);
     dayReadout = await readReadout();
     await page.mouse.move(5, 5);
-    await sleep(300);
+    await waitForIdle(page, 300);
     dayAccentBars = await findColor(readoutChart, parseHex(PAGE_ACCENTS.day), [0, 1], 6);
     dayNightAccentBars = await findColor(readoutChart, parseHex(PAGE_ACCENTS.night), [0, 1], 6);
   });
@@ -9526,10 +9526,11 @@ section('A skeleton while the data loads, and a reload that shows it again (demo
   // A reload shows the skeleton at once, and the data once it arrives
   const reloadSkeleton = async () => {
     await reloadButton.click();
+    // eslint-disable-next-line no-restricted-syntax -- reads the skeleton while the reload holds the data back
     await sleep(200);
     const loading = await readSkeleton();
     loading.cover = await readSkeletonCover(loading.skin);
-    await sleep(MIN_LOADING_TIME + 800);
+    await waitForIdle(page, MIN_LOADING_TIME + 800);
     const loaded = await readSkeleton();
     loaded.lines = (await findColor(skeletonChart, parseHex(LOADED_LINE_COLOR))).count;
     return { loading, loaded };
@@ -9614,13 +9615,13 @@ section('Selection, legend callbacks and the plot height property', async ({ pag
       onSelectedIndexChange: (index) => window.probeLog.push(['selected', index ?? 'none']),
       onHiddenSeriesChange: (names, indexes) => window.probeLog.push(['hidden', names.join(), indexes.join()]),
     });
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await window.idleTracker.wait(1200);
     window.probeChart.selectLabel(3);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
     const isShown = balloon.classList.contains('lovely-chart--state-shown');
     element.querySelector('.lovely-chart--button').click();
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     return {
       isShown,
       height: element.querySelector('canvas').clientHeight,
@@ -9640,13 +9641,13 @@ section('Selection, legend callbacks and the plot height property', async ({ pag
   const drivenHeader = await page.locator('#probe .lovely-chart--header-title').boundingBox();
   await page.mouse.move(drivenHeader.x + 2, drivenHeader.y + drivenHeader.height / 2);
   await page.mouse.move(drivenHeader.x + 30, drivenHeader.y + drivenHeader.height / 2, { steps: 5 });
-  await sleep(300);
+  await waitForIdle(page, 300);
   const heldSelection = await page.evaluate(async () => {
     const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
     const isHeld = balloon.classList.contains('lovely-chart--state-shown');
     const heldLog = window.probeLog.filter(([kind]) => kind === 'selected');
     window.probeChart.selectLabel(undefined);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     return {
       isHeld,
       heldLog,
@@ -9665,7 +9666,6 @@ section('Selection, legend callbacks and the plot height property', async ({ pag
   // A callback can destroy or rebuild the chart that calls it, which then leaves alone what the callback did
   const callbackRebuilds = await page.evaluate(async ({ labels, newLabels }) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     document.getElementById('container').appendChild(element);
@@ -9692,7 +9692,7 @@ section('Selection, legend callbacks and the plot height property', async ({ pag
     let chart = new LovelyChart(element, buildParams(labels, (index) => {
       if (index !== undefined) chart.destroy();
     }));
-    await wait(800);
+    await window.idleTracker.wait(800);
     const selectError = readError(() => chart.selectLabel(labels - 1));
     const selectChildren = element.childElementCount;
 
@@ -9700,7 +9700,7 @@ section('Selection, legend callbacks and the plot height property', async ({ pag
     chart = new LovelyChart(element, buildParams(labels, (index) => {
       if (index === undefined) chart.destroy();
     }));
-    await wait(800);
+    await window.idleTracker.wait(800);
     chart.selectLabel(labels - 1);
     const updateError = readError(() => chart.update(buildParams(newLabels)));
     const updateChildren = element.childElementCount;
@@ -9711,9 +9711,9 @@ section('Selection, legend callbacks and the plot height property', async ({ pag
       isUpdated = true;
       chart.update(buildParams(newLabels));
     }));
-    await wait(800);
+    await window.idleTracker.wait(800);
     const rebuildError = readError(() => chart.selectLabel(labels - 1));
-    await wait(1200);
+    await window.idleTracker.wait(1200);
     const canvas = element.querySelector('.lovely-chart--container > canvas');
     const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
     let fullColorPixels = 0;
@@ -9756,14 +9756,14 @@ section('Selection, legend callbacks and the plot height property', async ({ pag
       datasets: [{ name: 'A', values: Array.from({ length: count }, (_, i) => i % 7) }],
       onSelectedIndexChange: (index) => window.probeLog.push(index ?? 'none'),
     });
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await window.idleTracker.wait(1200);
     const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
     // The default window is the last 20%, so its first label is 80
     window.probeChart.selectLabel(79);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const isShownBefore = balloon.classList.contains('lovely-chart--state-shown');
     window.probeChart.selectLabel(80);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     return {
       isShownBefore,
       isShownFirst: balloon.classList.contains('lovely-chart--state-shown'),
@@ -9788,10 +9788,10 @@ section('Selection, legend callbacks and the plot height property', async ({ pag
   const sliderX = windowMinimap.x + windowMinimap.width * 0.9;
   const sliderY = windowMinimap.y + windowMinimap.height / 2;
   await drag(page, sliderX, sliderY, -windowMinimap.width * 0.1, 0);
-  await sleep(600);
+  await waitForIdle(page, 600);
   const panned = await readWindowSelection();
   await drag(page, sliderX - windowMinimap.width * 0.1, sliderY, -windowMinimap.width * 0.2, 0);
-  await sleep(600);
+  await waitForIdle(page, 600);
   const pannedAway = await readWindowSelection();
   check('a called selection follows its label through a pan',
     panned.isShown && panned.title === windowSelection.title && JSON.stringify(panned.log) === '[80]',
@@ -9837,22 +9837,22 @@ section('Selection, legend callbacks and the plot height property', async ({ pag
       };
     });
     await page.evaluate((index) => window.probeChart.selectLabel(index), lastIndex);
-    await sleep(300);
+    await waitForIdle(page, 300);
     const calledEmpty = await readEdgeBalloon();
     await page.evaluate(async (index) => {
       window.probeChart.selectLabel(1);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.idleTracker.wait(300);
       window.probeChart.selectLabel(2);
       window.probeChart.selectLabel(index);
     }, lastIndex);
-    await sleep(300);
+    await waitForIdle(page, 300);
     const calledWider = await readEdgeBalloon();
     await page.evaluate(() => window.probeChart.selectLabel(undefined));
     const edgePlot = await edgeChart.locator('.lovely-chart--tooltip').boundingBox();
     const edgePointerY = edgePlot.y + edgePlot.height / 2;
     await page.mouse.move(edgePlot.x + calledEmpty.tailX - 40, edgePointerY, { steps: 5 });
     await page.mouse.move(edgePlot.x + calledEmpty.tailX, edgePointerY, { steps: 5 });
-    await sleep(300);
+    await waitForIdle(page, 300);
     const hovered = await readEdgeBalloon();
     await page.mouse.move(0, 0);
     await unmountProbe(page);
@@ -9871,7 +9871,6 @@ section('Datasets sharing a name keep a tooltip row and a legend button each, an
   // Two datasets of one name and a third of the comparison's name, then with the first and the third hidden
   const sharedNameRows = await page.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     document.getElementById('container').appendChild(element);
@@ -9889,7 +9888,7 @@ section('Datasets sharing a name keep a tooltip row and a legend button each, an
       comparison: { name: 'Previous period', values: [[5, 10], [50, 100], [500, 1000]] },
       onTooltipChange: (tooltip) => reports.push(tooltip),
     });
-    await wait(1200);
+    await window.idleTracker.wait(1200);
     // The name and the value of each row the balloon shows, and the rows the last report lists
     const readRows = () => ({
       shown: [...element.querySelectorAll('.lovely-chart--tooltip-dataset')].map((row) => [
@@ -9899,12 +9898,12 @@ section('Datasets sharing a name keep a tooltip row and a legend button each, an
       reported: reports.at(-1)?.rows,
     });
     window.probeChart.selectLabel(0);
-    await wait(300);
+    await window.idleTracker.wait(300);
     const allShown = readRows();
     const buttons = element.querySelectorAll('.lovely-chart--button');
     buttons[0].click();
     buttons[2].click();
-    await wait(800);
+    await window.idleTracker.wait(800);
     const someHidden = readRows();
     window.probeChart.destroy();
     element.remove();
@@ -9947,7 +9946,7 @@ section('Datasets sharing a name keep a tooltip row and a legend button each, an
       onHiddenSeriesChange: (names, indexes) => window.probeLog.push(`${names.join()}@${indexes.join()}`),
     };
     window.probeChart = new LovelyChart(element, window.probeParams);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await window.idleTracker.wait(1200);
   }, SHARED_NAME_COLORS);
   const sharedNameChart = page.locator('#probe .lovely-chart--container');
   await sharedNameChart.scrollIntoViewIfNeeded();
@@ -9969,25 +9968,25 @@ section('Datasets sharing a name keep a tooltip row and a legend button each, an
   const resizeAndBack = async () => {
     const viewport = page.viewportSize();
     await page.setViewportSize({ width: viewport.width - 20, height: viewport.height });
-    await sleep(1200);
+    await waitForIdle(page, 1200);
     await page.setViewportSize(viewport);
-    await sleep(1200);
+    await waitForIdle(page, 1200);
   };
   const sharedNameLegend = { built: await readSharedNameLegend() };
   await sharedNameButtons.nth(0).click();
   // The legend keeps the last dataset on screen
   await sharedNameButtons.nth(1).click();
-  await sleep(600);
+  await waitForIdle(page, 600);
   sharedNameLegend.firstHidden = await readSharedNameLegend();
   await resizeAndBack();
   sharedNameLegend.firstHiddenResized = await readSharedNameLegend();
   await sharedNameButtons.nth(2).click();
-  await sleep(600);
+  await waitForIdle(page, 600);
   sharedNameLegend.lastShown = await readSharedNameLegend();
   await resizeAndBack();
   sharedNameLegend.lastShownResized = await readSharedNameLegend();
   await page.evaluate(() => window.probeChart.update(window.probeParams));
-  await sleep(600);
+  await waitForIdle(page, 600);
   sharedNameLegend.updated = await readSharedNameLegend();
   await unmountProbe(page);
   const [firstColor, secondColor, lastColor] = SHARED_NAME_COLORS;
@@ -10023,7 +10022,7 @@ section('Datasets sharing a name keep a tooltip row and a legend button each, an
       datasets: [{ name: 'No channel', color: '#FF0000', values: [10, 20, 15], isInitiallyHidden: true }],
       onHiddenSeriesChange: (names, indexes) => window.probeLog.push(`${names.join()}@${indexes.join()}`),
     });
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await window.idleTracker.wait(1200);
   });
   const loneChart = page.locator('#probe .lovely-chart--container');
   await loneChart.scrollIntoViewIfNeeded();
@@ -10036,7 +10035,7 @@ section('Datasets sharing a name keep a tooltip row and a legend button each, an
   });
   const loneBuilt = await readLoneLegend();
   await loneChart.locator('.lovely-chart--button').click();
-  await sleep(600);
+  await waitForIdle(page, 600);
   const loneShown = await readLoneLegend();
   await unmountProbe(page);
   check('a lone dataset that starts hidden keeps its legend, unreported, and its button shows it',
@@ -10063,7 +10062,7 @@ section('`selectLabel()`, the keys and a touch select the labels alone, and a to
     window.probeChart = new LovelyChart(element, {
       ...config, onSelectedIndexChange: (index) => window.probeLog.push(index ?? 'none'),
     });
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await window.idleTracker.wait(1200);
   }, boundsConfig);
   // Whether the reports so far are `log` and the hover line marks the label at `labelIndex`
   const isLineOnLabel = (selection, log, labelIndex) => JSON.stringify(selection.log) === JSON.stringify(log)
@@ -10073,7 +10072,7 @@ section('`selectLabel()`, the keys and a touch select the labels alone, and a to
   await mountBoundsProbe(page);
   const ignoredIndexErrors = await page.evaluate(async ({ preselectedIndexes, ignoredIndexes }) => {
     preselectedIndexes.forEach((index) => window.probeChart.selectLabel(index));
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     return ignoredIndexes.flatMap((index) => {
       try {
         window.probeChart.selectLabel(index);
@@ -10083,7 +10082,7 @@ section('`selectLabel()`, the keys and a touch select the labels alone, and a to
       }
     });
   }, { preselectedIndexes: PRESELECTED_LABEL_INDEXES, ignoredIndexes: IGNORED_LABEL_INDEXES });
-  await sleep(300);
+  await waitForIdle(page, 300);
   const ignoredIndexSelection = await readProbeHoverLine(page, BOUNDS_LABEL_COUNT);
   const isKeptBalloonShown = await page.locator('#probe .lovely-chart--tooltip-balloon')
     .evaluate((balloon) => balloon.classList.contains('lovely-chart--state-shown'));
@@ -10105,17 +10104,17 @@ section('`selectLabel()`, the keys and a touch select the labels alone, and a to
   const touchY = touchPlot.y + touchPlot.height / 2;
   const touchSelections = {};
   await touchPage.touchscreen.tap(touchPlot.x + 1, touchY);
-  await sleep(300);
+  await waitForIdle(touchPage, 300);
   touchSelections.tappedFirst = await readProbeHoverLine(touchPage, BOUNDS_LABEL_COUNT);
   await touchLayer.focus();
   await touchPage.keyboard.press('End');
-  await sleep(300);
+  await waitForIdle(touchPage, 300);
   touchSelections.keyedLast = await readProbeHoverLine(touchPage, BOUNDS_LABEL_COUNT);
   await touchPage.keyboard.press('Home');
-  await sleep(300);
+  await waitForIdle(touchPage, 300);
   touchSelections.keyedFirst = await readProbeHoverLine(touchPage, BOUNDS_LABEL_COUNT);
   await touchPage.touchscreen.tap(touchPlot.x + touchPlot.width - 1, touchY);
-  await sleep(300);
+  await waitForIdle(touchPage, 300);
   touchSelections.tappedLast = await readProbeHoverLine(touchPage, BOUNDS_LABEL_COUNT);
   await touchPage.close();
   check('a touch beyond the first or the last label of the plot selects it, its hover line where a key puts it',
@@ -10161,7 +10160,7 @@ section('The header, the tooltip and the legend left out, the band of an empty h
         legendContainer: name === 'hiddenLegend' ? legend : undefined,
         ...config,
       });
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await window.idleTracker.wait(600);
       const container = element.querySelector('.lovely-chart--container');
       const top = container.getBoundingClientRect().top;
       const plot = container.querySelector(':scope > canvas').getBoundingClientRect();
@@ -10262,14 +10261,14 @@ section('The header, the tooltip and the legend left out, the band of an empty h
     isShown && left >= 0 && left <= GUTTER && top < 0 && bottom > 0 && isNear(plotTop, noHeader.plotTop) && isOnTop
   );
   await mountZoomProbe({ title: 'Probe — Zoom without the header', noHeader: true });
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   await clickProbeMiddle('#probe .lovely-chart--tooltip');
   await page.evaluate(() => window.probeChart.zoomOut());
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   await page.mouse.move(0, 0);
   const floatingControl = await readFloatingControl();
   await page.locator('#probe .lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').click();
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   const floatingLog = await page.evaluate(() => window.probeLog);
   await unmountProbe(page);
   check('zoomOut() is ignored while a zoom in settles', JSON.stringify(floatingControl.log) === '["in"]',
@@ -10281,14 +10280,14 @@ section('The header, the tooltip and the legend left out, the band of an empty h
   // Without the tooltip, neither a pointer nor `selectLabel()` selects a label or zooms in, while `initialZoom` opens a
   // zoom whose control floats from an empty header, and which `zoomOut()` leaves once
   await mountZoomProbe({ noCaption: true, noTooltip: true, initialZoom: 'last' });
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   const openedZoom = await readFloatingControl();
   await page.evaluate(() => window.probeChart.zoomOut());
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   await page.evaluate(() => window.probeChart.zoomOut());
   await clickProbeMiddle('#probe .lovely-chart--container > canvas');
   await page.evaluate(() => window.probeChart.selectLabel(2));
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   await page.mouse.move(0, 0);
   const tooltipless = await page.evaluate(() => {
     const log = { zooms: window.probeLog, selections: window.probeSelections };
@@ -10309,7 +10308,7 @@ section('The header, the tooltip and the legend left out, the band of an empty h
     window.shouldZoomOutOnZoom = true;
   });
   await mountZoomProbe({ title: 'Probe — Zoom out as the zoom settles', initialZoom: 'last' });
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   const settledZoomOut = await page.evaluate(() => {
     delete window.shouldZoomOutOnZoom;
     return {
@@ -10324,14 +10323,14 @@ section('The header, the tooltip and the legend left out, the band of an empty h
 
   // `noZoomOutControl` keeps the title while zoomed, with no zoom-out control, and `zoomOut()` still zooms out
   await mountZoomProbe({ title: 'Probe — No zoom-out control', noZoomOutControl: true, initialZoom: 'last' });
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   const controlless = await page.evaluate(() => ({
     title: document.querySelector('#probe .lovely-chart--header-title').textContent,
     controls: document.querySelectorAll('#probe .lovely-chart--header-zoom-out-control').length,
     log: [...window.probeLog],
   }));
   await page.evaluate(() => window.probeChart.zoomOut());
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   const controllessLog = await page.evaluate(() => window.probeLog);
   await unmountProbe(page);
   check('noZoomOutControl keeps the title while zoomed, with no zoom-out control, and zoomOut() still zooms out',
@@ -10375,10 +10374,10 @@ section('The header, the tooltip and the legend left out, the band of an empty h
   const readZoomCaptions = async (mount, config, isZoomedOutByApi = false) => {
     const readCaption = () => page.locator('#probe .lovely-chart--header-caption').textContent();
     await mount(config);
-    await sleep(1200);
+    await waitForIdle(page, 1200);
     const overview = await readCaption();
     await clickProbeMiddle('#probe .lovely-chart--tooltip');
-    await sleep(ZOOM_SETTLE_MS);
+    await waitForIdle(page, ZOOM_SETTLE_MS);
     await page.mouse.move(0, 0);
     const zoomed = await readCaption();
     if (isZoomedOutByApi) {
@@ -10386,7 +10385,7 @@ section('The header, the tooltip and the legend left out, the band of an empty h
     } else {
       await page.locator('#probe .lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').click();
     }
-    await sleep(ZOOM_SETTLE_MS);
+    await waitForIdle(page, ZOOM_SETTLE_MS);
     const zoomedOut = await readCaption();
     const log = await page.evaluate(() => window.probeLog);
     await unmountProbe(page);
@@ -10416,12 +10415,12 @@ section('The header, the tooltip and the legend left out, the band of an empty h
   // control beside the balloon takes a click. The control sits on a backdrop of `--background-color` over the top label
   // of the main axis.
   await mountHourlyZoomProbe({ noHeader: true });
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   await clickProbeMiddle('#probe .lovely-chart--tooltip');
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   const hoverLayer = await page.locator('#probe .lovely-chart--tooltip').boundingBox();
   await page.mouse.move(hoverLayer.x + FLOATING_CONTROL_HOVER_X, hoverLayer.y + hoverLayer.height / 2, { steps: 5 });
-  await sleep(400);
+  await waitForIdle(page, 400);
   const stacking = await page.evaluate(() => {
     const host = document.getElementById('probe');
     const control = host.querySelector('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)');
@@ -10451,7 +10450,7 @@ section('The header, the tooltip and the legend left out, the band of an empty h
   ).boundingBox();
   await page.mouse.move(controlBox.x + GUTTER, controlBox.y + controlBox.height / 2, { steps: 5 });
   await page.mouse.click(controlBox.x + GUTTER, controlBox.y + controlBox.height / 2);
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   const stackingLog = await page.evaluate(() => window.probeLog);
   await unmountProbe(page);
   check('while zoomed, a balloon stacks over the floating zoom-out control, and the control beside it takes a click',
@@ -10514,11 +10513,11 @@ section('The header, the tooltip and the legend left out, the band of an empty h
     });
     await startCanvasRecording(formatChart);
     await page.evaluate(() => window.probeChart.refreshColors());
-    await sleep(300);
+    await waitForIdle(page, 300);
     const { texts } = await stopCanvasRecording(page);
     formats[name] = await page.evaluate(async (axisTexts) => {
       window.probeChart.selectLabel(2);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.idleTracker.wait(300);
       const host = document.getElementById('probe');
       return {
         xLabels: axisTexts.filter((text) => !/^\d+$/.test(text)),
@@ -10631,7 +10630,7 @@ section('The header, the tooltip and the legend left out, the band of an empty h
       ...probeConfig,
     });
     element.scrollIntoView({ block: 'center' });
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await window.idleTracker.wait(1200);
   }, [config, limitLabels, hasClickHandler]);
   const readLimit = () => page.evaluate(() => {
     const host = document.getElementById('probe');
@@ -10655,11 +10654,11 @@ section('The header, the tooltip and the legend left out, the band of an empty h
   const limitMinimap = await page.locator('#probe .lovely-chart--minimap').boundingBox();
   const limitSliderY = limitSlider.y + limitSlider.height / 2;
   await drag(page, limitSlider.x + limitSlider.width / 2, limitSliderY, -limitMinimap.width, 0);
-  await sleep(600);
+  await waitForIdle(page, 600);
   const limitDragged = await readLimit();
   const limitMask = await page.locator('#probe .lovely-chart--minimap-limit-mask').boundingBox();
   await page.mouse.click(limitMask.x + limitMask.width / 2, limitMask.y + limitMask.height / 2);
-  await sleep(200);
+  await waitForIdle(page, 200);
   const limitClicked = await readLimit();
   await unmountProbe(page);
   await page.mouse.move(0, 0);
@@ -10750,7 +10749,7 @@ section('The header, the tooltip and the legend left out, the band of an empty h
     const pie = build({ type: 'pie', labels: [], datasets: emptyDatasets, isLoading: true });
     const donut = build({ type: 'donut', labels: [], datasets: emptyDatasets, isLoading: true });
     const outsideLegend = build({ labels: [], datasets: emptyDatasets, isLoading: true, legendContainer: legend });
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await window.idleTracker.wait(600);
 
     const readPixel = (canvas, [x, y]) => {
       const scale = canvas.width / canvas.clientWidth;
@@ -10840,7 +10839,7 @@ section('The header, the tooltip and the legend left out, the band of an empty h
     };
 
     document.documentElement.classList.remove('theme-dark');
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     result.dayPlot = readPlotSkeleton(skeleton);
     result.dayColors = readSkeletonColors(skeleton);
     document.documentElement.classList.toggle('theme-dark', wasHtmlDark);
@@ -10909,7 +10908,7 @@ section('The header, the tooltip and the legend left out, the band of an empty h
     const chart = new LovelyChart(element, {
       type: 'line', labels: [], datasets: [{ name: 'A', values: [] }, { name: 'B', values: [] }], isLoading: true,
     });
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const animations = element.querySelector('.lovely-chart--container > canvas').getAnimations().length;
     chart.destroy();
     element.remove();
@@ -10937,7 +10936,7 @@ section('The header, the tooltip and the legend left out, the band of an empty h
     const container = element.querySelector('.lovely-chart--container');
     const canvas = container.querySelector(':scope > canvas');
     const read = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.idleTracker.wait(300);
       const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
       const parts = [container, container.querySelector('.lovely-chart--tools')];
       return {
@@ -11002,7 +11001,7 @@ section('The header, the tooltip and the legend left out, the band of an empty h
     window.probeContainer = element.querySelector('.lovely-chart--container');
     element.scrollIntoView({ block: 'center' });
   }, HOUR_MS);
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   const readLoadingProbe = () => page.evaluate(() => {
     const container = document.querySelector('#probe .lovely-chart--container');
     return {
@@ -11019,22 +11018,22 @@ section('The header, the tooltip and the legend left out, the band of an empty h
   });
   const setProbeLoading = async (isLoading) => {
     await page.evaluate((isProbeLoading) => window.probeChart.setLoading(isProbeLoading), isLoading);
-    await sleep(LOADING_FADE_MS);
+    await waitForIdle(page, LOADING_FADE_MS);
   };
   // A click by the position of the first legend button, as an inert one takes no click of its own
   const clickFirstLegendButton = async () => {
     const box = await page.locator('#probe .lovely-chart--button').first().boundingBox();
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await sleep(300);
+    await waitForIdle(page, 300);
   };
   const loadingPlotBox = await page.locator('#probe .lovely-chart--tooltip').boundingBox();
   await page.mouse.move(
     loadingPlotBox.x + loadingPlotBox.width / 2, loadingPlotBox.y + loadingPlotBox.height / 2, { steps: 5 },
   );
-  await sleep(400);
+  await waitForIdle(page, 400);
   const hoveredLoading = await readLoadingProbe();
   await clickProbeMiddle('#probe .lovely-chart--tooltip');
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   await clickFirstLegendButton();
   await page.mouse.move(0, 0);
   const dimmed = await readLoadingProbe();
@@ -11042,13 +11041,13 @@ section('The header, the tooltip and the legend left out, the band of an empty h
   await clickFirstLegendButton();
   const shownLoading = await readLoadingProbe();
   await clickProbeMiddle('#probe .lovely-chart--tooltip');
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   await page.mouse.move(0, 0);
   const zoomed = await readLoadingProbe();
   await setProbeLoading(true);
   const zoomedLoading = await readLoadingProbe();
   await page.evaluate(() => window.probeChart.zoomOut());
-  await sleep(ZOOM_SETTLE_MS);
+  await waitForIdle(page, ZOOM_SETTLE_MS);
   const zoomedOutLoading = await readLoadingProbe();
   await setProbeLoading(false);
   const loadedAgain = await readLoadingProbe();
@@ -11102,7 +11101,7 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
       onSelectedIndexChange: (index) => window.probeLog.push(index ?? 'none'),
     };
     window.probeChart = new LovelyChart(element, window.probeParams);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await window.idleTracker.wait(1200);
   });
   const keyLayer = page.locator('#probe .lovely-chart--tooltip');
   await keyLayer.scrollIntoViewIfNeeded();
@@ -11112,7 +11111,7 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
     const selections = [];
     for (const key of keys) {
       await page.keyboard.press(key);
-      await sleep(150);
+      await waitForIdle(page, 150);
       selections.push(await readLastSelection());
     }
     return selections;
@@ -11132,15 +11131,15 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
   ));
   await keyLayer.focus();
   await page.evaluate(() => window.probeChart.update(window.probeParams));
-  await sleep(300);
+  await waitForIdle(page, 300);
   const isFocusedAfterUpdate = await isKeyLayerFocused();
   const [keyAfterUpdate] = await pressKeys(['End']);
   const keyViewport = page.viewportSize();
   await page.setViewportSize({ width: keyViewport.width - 20, height: keyViewport.height });
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   const isFocusedAfterResize = await isKeyLayerFocused();
   await page.setViewportSize(keyViewport);
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   const keyFocusable = await page.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
     const readTabIndex = (params) => {
@@ -11186,7 +11185,6 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
   // The pie a zoom opens takes no keys and leaves the tab order, and the bars it zooms out to take them back
   const pieZoomKeys = await page.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     document.getElementById('container').appendChild(element);
@@ -11203,7 +11201,7 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
       datasets: [{ name: 'A', values: Array(count).fill(2) }, { name: 'B', values: Array(count).fill(1) }],
       onSelectedIndexChange: (index) => log.push(index ?? 'none'),
     });
-    await wait(1800);
+    await window.idleTracker.wait(1800);
     // Whether the plot is in the tab order, whether it takes the key and the selections the key makes
     const readKey = (key) => {
       log.length = 0;
@@ -11213,7 +11211,7 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
     };
     const zoomed = readKey('End');
     element.querySelector('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').click();
-    await wait(2000);
+    await window.idleTracker.wait(2000);
     const zoomedOut = readKey('End');
     window.probeChart.destroy();
     element.remove();
@@ -11233,7 +11231,6 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
   const tooltipLabels = [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day));
   const tooltipSteps = await page.evaluate(async (labels) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     document.getElementById('container').appendChild(element);
@@ -11259,12 +11256,12 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
       onTooltipChange: (tooltip) => log.push(['tooltip', tooltip ?? 'none']),
     };
     window.probeChart = new LovelyChart(element, params);
-    await wait(1200);
+    await window.idleTracker.wait(1200);
     // The reports of a step, and what the balloon shows after it
     const readStep = async (action, ms = 300) => {
       log.length = 0;
       action();
-      await wait(ms);
+      await window.idleTracker.wait(ms);
       const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
       return {
         log: [...log],
@@ -11342,7 +11339,6 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
   // clears the selection has the content of its own selection reported last
   const reselectedSteps = await page.evaluate(async (labels) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const element = document.createElement('div');
     element.id = 'probe';
     document.getElementById('container').appendChild(element);
@@ -11363,11 +11359,11 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
       },
       onTooltipChange: (tooltip) => log.push(['tooltip', tooltip?.labelIndex ?? 'none']),
     });
-    await wait(1200);
+    await window.idleTracker.wait(1200);
     const readStep = async (action) => {
       log.length = 0;
       action();
-      await wait(300);
+      await window.idleTracker.wait(300);
       const balloon = element.querySelector('.lovely-chart--tooltip-balloon');
       return { log: [...log], isShown: balloon.classList.contains('lovely-chart--state-shown') };
     };
@@ -11403,7 +11399,7 @@ section('Keyboard selection, the tooltip content `onTooltipChange` reports and a
         onSelectedIndexChange: (index) => window.probeLog.push(['selected', index ?? 'none']),
         onTooltipChange: (tooltip) => window.probeLog.push(['tooltip', tooltip ?? 'none']),
       });
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      await window.idleTracker.wait(1200);
     }, { config, hostStyle });
     const plot = page.locator('#probe .lovely-chart--container > canvas');
     await plot.scrollIntoViewIfNeeded();
@@ -11451,7 +11447,6 @@ section('The index of a label that `onZoomChange` and `resolveTooltipTotal` pass
   // `resolveTooltipTotal` the indexes of its own labels.
   const readLabelArguments = (labels) => page.evaluate(async (spec) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const log = [];
     const buildDatasets = (length) => ['A', 'B'].map((name, i) => ({
       name, values: Array.from({ length }, (_, j) => 10 * (i + 1) + j),
@@ -11485,7 +11480,7 @@ section('The index of a label that `onZoomChange` and `resolveTooltipTotal` pass
     const readStep = async (action, ms) => {
       log.length = 0;
       action();
-      await wait(ms);
+      await window.idleTracker.wait(ms);
       return [...new Set(log.map((entry) => JSON.stringify(entry)))].map((entry) => JSON.parse(entry));
     };
     const clickColumn = (labelIndex) => {
@@ -11547,7 +11542,7 @@ section('Colour schemes: the `theme-dark` class on <html>, or the system scheme,
     referenceLines: [{ value: 2.5, color: { light: '#FF00FF', dark: '#00FFFF' } }],
   };
   const readSkins = async (chart) => {
-    await sleep(300);
+    await waitForIdle(page, 300);
     const day = await findColor(chart, [255, 0, 255]);
     const night = await findColor(chart, [0, 255, 255]);
     const background = await chart.evaluate((el) => (
@@ -11619,7 +11614,7 @@ section('Colour schemes: the `theme-dark` class on <html>, or the system scheme,
   const systemZoomPlot = await systemZoom.locator('.lovely-chart--tooltip').boundingBox();
   await hoverWiggle(page, systemZoomPlot, 0.5, 0.5);
   await page.mouse.click(systemZoomPlot.x + systemZoomPlot.width / 2, systemZoomPlot.y + systemZoomPlot.height / 2);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   await page.mouse.move(0, 0);
   const systemZoomDay = await readSkins(systemZoom);
   await page.emulateMedia({ colorScheme: 'dark' });
@@ -11712,7 +11707,7 @@ section('Colour schemes: the `theme-dark` class on <html>, or the system scheme,
   };
   const pairDay = await readPairSkin();
   await setHtmlDark(true);
-  await sleep(400);
+  await waitForIdle(page, 400);
   const pairNight = await readPairSkin();
   await unmountProbe(page);
   check('a dataset and a comparison of a colour per skin paint the plot and the minimap in the skin on screen',
@@ -11772,7 +11767,7 @@ section('Colour schemes: the `theme-dark` class on <html>, or the system scheme,
     el.dataset.marker = 'built';
   });
   await setHtmlDark(true);
-  await sleep(400);
+  await waitForIdle(page, 400);
   const tokenNight = await readTokenPaint();
   const tokenMarker = await tokenChart.evaluate((el) => el.dataset.marker);
   await unmountProbe(page);
@@ -11838,7 +11833,7 @@ section('Colour schemes: the `theme-dark` class on <html>, or the system scheme,
   ];
   const systemTokenLight = await readSystemTokens();
   await page.emulateMedia({ colorScheme: 'dark' });
-  await sleep(400);
+  await waitForIdle(page, 400);
   const systemTokenDark = await readSystemTokens();
   // Playwright restores the system scheme on `null` alone
   // eslint-disable-next-line no-null/no-null
@@ -11897,10 +11892,10 @@ section('Colour schemes: the `theme-dark` class on <html>, or the system scheme,
   ];
   const refreshViewBefore = await readRefreshView();
   await page.evaluate(() => document.getElementById('probe').setAttribute('data-theme', 'alt'));
-  await sleep(400);
+  await waitForIdle(page, 400);
   const unwatchedPaint = await readRefreshPaint();
   await page.evaluate(() => window.probeChart.refreshColors());
-  await sleep(400);
+  await waitForIdle(page, 400);
   const refreshedPaint = await readRefreshPaint();
   const refreshViewAfter = await readRefreshView();
   await unmountProbe(page);
@@ -11935,7 +11930,7 @@ section('Colour schemes: the `theme-dark` class on <html>, or the system scheme,
     document.getElementById('probe').setAttribute('data-theme', 'alt');
     window.probeChart.refreshColors();
   });
-  await sleep(400);
+  await waitForIdle(page, 400);
   const zoomedTokensAfter = await readZoomedTokens();
   await unmountProbe(page);
   check('refreshColors() keeps a zoom, its datasets of var() colours in the colours the page now gives',
@@ -11955,7 +11950,7 @@ section('Colour schemes: the `theme-dark` class on <html>, or the system scheme,
   const keptLegendPlot = await keptLegendChart.locator('.lovely-chart--tooltip').boundingBox();
   await hoverWiggle(page, keptLegendPlot, 0.5, 0.5);
   await page.mouse.click(keptLegendPlot.x + keptLegendPlot.width / 2, keptLegendPlot.y + keptLegendPlot.height / 2);
-  await sleep(2000);
+  await waitForIdle(page, 2000);
   const keptLegend = [
     (await keptLegendChart
       .locator('.lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)').count()) > 0,
@@ -11989,9 +11984,9 @@ section('UTC labels, west of UTC', async ({ browser, url }) => {
         isUtc,
         datasets: [{ name: 'A', values: [1, 2] }],
       });
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await window.idleTracker.wait(800);
       chart.selectLabel(1);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.idleTracker.wait(300);
       const title = element.querySelector('.lovely-chart--tooltip-title').textContent;
       chart.destroy();
       element.remove();
@@ -12000,7 +11995,7 @@ section('UTC labels, west of UTC', async ({ browser, url }) => {
     return { utc: await titleAt(true), local: await titleAt(false) };
   });
   await westPage.locator('.day-picker-day').nth(2).hover();
-  await sleep(400);
+  await waitForIdle(westPage, 400);
   const westPickedDay = {
     date: await westPage.locator('.day-picker-date').nth(2).textContent(),
     title: (await westPage.locator('.lovely-chart--container').nth(DAY_PICKER_CHART)
@@ -12015,7 +12010,7 @@ section('UTC labels, west of UTC', async ({ browser, url }) => {
 
 section('RTL layout (header sides swap, nothing overlaps)', async ({ page, charts }) => {
   await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
-  await sleep(300);
+  await waitForIdle(page, 300);
   const rtlHeader = await charts.nth(0).evaluate((el) => {
     const box = (selector) => el.querySelector(selector).getBoundingClientRect();
     const title = box('.lovely-chart--header-title');
@@ -12067,7 +12062,7 @@ section('RTL layout (header sides swap, nothing overlaps)', async ({ page, chart
   });
   const rtlNumbers = await page.evaluate(async () => {
     window.probeChart.selectLabel(1);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
     const { readVisualOrder } = window;
     return {
@@ -12092,7 +12087,7 @@ section('RTL layout (header sides swap, nothing overlaps)', async ({ page, chart
   });
   const rtlColumns = await page.evaluate(async () => {
     window.probeChart.selectLabel(1);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
     const balloonLeft = balloon.getBoundingClientRect().left;
     const range = document.createRange();
@@ -12116,7 +12111,7 @@ section('RTL layout (header sides swap, nothing overlaps)', async ({ page, chart
   const nestedColumns = await page.evaluate(async () => {
     document.getElementById('probe').dir = 'ltr';
     window.probeChart.selectLabel(1);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.idleTracker.wait(300);
     const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
     const range = document.createRange();
     return {
@@ -12165,7 +12160,7 @@ section('RTL layout (header sides swap, nothing overlaps)', async ({ page, chart
     && negativeLabels.every((label) => label.endsWith(' ltr')) && JSON.stringify(xLabelDirections) === '["ltr"]',
     JSON.stringify({ negativeLabels, xLabelDirections }));
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
-  await sleep(300);
+  await waitForIdle(page, 300);
 });
 
 section('Dates in the direction of their words', async ({ page }) => {
@@ -12190,7 +12185,7 @@ section('Dates in the direction of their words', async ({ page }) => {
       });
       return { name, element, chart };
     }));
-    await new Promise((resolve) => setTimeout(resolve, 1800));
+    await window.idleTracker.wait(1800);
 
     const readXAxisBand = (element) => {
       const canvas = element.querySelector('.lovely-chart--container > canvas');
@@ -12214,7 +12209,7 @@ section('Dates in the direction of their words', async ({ page }) => {
     };
     const readTexts = async ({ element, chart }) => {
       chart.selectLabel(2);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.idleTracker.wait(300);
       return {
         caption: readWordOrder(element.querySelector('.lovely-chart--header-caption')),
         title: readWordOrder(
@@ -12282,7 +12277,7 @@ section('Dates in the direction of their words', async ({ page }) => {
 
 section('Theme switch (MutationObserver -> state update path)', async ({ page }) => {
   await page.locator('#skin-switcher').click();
-  await sleep(800);
+  await waitForIdle(page, 800);
   check('theme switch repaints without errors', (await paintedPixels(page, 0)) > 1000);
 });
 
@@ -12296,7 +12291,7 @@ section('Resize (debounced destroy-and-recreate path)', async ({ page, charts })
   await addPlotAreaOverlay(page);
   const wideAreaFit = await readPlotAreaFit(page, ['#FF0000']);
   await page.setViewportSize({ width: 700, height: 1200 });
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   const narrowAreaFit = await readPlotAreaFit(page, ['#FF0000']);
   await unmountProbe(page);
   check('a rebuild on resize narrows the plot area with the plot',
@@ -12311,7 +12306,7 @@ section('Resize (debounced destroy-and-recreate path)', async ({ page, charts })
     `charts: ${countAfterResize}, painted: ${paintedAfterResize}px`);
 
   await page.setViewportSize({ width: PHONE_WIDTH, height: 812 });
-  await sleep(1200);
+  await waitForIdle(page, 1200);
   const phoneWidths = await page.evaluate(() => ({
     scroll: document.documentElement.scrollWidth,
     client: document.documentElement.clientWidth,

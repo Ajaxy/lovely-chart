@@ -135,6 +135,24 @@ export default tseslint.config(
       'no-console': 'off',
     },
   },
+  {
+    // A fixed wait of the e2e test waits as long on a fast machine as on a slow one, so the test waits for the page to
+    // go idle, and a wait whose time itself matters says why
+    name: 'lovely-chart/e2e-waits',
+    files: ['test/e2e.js'],
+    rules: {
+      'no-restricted-syntax': ['error',
+        {
+          selector: 'CallExpression[callee.name="sleep"]',
+          message: 'Wait with waitForIdle(page, ms), or say in an eslint-disable comment why the time matters',
+        },
+        {
+          selector: 'CallExpression[callee.name="setTimeout"][arguments.0.name="resolve"]',
+          message: 'Wait with window.idleTracker.wait(ms), or say in an eslint-disable comment why the time matters',
+        },
+      ],
+    },
+  },
   globalIgnores([
     'dist',
     'docs',
