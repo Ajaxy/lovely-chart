@@ -9,9 +9,12 @@
  * Run via `npm test` (builds first). Runs in the headless shell of the Chromium
  * the locked playwright-core pins (`npx playwright-core install --only-shell
  * chromium`), or in an installed browser such as Google Chrome with
- * `E2E_CHANNEL=chrome`. `E2E_TIMINGS=1` lists the slowest checks at the end.
+ * `E2E_CHANNEL=chrome`. The sections run on 4 pages of the demo at once, or on
+ * as many as `E2E_WORKERS` sets, 1 to run them in turn; `E2E_TIMINGS=1`, as CI,
+ * lists the slowest sections at the end.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -175,8 +178,15 @@ const MIME = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// How many of the checks that took the longest `E2E_TIMINGS` lists
-const SLOWEST_CHECKS = 20;
+// How many of the sections that took the longest `E2E_TIMINGS` lists
+const SLOWEST_SECTIONS = 20;
+// The pages of the demo that run the sections at once, 4 unless `E2E_WORKERS` sets another count, the least time the
+// demo page settles after it loads, and the longest its charts take to paint, each over more pixels than the least
+// that tell a chart drew its data
+const WORKER_COUNT = Number(process.env.E2E_WORKERS) || 4;
+const DEMO_SETTLE_TIME = 1500;
+const DEMO_PAINT_TIMEOUT = 10000;
+const MIN_PAINTED_PIXELS = 1000;
 // The frames in a row with nothing pending that make a page idle, and the longest a chart takes to settle after it is
 // built and after it is destroyed, which a wait cuts short once the page is idle
 const IDLE_QUIET_FRAMES = 3;
@@ -767,34 +777,40 @@ async function settleMount(page) {
   if (!await waitForIdle(page, MOUNT_SETTLE_TIME)) idleWaits.unseenMounts++;
 }
 
-let failures = 0;
-// The checks made, each with the time the run took since the one before, which `E2E_TIMINGS` lists
-const checkTimes = [];
-let lastCheckAt = performance.now();
+// The sections of the run in the order of this file, and the checks each makes, kept by the section that runs where a
+// check is made
+const SECTIONS = [];
+const sectionChecks = new AsyncLocalStorage();
 
+let failures = 0;
+let checkCount = 0;
+// The sections run, each with the time it took, which `E2E_TIMINGS` lists
+const sectionTimes = [];
+
+// Prints a check, or keeps it for the section that makes it to print in its turn
 function check(name, condition, details = '') {
   const mark = condition ? 'ok' : 'FAIL';
-  console.log(`${mark.padEnd(4)} - ${name}${details ? ` (${details})` : ''}`);
+  const line = `${mark.padEnd(4)} - ${name}${details ? ` (${details})` : ''}`;
+  const checks = sectionChecks.getStore();
+  if (checks) checks.push(line);
+  else console.log(line);
+  checkCount++;
   if (!condition) failures++;
-  const now = performance.now();
-  checkTimes.push({ name, ms: now - lastCheckAt });
-  lastCheckAt = now;
 }
 
-// The time of the run and the browser it ran in, with `E2E_TIMINGS` the checks that took the longest after the one
-// before them too
+// The time of the run and the browser it ran in, with `E2E_TIMINGS` or in CI the sections that took the longest too
 function printTimings(browserName, startedAt) {
   const seconds = (performance.now() - startedAt) / 1000;
-  console.log(`\n${checkTimes.length} checks in ${seconds.toFixed(1)} s, in ${browserName}`);
+  console.log(`\n${checkCount} checks in ${seconds.toFixed(1)} s, in ${browserName}`);
   const cappedCounts = new Map();
   idleWaits.capped.forEach((busy) => cappedCounts.set(busy, (cappedCounts.get(busy) ?? 0) + 1));
   const capped = [...cappedCounts].map(([busy, count]) => `${busy} (${count}×)`).join('; ');
   console.log(`${idleWaits.count} waits for an idle page in ${(idleWaits.ms / 1000).toFixed(1)} s, `
     + `${idleWaits.capped.length} of them cut at their cap${capped ? `: ${capped}` : ''}`);
-  if (!process.env.E2E_TIMINGS) return;
+  if (!process.env.E2E_TIMINGS && !process.env.CI) return;
 
-  [...checkTimes].sort((a, b) => b.ms - a.ms).slice(0, SLOWEST_CHECKS).forEach(({ name, ms }) => {
-    console.log(`${(ms / 1000).toFixed(1).padStart(6)} s  ${name}`);
+  [...sectionTimes].sort((a, b) => b.ms - a.ms).slice(0, SLOWEST_SECTIONS).forEach(({ title, ms }) => {
+    console.log(`${(ms / 1000).toFixed(1).padStart(6)} s  ${title}`);
   });
 }
 
@@ -2078,28 +2094,84 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await page.mouse.up();
 }
 
-(async () => {
-  const startedAt = performance.now();
-  const server = await startServer();
-  const url = `http://127.0.0.1:${server.address().port}/`;
-  const browser = await launchBrowser();
-  const browserName = `${process.env.E2E_CHANNEL || 'chromium-headless-shell'} ${browser.version()}`;
-  console.log(`Browser: ${browserName}`);
+// Opens the demo page on a page of its own, whose errors join `errors` named by the section it runs, and waits until
+// every demo chart has painted, or the longest that takes, after which the check of the painted charts tells
+async function openDemoPage(browser, url, errors) {
   const page = await newTestPage(browser, { viewport: { width: 900, height: 1200 } });
-
-  const errors = [];
-  page.on('pageerror', (err) => errors.push(`[pageerror] ${err.message}`));
+  const worker = { page, charts: page.locator('.lovely-chart--container'), errors, browser, url, sectionTitle: '' };
+  page.on('pageerror', (err) => errors.push(`[${worker.sectionTitle}] [pageerror] ${err.message}`));
   page.on('console', (m) => {
-    if (m.type() === 'error' && !isOtherSiteLoadFailure(m, url)) errors.push(`[console] ${m.text()}`);
+    if (m.type() === 'error' && !isOtherSiteLoadFailure(m, url)) {
+      errors.push(`[${worker.sectionTitle}] [console] ${m.text()}`);
+    }
   });
 
   await page.goto(url);
   await page.waitForSelector('.lovely-chart--container', { timeout: 10000 });
-  await sleep(1500);
+  await sleep(DEMO_SETTLE_TIME);
+  await page.waitForFunction(({ count, minPainted }) => {
+    const canvases = [...document.querySelectorAll('.lovely-chart--container')].map((el) => el.querySelector('canvas'));
+    return canvases.length === count && canvases.every((canvas) => {
+      const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      let painted = 0;
+      for (let j = 3; j < data.length && painted <= minPainted; j += 4) if (data[j]) painted++;
+      return painted > minPainted;
+    });
+  }, { count: EXPECTED_CHARTS, minPainted: MIN_PAINTED_PIXELS }, { timeout: DEMO_PAINT_TIMEOUT, polling: 100 })
+    .catch(() => undefined);
 
-  const charts = page.locator('.lovely-chart--container');
+  return worker;
+}
 
-  // --- Rendering ---
+// Runs the sections on the pages of the workers, each taking the next section left as it ends one, from the top left
+// corner of its page as a page of its own starts, and prints the checks of each section in the order of this file,
+// once those of every section before it are printed
+async function runSections(workers) {
+  const results = [];
+  let next = 0;
+  let printed = 0;
+  /** @type {Error | undefined} */
+  let failure;
+  const print = () => {
+    for (; printed < SECTIONS.length && results[printed]; printed++) {
+      results[printed].forEach((line) => console.log(line));
+    }
+  };
+
+  await Promise.all(workers.map(async (worker) => {
+    while (next < SECTIONS.length && !failure) {
+      const index = next++;
+      const { title, run } = SECTIONS[index];
+      const checks = [];
+      const sectionStartedAt = performance.now();
+      worker.sectionTitle = title;
+      await worker.page.mouse.move(0, 0);
+      await worker.page.evaluate(() => window.scrollTo(0, 0));
+      try {
+        await sectionChecks.run(checks, () => run(worker));
+      } catch (err) {
+        failure ??= new Error(`The section "${title}" threw`, { cause: err });
+      }
+      sectionTimes.push({ title, ms: performance.now() - sectionStartedAt });
+      results[index] = checks;
+      print();
+    }
+  }));
+
+  if (failure) {
+    // The sections a worker ended after the one that threw print too, those that never started leaving a gap
+    results.slice(printed).forEach((checks) => checks?.forEach((line) => console.log(line)));
+    throw failure;
+  }
+}
+
+// Adds a part of the run that relies on no other, so that any worker can run it on its page of the demo: `run` takes
+// that page, its demo charts and the errors of the run, the browser and the URL of the demo page
+function section(title, run) {
+  SECTIONS.push({ title, run });
+}
+
+section('Rendering', async ({ page, charts }) => {
   const count = await charts.count();
   check('all demo charts created', count === EXPECTED_CHARTS, `got ${count}`);
 
@@ -2182,8 +2254,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     if (!(await b.evaluate((el) => el.classList.contains('lovely-chart--state-checked')))) await b.click();
   }
   await sleep(400);
+});
 
-  // --- Zoom in/out (chart 2: zoomable bars) ---
+section('Zoom in/out (chart 2: zoomable bars)', async ({ page, charts }) => {
   // Day data in docs/data/zoom_bars only covers the newest dates, so move the
   // viewport to the end of the range before clicking.
   const chart2 = charts.nth(2);
@@ -2216,8 +2289,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     // the restored caption is the reliable signal that zoom-out completed.
     check('zoom-out restores the range', (await caption2()) === rangeCaption, JSON.stringify(await caption2()));
   }
+});
 
-  // --- Pie/donut hover ---
+section('Pie/donut hover', async ({ page, charts }) => {
   const pie = charts.nth(6);
   await pie.scrollIntoViewIfNeeded();
   const piePlot = await pie.locator('.lovely-chart--tooltip').boundingBox();
@@ -2226,8 +2300,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const pieShown = await pieBalloon.evaluate((el) => el.classList.contains('lovely-chart--state-shown'));
   const pieText = (await pieBalloon.textContent()).trim();
   check('pie sector hover shows tooltip', pieShown && pieText.length > 0, JSON.stringify(pieText.slice(0, 40)));
+});
 
-  // --- Start-zoomed init: shares, opened already as a pie, no morph ---
+section('Start-zoomed init: shares, opened already as a pie, no morph', async ({ page }) => {
   const startZoomed = await mountProbe(page, {
     dataUrl: './data/areas.json',
     config: { title: 'Probe — Start Zoomed Shares', initialZoom: 'last' },
@@ -2248,8 +2323,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     check('start-zoomed zoom-out returns to overview', !stillZoomed, `still zoomed: ${stillZoomed}`);
   }
   await unmountProbe(page);
+});
 
-  // --- Zoom to shares on an absolute stacked bar chart ---
+section('Zoom to shares on an absolute stacked bar chart', async ({ page }) => {
   // `bars.json` has no `isPercentage`, so this only zooms because of `zoomToShares`.
   const shareBars = await mountProbe(page, {
     dataUrl: './data/bars.json',
@@ -2278,8 +2354,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     check('zoomToShares zoom-out returns to bars', !stillCircle, `still zoomed: ${stillCircle}`);
   }
   await unmountProbe(page);
+});
 
-  // --- A zoom transition clips the plot to the circle and a focused sector's shift, at any plot size ---
+section('A zoom transition clips the plot to the circle and a focused sector\'s shift, at any plot '
+  + 'size', async ({ page, errors }) => {
   // A narrow column shows the whole circle on a wide page, a short plot closes the clip on its small circle, and a
   // sparkline centers it on its circle, which no axis band moves
   const circleClips = [];
@@ -2493,8 +2571,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('update() out of a zoom reports the zoom-out',
     JSON.stringify(zoomedBeforeUpdate) === '["in"]' && JSON.stringify(zoomAfterUpdate) === '["in","out"]',
     JSON.stringify(zoomAfterUpdate));
+});
 
-  // --- update() and destroy() of a chart mid-interaction ---
+section('update() and destroy() of a chart mid-interaction', async ({ page, browser, url }) => {
   const updated = await interruptProbe(page, 'update');
   const updatedProbe = page.locator('#probe .lovely-chart--container');
   const updatedPaint = [];
@@ -2558,8 +2637,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('destroy() ends a drag and leaves no frame or timer running',
     !destroyed.htmlClass.includes('cursor-') && destroyed.lateCallbacks === 0,
     `html: "${destroyed.htmlClass}", callbacks after destroy(): ${destroyed.lateCallbacks}`);
+});
 
-  // --- update() keeps the hidden datasets, the window, the zoom and the selection its options ask it to ---
+section('update() keeps the hidden datasets, the window, the zoom and the selection its options ask it '
+  + 'to', async ({ page }) => {
   const keptFilter = await page.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -2867,8 +2948,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   }, KEPT_SELECTED_INDEX);
   check('update() with shouldKeepSelection follows the label to its new index in params the page reassigned',
     reassignedLabels === `${KEPT_SELECTED_INDEX},${KEPT_SELECTED_INDEX - 3}`, reassignedLabels);
+});
 
-  // --- update() with isAnimated cross-fades the chart into the new data ---
+section('update() with isAnimated cross-fades the chart into the new data', async ({ page, browser, url }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   const crossFade = await page.evaluate(async ({ fromColor, toColor, midFadeMs, pastFadeMs, tolerance }) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
@@ -3126,8 +3208,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('destroy() mid-fade removes both charts and leaves no frame or timer running',
     destroyedMidFade.fadingCount === 2 && destroyedMidFade.count === 0 && destroyedMidFade.lateCallbacks === 0,
     JSON.stringify(destroyedMidFade));
+});
 
-  // --- Minimap: a drag holds its cursor over the page until the release ---
+section('Minimap: a drag holds its cursor over the page until the release', async ({ page }) => {
   const cursorConfig = {
     title: 'Probe — Drag cursor',
     type: 'line',
@@ -3440,8 +3523,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
 
   check('month chart captions its zoom by month, not day',
     monthZoomCaption.trim() === 'March 2029', JSON.stringify(monthZoomCaption));
+});
 
-  // --- Start-zoomed init: async `onZoom`, opened already on the zoomed day ---
+section('Start-zoomed init: async `onZoom`, opened already on the zoomed day', async ({ page }) => {
   const startZoomedAsync = await mountProbe(page, {
     dataUrl: './data/bars.json',
     config: { title: 'Probe — Start Zoomed onZoom', initialZoom: 'last' },
@@ -3462,8 +3546,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     check('start-zoomed onZoom zoom-out returns to overview', backCaption.includes('—'), JSON.stringify(backCaption));
   }
   await unmountProbe(page);
+});
 
-  // --- A zoom paints the zoomed datasets in their own colours, names them, and a zoom out restores the overview ---
+section('A zoom paints the zoomed datasets in their own colours, names them, and a zoom out restores the '
+  + 'overview', async ({ page, errors }) => {
   const linesZoomCases = [
     {
       name: 'more',
@@ -3551,8 +3637,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       `${JSON.stringify(overviewPaint)}, tooltip ${overviewNames}`);
     await unmountProbe(page);
   }
+});
 
-  // --- A lines zoom draws its datasets in the `colors` its data gives them, over their own ---
+section('A lines zoom draws its datasets in the `colors` its data gives them, over their own', async ({ page }) => {
   const keyedColors = ['#00FFFF', '#FF00FF', '#FFFF00'];
   const unkeyedColors = ['#0000FF', DEFAULT_PALETTE_COLOR];
   const keyedOverviewColors = ['#FF0000', '#00FF00'];
@@ -3582,8 +3669,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('a zoom out of a lines view of colors paints the overview in its own colours',
     isPaintedWith(keyedOverviewPaint, keyedOverviewColors, [...keyedColors, ...unkeyedColors]),
     JSON.stringify(keyedOverviewPaint));
+});
 
-  // --- A resize returns a chart zoomed into datasets of other colours to the overview, in the overview's colours ---
+section('A resize returns a chart zoomed into datasets of other colours to the overview, in the overview\'s '
+  + 'colours', async ({ page }) => {
   const resizedOverviewColors = ['#FF0000', '#00FF00'];
   const resizedZoomColors = ['#0000FF', '#FF00FF'];
   const resizedZoom = await mountLinesZoom(page, {
@@ -3605,8 +3694,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await unmountProbe(page);
   check('a resize while zoomed into datasets of other colours paints the overview in its own colours',
     isPaintedWith(resizedPaint, resizedOverviewColors, resizedZoomColors), JSON.stringify(resizedPaint));
+});
 
-  // --- Localized captions (own chart, so the demo page stays English) ---
+section('Localized captions (own chart, so the demo page stays English)', async ({ page }) => {
   const localizedCaption = await page.evaluate(async (locale) => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
     const data = await fetch('./data/areas.json').then((response) => response.json());
@@ -3624,8 +3714,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('caption honours dateLocale',
     SPANISH_DATE_LOCALE.weekDays.some((day) => localizedCaption.startsWith(day)),
     JSON.stringify(localizedCaption));
+});
 
-  // --- Reference lines ---
+section('Reference lines', async ({ page }) => {
   // A rule three times the tallest stack lands above the canvas unless the stacked range reaches it
   const referenceStack = await mountProbe(page, {
     config: {
@@ -3657,8 +3748,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     pinnedLine.count > 50 && Math.abs(pinnedLine.meanY - plotBottom) < 4,
     `line at ${pinnedLine.meanY?.toFixed(1)}, plot bottom ${plotBottom}`);
   await unmountProbe(page);
+});
 
-  // --- A constant series sits at the middle height, its one Y label on it, on both axes ---
+section('A constant series sits at the middle height, its one Y label on it, on both axes', async ({ page }) => {
   const plotCenterY = (PLOT_TOP + PLOT_BOTTOM) / 2;
   for (const [mainValue, secondValue] of [[0.3, 12.1], [1.2, 0.3], [12.1, 1.2]]) {
     await recordProbeNumbers(page);
@@ -3738,8 +3830,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
         `${details}, expected at ${plotFillMeanY} and ${minimapFillMeanY}`);
     }
   }
+});
 
-  // --- A stacked chart keeps the dataset on its own Y axis out of the stack ---
+section('A stacked chart keeps the dataset on its own Y axis out of the stack', async ({ page }) => {
   // The stack of 10 and 20 spans the main axis alone, its top line at the top of the plot and its lower line a third
   // of the way up, while the constant dataset on its own axis sits at the middle height, on the plot and the minimap
   const ownAxisStack = [
@@ -3841,8 +3934,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   }
   check('the outward column of a stacked chart fits the stack alone, not the dataset on its own Y axis',
     ownAxisColumnEnds[0] === ownAxisColumnEnds[1], `column ends at ${ownAxisColumnEnds.join(' and ')}`);
+});
 
-  // --- A dataset of another type than the chart's: a line over bars from 0, out of the stack, total and shares ---
+section('A dataset of another type than the chart\'s: a line over bars from 0, out of the stack, total and '
+  + 'shares', async ({ page }) => {
   // Bars alone start the main axis near their lowest value, while bars beside a line start it at 0. The line comes
   // first in the datasets and runs inside every bar, so it shows only drawn over them.
   const mixedLabels = Array.from({ length: 7 }, (_, i) => Date.UTC(2026, 10, 1 + i));
@@ -4022,9 +4117,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       `ends at ${JSON.stringify(mixedColumn.ends)}, widest ${mixedColumn.widest.toFixed(2)}px, `
       + `labels ${mixedColumn.texts.join(' ')}`);
   }
+});
 
-  // --- A single label draws in a column centered in the plot, its X-axis label under it, whatever window the minimap
-  // opens on, which spans the whole minimap ---
+section('A single label draws in a column centered in the plot, its X-axis label under it, whatever window the minimap '
+  + 'opens on, which spans the whole minimap', async ({ page }) => {
   for (const type of ['line', 'area', 'bar']) {
     await recordProbeNumbers(page);
     const singleChart = await mountProbe(page, {
@@ -4051,8 +4147,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       `${plotFill.count}px, ${middleFill.count}px of them mid-plot, X-axis labels at ${JSON.stringify(xLabelXs)} `
       + `of ${singleTexts.canvasWidth}px, minimap masks ${JSON.stringify(maskWidths)}`);
   }
+});
 
-  // --- A Y-axis tick at 0 reads 0, never float noise ---
+section('A Y-axis tick at 0 reads 0, never float noise', async ({ page }) => {
   await recordProbeNumbers(page);
   await mountProbe(page, {
     config: {
@@ -4066,8 +4163,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await unmountProbe(page);
   check('a Y-axis tick at 0 reads 0', tickValues.includes(0) && tickValues.every((value) => value === 0
     || Math.abs(value) >= FINEST_Y_STEP), JSON.stringify(tickValues));
+});
 
-  // --- A single label in the trillions labels its value instead of freezing the page ---
+section('A single label in the trillions labels its value instead of freezing the page', async ({ browser, url }) => {
   // A page of its own, so a freeze holds up none of the checks after it
   const trillionPage = await newTestPage(browser, { viewport: { width: 900, height: 1200 } });
   await trillionPage.goto(`${url}isolated`);
@@ -4104,8 +4202,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       && Math.abs(parseFloat(text) * TRILLION - TRILLION_VALUE) <= TRILLION_VALUE * TRILLION_LABEL_TOLERANCE
     ))),
     trillionTexts ? JSON.stringify(trillionTexts) : `no frame in ${FREEZE_TIMEOUT_MS}ms`);
+});
 
-  // --- Panning the narrowest window across single labels keeps the Y axis to a few labels a frame ---
+section('Panning the narrowest window across single labels keeps the Y axis to a few labels a '
+  + 'frame', async ({ page }) => {
   await recordProbeNumbers(page);
   const panLabels = Array.from({ length: 40 }, (_, i) => Date.UTC(2026, 0, 1 + i));
   await mountProbe(page, {
@@ -4126,8 +4226,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const mostTextsInFrame = Math.max(...textsPerFrame.values());
   check('panning the narrowest window keeps the Y axis to a few labels a frame',
     mostTextsInFrame <= MAX_PAN_TEXTS_PER_FRAME, `at most ${mostTextsInFrame} texts in a frame`);
+});
 
-  // --- The Y-axis labels of narrow windows read every digit of their step, so neighbours differ, on both axes ---
+section('The Y-axis labels of narrow windows read every digit of their step, so neighbours differ, on both '
+  + 'axes', async ({ page }) => {
   const preciseLabels = Array.from({ length: 60 }, (_, i) => Date.UTC(2026, 0, 1 + i));
   const preciseSweeps = [{
     name: 'the main axis, its column and the second axis',
@@ -4176,9 +4278,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
         + `overflowing: ${JSON.stringify(preciseColumn.overflowing)}`);
     }
   }
+});
 
-  // --- A constant window labels its one value in full, on the main axis, its column, the second axis and a
-  // secondary axis ---
+section('A constant window labels its one value in full, on the main axis, its column, the second axis and a secondary '
+  + 'axis', async ({ page }) => {
   const constantLabelDays = [1, 2, 3, 4, 5, 6, 7].map((day) => Date.UTC(2026, 10, day));
   const constantLabelCases = [{
     name: 'equal values on an outward column and the second axis',
@@ -4216,9 +4319,11 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       && (!config.isYAxisOutward || constantColumn.overflowing.length === 0),
       `labels ${JSON.stringify(yLabels)}, overflowing the column: ${JSON.stringify(constantColumn.overflowing)}`);
   }
+});
 
-  // --- A dashed or dotted line or step draws its pattern, on the plot and the minimap, and outlines its legend button
-  // and tooltip swatch in it; a dataset both dashed and dotted draws dots, and an area or bars draw neither ---
+section('A dashed or dotted line or step draws its pattern, on the plot and the minimap, and outlines its legend '
+  + 'button and tooltip swatch in it; a dataset both dashed and dotted draws dots, and an area or bars draw '
+  + 'neither', async ({ page }) => {
   const linePatterns = [
     { flags: { isDashed: true }, pattern: 'dashed', dash: 6, gap: 4, units: 'dashes' },
     { flags: { isDotted: true }, pattern: 'dotted', dash: 2, gap: 3, units: 'dots' },
@@ -4280,8 +4385,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       patternedButtons === 0 && patternedTooltip.swatched.length === 3 && !patternedSwatches.length,
       `${patternedButtons} patterned buttons, patterned swatches ${JSON.stringify(patternedSwatches)}`);
   }
+});
 
-  // --- Panning leaves the dashes and dots of a sloped line, steps and a smooth line in place, at one scale a frame ---
+section('Panning leaves the dashes and dots of a sloped line, steps and a smooth line in place, at one scale a '
+  + 'frame', async ({ page }) => {
   const panPhaseLabels = Array.from({ length: PAN_PHASE_LABELS }, (_, i) => Date.UTC(2026, 0, 1 + i));
   const panPhaseCases = [
     { name: 'a dotted line', type: 'line', flags: { isDotted: true } },
@@ -4320,8 +4427,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       panPhase.starts > 1 && panPhase.shift <= MAX_PAN_PHASE_SHIFT && panPhase.scaleDrift <= MAX_PAN_SCALE_DRIFT,
       JSON.stringify(panPhase));
   }
+});
 
-  // --- Smooth lines curve through their values ---
+section('Smooth lines curve through their values', async ({ page }) => {
   const zigzag = {
     type: 'line',
     labels: [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day)),
@@ -4345,8 +4453,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('areLinesSmooth curves a line through its values',
     straightQuarter.count > 0 && smoothQuarter.count > 0 && straightQuarter.meanY - smoothQuarter.meanY > 10,
     `straight at ${straightQuarter.meanY?.toFixed(1)}, smooth at ${smoothQuarter.meanY?.toFixed(1)}`);
+});
 
-  // --- A missing value in a stacked area ---
+section('A missing value in a stacked area', async ({ page }) => {
   // An absolute stack has no base above a missing value, so the areas above it break there. A percentage
   // chart has one, the shares of the values the label has, so only the missing dataset's own wedge empties.
   const gapLabels = Array.from({ length: 12 }, (_, i) => Date.UTC(2026, 10, 1 + i));
@@ -4385,8 +4494,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
         topElsewhere.count > 100 && topAtGap.count === 0, details);
     }
   }
+});
 
-  // --- An area outline runs along every edge of each run of an area split at a gap ---
+section('An area outline runs along every edge of each run of an area split at a gap', async ({ page }) => {
   const outlineChart = await mountProbe(page, {
     config: {
       type: 'area',
@@ -4415,8 +4525,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('areaBorderColor outlines both sides of each run of a split area',
     firstRight > 100 && secondRight > 100 && firstLeft > firstRight / 2 && secondLeft > secondRight / 2,
     `${JSON.stringify(outlineEdges)}px at the left and right edges of either run`);
+});
 
-  // --- A themed area outline takes the colour of the theme, and follows a change of the theme ---
+section('A themed area outline takes the colour of the theme, and follows a change of the theme', async ({ page }) => {
   const wasOutlineThemeDark = await page.evaluate(() => document.documentElement.classList.contains('theme-dark'));
   await page.evaluate(() => document.documentElement.classList.remove('theme-dark'));
   const themedOutlineChart = await mountProbe(page, {
@@ -4442,30 +4553,31 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('a themed areaBorderColor outlines an area in the colour of the theme as the theme changes',
     lightOutline[0] > 100 && lightOutline[1] === 0 && darkOutline[0] === 0 && darkOutline[1] > 100,
     `red and cyan px: ${JSON.stringify(lightOutline)} in the light theme, ${JSON.stringify(darkOutline)} in the dark`);
+});
 
-  // --- The outward Y-label column fits the widest label the data can show, and holds still ---
-  const columnLabels = Array.from({ length: 120 }, (_, i) => Date.UTC(2026, 0, 1 + i));
-  const columnConfig = {
-    type: 'line',
-    title: 'Probe — Label column',
-    withMinimap: true,
-    isYAxisOutward: true,
-    labels: columnLabels,
-    // Whole tens, each high value 30 or more from the one before, so the narrowest window the minimap selects brings
-    // up labels with as many digits after the point as any window of two labels
-    datasets: [
-      {
-        name: 'High',
-        color: '#FF0000',
-        values: columnLabels.map((_, i) => 6000 + Math.round(3 * Math.sin(i / 7)) * 100 + i * 30),
-      },
-      {
-        name: 'Low',
-        color: '#0000FF',
-        values: columnLabels.map((_, i) => 2000 + Math.round(9 * Math.cos(i / 5)) * 100),
-      },
-    ],
-  };
+const columnLabels = Array.from({ length: 120 }, (_, i) => Date.UTC(2026, 0, 1 + i));
+const columnConfig = {
+  type: 'line',
+  title: 'Probe — Label column',
+  withMinimap: true,
+  isYAxisOutward: true,
+  labels: columnLabels,
+  // Whole tens, each high value 30 or more from the one before, so the narrowest window the minimap selects brings
+  // up labels with as many digits after the point as any window of two labels
+  datasets: [
+    {
+      name: 'High',
+      color: '#FF0000',
+      values: columnLabels.map((_, i) => 6000 + Math.round(3 * Math.sin(i / 7)) * 100 + i * 30),
+    },
+    {
+      name: 'Low',
+      color: '#0000FF',
+      values: columnLabels.map((_, i) => 2000 + Math.round(9 * Math.cos(i / 5)) * 100),
+    },
+  ],
+};
+section('The outward Y-label column fits the widest label the data can show, and holds still', async ({ page }) => {
   await recordProbeNumbers(page);
   const columnChart = await mountProbe(page, { config: columnConfig });
   await columnChart.scrollIntoViewIfNeeded();
@@ -4554,8 +4666,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && zoomedOutAreaLeft === overviewAreaLeft,
     `left ${overviewAreaLeft}, ${dayAreaLeft} zoomed in, ${zoomedOutAreaLeft} zoomed out, `
     + `after labels ending at ${overviewColumn.end}, ${dayColumn.end} and ${zoomedOutColumn.end}`);
+});
 
-  // --- The outward column fits the labels a previous period, a gap, a reference line or a hidden dataset bring ---
+section('The outward column fits the labels a previous period, a gap, a reference line or a hidden dataset '
+  + 'bring', async ({ page }) => {
   const sweepLabels = (count) => Array.from({ length: count }, (_, i) => Date.UTC(2026, 0, 1 + i));
   // The window of the last week opens on finer steps than its values alone take, its previous values being lower
   await recordProbeNumbers(page);
@@ -4655,8 +4769,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       `ends at ${JSON.stringify(sweptColumn.ends)}, widest ${sweptColumn.widest.toFixed(2)}px, `
       + `overflowing: ${JSON.stringify(sweptColumn.overflowing)}`);
   }
+});
 
-  // --- Contrast labels stand in from either side of the chart, the second axis's too ---
+section('Contrast labels stand in from either side of the chart, the second axis\'s too', async ({ page }) => {
   const twoAxesLabels = Array.from({ length: 30 }, (_, i) => Date.UTC(2026, 0, 1 + i));
   const twoAxesConfig = {
     type: 'line',
@@ -4722,9 +4837,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && JSON.stringify(outwardSecondInsets) === JSON.stringify([contrastInset]),
     `column ends at ${outwardContrastColumn.end} after ${outwardColumn.end}, `
     + `second axis ${JSON.stringify(outwardSecondInsets)} in from the right`);
+});
 
-  // --- The X-axis grid counts from the newest label and steps coarser where labels would crowd, and the X-axis band
-  // clears around a contrast zero label ---
+section('The X-axis grid counts from the newest label and steps coarser where labels would crowd, and the X-axis band '
+  + 'clears around a contrast zero label', async ({ page }) => {
   // The X-axis labels the last frame of the probe printed, left to right, whether each stays inside the plot area, and
   // whether each stands clear of the one before it
   const readXAxisLabels = async () => {
@@ -4952,8 +5068,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     ))
     && contrastCompactAxis.zeroLabelPixelsBelow >= MIN_ZERO_LABEL_HALF_PIXELS,
     JSON.stringify(compactAxes));
+});
 
-  // --- A sparkline has no axes, so no column either ---
+section('A sparkline has no axes, so no column either', async ({ page }) => {
   await recordProbeNumbers(page);
   const outwardSparkline = await mountProbe(page, {
     config: { ...columnConfig, title: 'Probe — Outward sparkline', withMinimap: false, isSparkline: true },
@@ -4964,16 +5081,18 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('an outward sparkline draws no labels and runs to its edge',
     sparklineTexts.length === 0 && sparklineEdge.count > 0,
     `${sparklineTexts.length} texts, ${sparklineEdge.count}px of the line at the left edge`);
+});
 
-  // --- The plot-area properties place an overlay over the data area, inside a padded and bordered element ---
-  // The first label at the top of the range and the last at its bottom, so the line runs corner to corner
-  const areaConfig = {
-    type: 'line',
-    title: 'Probe — Plot area',
-    labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 0, day)),
-    datasets: [{ name: 'Corners', color: '#FF0000', values: [100, 20, 80, 0] }],
-    referenceLines: [{ value: 50, color: '#0000FF' }],
-  };
+// The first label at the top of the range and the last at its bottom, so the line runs corner to corner
+const areaConfig = {
+  type: 'line',
+  title: 'Probe — Plot area',
+  labels: [1, 2, 3, 4].map((day) => Date.UTC(2026, 0, day)),
+  datasets: [{ name: 'Corners', color: '#FF0000', values: [100, 20, 80, 0] }],
+  referenceLines: [{ value: 50, color: '#0000FF' }],
+};
+section('The plot-area properties place an overlay over the data area, inside a padded and bordered '
+  + 'element', async ({ page }) => {
   await recordProbeNumbers(page);
   await mountProbe(page, { config: areaConfig, hostStyle: PADDED_HOST_STYLE });
   await addPlotAreaOverlay(page);
@@ -5160,8 +5279,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     builtWrites === 4 && pannedWrites === 0 && builtLeft === pannedAreaColumn.end + Y_AXIS_LABEL_GAP,
     `${builtWrites} writes on the build, ${pannedWrites} while panning, left ${builtLeft} `
     + `after labels ending at ${pannedAreaColumn.end}`);
+});
 
-  // --- `getLabelX()` places labels in the plot area, `onPlotAreaChange` reports it, and the room above the Y range ---
+section('`getLabelX()` places labels in the plot area, `onPlotAreaChange` reports it, and the room above the Y '
+  + 'range', async ({ page, errors }) => {
   // Mounts the probe in a padded host with `onPlotAreaChange`, `onRangeChange` and `onZoomChange` recording each call,
   // with what `getLabelX()` gives for each of `xArgs` then, the range reports before a zoom report and what
   // `probeRangeExtras` adds to a range report, and what `getLabelX()` gives for the first of `xArgs` before the first
@@ -6480,8 +6601,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('a pie keeps its window through a drag and a double click on its plot, with no page error',
     pieCaptionAfter === pieCaptionBefore && !pieSelectionErrors.length,
     `${pieCaptionBefore} -> ${pieCaptionAfter}, ${pieSelectionErrors.join('; ').slice(0, 200)}`);
+});
 
-  // --- The hover line and dots stay on the plot wherever the header variables or a style of the page put it ---
+section('The hover line and dots stay on the plot wherever the header variables or a style of the page put '
+  + 'it', async ({ page }) => {
   // A flat line, whose middle across the hover dot is the dot's own height
   const hoverConfig = {
     type: 'line',
@@ -6600,8 +6723,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await unmountProbe(page);
   check('a sparkline\'s hover dots sit on its line, at the top of the chart',
     isHoverAligned(sparklineHover) && sparklineHover.plotTop === 0, formatHoverAlignment(sparklineHover));
+});
 
-  // --- A web font that loads after the build widens the outward column to fit, and moves the plot area ---
+section('A web font that loads after the build widens the outward column to fit, and moves the plot '
+  + 'area', async ({ page }) => {
   await page.evaluate(({ family, fontPath }) => {
     const style = document.createElement('style');
     style.id = 'probe-font';
@@ -6634,8 +6759,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     fallbackFontLeft === fallbackFontColumn.end + Y_AXIS_LABEL_GAP
     && wideFontLeft === wideFontColumn.end + Y_AXIS_LABEL_GAP && fontWrites === 4,
     `left ${fallbackFontLeft}, then ${wideFontLeft} in ${fontWrites} writes`);
+});
 
-  // --- A `FontFace` the page adds already loaded fires no `loadingdone`, and the next frame fits the column to it ---
+section('A `FontFace` the page adds already loaded fires no `loadingdone`, and the next frame fits the column to '
+  + 'it', async ({ page }) => {
   const loadedFontFamily = `${WIDE_FONT_FAMILY}Loaded`;
   await page.evaluate((family) => {
     const style = document.createElement('style');
@@ -6670,8 +6797,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     `ends at ${unloadedFontColumn.end} before the font, then at ${loadedFontColumn.end}, widest label `
     + `${loadedFontColumn.widest.toFixed(2)}px, overflowing: ${JSON.stringify(loadedFontColumn.overflowing)}, `
     + `left ${loadedFontLeft}`);
+});
 
-  // --- The typography variables set the family and the weights of the chart's text, of its canvas labels too ---
+section('The typography variables set the family and the weights of the chart\'s text, of its canvas labels '
+  + 'too', async ({ page }) => {
   // The regular weight runs through the legend, the names in the tooltip and the axis labels, and the bold one through
   // the header, the tooltip title and its total, the values, the Total row, the change and the shares
   const typographyLabels = [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day));
@@ -6814,8 +6943,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('a weight invalid for its property leaves the chart text its size and the family of the typography variables',
     invalidWeight.container === '400 13px ProbeSerif, serif',
     JSON.stringify(invalidWeight));
+});
 
-  // --- Whole Y steps for counts, on both axes ---
+section('Whole Y steps for counts, on both axes', async ({ page }) => {
   const countsConfig = {
     type: 'line',
     labels: [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day)),
@@ -6833,8 +6963,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('noFloatSteps labels a count of 0 to 2 in steps of 1',
     fractionalSteps.includes(0.5) && JSON.stringify(wholeSteps) === '[0,1,2]',
     `default: ${JSON.stringify(fractionalSteps)}, whole: ${JSON.stringify(wholeSteps)}`);
+});
 
-  // --- Legend labels contrast with their fills ---
+section('Legend labels contrast with their fills', async ({ page }) => {
   const legendFills = await mountProbe(page, {
     config: {
       type: 'line',
@@ -6870,8 +7001,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     JSON.stringify(defaultPaletteLabels
       .map(({ color, isLabelWhite }) => `${color} ${isLabelWhite ? 'white' : 'dark'}`)));
   await unmountProbe(page);
+});
 
-  // --- The default colours the package exports are those a chart gives the datasets with no colour of their own ---
+section('The default colours the package exports are those a chart gives the datasets with no colour of their '
+  + 'own', async ({ page }) => {
   const exportedPalette = await page.evaluate(async ({ datasetCounts, ownColor }) => {
     const {
       default: LovelyChart, DEFAULT_COLORS, DEFAULT_COMPARISON_COLOR, getDefaultColors,
@@ -6940,9 +7073,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     JSON.stringify(exportedPalette.colorsAfterChange) === JSON.stringify(DEFAULT_PALETTE)
     && JSON.stringify(exportedPalette.drawnAfterChange) === JSON.stringify(DEFAULT_PALETTE),
     JSON.stringify([exportedPalette.colorsAfterChange, exportedPalette.drawnAfterChange]));
+});
 
-  // --- The spacing variables of a page inset the header, the minimap and the legend, space the legend and size its
-  // buttons, read from an ancestor of the chart or of a `legendContainer` ---
+section('The spacing variables of a page inset the header, the minimap and the legend, space the legend and size its '
+  + 'buttons, read from an ancestor of the chart or of a `legendContainer`', async ({ page }) => {
   const spacingConfig = {
     type: 'line',
     title: 'Probe — Spacing',
@@ -7164,8 +7298,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     Math.abs(zoomedLegend.movedOutShrink - zoomedLegend.zoomedLegendHeight) <= SPACING_TOLERANCE
     && Math.abs(zoomedLegend.movedInGrowth - zoomedLegend.legendHeight) <= SPACING_TOLERANCE
     && zoomedLegend.legendOverhang <= SPACING_TOLERANCE, JSON.stringify(zoomedLegend));
+});
 
-  // --- The accessible name of the plot, and the legend left exposed ---
+section('The accessible name of the plot, and the legend left exposed', async ({ page }) => {
   // The role and the name of the plot canvas, whether the chart's element or its host carries a role or a name, and
   // the images and the buttons a role query finds in the host
   const readPlotNaming = async (chart) => ({
@@ -7297,8 +7432,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     zoomedNaming.label === 'Visits by day' && JSON.stringify(zoomedNaming.buttons) === '["Blue","Magenta"]',
     JSON.stringify(zoomedNaming));
   await unmountProbe(page);
+});
 
-  // --- Dashed and dotted datasets, comparison and its tooltip (demo charts) ---
+section('Dashed and dotted datasets, comparison and its tooltip (demo charts)', async ({ page, charts }) => {
   const limitChart = charts.nth(LIMIT_CHART);
   const legendOutlines = await limitChart.locator('.lovely-chart--button')
     .evaluateAll((elements) => elements.map((el) => getComputedStyle(el).borderTopStyle));
@@ -7324,8 +7460,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && comparisonTooltip.swatches > 1 && /^\d{1,3}(,\d{3})+$/.test(comparisonTooltip.titleTotal)
     && !comparisonTooltip.hasTotalRow && ['positive', 'negative', 'neutral'].includes(comparisonTooltip.change),
     JSON.stringify(comparisonTooltip));
+});
 
-  // --- Tooltip rows: their look, their order and the total ---
+section('Tooltip rows: their look, their order and the total', async ({ page, charts }) => {
   const rowsConfig = {
     type: 'bar',
     isStacked: true,
@@ -7596,8 +7733,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('a sparkline draws the plot alone at its height',
     sparklineLayout.header === 'none' && sparklineLayout.tools === 'none' && sparklineLayout.height === 64,
     JSON.stringify(sparklineLayout));
+});
 
-  // --- The tooltip look: the muted comparison row, the rule under it, a neutral change and the balloon border ---
+section('The tooltip look: the muted comparison row, the rule under it, a neutral change and the balloon '
+  + 'border', async ({ page }) => {
   await mountProbe(page, {
     config: {
       type: 'bar',
@@ -7702,9 +7841,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('the tooltip balloon takes --tooltip-border, none by default',
     dayLook.border.startsWith('0px none') && customLook.border === '2px solid rgb(4, 5, 6)',
     JSON.stringify([dayLook.border, customLook.border]));
+});
 
-  // --- The tooltip balloon over an overlay added after the chart with no z-index, which paints over the hover line,
-  // and under the page around the element that holds the chart ---
+section('The tooltip balloon over an overlay added after the chart with no z-index, which paints over the hover line, '
+  + 'and under the page around the element that holds the chart', async ({ page }) => {
   // Lists the layers `selectors` pick, topmost first, under the middle of the overlap of the first two. An overlay
   // takes the pointer, as a label with a tip does, so that the point hits it.
   const readOverlapLayers = (selectors) => page.evaluate((layerSelectors) => {
@@ -7880,26 +8020,28 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     controlLayers.join() === ['control', 'overlay'].join(), JSON.stringify(controlLayers));
   check('a balloon tall enough to reach the legend paints over its buttons',
     legendLayers.join() === ['balloon', 'button'].join(), JSON.stringify(legendLayers));
+});
 
-  // --- Tooltip notes: those of hatched ranges and `resolveTooltipNotes`, beside the title and under the rows ---
-  // A function cannot cross into the page, so the page builds the resolver from the notes it is given, and logs its calls
-  const mountNotesProbe = (config, notesByLabel) => page.evaluate(async ({ spec, resolved }) => {
-    const { default: LovelyChart } = await import('./LovelyChart.js');
-    const element = document.createElement('div');
-    element.id = 'probe';
-    document.getElementById('container').appendChild(element);
-    window.noteCalls = [];
-    window.probeChart = new LovelyChart(element, {
-      ...spec,
-      resolveTooltipNotes: (labelValue, datasetIndexes, labelIndex) => {
-        window.noteCalls.push([labelValue, datasetIndexes, labelIndex]);
-        return resolved[labelIndex];
-      },
-    });
-    await new Promise((resolve) => setTimeout(resolve, 800));
-  }, { spec: config, resolved: notesByLabel });
+// A function cannot cross into the page, so the page builds the resolver from the notes it is given, and logs its calls
+const mountNotesProbe = (page, config, notesByLabel) => page.evaluate(async ({ spec, resolved }) => {
+  const { default: LovelyChart } = await import('./LovelyChart.js');
+  const element = document.createElement('div');
+  element.id = 'probe';
+  document.getElementById('container').appendChild(element);
+  window.noteCalls = [];
+  window.probeChart = new LovelyChart(element, {
+    ...spec,
+    resolveTooltipNotes: (labelValue, datasetIndexes, labelIndex) => {
+      window.noteCalls.push([labelValue, datasetIndexes, labelIndex]);
+      return resolved[labelIndex];
+    },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 800));
+}, { spec: config, resolved: notesByLabel });
+section('Tooltip notes: those of hatched ranges and `resolveTooltipNotes`, beside the title and under the '
+  + 'rows', async ({ page, charts }) => {
   const notesLabels = [1, 2, 3, 4, 5].map((day) => Date.UTC(2026, 10, day));
-  await mountNotesProbe({
+  await mountNotesProbe(page, {
     type: 'bar',
     isStacked: true,
     title: 'Probe — Tooltip notes',
@@ -8034,7 +8176,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     JSON.stringify(hoveredNotes.notes));
 
   // A zoom into shares takes the notes of the bars off the balloon, and a pie asks for none
-  await mountNotesProbe({
+  await mountNotesProbe(page, {
     type: 'bar',
     isStacked: true,
     isPercentage: true,
@@ -8085,9 +8227,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('the demo forecast notes its forecast days in the tooltip, and an actual day away from the promotion not',
     JSON.stringify(forecastDayNotes) === '["Forecast"]' && actualDayNotes.length === 0,
     JSON.stringify({ forecastDayNotes, actualDayNotes }));
+});
 
-  // --- The total on the `secondaryYAxis` scale takes the format of the dataset values, and `isCurrencyPrefix` puts
-  // the minus sign of that total and of the labels of that scale in front of its prefix ---
+section('The total on the `secondaryYAxis` scale takes the format of the dataset values, and `isCurrencyPrefix` puts '
+  + 'the minus sign of that total and of the labels of that scale in front of its prefix', async ({ page }) => {
   // A function cannot cross into the page, so the page formats the tooltip numbers in `locale` when it is given
   const readSecondaryFormat = async (config, locale) => {
     await recordProbeNumbers(page);
@@ -8137,8 +8280,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && secondaryFormats.currency.axisLabels.some((text) => /^-€\d/.test(text))
     && !secondaryFormats.currency.axisLabels.some((text) => text.startsWith('€-')),
     JSON.stringify({ plain: secondaryFormats.plain.axisLabels, currency: secondaryFormats.currency.axisLabels }));
+});
 
-  // --- Smooth lines, a dataset that starts hidden and the axis font (demo chart) ---
+section('Smooth lines, a dataset that starts hidden and the axis font (demo chart)', async ({ page, charts }) => {
   const smoothDemoChart = charts.nth(SMOOTH_CHART);
   await smoothDemoChart.scrollIntoViewIfNeeded();
   const smoothDemoButtons = smoothDemoChart.locator('.lovely-chart--button');
@@ -8179,8 +8323,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     isSmoothAxisText(nightAxisDrawing, SMOOTH_AXIS_COLORS.night)
     && isSmoothAxisText(dayAxisDrawing, SMOOTH_AXIS_COLORS.day),
     JSON.stringify([nightAxisDrawing.texts[0], dayAxisDrawing.texts[0]]));
+});
 
-  // --- Hatched ranges: their span by chart kind, merging, edges, labels, the minimap, the focus mask and shares ---
+section('Hatched ranges: their span by chart kind, merging, edges, labels, the minimap, the focus mask and '
+  + 'shares', async ({ page }) => {
   // A range from the point before it, an accruing one from halfway, a third that touches it, and one at the first label,
   // too narrow for its label and with nothing before it for an edge
   const hatchLabels = Array.from({ length: 11 }, (_, i) => Date.UTC(2026, 0, i + 1));
@@ -8519,50 +8665,52 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await unmountProbe(page);
   check('a sparkline hatches a labelled range without its label', sparklineHatch > 0 && sparklineLabels.length === 0,
     `${sparklineHatch}px of hatch, labels ${JSON.stringify(sparklineLabels)}`);
+});
 
-  // --- A forecast week the chart hatches, and a badge over the plot by the plot-area variables (demo chart) ---
+const isNear = (a, b) => Math.abs(a - b) <= PLOT_AREA_TOLERANCE;
+const readForecastFit = (forecastChart) => forecastChart.evaluate((el, [hex, inset]) => {
+  const host = el.parentElement;
+  const badge = host.querySelector('.forecast-badge');
+  const canvas = el.querySelector('canvas');
+  const hostBox = host.getBoundingClientRect();
+  const toHost = ({ left, top, right, bottom }) => ({
+    left: left - hostBox.left - host.clientLeft,
+    top: top - hostBox.top - host.clientTop,
+    right: right - hostBox.left - host.clientLeft,
+    bottom: bottom - hostBox.top - host.clientTop,
+  });
+  const [left, top, width, height] = ['left', 'top', 'width', 'height']
+    .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+  const canvasBox = toHost(canvas.getBoundingClientRect());
+  const scale = canvas.width / canvas.clientWidth;
+  const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  const line = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+  for (let j = 0; j < data.length; j += 4) {
+    if (data[j + 3] <= 100 || rgb.some((channel, k) => Math.abs(data[j + k] - channel) >= 24)) continue;
+    const x = canvasBox.left + ((j / 4) % canvas.width) / scale;
+    const y = canvasBox.top + Math.floor(j / 4 / canvas.width) / scale;
+    line.left = Math.min(line.left, x);
+    line.top = Math.min(line.top, y);
+    line.right = Math.max(line.right, x + 1 / scale);
+    line.bottom = Math.max(line.bottom, y + 1 / scale);
+  }
+  return {
+    area: { left, top, right: left + width, bottom: top + height },
+    areaInCanvas: left - canvasBox.left,
+    badge: toHost(badge.getBoundingClientRect()),
+    badgeCorner: { left: left + inset, bottom: top + height - inset },
+    line,
+    isBadgeBeforeChart: badge.nextElementSibling === el,
+    skin: document.documentElement.classList.contains('theme-dark') ? 'night' : 'day',
+  };
+}, [FORECAST_LINE_COLOR, FORECAST_BADGE_INSET]);
+section('A forecast week the chart hatches, and a badge over the plot by the plot-area variables (demo '
+  + 'chart)', async ({ page, charts }) => {
   const forecastChart = charts.nth(FORECAST_CHART);
   await forecastChart.scrollIntoViewIfNeeded();
-  const readForecastFit = () => forecastChart.evaluate((el, [hex, inset]) => {
-    const host = el.parentElement;
-    const badge = host.querySelector('.forecast-badge');
-    const canvas = el.querySelector('canvas');
-    const hostBox = host.getBoundingClientRect();
-    const toHost = ({ left, top, right, bottom }) => ({
-      left: left - hostBox.left - host.clientLeft,
-      top: top - hostBox.top - host.clientTop,
-      right: right - hostBox.left - host.clientLeft,
-      bottom: bottom - hostBox.top - host.clientTop,
-    });
-    const [left, top, width, height] = ['left', 'top', 'width', 'height']
-      .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
-    const canvasBox = toHost(canvas.getBoundingClientRect());
-    const scale = canvas.width / canvas.clientWidth;
-    const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-    const line = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
-    for (let j = 0; j < data.length; j += 4) {
-      if (data[j + 3] <= 100 || rgb.some((channel, k) => Math.abs(data[j + k] - channel) >= 24)) continue;
-      const x = canvasBox.left + ((j / 4) % canvas.width) / scale;
-      const y = canvasBox.top + Math.floor(j / 4 / canvas.width) / scale;
-      line.left = Math.min(line.left, x);
-      line.top = Math.min(line.top, y);
-      line.right = Math.max(line.right, x + 1 / scale);
-      line.bottom = Math.max(line.bottom, y + 1 / scale);
-    }
-    return {
-      area: { left, top, right: left + width, bottom: top + height },
-      areaInCanvas: left - canvasBox.left,
-      badge: toHost(badge.getBoundingClientRect()),
-      badgeCorner: { left: left + inset, bottom: top + height - inset },
-      line,
-      isBadgeBeforeChart: badge.nextElementSibling === el,
-      skin: document.documentElement.classList.contains('theme-dark') ? 'night' : 'day',
-    };
-  }, [FORECAST_LINE_COLOR, FORECAST_BADGE_INSET]);
-  const forecastFit = await readForecastFit();
+  const forecastFit = await readForecastFit(forecastChart);
   const { area: forecastArea, badge: forecastBadge, line: forecastLine } = forecastFit;
-  const isNear = (a, b) => Math.abs(a - b) <= PLOT_AREA_TOLERANCE;
   check('the demo forecast badge stands at the bottom start of the plot area by its variables, under the chart',
     isNear(forecastBadge.left, forecastFit.badgeCorner.left)
     && isNear(forecastBadge.bottom, forecastFit.badgeCorner.bottom)
@@ -8641,6 +8789,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   });
   const isLabelledInSkins = (labels) => Object.values(AXIS_TEXT_COLORS)
     .every((hex) => labels.some(({ color }) => isTextColor(color, hex)));
+  const limitChart = charts.nth(LIMIT_CHART);
   const stepsHatch = await readDemoHatch(limitChart);
   const plannedStart = stepsHatch.areaLeft + (stepsHatch.areaWidth * (LIMIT_DAYS - PLANNED_DAYS)) / LIMIT_DAYS;
   const plannedLabels = stepsHatch.texts.filter(({ text }) => text === 'Planned');
@@ -8847,7 +8996,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     `rules ${formatRuns(otherRuns)}, labels ${JSON.stringify([...eventTextSet].filter((text) => /[a-z]/.test(text)))}`);
   await unmountProbe(page);
 
-  await mountNotesProbe({
+  await mountNotesProbe(page, {
     type: 'line',
     title: 'Probe — Event pins',
     labels: eventDays,
@@ -9085,8 +9234,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     zoomHints.every(({ isShown }) => isShown)
     && JSON.stringify(zoomHints.map(({ notes }) => notes)) === JSON.stringify([[], ['Launch hour'], ['Launch day']]),
     JSON.stringify({ zoomedHints, overviewHints }));
+});
 
-  // --- `selectLabel()` from the page and `onSelectedIndexChange` (demo chart) ---
+section('`selectLabel()` from the page and `onSelectedIndexChange` (demo chart)', async ({ page, charts }) => {
   const pickerChart = charts.nth(DAY_PICKER_CHART);
   const pickerDays = page.locator('.day-picker-day');
   await page.locator('.day-picker').scrollIntoViewIfNeeded();
@@ -9150,7 +9300,20 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     pointedListIndex > 0 && isPickedDay(stepFromPointedDay, pointedListIndex - 1),
     JSON.stringify({ pointedListedDay, stepFromPointedDay }));
 
-  // --- A right-to-left page (demo chart) ---
+  // The plot of the demo day picker takes the keys, and its list marks the day they select
+  await pickerChart.locator('.lovely-chart--tooltip').focus();
+  await page.keyboard.press('End');
+  await sleep(300);
+  const keyEndDay = await readDayPicker();
+  await page.keyboard.press('ArrowLeft');
+  await sleep(300);
+  const keySteppedDay = await readDayPicker();
+  await page.evaluate(() => document.activeElement.blur());
+  check('the arrow keys on the plot of the demo day picker step its selection, and its list marks the day',
+    isPickedDay(keyEndDay, 6) && isPickedDay(keySteppedDay, 5), JSON.stringify({ keyEndDay, keySteppedDay }));
+});
+
+section('A right-to-left page (demo chart)', async ({ page, charts }) => {
   const rtlChart = charts.nth(RTL_CHART);
   await rtlChart.scrollIntoViewIfNeeded();
   const rtlButton = rtlChart.locator('.lovely-chart--button').first();
@@ -9178,8 +9341,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     rtlXLabels.length > 0 && rtlXLabels.every((label) => /^\d+ ינו׳ rtl$/.test(label))
     && rtlDates.every(({ isRightToLeft }) => isRightToLeft),
     JSON.stringify({ rtlXLabels, rtlDates }));
+});
 
-  // --- A stack beside a second Y axis (demo chart) ---
+section('A stack beside a second Y axis (demo chart)', async ({ page, charts }) => {
   const twoAxesChart = charts.nth(TWO_AXES_CHART);
   await twoAxesChart.scrollIntoViewIfNeeded();
   await startCanvasRecording(twoAxesChart);
@@ -9216,8 +9380,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     twoAxesRows.length === 5 && twoAxesValues.Total === fruitTotal
     && twoAxesValues['Apples, %'] === Math.round((twoAxesValues.Apples / fruitTotal) * 1000) / 10,
     JSON.stringify(twoAxesRows));
+});
 
-  // --- A readout of the page in place of the balloon, the bars and swatches in colours of the page (demo chart) ---
+section('A readout of the page in place of the balloon, the bars and swatches in colours of the page (demo '
+  + 'chart)', async ({ page }) => {
   const readoutChart = page.locator('.readout-chart .lovely-chart--container');
   const readoutLayer = readoutChart.locator('.lovely-chart--tooltip');
   // The readout, the balloon, and the colours of the legend buttons and the readout
@@ -9329,8 +9495,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       night: hoveredReadout.legend, nightSwatches: hoveredReadout.swatches, day: dayReadout.legend,
       daySwatches: dayReadout.swatches, bars: [nightAccentBars.count, dayAccentBars.count, dayNightAccentBars.count],
     }));
+});
 
-  // --- A skeleton while the data loads, and a reload that shows it again (demo chart) ---
+section('A skeleton while the data loads, and a reload that shows it again (demo chart)', async ({ page }) => {
   const skeletonChart = page.locator('.skeleton-chart .lovely-chart--container');
   const reloadButton = page.locator('.reload-button');
   const readSkeleton = () => page.evaluate(() => {
@@ -9384,8 +9551,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     isDataShown(firstLoaded) && isSkeletonShown(nightReload.loading) && isDataShown(nightReload.loaded)
     && isSkeletonShown(dayReload.loading) && isDataShown(dayReload.loaded),
     JSON.stringify({ firstLoaded, nightReload, dayReload }));
+});
 
-  // --- Small multiples: the axes and the plot alone, titled and keyed by the page (demo charts) ---
+section('Small multiples: the axes and the plot alone, titled and keyed by the page (demo '
+  + 'charts)', async ({ page }) => {
   await page.locator('.multiples').scrollIntoViewIfNeeded();
   const multiples = await page.locator('.multiples').evaluate(async (el) => {
     const { datasets } = await (await fetch('./data/areas-absolute.json')).json();
@@ -9424,8 +9593,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     JSON.stringify({
       names: multiples.names, values: multiples.values, labels: multiples.charts.map(({ label }) => label),
     }));
+});
 
-  // --- Selection, legend callbacks and the plot height property ---
+section('Selection, legend callbacks and the plot height property', async ({ page }) => {
   await page.evaluate(() => {
     window.probeLog = [];
   });
@@ -9694,9 +9864,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       JSON.stringify({ calledEmpty, calledWider, hovered }));
   }
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
+});
 
-  // --- Datasets sharing a name keep a tooltip row and a legend button each, and the datasets that start hidden go
-  // unreported ---
+section('Datasets sharing a name keep a tooltip row and a legend button each, and the datasets that start hidden go '
+  + 'unreported', async ({ page }) => {
   // Two datasets of one name and a third of the comparison's name, then with the first and the third hidden
   const sharedNameRows = await page.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
@@ -9872,9 +10043,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     loneBuilt.isLegendShown && loneBuilt.pressed === 'false' && loneBuilt.paint === 0 && loneBuilt.log === ''
     && loneShown.pressed === 'true' && loneShown.paint > MIN_DATASET_PIXELS && loneShown.log === '@',
     JSON.stringify({ loneBuilt, loneShown }));
+});
 
-  // --- `selectLabel()`, the keys and a touch select the labels alone, and a touch beyond the first or the last label of
-  // the plot selects the label a key does there ---
+section('`selectLabel()`, the keys and a touch select the labels alone, and a touch beyond the first or the last label '
+  + 'of the plot selects the label a key does there', async ({ page, errors, browser, url }) => {
   const boundsConfig = {
     type: 'line',
     title: 'Probe — Selection bounds',
@@ -9952,8 +10124,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && isLineOnLabel(touchSelections.keyedFirst, [0, lastBoundsIndex, 0], 0)
     && isLineOnLabel(touchSelections.tappedLast, [0, lastBoundsIndex, 0, lastBoundsIndex], lastBoundsIndex),
     JSON.stringify(touchSelections));
+});
 
-  // --- The header, the tooltip and the legend left out, the band of an empty header, and `zoomOut()` ---
+section('The header, the tooltip and the legend left out, the band of an empty header, and '
+  + '`zoomOut()`', async ({ page, errors }) => {
   // The plot, its hover layer and the plot area start under the header: at the top of a chart without the band or with
   // no title and no caption, and under the band a page keeps for such a header. A legend in a hidden element takes its
   // spacing along, as the legend a lone dataset hides.
@@ -10903,8 +11077,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && JSON.stringify(zoomedOutLoading.pressed) === '["false","true"]'
     && isShown(loadedAgain) && JSON.stringify(loadedAgain.pressed) === '["false","true"]',
     JSON.stringify({ zoomedOutLoading, loadedAgain }));
+});
 
-  // --- Keyboard selection, the tooltip content `onTooltipChange` reports and a balloon the page hides ---
+section('Keyboard selection, the tooltip content `onTooltipChange` reports and a balloon the page '
+  + 'hides', async ({ page }) => {
   // The keys step inside the window the minimap opens on, the last 20% of 101 labels, from 80 to 100
   await page.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
@@ -11049,18 +11225,6 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       zoomedOut: { tabIndex: '0', isTaken: true, log: [9] },
     }),
     JSON.stringify(pieZoomKeys));
-
-  // The plot of the demo day picker takes the keys, and its list marks the day they select
-  await pickerChart.locator('.lovely-chart--tooltip').focus();
-  await page.keyboard.press('End');
-  await sleep(300);
-  const keyEndDay = await readDayPicker();
-  await page.keyboard.press('ArrowLeft');
-  await sleep(300);
-  const keySteppedDay = await readDayPicker();
-  await page.evaluate(() => document.activeElement.blur());
-  check('the arrow keys on the plot of the demo day picker step its selection, and its list marks the day',
-    isPickedDay(keyEndDay, 6) && isPickedDay(keySteppedDay, 5), JSON.stringify({ keyEndDay, keySteppedDay }));
 
   // A stacked bar chart against the previous period: a gap, a zero, a resolved total, a `null` one, a gap of the
   // previous period and a hidden dataset, then the line chart `update()` swaps in, which has no total. The public API
@@ -11280,8 +11444,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && hiddenBalloonReports.hoverPixels > MIN_DATASET_PIXELS
     && JSON.stringify(hiddenBalloonReports.log.slice(-2)) === '[["selected",2],["tooltip",2]]',
     JSON.stringify(hiddenBalloonReports));
+});
 
-  // --- The index of a label that `onZoomChange` and `resolveTooltipTotal` pass after its value ---
+section('The index of a label that `onZoomChange` and `resolveTooltipTotal` pass after its value', async ({ page }) => {
   // A text label's value is its index, and a date label's its timestamp. The data `onZoom` returns passes its own
   // `resolveTooltipTotal` the indexes of its own labels.
   const readLabelArguments = (labels) => page.evaluate(async (spec) => {
@@ -11370,8 +11535,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && readZoomCalls(textArguments.update) === '[["zoom","none","none"]]'
     && JSON.stringify(textArguments.selection) === '[["total",3,3]]',
     JSON.stringify(textArguments));
+});
 
-  // --- Colour schemes: the `theme-dark` class on <html>, or the system scheme, each against the other ---
+section('Colour schemes: the `theme-dark` class on <html>, or the system scheme, each against the '
+  + 'other', async ({ page }) => {
   // A reference line of a colour per skin shows the skin of the canvas, and `--background-color` that of the CSS
   const schemeConfig = {
     type: 'line',
@@ -11804,8 +11971,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     `zoomed, red px, violet px and the legend outline: ${JSON.stringify(keptLegend)}`);
   await page.evaluate(() => document.getElementById('probe-tokens').remove());
   await setHtmlDark(wasTokensDark);
+});
 
-  // --- UTC labels, west of UTC ---
+section('UTC labels, west of UTC', async ({ browser, url }) => {
   const westContext = await browser.newContext({ timezoneId: 'America/Los_Angeles' });
   const westPage = await newTestPage(westContext);
   await westPage.goto(url);
@@ -11843,8 +12011,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     JSON.stringify(westTitles));
   check('the demo list and its chart\'s tooltip read the same day west of UTC',
     westPickedDay.date.endsWith(` ${westPickedDay.title}`), JSON.stringify(westPickedDay));
+});
 
-  // --- RTL layout (header sides swap, nothing overlaps) ---
+section('RTL layout (header sides swap, nothing overlaps)', async ({ page, charts }) => {
   await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
   await sleep(300);
   const rtlHeader = await charts.nth(0).evaluate((el) => {
@@ -11997,8 +12166,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     JSON.stringify({ negativeLabels, xLabelDirections }));
   await page.evaluate(() => document.documentElement.removeAttribute('dir'));
   await sleep(300);
+});
 
-  // --- Dates in the direction of their words ---
+section('Dates in the direction of their words', async ({ page }) => {
   // Each pair of charts draws the same dates in an element of either direction, and the X-axis labels, the caption and
   // the tooltip title read in the direction of their first letter, left to right without one
   const datePairs = await page.evaluate(async (plotBottom) => {
@@ -12108,13 +12278,15 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await unmountProbe(page);
   check('a wrapped caption ends each of its lines at the end of the header, in a chart of either direction',
     captionEndGaps.every((gaps) => gaps.length > 1 && gaps.every((gap) => gap === 0)), JSON.stringify(captionEndGaps));
+});
 
-  // --- Theme switch (MutationObserver -> state update path) ---
+section('Theme switch (MutationObserver -> state update path)', async ({ page }) => {
   await page.locator('#skin-switcher').click();
   await sleep(800);
   check('theme switch repaints without errors', (await paintedPixels(page, 0)) > 1000);
+});
 
-  // --- Resize (debounced destroy-and-recreate path) ---
+section('Resize (debounced destroy-and-recreate path)', async ({ page, charts }) => {
   // The probe's element follows the viewport width, so the rebuild narrows the plot area
   const resizedAreaChart = await mountProbe(page, {
     config: { ...areaConfig, title: 'Probe — Plot area resize' },
@@ -12158,11 +12330,12 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && phoneMultiples.every(({ width }) => width >= MIN_PHONE_MULTIPLE_WIDTH),
     JSON.stringify(phoneMultiples));
   // A change of skin redraws the plot the resize rebuilt
+  const forecastChart = charts.nth(FORECAST_CHART);
   await forecastChart.scrollIntoViewIfNeeded();
   await startCanvasRecording(forecastChart);
   await switchSkinAndBack(page);
   const phoneForecastDrawing = await stopCanvasRecording(page);
-  const phoneForecastFit = await readForecastFit();
+  const phoneForecastFit = await readForecastFit(forecastChart);
   const { area: phoneForecastArea, badge: phoneForecastBadge, areaInCanvas: phoneAreaInCanvas } = phoneForecastFit;
   const phoneForecastWidth = phoneForecastArea.right - phoneForecastArea.left;
   const phoneForecastStart = phoneAreaInCanvas
@@ -12177,6 +12350,18 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     )) && isPhoneBadgeInside,
     `labels ${JSON.stringify(phoneForecastLabels)} from ${phoneForecastStart.toFixed(1)}, `
     + `badge ${formatBox(phoneForecastBadge)}, area ${formatBox(phoneForecastArea)}`);
+});
+
+(async () => {
+  const startedAt = performance.now();
+  const server = await startServer();
+  const url = `http://127.0.0.1:${server.address().port}/`;
+  const browser = await launchBrowser();
+  const browserName = `${process.env.E2E_CHANNEL || 'chromium-headless-shell'} ${browser.version()}`;
+  console.log(`Browser: ${browserName}, ${WORKER_COUNT} pages at once`);
+  const errors = [];
+  const workers = await Promise.all(Array.from({ length: WORKER_COUNT }, () => openDemoPage(browser, url, errors)));
+  await runSections(workers);
 
   // --- Idle waits ---
   check('each chart built asked the page for a frame, a timer or a fetch before its wait for an idle page ended',
