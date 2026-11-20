@@ -9,6 +9,9 @@ const HEBREW_DATE_LOCALE = {
   weekDaysShort: ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'שבת'],
 };
 
+// The least time the data of a loading chart takes to arrive, as over a slow network, so its skeleton shows
+const MIN_LOADING_TIME = 1500;
+
 function fetchJson(path) {
   return fetch(path).then((response) => response.json());
 }
@@ -22,11 +25,115 @@ function fetchDayData(dataSource, timestamp) {
   return fetchJson(`${dataSource}/${path}.json`);
 }
 
+function formatValue(value) {
+  return value.toLocaleString('en-US');
+}
+
 // A UTC date as `Fri 6 Apr`, which holds the `6 Apr` of the chart's tooltip title
 function formatListDate(timestamp) {
   return new Date(timestamp).toLocaleDateString('en-GB', {
     weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
   });
+}
+
+// A UTC range as `10 Mar — 6 Apr`, as the caption of a chart's header names it: with the year of each end unless both
+// fall in the current year
+function formatCaptionRange(from, to) {
+  const getYear = (timestamp) => new Date(timestamp).getUTCFullYear();
+  const isCurrentYear = getYear(from) === getYear(to) && getYear(to) === new Date().getUTCFullYear();
+  const formatEnd = (timestamp) => new Date(timestamp).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', ...(!isCurrentYear && { year: 'numeric' }), timeZone: 'UTC',
+  });
+  return `${formatEnd(from)} — ${formatEnd(to)}`;
+}
+
+function appendSpans(parent, parts) {
+  parts.forEach(([className, text]) => {
+    const span = document.createElement('span');
+    span.className = className;
+    span.textContent = text;
+    parent.appendChild(span);
+  });
+}
+
+// The date and the total of the selected day, a row for each dataset on screen with a swatch of its colour and the
+// comparison with its change, or a hint while no day is selected
+function renderReadout(readout, tooltip, colors) {
+  if (!tooltip) {
+    const hint = document.createElement('p');
+    hint.className = 'readout-hint';
+    hint.textContent = 'Point at a day, or focus the chart and press ← or →';
+    readout.replaceChildren(hint);
+    return;
+  }
+
+  const title = createReadoutLine('readout-title', tooltip.title, formatReadoutValue(tooltip.total));
+  const rows = tooltip.rows.map(({ datasetIndex, name, value }) => {
+    const row = createReadoutLine('readout-row', name, formatReadoutValue(value));
+    const swatch = document.createElement('span');
+    swatch.className = 'readout-swatch';
+    swatch.style.backgroundColor = colors[datasetIndex];
+    row.firstChild.prepend(swatch);
+    return row;
+  });
+  const { name, value, change } = tooltip.comparison;
+  const comparison = createReadoutLine('readout-comparison', name, formatReadoutValue(value));
+  if (change !== undefined) {
+    const changeElement = document.createElement('span');
+    changeElement.className = 'readout-change';
+    changeElement.dataset.tone = change < 0 ? 'negative' : 'positive';
+    changeElement.textContent = `${change < 0 ? '−' : '+'}${Math.abs(change).toFixed(1)}%`;
+    comparison.lastChild.append(' ', changeElement);
+  }
+  readout.replaceChildren(title, ...rows, comparison);
+}
+
+function createReadoutLine(className, name, value) {
+  const line = document.createElement('div');
+  line.className = `readout-line ${className}`;
+  appendSpans(line, [['readout-name', name], ['readout-value', value]]);
+  return line;
+}
+
+// A gap reads as a dash
+function formatReadoutValue(value) {
+  return value === null ? '—' : formatValue(value);
+}
+
+// The title and the caption of a set of charts without headers, a key of their datasets' lines and the grid of their
+// cells
+function createMultiples(title, caption, keys, color) {
+  const multiples = document.createElement('div');
+  multiples.className = 'multiples';
+  multiples.style.setProperty('--multiples-color', color);
+
+  const header = document.createElement('div');
+  header.className = 'multiples-header';
+  appendSpans(header, [['multiples-title', title], ['multiples-caption', caption]]);
+  multiples.appendChild(header);
+
+  const legend = document.createElement('div');
+  legend.className = 'multiples-keys';
+  keys.forEach(([name, isDashed]) => {
+    appendSpans(legend, [[`multiples-key${isDashed ? ' multiples-key-dashed' : ''}`, name]]);
+  });
+  multiples.appendChild(legend);
+
+  const grid = document.createElement('div');
+  grid.className = 'multiples-grid';
+  multiples.appendChild(grid);
+
+  return multiples;
+}
+
+function createMultiple(name, value) {
+  const cell = document.createElement('div');
+  cell.className = 'multiple';
+  const header = document.createElement('div');
+  header.className = 'multiple-header';
+  appendSpans(header, [['multiple-name', name], ['multiple-value', value]]);
+  cell.appendChild(header);
+  return cell;
 }
 
 function createDayPicker(dayButtons, stepSelection) {
@@ -117,12 +224,14 @@ document.addEventListener('DOMContentLoaded', () => {
       noZoom: true,
     });
 
-    // Solid, dashed and dotted datasets of one hue, a limit line in a colour per skin and day labels read in UTC
+    // Solid, dashed and dotted datasets of one hue, a limit line in a colour per skin, day labels read in UTC and the
+    // days still to come hatched under the steps, from a dashed edge
     const steps = data[7];
     const [standard, premium] = steps.datasets;
     const planColor = '#3497ED';
     const trialLevels = [350, 500, 250, 600, 450, 300];
     const trialLevelDays = 5;
+    const plannedDays = 5;
     new LovelyChart(container, {
       ...steps,
       title: 'Lovely Steps with a Limit',
@@ -137,6 +246,12 @@ document.addEventListener('DOMContentLoaded', () => {
         },
       ],
       referenceLines: [{ value: 1500, label: 'Limit', color: { light: '#E65850', dark: '#F07068' } }],
+      hatchedRanges: [{
+        from: steps.labels.length - plannedDays,
+        to: steps.labels.length - 1,
+        label: 'Planned',
+        hasEdge: true,
+      }],
       isUtc: true,
     });
 
@@ -203,8 +318,16 @@ document.addEventListener('DOMContentLoaded', () => {
         color: { light: '#108BE3', dark: '#48AAF0' },
         note: 'Forecast',
       }],
-      // A promotion that started halfway through a day
-      eventLines: [{ labelIndex: forecastPromoDay, offset: 0.5, label: 'Promo', isDashed: true }],
+      // A promotion that started halfway through a day, pinned by a head over the axis labels, with a note under the
+      // tooltip rows of its day
+      eventLines: [{
+        labelIndex: forecastPromoDay,
+        offset: 0.5,
+        label: 'Promo',
+        isDashed: true,
+        withHead: true,
+        hint: 'Promo from noon:\n20% off for a week',
+      }],
     });
 
     // The last week of the bars as a list whose rows select their day in the chart on hover and focus, and buttons
@@ -216,7 +339,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const barLabels = bars.labels.slice(-barDays);
     const barKiwi = bars.datasets[4];
     const barValues = barKiwi.values.slice(-barDays);
-    const formatValue = (value) => value.toLocaleString('en-US');
     let lastSelectedIndex;
     const dayButtons = barLabels.slice(-listedDays).map((label, i) => {
       const index = barDays - listedDays + i;
@@ -224,13 +346,9 @@ document.addEventListener('DOMContentLoaded', () => {
       button.type = 'button';
       button.className = 'day-picker-day';
       button.dataset.index = String(index);
-      [['day-picker-date', formatListDate(label)], ['day-picker-value', formatValue(barValues[index])]]
-        .forEach(([className, text]) => {
-          const span = document.createElement('span');
-          span.className = className;
-          span.textContent = text;
-          button.appendChild(span);
-        });
+      appendSpans(button, [
+        ['day-picker-date', formatListDate(label)], ['day-picker-value', formatValue(barValues[index])],
+      ]);
       button.addEventListener('mouseenter', () => pickerChart.selectLabel(index));
       button.addEventListener('focus', () => pickerChart.selectLabel(index));
       return button;
@@ -280,11 +398,13 @@ document.addEventListener('DOMContentLoaded', () => {
       isTooltipTotalInTitle: true,
     });
 
-    // The monthly spending under a budget for each half of the year, drawn as dashed steps over the stack of bars. The
-    // budget stays out of the stack, the Total row of the tooltip and the shares of a zoomed month.
+    // The monthly spending under a budget for each half of the year, drawn as dashed steps over the stack of bars, with
+    // the last two months estimated, hatched over the bars and under the steps. The budget stays out of the stack, the
+    // Total row of the tooltip and the shares of a zoomed month.
     const spending = data[8];
     const halfYearBudgets = [2800, 3000];
     const monthsInHalfYear = 6;
+    const estimatedMonths = 2;
     new LovelyChart(container, {
       ...spending,
       title: 'Lovely Spending against a Budget',
@@ -298,6 +418,151 @@ document.addEventListener('DOMContentLoaded', () => {
           isDashed: true,
         },
       ],
+      hatchedRanges: [{
+        from: spending.labels.length - estimatedMonths,
+        to: spending.labels.length - 1,
+        label: 'Estimated',
+      }],
+    });
+
+    // A month of three fruits stacked by day, beside the share of apples in them, a line on a Y axis of its own at the
+    // right. The share stays out of the stack and the Total row of the tooltip.
+    const stackDays = 30;
+    const stackColors = ['#E65850', '#F79E39', '#F5BD25'];
+    const stackDatasets = fruits.datasets.slice(0, stackColors.length).map(({ name, values }, i) => ({
+      name, color: stackColors[i], values: values.slice(-stackDays),
+    }));
+    new LovelyChart(container, {
+      title: 'Lovely Bars on Two Axes',
+      type: 'bar',
+      isStacked: true,
+      hasSecondYAxis: true,
+      labels: fruits.labels.slice(-stackDays),
+      datasets: [
+        ...stackDatasets,
+        {
+          name: 'Apples, %',
+          type: 'line',
+          color: '#2373DB',
+          values: stackDatasets[0].values.map((apples, i) => {
+            const total = stackDatasets.reduce((sum, { values }) => sum + values[i], 0);
+            return Math.round((apples / total) * 1000) / 10;
+          }),
+        },
+      ],
+      formatTooltipValue: formatValue,
+      areLabelsContrast: true,
+    });
+
+    // A readout of the page in place of the tooltip balloon, which `--lovely-chart-balloon-display` hides: it shows
+    // the `TooltipContent` that `onTooltipChange` reports for a day the pointer, a touch or the arrow keys on the
+    // focused plot select. The bars take the accent of the page and its mixes with the page background, `var()` and
+    // `color-mix()` colours that follow the skin, as the swatches of the readout do.
+    const readoutDays = 14;
+    const readoutColors = [
+      'var(--page-accent)',
+      'color-mix(in srgb, var(--page-accent) 60%, var(--page-background))',
+      'color-mix(in srgb, var(--page-accent) 30%, var(--page-background))',
+    ];
+    const readoutFruits = bars.datasets.slice(0, readoutColors.length);
+    const readoutElement = document.createElement('div');
+    readoutElement.className = 'readout-chart';
+    container.appendChild(readoutElement);
+    const readout = document.createElement('div');
+    readout.className = 'readout';
+    new LovelyChart(readoutElement, {
+      title: 'Lovely Readout',
+      type: 'bar',
+      isStacked: true,
+      labels: bars.labels.slice(-readoutDays),
+      datasets: readoutFruits.map(({ name, values }, i) => ({
+        name, color: readoutColors[i], values: values.slice(-readoutDays),
+      })),
+      comparison: {
+        name: 'Two weeks before',
+        values: readoutFruits.map(({ values }) => values.slice(-readoutDays * 2, -readoutDays)),
+      },
+      isKeyboardSelectable: true,
+      onTooltipChange: (tooltip) => renderReadout(readout, tooltip, readoutColors),
+    });
+    readoutElement.appendChild(readout);
+    renderReadout(readout, undefined, readoutColors);
+
+    // A chart in place before its data arrives: a skeleton in its own geometry, in a `--skeleton-color` the page sets
+    // for each skin, until `update()` brings the data. The button loads the data again.
+    const skeletonParams = { title: 'Lovely Loading Lines', type: 'line', withMinimap: true };
+    const skeletonData = {
+      ...skeletonParams,
+      labels: [],
+      datasets: lines.datasets.map(({ name, color }) => ({ name, color, values: [] })),
+      isLoading: true,
+    };
+    const skeletonElement = document.createElement('div');
+    skeletonElement.className = 'skeleton-chart';
+    container.appendChild(skeletonElement);
+    const skeletonChart = new LovelyChart(skeletonElement, skeletonData);
+    const reloadButton = document.createElement('button');
+    reloadButton.type = 'button';
+    reloadButton.className = 'reload-button';
+    skeletonElement.appendChild(reloadButton);
+    // A load that fails leaves the skeleton, and the button to try again
+    const loadLines = async () => {
+      reloadButton.disabled = true;
+      reloadButton.textContent = 'Loading…';
+      try {
+        const [{ labels, datasets }] = await Promise.all([
+          fetchJson('./data/lines.json'),
+          new Promise((resolve) => setTimeout(resolve, MIN_LOADING_TIME)),
+        ]);
+        skeletonChart.update({ ...skeletonParams, labels, datasets });
+      } finally {
+        reloadButton.disabled = false;
+        reloadButton.textContent = 'Reload the data';
+      }
+    };
+    reloadButton.addEventListener('click', () => {
+      skeletonChart.update(skeletonData);
+      loadLines();
+    });
+    loadLines();
+
+    // Small multiples of four fruits, the last four weeks of each against the four before, as the axes and the plot
+    // alone: `noHeader` leaves out the band of the title, `noTooltip` the hover layer and a `legendContainer` left out
+    // of the document the legend. The page titles each chart with its latest value and draws one key for all.
+    const multipleDays = 28;
+    const multipleColor = '#3497ED';
+    const multipleLabels = fruits.labels.slice(-multipleDays);
+    const multiples = createMultiples(
+      'Lovely Small Multiples',
+      formatCaptionRange(multipleLabels[0], multipleLabels[multipleDays - 1]),
+      [['Last 4 weeks', false], ['The 4 weeks before', true]],
+      multipleColor,
+    );
+    container.appendChild(multiples);
+    fruits.datasets.slice(0, 4).forEach(({ name, values }) => {
+      const recent = values.slice(-multipleDays);
+      const cell = createMultiple(name, formatValue(recent[multipleDays - 1]));
+      multiples.querySelector('.multiples-grid').appendChild(cell);
+      new LovelyChart(cell, {
+        type: 'line',
+        labels: multipleLabels,
+        datasets: [
+          { name: 'Last 4 weeks', color: multipleColor, values: recent },
+          {
+            name: 'The 4 weeks before',
+            color: multipleColor,
+            values: values.slice(-multipleDays * 2, -multipleDays),
+            isDashed: true,
+          },
+        ],
+        ariaLabel: `${name}, the last 4 weeks against the 4 before`,
+        plotHeight: 120,
+        isUtc: true,
+        areLabelsContrast: true,
+        noHeader: true,
+        noTooltip: true,
+        legendContainer: document.createElement('div'),
+      });
     });
   })();
 

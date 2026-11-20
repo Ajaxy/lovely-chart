@@ -18,7 +18,7 @@ import { chromium } from 'playwright-core';
 import { buildWideFont, WIDE_FONT_FAMILY } from './wideFont.js';
 
 // Demo charts rendered by docs/app.js
-const EXPECTED_CHARTS = 17;
+const EXPECTED_CHARTS = 24;
 const COMPARISON_CHART = 9;
 const LIMIT_CHART = 10;
 const SPARKLINE_CHART = 11;
@@ -26,6 +26,8 @@ const SMOOTH_CHART = 12;
 const FORECAST_CHART = 13;
 const DAY_PICKER_CHART = 14;
 const RTL_CHART = 15;
+const SPENDING_CHART = 16;
+const TWO_AXES_CHART = 17;
 // The datasets of the smooth demo chart, the last of which starts hidden, and its axis labels in each skin
 const SMOOTH_COLORS = ['#E65850', '#F79E39', '#5FB641'];
 const SMOOTH_AXIS_FONT_SIZE = 12;
@@ -105,11 +107,55 @@ const PIN_HEAD_RADIUS = 4;
 const PIN_RING_WIDTH = 1.5;
 const PIN_HEAD_TOLERANCE = 1;
 const PIN_ROW_REACH = 10;
+// The lines of the note the demo forecast pins to its promotion, the opacity of the axis text colour of its pin, whose
+// head paints over a ring of the chart background in each skin, and how far a channel of the head may stand from that
+const FORECAST_PROMO_HINT = ['Promo from noon:', '20% off for a week'];
+const AXIS_TEXT_OPACITY = 0.6;
+const CHART_BACKGROUNDS = { day: '#FFFFFF', night: '#242F3E' };
+const PIN_HEAD_COLOR_TOLERANCE = 16;
 // A pixel of the probes' magenta with nothing over it, and any pixel the canvas paints, a faded label's included
 const PURE_MAGENTA_PIXEL = { red: [245, 255], green: [0, 10], blue: [245, 255], alpha: [250, 255] };
 const PAINTED_PIXEL = { red: [0, 255], green: [0, 255], blue: [0, 255], alpha: [10, 255] };
 // The width of a small phone, which the demo page fits
 const PHONE_WIDTH = 375;
+// The planned days of the demo steps, the last 5 of 30, hatched under the steps from a dashed edge, the estimated
+// months of the demo spending, the last 2 of 12, hatched over the bars, and the opacity of the stripes in each case
+const LIMIT_DAYS = 30;
+const PLANNED_DAYS = 5;
+const SPENDING_MONTHS = 12;
+const ESTIMATED_MONTHS = 2;
+const UNDER_LINES_HATCH_OPACITY = 0.14;
+const OVER_FILLS_HATCH_OPACITY = 0.28;
+// How far a stripe of a hatch may stand from 45°, in px over its run
+const STRIPE_SLOPE_TOLERANCE = 0.01;
+// The colour of the share of apples beside the demo stack of fruits, on a Y axis of its own, that of the apples at the
+// bottom of the stack, and how many times the pixels of the line the bars of the apples outnumber at the least
+const TWO_AXES_SHARE_COLOR = '#2373DB';
+const TWO_AXES_APPLES_COLOR = '#E65850';
+const MIN_BARS_PER_LINE_PIXEL = 10;
+// The accent and the background of the demo page in each skin, which the readout chart takes through `var()` for its
+// datasets in full and in two `color-mix()`es with the background, and how far a channel of a mix may stand from it
+const PAGE_ACCENTS = { night: '#48AAF0', day: '#108BE3' };
+const PAGE_BACKGROUNDS = { night: '#242F3E', day: '#FFFFFF' };
+const READOUT_ACCENT_SHARES = [1, 0.6, 0.3];
+const MIX_TOLERANCE = 3;
+// The least time the demo takes to load the data of its skeleton chart, the skeleton colour the page sets for it in
+// each skin, the alpha of each over a clear canvas and the colour of the first line its data draws
+const MIN_LOADING_TIME = 1500;
+const SKELETON_TINTS = {
+  night: { css: 'rgba(72,170,240,0.16)', hex: '#48AAF0', alpha: [30, 52] },
+  day: { css: 'rgba(16,139,227,0.12)', hex: '#108BE3', alpha: [20, 42] },
+};
+const LOADED_LINE_COLOR = '#78D94B';
+// The share of the plot canvas a skeleton covers at the least: the data area, short of the X-axis labels and the
+// gutters
+const MIN_SKELETON_COVER = 0.6;
+// The fruits of the demo small multiples, the colour of their lines, the space the page sets over each plot, which no
+// header band pushes down, and the least width of each on a phone
+const MULTIPLE_FRUITS = ['Apples', 'Oranges', 'Lemons', 'Apricots'];
+const MULTIPLE_PLOT_MARGIN_TOP = 4;
+const MULTIPLE_COLOR = '#3497ED';
+const MIN_PHONE_MULTIPLE_WIDTH = 140;
 
 const ROOT = path.join(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
@@ -7512,7 +7558,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await hoverWiggle(page, notesForecastPlot, 0.3, 0.5);
   const actualDayNotes = await readForecastNotes();
   await page.mouse.move(5, 5);
-  check('the demo forecast notes its forecast days in the tooltip, and its actual days not',
+  check('the demo forecast notes its forecast days in the tooltip, and an actual day away from the promotion not',
     JSON.stringify(forecastDayNotes) === '["Forecast"]' && actualDayNotes.length === 0,
     JSON.stringify({ forecastDayNotes, actualDayNotes }));
 
@@ -8043,6 +8089,55 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('the pointer over the demo forecast badge reaches the tooltip', forecastBalloon.isShown,
     JSON.stringify(forecastBalloon));
 
+  // --- Planned days hatched under steps from a dashed edge, and estimated months over bars (demo charts) ---
+  // What a chart draws through a change of skin: the texts, the stripes of its hatch, which rise at 45° from the bottom
+  // of the plot, and the vertical rules, which a hatch edge alone draws as a path of its own, with the start and the
+  // width of the plot area in the canvas, the plot keeping a gutter on either side
+  const readDemoHatch = async (chart) => {
+    await chart.scrollIntoViewIfNeeded();
+    await startCanvasRecording(chart);
+    await switchSkinAndBack(page);
+    const { texts, paths } = await stopCanvasRecording(page);
+    const segments = paths.flat().filter(({ to }) => to);
+    const canvasWidth = await chart.evaluate((el) => el.querySelector('canvas').clientWidth);
+    return {
+      texts,
+      stripes: segments.filter(({ from, to }) => to[0] > from[0]
+        && Math.abs((to[0] - from[0]) - (from[1] - to[1])) <= STRIPE_SLOPE_TOLERANCE),
+      edges: [...new Set(segments.filter(({ from, to }) => from[0] === to[0]).map(({ from }) => from[0]))],
+      areaLeft: GUTTER,
+      areaWidth: canvasWidth - GUTTER * 2,
+    };
+  };
+  const formatHatch = ({ texts, stripes, edges }, label) => JSON.stringify({
+    labels: texts.filter(({ text }) => text === label).map(({ x, color }) => ({ x: Number(x.toFixed(1)), color })),
+    stripes: stripes.length,
+    alphas: [...new Set(stripes.map(({ alpha }) => alpha))],
+    edges: edges.map((x) => Number(x.toFixed(1))),
+  });
+  const isLabelledInSkins = (labels) => Object.values(AXIS_TEXT_COLORS)
+    .every((hex) => labels.some(({ color }) => isTextColor(color, hex)));
+  const stepsHatch = await readDemoHatch(limitChart);
+  const plannedStart = stepsHatch.areaLeft + (stepsHatch.areaWidth * (LIMIT_DAYS - PLANNED_DAYS)) / LIMIT_DAYS;
+  const plannedLabels = stepsHatch.texts.filter(({ text }) => text === 'Planned');
+  check('the demo steps hatch their planned days under the steps, from a dashed edge their label stands in from',
+    stepsHatch.stripes.length > 0
+    && stepsHatch.stripes.every(({ alpha }) => Math.abs(alpha - UNDER_LINES_HATCH_OPACITY) < 0.001)
+    && stepsHatch.edges.length === 1 && Math.abs(stepsHatch.edges[0] - plannedStart) <= PLOT_AREA_TOLERANCE
+    && plannedLabels.length > 0 && isLabelledInSkins(plannedLabels)
+    && plannedLabels.every(({ x }) => Math.abs(x - (stepsHatch.edges[0] + HATCH_LABEL_INSET)) <= 1),
+    `${formatHatch(stepsHatch, 'Planned')} for an edge at ${plannedStart.toFixed(1)}`);
+  const spendingHatch = await readDemoHatch(charts.nth(SPENDING_CHART));
+  const estimatedStart = spendingHatch.areaLeft
+    + (spendingHatch.areaWidth * (SPENDING_MONTHS - ESTIMATED_MONTHS)) / SPENDING_MONTHS;
+  const estimatedLabels = spendingHatch.texts.filter(({ text }) => text === 'Estimated');
+  check('the demo spending hatches its estimated months over the bars, labelled in from their start, with no edge',
+    spendingHatch.stripes.length > 0
+    && spendingHatch.stripes.every(({ alpha }) => Math.abs(alpha - OVER_FILLS_HATCH_OPACITY) < 0.001)
+    && spendingHatch.edges.length === 0 && estimatedLabels.length > 0 && isLabelledInSkins(estimatedLabels)
+    && estimatedLabels.every(({ x }) => Math.abs(x - (estimatedStart + HATCH_LABEL_INSET)) <= PLOT_AREA_TOLERANCE),
+    `${formatHatch(spendingHatch, 'Estimated')} for a start at ${estimatedStart.toFixed(1)}`);
+
   // --- Event lines: their place by chart kind and offset, the room above the Y range, their labels, their dashes,
   // their heads and hints, a pan and zooms ---
   const isRuleAt = (run, x) => Math.abs((run[0] + run[1]) / 2 - x) <= PLOT_AREA_TOLERANCE;
@@ -8117,6 +8212,51 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     promoRuns.length === 1 && isRuleAt(promoRuns[0], promoX)
     && Object.values(AXIS_TEXT_COLORS).every((hex) => promoLabels.some(({ color }) => isTextColor(color, hex))),
     `rules ${formatRuns(promoRuns)} for ${promoX.toFixed(1)}, labels ${JSON.stringify(promoLabels)}`);
+  // The demo forecast pins the promotion by a head over the axis labels at the top of the canvas, the translucent axis
+  // text colour of its rule over the opaque ring of the background, and notes it under the tooltip rows of its day
+  // alone
+  const promoHeadColor = parseHex(AXIS_TEXT_COLORS[forecastFit.skin]).map((channel, k) => (
+    channel * AXIS_TEXT_OPACITY + parseHex(CHART_BACKGROUNDS[forecastFit.skin])[k] * (1 - AXIS_TEXT_OPACITY)
+  ));
+  const promoHead = await forecastChart.evaluate((el, { x, rgb, radius, tolerance }) => {
+    const canvas = el.querySelector('canvas');
+    const scale = canvas.width / canvas.clientWidth;
+    const reach = Math.ceil((radius + 2) * scale);
+    const { data } = canvas.getContext('2d')
+      .getImageData(Math.round(x * scale) - reach, 0, reach * 2 + 1, Math.ceil(radius * 3 * scale));
+    let count = 0;
+    for (let j = 0; j < data.length; j += 4) {
+      if (data[j + 3] >= 200 && rgb.every((channel, k) => Math.abs(data[j + k] - channel) <= tolerance)) count++;
+    }
+    return { count, minCount: Math.round((Math.PI * (radius * scale) ** 2) / 2) };
+  }, {
+    x: forecastFit.areaInCanvas + promoX,
+    rgb: promoHeadColor,
+    radius: PIN_HEAD_RADIUS,
+    tolerance: PIN_HEAD_COLOR_TOLERANCE,
+  });
+  await forecastChart.scrollIntoViewIfNeeded();
+  const forecastHostBox = await page.locator('.forecast-chart').boundingBox();
+  const forecastAreaBox = {
+    x: forecastHostBox.x + forecastFit.area.left,
+    y: forecastHostBox.y + forecastFit.area.top,
+    width: forecastFit.area.right - forecastFit.area.left,
+    height: forecastFit.area.bottom - forecastFit.area.top,
+  };
+  const readDayNotes = async (labelIndex) => {
+    await hoverWiggle(page, forecastAreaBox, labelIndex / (FORECAST_DAYS - 1), 0.5);
+    return forecastChart.locator('.lovely-chart--tooltip-notes')
+      .evaluate((el) => [...el.children].map((line) => line.textContent));
+  };
+  const promoDayNotes = await readDayNotes(FORECAST_PROMO_DAY);
+  const otherDayNotes = [
+    await readDayNotes(FORECAST_PROMO_DAY - 1), await readDayNotes(FORECAST_PROMO_DAY + 1),
+  ];
+  await page.mouse.move(5, 5);
+  check('the demo forecast pins its promotion by a head over the axis labels, with a note under the rows of its day',
+    promoHead.count >= promoHead.minCount && JSON.stringify(promoDayNotes) === JSON.stringify(FORECAST_PROMO_HINT)
+    && otherDayNotes.every((notes) => notes.length === 0),
+    JSON.stringify({ promoHead, promoDayNotes, otherDayNotes }));
 
   // The texts the probe prints, with their colour and whether they read bottom to top
   await page.evaluate(() => {
@@ -8514,6 +8654,252 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     rtlXLabels.length > 0 && rtlXLabels.every((label) => /^\d+ ינו׳ rtl$/.test(label))
     && rtlDates.every(({ isRightToLeft }) => isRightToLeft),
     JSON.stringify({ rtlXLabels, rtlDates }));
+
+  // --- A stack beside a second Y axis (demo chart) ---
+  const twoAxesChart = charts.nth(TWO_AXES_CHART);
+  await twoAxesChart.scrollIntoViewIfNeeded();
+  await startCanvasRecording(twoAxesChart);
+  await switchSkinAndBack(page);
+  const twoAxesDrawing = await stopCanvasRecording(page);
+  const twoAxesWidth = await twoAxesChart.evaluate((el) => el.querySelector('canvas').clientWidth);
+  const shareAxisLabels = twoAxesDrawing.texts.filter(({ color }) => isTextColor(color, TWO_AXES_SHARE_COLOR));
+  const stackAxisLabels = twoAxesDrawing.texts.filter(({ text }) => /^\d+K$/.test(text));
+  check('the demo stack labels the axis of the share at the right in its colour, and its own in thousands at the left',
+    shareAxisLabels.length > 0 && shareAxisLabels.every(({ text, x }) => /^\d+$/.test(text) && x > twoAxesWidth / 2)
+    && stackAxisLabels.length > 0
+    && stackAxisLabels.every(({ color, x }) => !isTextColor(color, TWO_AXES_SHARE_COLOR) && x < twoAxesWidth / 2),
+    JSON.stringify({ shareAxisLabels: shareAxisLabels.slice(0, 4), stackAxisLabels: stackAxisLabels.slice(0, 4) }));
+  const twoAxesPaint = {
+    share: (await findColor(twoAxesChart, parseHex(TWO_AXES_SHARE_COLOR))).count,
+    apples: (await findColor(twoAxesChart, parseHex(TWO_AXES_APPLES_COLOR))).count,
+  };
+  check('the demo stack draws the share of apples as a line over the bars, by `datasets[*].type`',
+    twoAxesPaint.share > 0 && twoAxesPaint.apples > MIN_BARS_PER_LINE_PIXEL * twoAxesPaint.share,
+    JSON.stringify(twoAxesPaint));
+  await hoverWiggle(page, await twoAxesChart.locator('.lovely-chart--tooltip').boundingBox(), 0.5, 0.5);
+  const twoAxesRows = await twoAxesChart.locator('.lovely-chart--tooltip-balloon').evaluate((el) => (
+    [...el.querySelectorAll('.lovely-chart--tooltip-dataset[data-present="true"]')].map((row) => ({
+      name: row.firstElementChild.classList.contains('lovely-chart--tooltip-swatch')
+        ? row.querySelector('.lovely-chart--dataset-title').textContent
+        : row.firstElementChild.textContent,
+      value: Number(row.querySelector('.lovely-chart--tooltip-dataset-value').textContent.replace(/,/g, '')),
+    }))
+  ));
+  await page.mouse.move(5, 5);
+  const twoAxesValues = Object.fromEntries(twoAxesRows.map(({ name, value }) => [name, value]));
+  const fruitTotal = twoAxesValues.Apples + twoAxesValues.Oranges + twoAxesValues.Lemons;
+  check('the demo stack totals its three fruits alone, beside the share of apples in them',
+    twoAxesRows.length === 5 && twoAxesValues.Total === fruitTotal
+    && twoAxesValues['Apples, %'] === Math.round((twoAxesValues.Apples / fruitTotal) * 1000) / 10,
+    JSON.stringify(twoAxesRows));
+
+  // --- A readout of the page in place of the balloon, the bars and swatches in colours of the page (demo chart) ---
+  const readoutChart = page.locator('.readout-chart .lovely-chart--container');
+  const readoutLayer = readoutChart.locator('.lovely-chart--tooltip');
+  // The readout, the balloon, and the colours of the legend buttons and the readout
+  // swatches as the canvas paints them, `color-mix()` included
+  const readReadout = () => page.evaluate(() => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    const toRgb = (color) => {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    };
+    const host = document.querySelector('.readout-chart');
+    const readLine = (line) => line && [...line.children].map((part) => part.textContent);
+    const balloon = host.querySelector('.lovely-chart--tooltip-balloon');
+    return {
+      hint: host.querySelector('.readout-hint')?.textContent,
+      title: readLine(host.querySelector('.readout-title')),
+      rows: [...host.querySelectorAll('.readout-row')].map(readLine),
+      comparison: readLine(host.querySelector('.readout-comparison')),
+      tone: host.querySelector('.readout-change')?.dataset.tone,
+      balloonTitle: balloon.querySelector('.lovely-chart--tooltip-title').textContent.trim(),
+      isBalloonShown: balloon.classList.contains('lovely-chart--state-shown'),
+      balloonDisplay: getComputedStyle(balloon).display,
+      legend: [...host.querySelectorAll('.lovely-chart--button')]
+        .map((button) => toRgb(getComputedStyle(button).backgroundColor)),
+      swatches: [...host.querySelectorAll('.readout-swatch')]
+        .map((swatch) => toRgb(getComputedStyle(swatch).backgroundColor)),
+      skin: document.documentElement.classList.contains('theme-dark') ? 'night' : 'day',
+    };
+  });
+  const getReadoutColors = (skin) => {
+    const accent = parseHex(PAGE_ACCENTS[skin]);
+    const background = parseHex(PAGE_BACKGROUNDS[skin]);
+    return READOUT_ACCENT_SHARES.map((share) => accent.map((channel, k) => (
+      Math.round(channel * share + background[k] * (1 - share))
+    )));
+  };
+  const areColorsNear = (colors, expected) => colors.length === expected.length
+    && colors.every((color, i) => color.every((channel, k) => Math.abs(channel - expected[i][k]) <= MIX_TOLERANCE));
+  const parseReadoutNumber = (text = '') => Number(text.replace(/,/g, ''));
+  await readoutChart.scrollIntoViewIfNeeded();
+  const idleReadout = await readReadout();
+  const readoutBox = await readoutLayer.boundingBox();
+  await hoverWiggle(page, readoutBox, 0.5, 0.5);
+  const hoveredReadout = await readReadout();
+  await page.mouse.move(5, 5);
+  await sleep(300);
+  const leftReadout = await readReadout();
+  const nightAccentBars = await findColor(readoutChart, parseHex(PAGE_ACCENTS.night), [0, 1], 6);
+  const readoutSum = hoveredReadout.rows.reduce((sum, [, value]) => sum + parseReadoutNumber(value), 0);
+  const readoutTotal = parseReadoutNumber(hoveredReadout.title?.[1]);
+  const [previousText, changeText = ''] = (hoveredReadout.comparison?.[1] ?? '').split(' ');
+  const previousTotal = parseReadoutNumber(previousText);
+  const readoutChange = Number(changeText.replace('−', '-').replace('%', ''));
+  check('the demo reads the selected day out on the page in place of the hidden balloon, and a hint while none is',
+    idleReadout.hint !== undefined && leftReadout.hint !== undefined && hoveredReadout.hint === undefined
+    && hoveredReadout.isBalloonShown && hoveredReadout.balloonDisplay === 'none'
+    && hoveredReadout.title?.[0] === hoveredReadout.balloonTitle
+    && JSON.stringify(hoveredReadout.rows.map(([name]) => name)) === '["Apples","Oranges","Lemons"]'
+    && readoutTotal === readoutSum && hoveredReadout.comparison?.[0] === 'Two weeks before'
+    && Math.abs(readoutChange - ((readoutTotal - previousTotal) / previousTotal) * 100) < 0.06
+    && hoveredReadout.tone === (readoutChange < 0 ? 'negative' : 'positive'),
+    JSON.stringify({ idleReadout: idleReadout.hint, hoveredReadout, leftReadout: leftReadout.hint }));
+
+  // The arrow keys step the selection of the focused plot, and a dataset hidden in the legend leaves the readout
+  await readoutLayer.focus();
+  await page.keyboard.press('End');
+  await sleep(300);
+  const lastDayReadout = await readReadout();
+  await page.keyboard.press('ArrowLeft');
+  await sleep(300);
+  const steppedReadout = await readReadout();
+  const lemonsButton = readoutChart.locator('.lovely-chart--button').last();
+  await lemonsButton.focus();
+  await page.keyboard.press('Enter');
+  await sleep(600);
+  const filteredReadout = await readReadout();
+  await page.keyboard.press('Enter');
+  await sleep(600);
+  await page.mouse.move(5, 5);
+  check('the demo readout follows the keys on the focused plot, and leaves out a dataset hidden in the legend',
+    lastDayReadout.title?.[0] === lastDayReadout.balloonTitle
+    && steppedReadout.title?.[0] === steppedReadout.balloonTitle
+    && steppedReadout.title[0] !== lastDayReadout.title[0]
+    && JSON.stringify(filteredReadout.rows?.map(([name]) => name)) === '["Apples","Oranges"]',
+    JSON.stringify({ lastDayReadout, steppedReadout, filteredReadout }));
+
+  // The colours of the page's variables follow its skin, on the canvas, the legend and the readout alike
+  let dayReadout;
+  let dayAccentBars;
+  let dayNightAccentBars;
+  await switchSkinAndBack(page, async () => {
+    await hoverWiggle(page, readoutBox, 0.5, 0.5);
+    dayReadout = await readReadout();
+    await page.mouse.move(5, 5);
+    await sleep(300);
+    dayAccentBars = await findColor(readoutChart, parseHex(PAGE_ACCENTS.day), [0, 1], 6);
+    dayNightAccentBars = await findColor(readoutChart, parseHex(PAGE_ACCENTS.night), [0, 1], 6);
+  });
+  check('the demo readout chart takes its colours from variables of the page, `var()` and `color-mix()`, in each skin',
+    hoveredReadout.skin === 'night' && dayReadout.skin === 'day'
+    && areColorsNear(hoveredReadout.legend, getReadoutColors('night'))
+    && areColorsNear(hoveredReadout.swatches, getReadoutColors('night'))
+    && areColorsNear(dayReadout.legend, getReadoutColors('day'))
+    && areColorsNear(dayReadout.swatches, getReadoutColors('day'))
+    && nightAccentBars.count > 1000 && dayAccentBars.count > 1000 && dayNightAccentBars.count < 50,
+    JSON.stringify({
+      night: hoveredReadout.legend, nightSwatches: hoveredReadout.swatches, day: dayReadout.legend,
+      daySwatches: dayReadout.swatches, bars: [nightAccentBars.count, dayAccentBars.count, dayNightAccentBars.count],
+    }));
+
+  // --- A skeleton while the data loads, and a reload that shows it again (demo chart) ---
+  const skeletonChart = page.locator('.skeleton-chart .lovely-chart--container');
+  const reloadButton = page.locator('.reload-button');
+  const readSkeleton = () => page.evaluate(() => {
+    const host = document.querySelector('.skeleton-chart');
+    const chart = host.querySelector('.lovely-chart--container');
+    const button = host.querySelector('.reload-button');
+    return {
+      isSkeleton: chart.classList.contains('lovely-chart--state-skeleton'),
+      isInert: chart.inert,
+      color: getComputedStyle(chart).getPropertyValue('--skeleton-color').replace(/\s/g, ''),
+      pills: chart.querySelectorAll('.lovely-chart--tools .lovely-chart--button').length,
+      button: [button.disabled, button.textContent],
+      skin: document.documentElement.classList.contains('theme-dark') ? 'night' : 'day',
+    };
+  });
+  // The share of the plot canvas the skeleton tint of the skin covers
+  const readSkeletonCover = (skin) => skeletonChart.evaluate((el, [{ red, green, blue, alpha }]) => {
+    const canvas = el.querySelector(':scope > canvas');
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    let count = 0;
+    for (let j = 0; j < data.length; j += 4) {
+      if ([red, green, blue, alpha].every(([min, max], k) => data[j + k] >= min && data[j + k] <= max)) count++;
+    }
+    return count / (canvas.width * canvas.height);
+  }, [getColorBounds(SKELETON_TINTS[skin].hex, SKELETON_TINTS[skin].alpha, HATCH_COLOR_TOLERANCE)]);
+  // A reload shows the skeleton at once, and the data once it arrives
+  const reloadSkeleton = async () => {
+    await reloadButton.click();
+    await sleep(200);
+    const loading = await readSkeleton();
+    loading.cover = await readSkeletonCover(loading.skin);
+    await sleep(MIN_LOADING_TIME + 800);
+    const loaded = await readSkeleton();
+    loaded.lines = (await findColor(skeletonChart, parseHex(LOADED_LINE_COLOR))).count;
+    return { loading, loaded };
+  };
+  const isSkeletonShown = ({ isSkeleton, isInert, color, pills, button, skin, cover }) => isSkeleton && isInert
+    && color === SKELETON_TINTS[skin].css && pills === 3 && button[0] && button[1] === 'Loading…'
+    && cover >= MIN_SKELETON_COVER;
+  const isDataShown = ({ isSkeleton, isInert, button, lines }) => !isSkeleton && !isInert && !button[0]
+    && button[1] === 'Reload the data' && lines > 100;
+  await skeletonChart.scrollIntoViewIfNeeded();
+  const firstLoaded = await readSkeleton();
+  firstLoaded.lines = (await findColor(skeletonChart, parseHex(LOADED_LINE_COLOR))).count;
+  const nightReload = await reloadSkeleton();
+  let dayReload;
+  await switchSkinAndBack(page, async () => {
+    dayReload = await reloadSkeleton();
+  });
+  check('the demo skeleton chart shows its data once it loads, and the skeleton in the tint of each skin on a reload',
+    isDataShown(firstLoaded) && isSkeletonShown(nightReload.loading) && isDataShown(nightReload.loaded)
+    && isSkeletonShown(dayReload.loading) && isDataShown(dayReload.loaded),
+    JSON.stringify({ firstLoaded, nightReload, dayReload }));
+
+  // --- Small multiples: the axes and the plot alone, titled and keyed by the page (demo charts) ---
+  await page.locator('.multiples').scrollIntoViewIfNeeded();
+  const multiples = await page.locator('.multiples').evaluate(async (el) => {
+    const { datasets } = await (await fetch('./data/areas-absolute.json')).json();
+    return {
+      names: [...el.querySelectorAll('.multiple-name')].map((name) => name.textContent),
+      values: [...el.querySelectorAll('.multiple-value')].map((value) => value.textContent),
+      latest: datasets.map(({ values }) => values.at(-1).toLocaleString('en-US')),
+      legends: el.querySelectorAll('.lovely-chart--tools').length,
+      charts: [...el.querySelectorAll('.lovely-chart--container')].map((chart) => {
+        const box = chart.getBoundingClientRect();
+        return {
+          isWithoutHeader: chart.classList.contains('lovely-chart--container-no-header'),
+          plotTop: chart.querySelector(':scope > canvas').getBoundingClientRect().top - box.top,
+          hasTooltip: Boolean(chart.querySelector('.lovely-chart--tooltip')),
+          label: chart.querySelector('[role="img"]').getAttribute('aria-label'),
+        };
+      }),
+    };
+  });
+  const multipleLines = [];
+  for (let i = 0; i < multiples.charts.length; i++) {
+    multipleLines.push((await findColor(
+      page.locator('.multiples .lovely-chart--container').nth(i), parseHex(MULTIPLE_COLOR),
+    )).count);
+  }
+  check('the demo multiples draw the plot alone, from the top of each chart, with no header, tooltip or legend',
+    multiples.charts.length === MULTIPLE_FRUITS.length && multiples.legends === 0
+    && multiples.charts.every(({ isWithoutHeader, plotTop, hasTooltip }) => isWithoutHeader && !hasTooltip
+      && Math.abs(plotTop - MULTIPLE_PLOT_MARGIN_TOP) <= 1)
+    && multipleLines.every((count) => count > 100),
+    JSON.stringify({ charts: multiples.charts, legends: multiples.legends, multipleLines }));
+  check('the page titles each demo multiple with its latest value, and names its plot',
+    JSON.stringify(multiples.names) === JSON.stringify(MULTIPLE_FRUITS)
+    && JSON.stringify(multiples.values) === JSON.stringify(multiples.latest.slice(0, MULTIPLE_FRUITS.length))
+    && multiples.charts.every(({ label }, i) => label.startsWith(`${MULTIPLE_FRUITS[i]}, `)),
+    JSON.stringify({
+      names: multiples.names, values: multiples.values, labels: multiples.charts.map(({ label }) => label),
+    }));
 
   // --- Selection, legend callbacks and the plot height property ---
   await page.evaluate(() => {
@@ -11236,6 +11622,17 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   }));
   check('the demo page fits a phone without scrolling sideways', phoneWidths.scroll <= phoneWidths.client,
     JSON.stringify(phoneWidths));
+  const phoneMultiples = await page.locator('.multiples .lovely-chart--container').evaluateAll((elements) => (
+    elements.map((el) => {
+      const { left, top, width } = el.getBoundingClientRect();
+      return { left: Math.round(left), top: Math.round(top), width: Math.round(width) };
+    })
+  ));
+  check('the demo multiples stand two to a row on a phone',
+    phoneMultiples.length === MULTIPLE_FRUITS.length && phoneMultiples[0].top === phoneMultiples[1].top
+    && phoneMultiples[2].top === phoneMultiples[3].top && phoneMultiples[2].top > phoneMultiples[0].top
+    && phoneMultiples.every(({ width }) => width >= MIN_PHONE_MULTIPLE_WIDTH),
+    JSON.stringify(phoneMultiples));
   // A change of skin redraws the plot the resize rebuilt
   await forecastChart.scrollIntoViewIfNeeded();
   await startCanvasRecording(forecastChart);
