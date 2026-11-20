@@ -7,7 +7,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # The newest Ubuntu the locked playwright-core installs its headless shell on, to move with a bump of it
+    runs-on: ubuntu-24.04
+    # A hung run ends the job in place of the default of six hours
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,5 +18,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # The headless shell of the Chromium the locked playwright-core pins, the browser the e2e test runs in
+      - run: npx playwright-core install --with-deps --only-shell chromium
       - run: npm test
