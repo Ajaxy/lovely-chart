@@ -4,6 +4,26 @@
   left: 0;
 }
 
+// The band of a range a mouse selects across the plot, which the chart places over the Y range; the plot runs left to
+// right on a page in any direction
+.lovely-chart--range-selection {
+  pointer-events: none;
+
+  position: absolute;
+
+  display: none;
+
+  box-sizing: border-box;
+  border-right: 1px solid var(--range-selection-color);
+  border-left: 1px solid var(--range-selection-color);
+
+  background: color-mix(in srgb, var(--range-selection-color) 12%, transparent);
+
+  &.lovely-chart--state-shown {
+    display: block;
+  }
+}
+
 .lovely-chart--tooltip-balloon {
   pointer-events: none;
   cursor: var(--custom-cursor, pointer);

@@ -347,7 +347,8 @@ export interface LovelyChartParams {
   isTooltipTotalInTitle?: boolean;
   /**
    * Leaves out the hover layer, its line, dots and balloon, and the pointer handling of the plot: no pointer selects a
-   * label, focuses a bar or zooms in, and `selectLabel()` and `isKeyboardSelectable` are ignored.
+   * label or a range, focuses a bar or zooms in, and `selectLabel()`, `isKeyboardSelectable` and `isRangeSelectable`
+   * are ignored.
    */
   noTooltip?: boolean;
   /**
@@ -424,7 +425,8 @@ export interface LovelyChartParams {
   /**
    * Called after a frame that draws the labels at new x, at most once a frame, with the inclusive indexes of the labels
    * of the visible range, those `getLabelX()` maps, which gives where that frame drew each: on the first paint, through
-   * a pan or a resize of the minimap window and the range transition of a zoom, from the first frame of the data
+   * a pan or a resize of the minimap window, the transition to a range `isRangeSelectable` selects on the plot or shows
+   * whole, and the range transition of a zoom, from the first frame of the data
    * `onZoom` returns, indexing its labels, and on the first paint after `update()` or a resize, which a chart that
    * opens zoomed makes of its zoomed view. The visible range holds the labels whose point, or the centre of whose
    * column, lies in the window, or in a window too narrow to hold one, the labels of the points either side of it or
@@ -494,6 +496,16 @@ export interface LovelyChartParams {
   limitDate?: number;
   /** Called when the reader clicks the mask of `limitDate`, which lets the pointer through without it. */
   onLimitedRangeClick?: () => void;
+  /**
+   * Lets a mouse select the visible range on the plot: a press and a drag across it draw a band in
+   * `--range-selection-color` over the labels under it, and the release opens a window on those labels, as
+   * `minimapRange` sets one on them, through the transition of a minimap drag. A line or area chart with no bars or
+   * steps among its datasets takes two points at least, and the minimap keeps the window on the labels `limitDate`
+   * leaves open and no narrower than its ears leave one. A press that moves less than 4px across the plot is a click,
+   * Escape ends a drag with no change, and the click that ends a drag zooms into nothing. A double click on the plot shows the whole range again, on a chart that does not zoom in on a
+   * click. A touch keeps selecting a label. Ignored on pie and donut charts, while zoomed and with `noTooltip`.
+   */
+  isRangeSelectable?: boolean;
 }
 
 /** What `update()` keeps of the view the reader has, each part reset by default, and whether it animates the change. */
@@ -505,7 +517,8 @@ export interface LovelyChartUpdateOptions {
    */
   shouldKeepFilter?: boolean;
   /**
-   * Keeps the minimap window and a zoom while the labels are unchanged: a zoomed chart opens zoomed into the same label
+   * Keeps the window, of the minimap or of a range selected on the plot, and a zoom while the labels are unchanged: a
+   * zoomed chart opens zoomed into the same label
    * with no transition, as `initialZoom` opens it, `onZoom` called again for it. `onZoomChange` goes uncalled for a
    * zoom it already reported, is called with the label's value and index once a zoom on its way in shows, and with
    * `undefined` when the zoom ends: on other labels, on data that cannot zoom, or when the zoom fails.
@@ -581,6 +594,7 @@ export interface AnalyzedData {
   resolveTooltipTotal?: LovelyChartParams['resolveTooltipTotal'];
   resolveTooltipNotes?: LovelyChartParams['resolveTooltipNotes'];
   isKeyboardSelectable?: boolean;
+  isRangeSelectable: boolean;
   areLinesSmooth?: boolean;
   areaOpacity?: number;
   areaBorderColor?: LovelyChartParams['areaBorderColor'];

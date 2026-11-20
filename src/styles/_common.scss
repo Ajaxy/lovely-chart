@@ -13,6 +13,7 @@ $font-stack: '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
   --tooltip-change-positive: #48AAF0;
   --tooltip-change-negative: #F07068;
   --skeleton-color: #{rgba(#FFFFFF, 0.1)};
+  --range-selection-color: #48AAF0;
 }
 
 // The balloon covers the page's elements in the element holding the chart, and no z-index inside reaches the page
@@ -44,6 +45,7 @@ $font-stack: '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
   --tooltip-separator-color: var(--grid-lines);
   --tooltip-border: none;
   --skeleton-color: #{rgba(#182D3B, 0.1)};
+  --range-selection-color: #108BE3;
 
   -webkit-user-select: none;
   user-select: none;

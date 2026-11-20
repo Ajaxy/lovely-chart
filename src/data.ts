@@ -60,7 +60,8 @@ export function analyzeData(
     percentPrecision, secondaryYAxis, areLinesSmooth, areaOpacity, areaBorderColor,
     isUtc, colorScheme, referenceLines, hatchedRanges, eventLines, comparison,
     isTooltipOrderFixed, isTooltipTotalInTitle, formatTooltipValue, resolveTooltipTotal, resolveTooltipNotes,
-    isKeyboardSelectable, plotHeight, isSparkline, isLoading, noHeader, noTooltip, areLabelsContrast,
+    isKeyboardSelectable, isRangeSelectable, plotHeight, isSparkline, isLoading, noHeader, noTooltip,
+    areLabelsContrast,
     isYAxisOutward, noFloatSteps, axisFontSize, axisTextColor, backgroundColor,
     hasSecondYAxis, onZoom, noZoom, zoomType, zoomToShares, circleLabelsAround,
     withMinimap, minimapRange, noCaption, zoomOutLabel, noZoomOutControl,
@@ -171,6 +172,8 @@ export function analyzeData(
     resolveTooltipTotal,
     resolveTooltipNotes,
     isKeyboardSelectable,
+    // The hover layer takes the presses that select a range
+    isRangeSelectable: Boolean(isRangeSelectable) && !noTooltip,
     areLinesSmooth,
     areaOpacity,
     areaBorderColor,
@@ -278,7 +281,9 @@ function buildMinimapRange(
 // Columns, and a single label, take the slots of their labels. Points take half an interval past either end, within
 // the axis: the end points stay off the plot edges, and the edges of the window, half a label from any label, round to
 // the end labels whatever the float error.
-function buildLabelWindow({ from, to }: LabelRange, labelsCount: number, hasColumns: boolean): Range | undefined {
+export function buildLabelWindow(
+  { from, to }: LabelRange, labelsCount: number, hasColumns: boolean,
+): Range | undefined {
   if (!Number.isFinite(from) || !Number.isFinite(to)) return undefined;
 
   const first = Math.max(0, Math.round(from));

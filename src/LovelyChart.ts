@@ -6,6 +6,7 @@ import type {
 import { Axes } from './Axes.js';
 import { clearCanvas, setupCanvas } from './canvas.js';
 import {
+  FULL_RANGE,
   GUTTER,
   PLOT_HEIGHT,
   PLOT_LINE_WIDTH,
@@ -16,7 +17,7 @@ import {
   TRANSITION_DEFAULT_DURATION,
   X_AXIS_HEIGHT,
 } from './constants.js';
-import { analyzeData } from './data.js';
+import { analyzeData, buildLabelWindow } from './data.js';
 import { drawDatasets } from './drawDatasets.js';
 import { drawEventLineHeads, drawEventLineLabels, drawEventLines } from './drawEventLines.js';
 import { drawHatchedRangeLabels } from './drawHatchedRanges.js';
@@ -164,8 +165,8 @@ export default class LovelyChart {
   }
 
   /**
-   * Replaces the data and rebuilds the chart, which keeps a reference to `newData`. The zoom, the minimap window, the
-   * datasets the reader hid and the selection reset, unless `options` keeps them, and `isAnimated` cross-fades the
+   * Replaces the data and rebuilds the chart, which keeps a reference to `newData`. The zoom, the window, of the minimap
+   * or of a range selected on the plot, the datasets the reader hid and the selection reset, unless `options` keeps them, and `isAnimated` cross-fades the
    * chart into the new data.
    */
   update(newData: LovelyChartParams, options: LovelyChartUpdateOptions = {}) {
@@ -351,6 +352,7 @@ export default class LovelyChart {
       ? undefined
       : new Tooltip(
         this.#element!, this.#data, this.#plotSize!, this.#colors, this.#onZoomIn, this.#onFocus, this.#reportTooltip,
+        this.#onRangeSelect,
       );
     this.#tools = new Tools(
       this.#legendContainer ?? this.#element!, this.#data, this.#colors, this.#onFilterChange, nextSiblings?.legend,
@@ -688,6 +690,23 @@ export default class LovelyChart {
 
   readonly #onMinimapRangeChange = (range: Range) => {
     this.#stateManager!.update({ range });
+  };
+
+  // A range selected on the plot, or the whole axis, opens through the minimap when the chart has one, so its window
+  // and the plot show the same labels
+  readonly #onRangeSelect = (labelRange: LabelRange | undefined) => {
+    const range = labelRange
+      ? buildLabelWindow(labelRange, this.#data.xLabels.length, hasLabelColumns(this.#data))!
+      : FULL_RANGE;
+    if (this.#minimap) {
+      this.#minimap.setRange(range);
+      return;
+    }
+
+    const { begin, end } = this.#stateManager!.getRange();
+    if (range.begin !== begin || range.end !== end) {
+      this.#stateManager!.update({ range });
+    }
   };
 
   readonly #onFilterChange = (filter: Filter) => {

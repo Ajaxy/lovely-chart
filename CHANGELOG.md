@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `isRangeSelectable`: lets a mouse select the visible range on the plot. A drag across the plot draws a band over the Y range, and its release opens a window on the labels whose point, or the centre of whose column, the band holds, set on them as `minimapRange` sets one, through the transition of a minimap drag. A line or area chart with no bars or steps among its datasets takes two points at least. The minimap window follows the range, from the first label `limitDate` leaves open and no narrower than its ears leave one, and a chart without a minimap takes the range alike. A double click on the plot shows the whole range again, on a chart that does not zoom in on a click. A press that moves less than 4px across the plot stays a click, Escape ends a drag with no change, the click that ends a drag zooms into nothing, and a touch keeps selecting a label. `onRangeChange` reports each frame of the transition, and `update()` with `shouldKeepZoom` keeps the range. Ignored on pie and donut charts, while zoomed and with `noTooltip`.
+- `--range-selection-color`: the colour of the edges of that band, `.lovely-chart--range-selection`, and, at 12%, of its fill, one in each skin.
+
 ## 2.2.0
 
 ### Added

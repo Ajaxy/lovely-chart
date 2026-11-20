@@ -20,6 +20,10 @@ const TOTAL_TITLE = 'Total';
 const CIRCLE_RADIUS = 4;
 const CIRCLE_LINE_WIDTH = 2;
 const ARROW_KEY_STEPS: Record<string, number | undefined> = { ArrowLeft: -1, ArrowRight: 1 };
+// A press that moves less than this across the plot is a click, which selects no range
+const RANGE_SELECTION_THRESHOLD = 4;
+// How far a band edge may stop short of a label and still take it, for the float error of the pixels
+const LABEL_POSITION_TOLERANCE = 1e-6;
 
 export class Tooltip {
   readonly #container: HTMLElement;
@@ -29,6 +33,7 @@ export class Tooltip {
   readonly #onZoom: (labelIndex: number) => void;
   readonly #onFocus: (focusOn: FocusOn) => void;
   readonly #onContentChange: (content: TooltipContent | undefined) => void;
+  readonly #onRangeSelect: (labelRange: LabelRange | undefined) => void;
 
   #state?: ChartState;
   #points?: Point[][];
@@ -41,6 +46,8 @@ export class Tooltip {
   #context!: CanvasRenderingContext2D;
   #balloon!: HTMLElement;
   #notes!: HTMLElement;
+  #rangeSelection?: HTMLElement;
+  #layerPaddingTop = 0;
 
   #offsetX?: number;
   #offsetY?: number;
@@ -48,6 +55,14 @@ export class Tooltip {
   // The label `selectLabel()` selected: it follows its label through range changes, and only a pointer over the
   // chart or a call takes it back
   #calledLabelIndex?: number;
+
+  // Where a mouse pressed the plot, in px of the layer and of the viewport, until it releases
+  #rangePress?: { x: number; clientX: number; pointerId: number };
+  #isSelectingRange = false;
+  // The click that ends a drag across the plot selects and zooms into nothing
+  #shouldSkipClick = false;
+  // A double click of a mouse alone shows the whole range, as a double tap stays a touch
+  #lastPointerType?: string;
 
   #isZoomed = false;
   #isZooming = false;
@@ -81,6 +96,7 @@ export class Tooltip {
     onZoom: (labelIndex: number) => void,
     onFocus: (focusOn: FocusOn) => void,
     onContentChange: (content: TooltipContent | undefined) => void,
+    onRangeSelect: (labelRange: LabelRange | undefined) => void,
   ) {
     this.#container = container;
     this.#data = data;
@@ -89,6 +105,7 @@ export class Tooltip {
     this.#onZoom = onZoom;
     this.#onFocus = onFocus;
     this.#onContentChange = onContentChange;
+    this.#onRangeSelect = onRangeSelect;
 
     this.#setupLayout();
   }
@@ -186,12 +203,16 @@ export class Tooltip {
   // padding sets the hover canvas on the plot
   placeLayer(plotTop: number, plotMarginTop: number) {
     const paddingTop = Math.max(0, plotMarginTop);
+    this.#layerPaddingTop = paddingTop;
     this.#element.style.top = `${plotTop - paddingTop}px`;
     this.#element.style.paddingTop = `${paddingTop}px`;
   }
 
   destroy() {
     this.#isDestroyed = true;
+    if (this.#rangePress) {
+      this.#endRangeSelection();
+    }
     removeEventListener(document, this.#documentMoveEvent!, this.#onDocumentMove);
     this.#documentMoveEvent = undefined;
     this.#selectLabelOnRaf.cancel();
@@ -203,6 +224,9 @@ export class Tooltip {
     this.#element.className = `lovely-chart--tooltip`;
 
     this.#setupCanvas();
+    if (this.#data.isRangeSelectable) {
+      this.#setupRangeSelection();
+    }
     this.#setupBalloon();
 
     if ('ontouchstart' in window) {
@@ -234,6 +258,16 @@ export class Tooltip {
     this.#context = context;
   }
 
+  // The band sits under the balloon, and pointer events, which a mouse and a touch both fire, leave a touch as it is
+  #setupRangeSelection() {
+    this.#rangeSelection = createElement();
+    this.#rangeSelection.className = 'lovely-chart--range-selection';
+    this.#element.appendChild(this.#rangeSelection);
+
+    addEventListener(this.#element, 'pointerdown', this.#onPointerDown);
+    addEventListener(this.#element, 'dblclick', this.#onDoubleClick);
+  }
+
   #setupBalloon() {
     this.#balloon = createElement();
     this.#balloon.className = 'lovely-chart--tooltip-balloon';
@@ -255,7 +289,7 @@ export class Tooltip {
   }
 
   readonly #onMouseMove = (e: MouseEvent | TouchEvent) => {
-    if (e.target === this.#balloon || this.#balloon.contains(e.target as Node) || this.#clickedOnLabel !== undefined) {
+    if (this.#isInBalloon(e.target) || this.#clickedOnLabel !== undefined || this.#isSelectingRange) {
       return;
     }
 
@@ -295,6 +329,11 @@ export class Tooltip {
   };
 
   readonly #onClick = (e: MouseEvent) => {
+    if (this.#shouldSkipClick) {
+      this.#shouldSkipClick = false;
+      return;
+    }
+
     // A click before the first frame of the data finds no label under it
     if (this.#isZooming || !this.#data.isZoomable || !this.#state) {
       return;
@@ -325,6 +364,161 @@ export class Tooltip {
       this.#onZoom(labelIndex);
     }
   };
+
+  readonly #onPointerDown = (e: PointerEvent) => {
+    this.#lastPointerType = e.pointerType;
+    this.#shouldSkipClick = false;
+    if (
+      e.pointerType !== 'mouse' || e.button !== 0 || this.#rangePress || this.#isInBalloon(e.target)
+      || !this.#canSelectRange()
+    ) {
+      return;
+    }
+
+    this.#rangePress = {
+      x: e.clientX - this.#getPageOffset(this.#element).left,
+      clientX: e.clientX,
+      pointerId: e.pointerId,
+    };
+    addEventListener(document, 'pointermove', this.#onRangePointerMove, true);
+    addEventListener(document, 'pointerup', this.#onRangePointerUp, true);
+    addEventListener(document, 'pointercancel', this.#onRangePointerCancel, true);
+    addEventListener(document, 'contextmenu', this.#onRangeContextMenu, true);
+    addEventListener(document, 'keydown', this.#onRangeKeyDown, true);
+  };
+
+  readonly #onRangePointerMove = (e: PointerEvent) => {
+    const press = this.#rangePress!;
+    if (e.pointerId !== press.pointerId) {
+      return;
+    }
+
+    // A release the page never hears, as a context menu or another window takes it, leaves the main button up
+    if ((e.buttons & 1) === 0) {
+      this.#endRangeSelection();
+      return;
+    }
+
+    if (!this.#isSelectingRange) {
+      if (Math.abs(e.clientX - press.clientX) < RANGE_SELECTION_THRESHOLD) {
+        return;
+      }
+
+      this.#isSelectingRange = true;
+      this.#rangeSelection!.classList.add('lovely-chart--state-shown');
+      // The band takes the place of the hover, whose reports can update or destroy the chart
+      this.#clear();
+      if (!this.#rangePress) {
+        return;
+      }
+    }
+
+    this.#placeRangeSelection(press.x, e.clientX - this.#getPageOffset(this.#element).left);
+  };
+
+  readonly #onRangePointerUp = (e: PointerEvent) => {
+    const press = this.#rangePress!;
+    if (e.pointerId !== press.pointerId) {
+      return;
+    }
+
+    const isSelecting = this.#isSelectingRange;
+    const labelRange = isSelecting
+      ? this.#getLabelRangeBetween(press.x, e.clientX - this.#getPageOffset(this.#element).left)
+      : undefined;
+    this.#endRangeSelection();
+    if (!isSelecting) {
+      return;
+    }
+
+    this.#shouldSkipClick = true;
+    if (labelRange) {
+      this.#onRangeSelect(labelRange);
+    }
+  };
+
+  readonly #onRangePointerCancel = (e: PointerEvent) => {
+    if (e.pointerId === this.#rangePress!.pointerId) {
+      this.#endRangeSelection();
+    }
+  };
+
+  readonly #onRangeContextMenu = () => {
+    this.#endRangeSelection();
+  };
+
+  readonly #onRangeKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape' || !this.#isSelectingRange) {
+      return;
+    }
+
+    e.preventDefault();
+    this.#endRangeSelection();
+    this.#shouldSkipClick = true;
+  };
+
+  readonly #onDoubleClick = (e: MouseEvent) => {
+    // A chart that zooms in on a click zooms in on the first click of the two
+    if (
+      this.#lastPointerType !== 'mouse' || this.#data.isZoomable || this.#isInBalloon(e.target)
+      || !this.#canSelectRange()
+    ) {
+      return;
+    }
+
+    this.#onRangeSelect(undefined);
+  };
+
+  #canSelectRange(): boolean {
+    return this.#data.isRangeSelectable && Boolean(this.#state) && !this.#data.isCircle && !this.#isZoomed
+      && this.#data.xLabels.length > 1;
+  }
+
+  // The band runs from the press to the pointer across the plot the window draws, its gutters too, over the Y range
+  #placeRangeSelection(fromX: number, toX: number) {
+    const { top, height } = this.#projection!.getArea();
+    const start = this.#clampToWindow(Math.min(fromX, toX));
+    const end = this.#clampToWindow(Math.max(fromX, toX));
+    const { style } = this.#rangeSelection!;
+    style.left = `${start}px`;
+    style.top = `${this.#layerPaddingTop + top}px`;
+    style.width = `${end - start}px`;
+    style.height = `${height}px`;
+  }
+
+  // The labels of the visible range whose point, or the centre of whose column, the band holds; a chart of points alone
+  // takes two at least
+  #getLabelRangeBetween(fromX: number, toX: number): LabelRange | undefined {
+    const projection = this.#projection!;
+    const toPosition = (x: number) => projection.toLabelPosition(this.#clampToWindow(x));
+    const visibleRange = this.#getVisibleLabelRange();
+    const from = Math.max(visibleRange.from, Math.ceil(toPosition(Math.min(fromX, toX)) - LABEL_POSITION_TOLERANCE));
+    const to = Math.min(visibleRange.to, Math.floor(toPosition(Math.max(fromX, toX)) + LABEL_POSITION_TOLERANCE));
+    const minLabelCount = hasLabelColumns(this.#data) ? 1 : 2;
+
+    return to - from + 1 >= minLabelCount ? { from, to } : undefined;
+  }
+
+  // A panned window draws its edge labels in the gutters of the plot, and a Y-axis label column covers what lies under it
+  #clampToWindow(x: number): number {
+    const projection = this.#projection!;
+    return Math.min(projection.getSize()[0], Math.max(projection.getParams().xInsetStart ?? 0, x));
+  }
+
+  #endRangeSelection() {
+    this.#rangePress = undefined;
+    this.#isSelectingRange = false;
+    this.#rangeSelection!.classList.remove('lovely-chart--state-shown');
+    removeEventListener(document, 'pointermove', this.#onRangePointerMove, true);
+    removeEventListener(document, 'pointerup', this.#onRangePointerUp, true);
+    removeEventListener(document, 'pointercancel', this.#onRangePointerCancel, true);
+    removeEventListener(document, 'contextmenu', this.#onRangeContextMenu, true);
+    removeEventListener(document, 'keydown', this.#onRangeKeyDown, true);
+  }
+
+  #isInBalloon(target: EventTarget | null): boolean {
+    return target === this.#balloon || this.#balloon.contains(target as Node);
+  }
 
   #clear(isExternal?: boolean) {
     const selectionCount = ++this.#selectionCount;

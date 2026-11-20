@@ -447,6 +447,25 @@ const LOCKED_RANGE_LAST_INDEX = 4;
 // label from which the `limitDate` of a probe of 11 bars opens them, past the middle of the labels
 const COLUMN_CENTRE_NUDGE = 2;
 const BAR_LIMIT_INDEX = 6;
+// The steps of a mouse drag across the plot of a probe, the fraction of the plot height it drags at, the time its range
+// takes to settle after the release, and how far in px the band of the drag may stand from where the pointer put it
+const RANGE_DRAG_STEPS = 8;
+const RANGE_DRAG_HEIGHT = 0.75;
+const RANGE_SETTLE_MS = 700;
+const RANGE_BAND_TOLERANCE = 1;
+// A move under the threshold of a drag across the plot, in px
+const RANGE_CLICK_MOVE = 2;
+// The labels of a line with a minimap whose window of two of them its ears widen, the first of the two, and the width
+// in px the ears leave a window
+const DENSE_LABEL_COUNT = 200;
+const DENSE_SELECTED_INDEX = 100;
+const MINIMAP_EARS_WIDTH = 16;
+// The label from which the `limitDate` of a probe of 11 points opens them
+const LINE_LIMIT_INDEX = 4;
+// The pointer id of a touch dispatched across the plot
+const TOUCH_POINTER_ID = 7;
+// The default `--range-selection-color` of the day skin and of the night skin
+const RANGE_SELECTION_COLORS = ['rgb(16, 139, 227)', 'rgb(72, 170, 240)'];
 // How far from the centre of a column the outer and the inner edge of a window inside half of it stand, in columns
 const HALF_COLUMN_OUTER_EDGE = 0.4;
 const HALF_COLUMN_INNER_EDGE = 0.05;
@@ -1919,6 +1938,29 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await sleep(600);
   const capAfterEar = await caption0();
   check('minimap ear drag changes range', capAfterEar !== capAfterSlider, `${capAfterSlider} -> ${capAfterEar}`);
+
+  // --- A drag across the plot selects a range, and a double click shows the whole range ---
+  const sliderBox0 = () => chart0.locator('.lovely-chart--minimap-slider').boundingBox();
+  const rulerBox0 = await chart0.locator('.lovely-chart--minimap-ruler').boundingBox();
+  const sliderBeforeSelection = await sliderBox0();
+  const plotForSelection = await chart0.locator('.lovely-chart--tooltip').boundingBox();
+  const selectionY = plotForSelection.y + plotForSelection.height * RANGE_DRAG_HEIGHT;
+  await drag(page, plotForSelection.x + plotForSelection.width * 0.3, selectionY, plotForSelection.width * 0.3, 0);
+  await sleep(RANGE_SETTLE_MS);
+  const capAfterSelection = await caption0();
+  const sliderAfterSelection = await sliderBox0();
+  check('a drag across the plot narrows the range and the minimap window',
+    capAfterSelection !== capAfterEar && sliderAfterSelection.width < sliderBeforeSelection.width,
+    `${capAfterEar} -> ${capAfterSelection}, slider ${sliderBeforeSelection.width} -> ${sliderAfterSelection.width}`);
+  await page.mouse.dblclick(plotForSelection.x + plotForSelection.width / 2, selectionY);
+  await sleep(RANGE_SETTLE_MS);
+  const capAfterReset = await caption0();
+  const sliderAfterReset = await sliderBox0();
+  check('a double click on the plot shows the whole range, the minimap window over all of it',
+    capAfterReset !== capAfterSelection && Math.abs(sliderAfterReset.x - rulerBox0.x) < 1
+    && Math.abs(sliderAfterReset.width - rulerBox0.width) < 1,
+    `${capAfterSelection} -> ${capAfterReset}, slider ${JSON.stringify(sliderAfterReset)}`);
+  await page.mouse.move(5, 5);
 
   // --- Legend toggling ---
   const btn = chart0.locator('.lovely-chart--button').first();
@@ -5956,6 +5998,283 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     hourZoom?.value === geometryLabels[5] && hourBefore === undefined && hourAfter === undefined
     && isNearX(hourFrom, hourInterval / 2 - GUTTER) && isNearX(hourTo, hourWidth + GUTTER - hourInterval / 2),
     `zoomed into ${hourZoom?.value}, ${JSON.stringify(zoomedWindow.xs)} across ${hourWidth}`);
+
+  // --- `isRangeSelectable`: a mouse drag across the plot selects the labels under it, a double click the whole range ---
+  // Where `getLabelX()` places each of `labelArgs` in the page, and the height of the plot a drag runs at
+  const readProbePlotPoints = (labelArgs) => page.evaluate(([args, heightFraction]) => {
+    const host = document.getElementById('probe');
+    const box = host.getBoundingClientRect();
+    const [left, top, width, height] = ['left', 'top', 'width', 'height']
+      .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+    return {
+      xs: args.map((labelArg) => box.left + host.clientLeft + left + window.probeChart.getLabelX(...labelArg)),
+      y: box.top + host.clientTop + top + height * heightFraction,
+      area: { left, top, width, height },
+    };
+  }, [labelArgs, RANGE_DRAG_HEIGHT]);
+  // The band of a drag across the plot in the padding box of the probe's host, and whether it shows
+  const readRangeBand = () => page.evaluate(() => {
+    const host = document.getElementById('probe');
+    const band = host.querySelector('.lovely-chart--range-selection');
+    const box = band.getBoundingClientRect();
+    const hostBox = host.getBoundingClientRect();
+    const style = getComputedStyle(band);
+    return {
+      isShown: style.display !== 'none',
+      left: box.left - hostBox.left - host.clientLeft,
+      top: box.top - hostBox.top - host.clientTop,
+      width: box.width,
+      height: box.height,
+      color: style.borderLeftColor,
+    };
+  });
+  // Presses the probe's plot at the first of `labelArgs`, the arguments of `getLabelX()`, drags to the second and,
+  // unless `shouldHold`, releases there; reads the band before the release
+  const dragAcrossProbe = async (labelArgs, shouldHold = false) => {
+    const { xs: [fromX, toX], y, area } = await readProbePlotPoints(labelArgs);
+    await page.mouse.move(fromX, y);
+    await page.mouse.down();
+    await page.mouse.move(toX, y, { steps: RANGE_DRAG_STEPS });
+    const band = await readRangeBand();
+    if (!shouldHold) {
+      await page.mouse.up();
+      await sleep(RANGE_SETTLE_MS);
+    }
+    return { fromX, toX, y, area, band };
+  };
+  // Double-clicks the middle of the probe's plot area
+  const doubleClickProbe = async () => {
+    const { y, area } = await readProbePlotPoints([]);
+    const hostLeft = await page.evaluate(() => {
+      const host = document.getElementById('probe');
+      return host.getBoundingClientRect().left + host.clientLeft;
+    });
+    await page.mouse.dblclick(hostLeft + area.left + area.width / 2, y);
+    await sleep(RANGE_SETTLE_MS);
+  };
+  const readLastRange = () => page.evaluate(() => {
+    const range = window.probeRangeReports.at(-1)?.range;
+    return range ? `${range.from}-${range.to}` : 'none';
+  });
+  const isNearPx = (value, expected) => Math.abs(value - expected) <= RANGE_BAND_TOLERANCE;
+  const selectableLines = { ...windowConfig, type: 'line', minimapRange: 'full', isRangeSelectable: true };
+
+  // A line of 11 points over the whole axis, dragged from halfway after label 2 to halfway after label 6
+  await page.mouse.move(5, 5);
+  const selectionHost = await mountGeometryProbe(selectableLines);
+  await selectionHost.scrollIntoViewIfNeeded();
+  const lineDrag = await dragAcrossProbe([[2, 0.5], [6, 0.5]]);
+  const hostLeft = await page.evaluate(() => {
+    const host = document.getElementById('probe');
+    return host.getBoundingClientRect().left + host.clientLeft;
+  });
+  const lineSelection = { range: await readLastRange(), slider: await readSliderEdges(), band: await readRangeBand() };
+  const lineSelectionZooms = await page.evaluate(() => window.probeZoomReports.length);
+  check('a drag across the plot draws a band in --range-selection-color from the press to the pointer over the Y range',
+    lineDrag.band.isShown && isNearPx(lineDrag.band.left, lineDrag.fromX - hostLeft)
+    && isNearPx(lineDrag.band.width, lineDrag.toX - lineDrag.fromX) && isNearPx(lineDrag.band.top, lineDrag.area.top)
+    && isNearPx(lineDrag.band.height, lineDrag.area.height) && RANGE_SELECTION_COLORS.includes(lineDrag.band.color),
+    `${JSON.stringify(lineDrag.band)} for ${lineDrag.fromX - hostLeft}-${lineDrag.toX - hostLeft} in `
+    + JSON.stringify(lineDrag.area));
+  check('the release opens the window on the points the band holds, the minimap slider over them, with no zoom',
+    lineSelection.range === '3-6' && areSliderEdgesAt(lineSelection.slider, [2.5 / 10, 6.5 / 10])
+    && !lineSelection.band.isShown && lineSelectionZooms === 0,
+    `${JSON.stringify(lineSelection)}, ${lineSelectionZooms} zoom reports`);
+
+  // `update()` keeps the selected window with `shouldKeepZoom` alone
+  await page.evaluate(() => window.probeChart.update(window.probeParams, { shouldKeepZoom: true }));
+  await sleep(RANGE_SETTLE_MS);
+  const keptRangeSelection = await readLastRange();
+  await doubleClickProbe();
+  const resetSelection = { range: await readLastRange(), slider: await readSliderEdges() };
+  check('update() with shouldKeepZoom keeps a selected window, and a double click shows the whole range',
+    keptRangeSelection === '3-6' && resetSelection.range === '0-10' && areSliderEdgesAt(resetSelection.slider, [0, 1]),
+    `kept ${keptRangeSelection}, then ${JSON.stringify(resetSelection)}`);
+
+  // A band over one point of a line and a drag Escape ends select nothing
+  const reportCountBefore = await page.evaluate(() => window.probeRangeReports.length);
+  await dragAcrossProbe([[2, 0.5], [3, 0.5]]);
+  await dragAcrossProbe([[2, 0.5], [6, 0.5]], true);
+  await page.keyboard.press('Escape');
+  const escapedBand = await readRangeBand();
+  await page.mouse.up();
+  await sleep(RANGE_SETTLE_MS);
+  const unselected = await page.evaluate(() => window.probeRangeReports.length);
+  check('a band over a single point of a line and a drag Escape ends select no range',
+    unselected === reportCountBefore && !escapedBand.isShown, `${reportCountBefore} -> ${unselected} range reports`);
+
+  // A selected window keeps its edge points, drawn in the gutters of the plot, through a drag across the whole plot,
+  // and keeps its labels through a touch drag and a double tap, and a press whose release the page never hears
+  await dragAcrossProbe([[2, 0.5], [6, 0.5]]);
+  const plotEdges = await page.evaluate(() => {
+    const host = document.getElementById('probe');
+    const canvas = host.querySelector('.lovely-chart--tooltip canvas').getBoundingClientRect();
+    return [canvas.left, canvas.right];
+  });
+  const { y: edgeDragY } = await readProbePlotPoints([]);
+  await page.mouse.move(plotEdges[0] + 1, edgeDragY);
+  await page.mouse.down();
+  await page.mouse.move(plotEdges[1] - 1, edgeDragY, { steps: RANGE_DRAG_STEPS });
+  await page.mouse.up();
+  await sleep(RANGE_SETTLE_MS);
+  const wholePlotSelection = await readLastRange();
+  const { xs: [touchDragFromX, touchDragToX], y: touchDragY } = await readProbePlotPoints([[3], [6]]);
+  const lostReleaseBands = await page.evaluate(async ({ fromX, toX, y, pointerId }) => {
+    const plot = document.querySelector('#probe .lovely-chart--tooltip');
+    const band = plot.querySelector('.lovely-chart--range-selection');
+    const fire = (target, type, clientX, init) => target.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, isPrimary: true, clientX, clientY: y, ...init,
+    }));
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const touch = { pointerType: 'touch', pointerId };
+    fire(plot, 'pointerdown', fromX, touch);
+    fire(document, 'pointermove', (fromX + toX) / 2, touch);
+    fire(document, 'pointermove', toX, touch);
+    fire(document, 'pointerup', toX, touch);
+    plot.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: toX, clientY: y, detail: 2 }));
+    await wait(700);
+    // A press whose release a context menu takes, and one whose next move comes with the main button up
+    const mouse = { pointerType: 'mouse', pointerId: 1, button: 0 };
+    fire(plot, 'pointerdown', fromX, { ...mouse, buttons: 1 });
+    const menu = { bubbles: true, cancelable: true, clientX: fromX, clientY: y };
+    document.dispatchEvent(new MouseEvent('contextmenu', menu));
+    fire(document, 'pointermove', toX, { ...mouse, buttons: 1 });
+    const afterMenu = getComputedStyle(band).display;
+    fire(plot, 'pointerdown', fromX, { ...mouse, buttons: 1 });
+    fire(document, 'pointermove', toX, { ...mouse, buttons: 0 });
+    const afterRelease = getComputedStyle(band).display;
+    fire(document, 'pointerup', toX, { ...mouse, buttons: 0 });
+    await wait(700);
+    return [afterMenu, afterRelease];
+  }, { fromX: touchDragFromX, toX: touchDragToX, y: touchDragY, pointerId: TOUCH_POINTER_ID });
+  const keptLabels = await readLastRange();
+  await unmountProbe(page);
+  check('a drag across the whole plot keeps the edge points of a selected window, drawn in its gutters',
+    wholePlotSelection === '3-6', wholePlotSelection);
+  check('a touch drag, a double tap and a press whose release the page never hears leave a selected window',
+    keptLabels === '3-6' && lostReleaseBands.every((display) => display === 'none'),
+    `${keptLabels}, band ${JSON.stringify(lostReleaseBands)}`);
+
+  // Bars over the whole axis, dragged from past the centre of column 2 to past that of column 7
+  await mountColumnProbe({
+    title: 'Probe — Columns a drag selects',
+    datasets: [{ name: 'Bars', color: '#FF0000', values: geometryLabels.map((_, i) => 3 + (i % 4)) }],
+    minimapRange: 'full',
+    isRangeSelectable: true,
+  });
+  const { xs: [barFromX, barToX, barCentreX], y: barY } = await readProbePlotPoints([[2, 0.75], [7, 0.75], [5]]);
+  await page.mouse.move(barCentreX - RANGE_CLICK_MOVE / 2, barY);
+  await page.mouse.down();
+  await page.mouse.move(barCentreX + RANGE_CLICK_MOVE / 2, barY);
+  await page.mouse.up();
+  await sleep(RANGE_SETTLE_MS);
+  const rangeAfterPress = await page.evaluate(() => window.probeRanges.at(-1));
+  await page.mouse.move(barFromX, barY);
+  await page.mouse.down();
+  await page.mouse.move(barToX, barY, { steps: RANGE_DRAG_STEPS });
+  await page.mouse.up();
+  await sleep(RANGE_SETTLE_MS);
+  const barSelection = await readColumnWindow(3);
+  await unmountProbe(page);
+  check('a short press across a column centre is a click, and a drag selects the columns whose centres it holds',
+    rangeAfterPress?.from === 0 && rangeAfterPress?.to === 10 && isColumnWindow(barSelection, 3, 7, true),
+    `${JSON.stringify(rangeAfterPress)}, then ${JSON.stringify(barSelection)}`);
+
+  // A line without a minimap takes the selected window alike
+  await (await mountGeometryProbe({ ...selectableLines, withMinimap: false })).scrollIntoViewIfNeeded();
+  await dragAcrossProbe([[2, 0.5], [6, 0.5]]);
+  const plainSelection = await readLastRange();
+  await doubleClickProbe();
+  const plainReset = await readLastRange();
+  await unmountProbe(page);
+  check('a line without a minimap opens a selected window, and a double click shows the whole range',
+    plainSelection === '3-6' && plainReset === '0-10', `${plainSelection}, then ${plainReset}`);
+
+  // A `limitDate` from label 4 keeps a double click on the open labels
+  await (await mountGeometryProbe({ ...selectableLines, limitDate: geometryLabels[LINE_LIMIT_INDEX] }))
+    .scrollIntoViewIfNeeded();
+  await dragAcrossProbe([[5, 0.5], [8, 0.5]]);
+  const limitedSelection = await readLastRange();
+  await doubleClickProbe();
+  const limitedReset = { range: await readLastRange(), slider: await readSliderEdges() };
+  await dragAcrossProbe([[LINE_LIMIT_INDEX], [6, 0.5]]);
+  const limitedStart = { range: await readLastRange(), slider: await readSliderEdges() };
+  await unmountProbe(page);
+  const isLimitedStart = limitedStart.range === `${LINE_LIMIT_INDEX}-6`
+    && areSliderEdgesAt(limitedStart.slider, [LINE_LIMIT_INDEX / 10, 6.5 / 10]);
+  check('a selection and a double click keep to the labels limitDate leaves open, from the first of them on',
+    limitedSelection === '6-8' && limitedReset.range === `${LINE_LIMIT_INDEX}-10`
+    && areSliderEdgesAt(limitedReset.slider, [LINE_LIMIT_INDEX / 10, 1]) && isLimitedStart,
+    `${limitedSelection}, then ${JSON.stringify(limitedReset)}, then ${JSON.stringify(limitedStart)}`);
+
+  // Two adjacent points of 200 open a window as wide as the minimap ears leave one, over both points
+  const denseProbe = await mountGeometryProbe({
+    type: 'line',
+    title: 'Probe — A narrow selection',
+    labels: Array.from({ length: DENSE_LABEL_COUNT }, (_, i) => Date.UTC(2026, 0, i + 1)),
+    datasets: [{
+      name: 'Values', color: '#FF0000', values: Array.from({ length: DENSE_LABEL_COUNT }, (_, i) => i % 7),
+    }],
+    withMinimap: true,
+    minimapRange: 'full',
+    isRangeSelectable: true,
+  });
+  await denseProbe.scrollIntoViewIfNeeded();
+  await dragAcrossProbe([[DENSE_SELECTED_INDEX - 1, 0.5], [DENSE_SELECTED_INDEX + 1, 0.5]]);
+  const denseSelection = await page.evaluate(() => {
+    const range = window.probeRangeReports.at(-1)?.range;
+    const slider = document.querySelector('#probe .lovely-chart--minimap-slider').getBoundingClientRect();
+    return { from: range?.from, to: range?.to, sliderWidth: slider.width };
+  });
+  await unmountProbe(page);
+  check('a selection narrower than the minimap ears leave a window widens to them around both its points',
+    denseSelection.from <= DENSE_SELECTED_INDEX && denseSelection.to >= DENSE_SELECTED_INDEX + 1
+    && isNearPx(denseSelection.sliderWidth, MINIMAP_EARS_WIDTH), JSON.stringify(denseSelection));
+
+  // A chart that zooms in on a click selects a range by a drag without zooming, and a still click still zooms
+  await (await mountGeometryProbe({ ...selectableLines, withMinimap: false }, [[0]], true)).scrollIntoViewIfNeeded();
+  await dragAcrossProbe([[2, 0.5], [6, 0.5]]);
+  const zoomableSelection = {
+    range: await readLastRange(),
+    zooms: await page.evaluate(() => window.probeZoomReports.length),
+  };
+  await clickProbeLabel(4);
+  await sleep(2000);
+  const zoomAfterClick = await page.evaluate(() => window.probeZoomReports.at(-1)?.value);
+  await page.mouse.move(5, 5);
+  await unmountProbe(page);
+  check('a drag across a zoomable chart selects a range and zooms into nothing, while a click still zooms',
+    zoomableSelection.range === '3-6' && zoomableSelection.zooms === 0 && zoomAfterClick === geometryLabels[4],
+    `${JSON.stringify(zoomableSelection)}, zoomed into ${zoomAfterClick}`);
+
+  // A pie with a minimap takes neither a drag nor a double click on its plot
+  const pageErrorsBeforePie = errors.filter((error) => error.startsWith('[pageerror]')).length;
+  const selectablePie = await mountGeometryProbe({
+    type: 'pie',
+    title: 'Probe — A pie a drag leaves as it is',
+    labels: Array.from({ length: 6 }, (_, month) => Date.UTC(2026, month, 1)),
+    datasets: [
+      { name: 'Large', color: '#3497ED', values: [500, 111, 111, 111, 500, 500] },
+      { name: 'Small', color: '#9ED448', values: [1, 1, 1, 1, 1, 1] },
+    ],
+    withMinimap: true,
+    minimapRange: { from: 1, to: 3 },
+    isRangeSelectable: true,
+  });
+  await selectablePie.scrollIntoViewIfNeeded();
+  const pieCaptionBefore = (await selectablePie.locator('.lovely-chart--header-caption').textContent()).trim();
+  const pieBox = await selectablePie.locator('.lovely-chart--tooltip').boundingBox();
+  const pieMiddleY = pieBox.y + pieBox.height / 2;
+  await drag(page, pieBox.x + pieBox.width * 0.2, pieMiddleY, pieBox.width * 0.5, 0);
+  await page.mouse.dblclick(pieBox.x + pieBox.width / 2, pieMiddleY);
+  await sleep(RANGE_SETTLE_MS);
+  const pieCaptionAfter = (await selectablePie.locator('.lovely-chart--header-caption').textContent()).trim();
+  const pieSelectionErrors = errors.filter((error) => error.startsWith('[pageerror]')).slice(pageErrorsBeforePie);
+  await page.mouse.move(5, 5);
+  await unmountProbe(page);
+  check('a pie keeps its window through a drag and a double click on its plot, with no page error',
+    pieCaptionAfter === pieCaptionBefore && !pieSelectionErrors.length,
+    `${pieCaptionBefore} -> ${pieCaptionAfter}, ${pieSelectionErrors.join('; ').slice(0, 200)}`);
 
   // --- The hover line and dots stay on the plot wherever the header variables or a style of the page put it ---
   // A flat line, whose middle across the hover dot is the dot's own height

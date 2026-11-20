@@ -84,6 +84,7 @@ const params: LovelyChartParams = {
   onHiddenSeriesChange: (names, datasetIndexes) => names.length + datasetIndexes.length,
   onSelectedIndexChange: (labelIndex) => labelIndex?.toFixed(),
   isKeyboardSelectable: true,
+  isRangeSelectable: true,
   onTooltipChange: readTooltip,
   onPlotAreaChange: (area) => (area ? area.left + area.top + area.width + area.height : undefined),
   onRangeChange: (range) => (range ? range.to - range.from + 1 : undefined),

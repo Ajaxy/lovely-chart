@@ -66,6 +66,20 @@ export class Minimap {
     this.#updateRange(data.minimapRange ?? DEFAULT_RANGE);
   }
 
+  // Opens a window chosen off the minimap, as a range selected on the plot: it starts at the labels `limitDate` leaves
+  // open and is no narrower than the ears leave one, widened around its middle
+  setRange({ begin, end }: Range) {
+    const minWidth = Math.min(1, (MINIMAP_EAR_WIDTH * 2) / this.#canvasSize.width);
+    let nextBegin = Math.max(begin, this.#limitBegin ?? 0);
+    let nextEnd = Math.max(end, nextBegin);
+    if (nextEnd - nextBegin < minWidth) {
+      nextBegin = Math.max(0, Math.min(1 - minWidth, (nextBegin + nextEnd - minWidth) / 2));
+      nextEnd = nextBegin + minWidth;
+    }
+
+    this.#updateRange({ begin: nextBegin, end: nextEnd });
+  }
+
   update(newState: ChartState) {
     const { begin, end } = newState;
     if (!this.#capturedOffset) {

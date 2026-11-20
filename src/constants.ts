@@ -4,6 +4,7 @@ import type { LinePattern } from './types.js';
 export const DPR = typeof window !== 'undefined' ? window.devicePixelRatio ?? 1 : 1;
 
 export const DEFAULT_RANGE = { begin: 0.8, end: 1 };
+export const FULL_RANGE = { begin: 0, end: 1 };
 export const NO_FOCUS = Symbol('NO_FOCUS');
 // Marks the `colorScheme` the colours of a chart follow, carried along by `Object.assign`
 export const COLOR_SCHEME = Symbol('COLOR_SCHEME');

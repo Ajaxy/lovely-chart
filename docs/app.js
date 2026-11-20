@@ -182,6 +182,12 @@ document.addEventListener('DOMContentLoaded', () => {
     ]);
 
     data.slice(0, 8).forEach((chart, i) => {
+      // "Lovely Lines", with its minimap, and "Negative Lovely Lines", without one, select a range dragged across the
+      // plot, and show the whole range again on a double click
+      if (i === 0 || i === 1) {
+        chart.isRangeSelectable = true;
+      }
+
       if (i === 2) {
         chart.onZoom = (date) => fetchDayData('data/zoom_bars', date);
       }

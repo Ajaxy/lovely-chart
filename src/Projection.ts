@@ -75,6 +75,11 @@ export class Projection {
     ];
   }
 
+  // The label position at `xPx`, between label indexes: the point of a label, or the centre of its column
+  toLabelPosition(xPx: number): number {
+    return (xPx + this.#xOffsetPx) / this.#xFactor;
+  }
+
   findClosestLabelIndex(xPx: number): number {
     const labelIndex = Math.round((xPx + this.#xOffsetPx) / this.#xFactor);
     // In column mode the gutters and the very edge pixels round outside the
