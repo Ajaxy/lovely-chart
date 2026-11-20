@@ -85,6 +85,7 @@ export class StateManager {
     );
 
     if (!noTransition) {
+      const startedAt = Date.now();
       this.#transitionConfig.forEach(({ prop, duration, options }) => {
         const transition = this.#transitions.get(prop);
         const currentTarget = transition ? transition.to : prevState[prop];
@@ -98,7 +99,7 @@ export class StateManager {
             this.#transitions.remove(prop);
           }
 
-          this.#transitions.add(prop, current, this.#state[prop], duration, options);
+          this.#transitions.add(prop, current, this.#state[prop], duration, options, startedAt);
         }
       });
     }

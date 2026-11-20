@@ -348,6 +348,9 @@ const PAN_PHASE_STEPS = 40;
 const PAN_PHASE_SETTLE_STEPS = 5;
 const PHASE_CURVE_CHORDS = 256;
 const MAX_PAN_PHASE_SHIFT = 0.1;
+// How far the X scale of a frame of a pan may stand from that of another, as a share of it: ends of the window that
+// take their progress a millisecond apart change it by about 1e-4, and float error by under 1e-13
+const MAX_PAN_SCALE_DRIFT = 1e-9;
 
 // Values of more datasets than a tooltip holds, their order by size unlike their order in the legend
 const TOOLTIP_ROW_VALUES = [10, 80, 20, 90, 30, 100, 40, 110, 50, 120, 60, 130, 70];
@@ -683,11 +686,13 @@ function readBlueLinePattern(locator) {
 
 /**
  * Pans the probe chart's window a minimap pixel a step and follows the point of its patterned stroke nearest the middle
- * of the plot: how far the pattern moved there, in px, the largest shift over the pan, and at how many labels the
- * stroke started meanwhile.
+ * of the plot: how far the pattern moved there, in px, the largest shift over the pan, at how many labels the stroke
+ * started meanwhile, and how far the space between two labels strays over the pan, as a share of it. With
+ * `isClockSpread`, `Date.now()` reads its whole millisecond at points spread through it, each further on by the golden
+ * ratio, so the millisecond turns between some reads a moment apart, as it does now and then between real ones.
  */
-function readPanPhaseShift(page) {
-  return page.evaluate(async ({ steps, settleSteps, chords }) => {
+function readPanPhaseShift(page, isClockSpread = false) {
+  return page.evaluate(async ({ steps, settleSteps, chords, isSpread }) => {
     const host = document.getElementById('probe');
     const canvas = host.querySelector('.lovely-chart--container > canvas');
     const context = canvas.getContext('2d');
@@ -729,6 +734,10 @@ function readPanPhaseShift(page) {
       (type === 'mousedown' ? target : document).dispatchEvent(event);
     };
     const start = left + width / 2;
+    const { now } = Date;
+    const spread = (Math.sqrt(5) - 1) / 2;
+    let reads = 0;
+    if (isSpread) Date.now = () => Math.floor(performance.timeOrigin + performance.now() + (reads++ * spread) % 1);
     fire(slider, 'mousedown', start);
     for (let step = 1; step <= steps; step++) {
       isRecording = step > settleSteps;
@@ -737,6 +746,7 @@ function readPanPhaseShift(page) {
       await new Promise((resolve) => requestAnimationFrame(resolve));
     }
     fire(slider, 'mouseup', start + steps);
+    Date.now = now;
     ['beginPath', 'moveTo', 'lineTo', 'bezierCurveTo', 'stroke'].forEach((name) => delete context[name]);
 
     // Each vertex of a stroke, with the place of the pattern there and the start of the stroke
@@ -774,11 +784,16 @@ function readPanPhaseShift(page) {
     });
     const [{ phase: firstPhase, period }] = track;
     const shifts = track.map(({ phase }) => Math.abs(((phase - firstPhase + period * 1.5) % period) - period / 2));
+    // The widest step along x between two vertices of a stroke spans a label, a step's riser and its tread included
+    const spaces = frames.map((vertices) => Math.max(...vertices.slice(1).map(({ x }, j) => x - vertices[j].x)));
     return {
       shift: Math.max(...shifts),
       starts: new Set(track.map(({ x, startX }) => Math.round(x - startX))).size,
+      scaleDrift: (Math.max(...spaces) - Math.min(...spaces)) / Math.min(...spaces),
     };
-  }, { steps: PAN_PHASE_STEPS, settleSteps: PAN_PHASE_SETTLE_STEPS, chords: PHASE_CURVE_CHORDS });
+  }, {
+    steps: PAN_PHASE_STEPS, settleSteps: PAN_PHASE_SETTLE_STEPS, chords: PHASE_CURVE_CHORDS, isSpread: isClockSpread,
+  });
 }
 
 // Records what the plot canvas of a chart draws until `stopCanvasRecording()`: each text, with its font, colour,
@@ -4085,15 +4100,23 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       `${patternedButtons} patterned buttons, patterned swatches ${JSON.stringify(patternedSwatches)}`);
   }
 
-  // --- Panning leaves the dashes and dots of a sloped line, steps and a smooth line in place ---
+  // --- Panning leaves the dashes and dots of a sloped line, steps and a smooth line in place, at one scale a frame ---
   const panPhaseLabels = Array.from({ length: PAN_PHASE_LABELS }, (_, i) => Date.UTC(2026, 0, 1 + i));
   const panPhaseCases = [
     { name: 'a dotted line', type: 'line', flags: { isDotted: true } },
     { name: 'a dashed line', type: 'line', flags: { isDashed: true } },
     { name: 'dotted steps', type: 'step', flags: { isDotted: true } },
     { name: 'a dotted smooth line', type: 'line', flags: { isDotted: true }, areLinesSmooth: true },
+    // The two ends of the window keep in step through each frame of their transitions, though the millisecond turns
+    // between two reads of the clock
+    {
+      name: 'dotted steps on a clock whose millisecond turns between reads a moment apart',
+      type: 'step',
+      flags: { isDotted: true },
+      isClockSpread: true,
+    },
   ];
-  for (const { name, type, flags, areLinesSmooth = false } of panPhaseCases) {
+  for (const { name, type, flags, areLinesSmooth = false, isClockSpread } of panPhaseCases) {
     await mountProbe(page, {
       config: {
         type,
@@ -4110,10 +4133,11 @@ async function drag(page, x, y, dx, dy, steps = 10) {
         }],
       },
     });
-    const panPhase = await readPanPhaseShift(page);
+    const panPhase = await readPanPhaseShift(page, isClockSpread);
     await unmountProbe(page);
-    check(`panning ${name} leaves its pattern in place`,
-      panPhase.starts > 1 && panPhase.shift <= MAX_PAN_PHASE_SHIFT, JSON.stringify(panPhase));
+    check(`panning ${name} leaves its pattern in place, at one scale a frame`,
+      panPhase.starts > 1 && panPhase.shift <= MAX_PAN_PHASE_SHIFT && panPhase.scaleDrift <= MAX_PAN_SCALE_DRIFT,
+      JSON.stringify(panPhase));
   }
 
   // --- Smooth lines curve through their values ---

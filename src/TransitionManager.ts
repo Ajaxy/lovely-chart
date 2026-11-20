@@ -30,14 +30,15 @@ export class TransitionManager {
     this.#onTick = onTick;
   }
 
-  add(prop: string, from: number, to: number, duration: number | undefined, options: string[]) {
+  // Transitions that one change starts share `startedAt`, so the ends of the window take one progress each frame
+  add(prop: string, from: number, to: number, duration: number | undefined, options: string[], startedAt: number) {
     this.#transitions[prop] = {
       from,
       to,
       duration,
       options,
       current: from,
-      startedAt: Date.now(),
+      startedAt,
       progress: 0,
     };
 
@@ -100,10 +101,12 @@ export class TransitionManager {
     this.#speedTest();
 
     const state: Record<string, number> = {};
+    // One time for the whole frame, so transitions that started together, as the ends of the window, keep in step
+    const now = Date.now();
 
     Object.entries(this.#transitions).forEach(([prop, item]) => {
       const { startedAt, from, to, duration = TRANSITION_DEFAULT_DURATION, options } = item;
-      const progress = Math.min(1, (Date.now() - startedAt) / duration);
+      const progress = Math.min(1, (now - startedAt) / duration);
       let current = from + (to - from) * easeOut(progress);
 
       if (options.includes('ceil')) {

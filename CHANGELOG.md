@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- The two ends of the window keep in step through each frame of their transition, as a drag of the minimap window or a zoom moves them: the transitions one change starts share one start, and a frame reads the clock once for all of them, in place of a millisecond turning between two reads and putting one end ahead of the other, which changed the scale of the X axis of a pan by about a ten-thousandth for a frame or two and shifted the dashes and dots of a panned line by up to a seventh of a pixel.
+
 ## 2.3.0
 
 ### Added
