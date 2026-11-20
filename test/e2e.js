@@ -218,6 +218,14 @@ const CONTRAST_LABEL_PADDING = 2;
 const Y_AXIS_LABEL_GAP = 6;
 // How far an edge of the plot-area overlay may stand from the pixels it frames, an antialiased 2px line included
 const PLOT_AREA_TOLERANCE = 1.5;
+// How far inside the plot area a run of points stands for its pixels to read whole, past the tolerance of its edges
+const INNER_RUN_MARGIN = 3;
+// The wait of a zoom before its data swaps in, the length of the transitions it starts, and how much later a busy main
+// thread can run the swap
+const ZOOM_SWAP_TIMEOUT = 400;
+const LATE_SWAP_DELAY = 100;
+// How long the `onZoom` of a chart that opens zoomed takes to return its data
+const LATE_ZOOM_DATA_MS = 300;
 // A host with a padding and a border of its own, which the plot-area properties count from the inside of
 const PADDED_HOST_STYLE = 'position: relative; padding: 13px 21px 17px 9px; border: 4px solid #8A97A5';
 const PLOT_AREA_PATTERN = /^-?\d+(\.\d+)?px$/;
@@ -4854,9 +4862,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     + `after labels ending at ${pannedAreaColumn.end}`);
 
   // --- `getLabelX()` places labels in the plot area, `onPlotAreaChange` reports it, and the room above the Y range ---
-  // Mounts the probe in a padded host with `onPlotAreaChange` and `onZoomChange` recording each call, with what
-  // `getLabelX()` gives for each of `xArgs` then, and what it gives for the first of them before the first paint. An
-  // `onZoom` of `isZoomable` probes opens 24 hours of the day.
+  // Mounts the probe in a padded host with `onPlotAreaChange`, `onRangeChange` and `onZoomChange` recording each call,
+  // with what `getLabelX()` gives for each of `xArgs` then, the range reports before a zoom report and what
+  // `probeRangeExtras` adds to a range report, and what `getLabelX()` gives for the first of `xArgs` before the first
+  // paint. An `onZoom` of `isZoomable` probes opens 24 hours of the day.
   const mountGeometryProbe = async (config, xArgs = [[0]], isZoomable = false) => {
     await page.evaluate(async (spec) => {
       const { default: LovelyChart } = await import('./LovelyChart.js');
@@ -4866,7 +4875,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       document.getElementById('container').appendChild(element);
       const readXs = () => spec.xArgs.map((args) => window.probeChart.getLabelX(...args));
       window.probeAreaReports = [];
+      window.probeRangeReports = [];
       window.probeZoomReports = [];
+      window.probeRangeExtras = undefined;
       window.probeParams = {
         ...spec.config,
         onZoom: spec.isZoomable
@@ -4877,7 +4888,12 @@ async function drag(page, x, y, dx, dy, steps = 10) {
           })
           : undefined,
         onPlotAreaChange: (area) => window.probeAreaReports.push({ area, xs: readXs() }),
-        onZoomChange: (value) => window.probeZoomReports.push({ value, xs: readXs() }),
+        onRangeChange: (range) => window.probeRangeReports.push({
+          range, xs: readXs(), ...window.probeRangeExtras?.(range),
+        }),
+        onZoomChange: (value) => window.probeZoomReports.push({
+          value, xs: readXs(), rangeCount: window.probeRangeReports.length,
+        }),
       };
       window.probeChart = new LovelyChart(element, window.probeParams);
       window.probeEarlyX = window.probeChart.getLabelX(...spec.xArgs[0]);
@@ -4898,12 +4914,16 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       paddingTop: host.style.getPropertyValue('--lovely-chart-plot-padding-top'),
       canvasTop: canvas.getBoundingClientRect().top - host.getBoundingClientRect().top - host.clientTop,
       areaReports: window.probeAreaReports,
+      rangeReports: window.probeRangeReports,
       zoomReports: window.probeZoomReports,
     };
   }, xArgs);
   const isSameReportedArea = (report, area) => report.area !== undefined
     && ['left', 'top', 'width', 'height'].every((key, i) => Math.abs(report.area[key] - area[i]) < 0.01);
   const isNearX = (x, expected) => x !== undefined && Math.abs(x - expected) < 0.01;
+  // The ranges of `onRangeChange` reports, `none` for `undefined`
+  const formatRangeReports = (reports) => reports
+    .map(({ range }) => (range ? `${range.from}-${range.to}` : 'none')).join(' ');
   // Hovers and clicks the probe's plot at the label, where `getLabelX()` places it
   const clickProbeLabel = async (labelIndex) => {
     const point = await page.evaluate((index) => {
@@ -4960,6 +4980,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     window.probeChart.destroy();
     const result = {
       reports: window.probeAreaReports,
+      rangeReports: window.probeRangeReports,
       x: window.probeChart.getLabelX(0),
       paddingTop: host.style.getPropertyValue('--lovely-chart-plot-padding-top'),
     };
@@ -4971,6 +4992,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && destroyedGeometry.reports.length === 3 && destroyedGeometry.reports[2].area === undefined
     && destroyedGeometry.x === undefined && destroyedGeometry.paddingTop === '',
     `${JSON.stringify(updatedReports)}, then ${JSON.stringify(destroyedGeometry)}`);
+  check('onRangeChange reports the labels of the first paint and again of update(), and undefined on destroy()',
+    formatRangeReports(destroyedGeometry.rangeReports) === '0-4 0-4 none'
+    && destroyedGeometry.rangeReports.slice(0, 2).every(({ xs }) => xs[0] === 0),
+    JSON.stringify(destroyedGeometry.rangeReports));
 
   // Columns between gaps, each where `getLabelX()` puts its start and end, and its centre between them
   for (const type of ['bar', 'step']) {
@@ -5029,9 +5054,9 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     pannedGeometry.xs[0] === undefined && isNearX(pannedGeometry.xs[1], -GUTTER)
     && isNearX(pannedGeometry.xs[2], pannedGeometry.area[2]),
     `${JSON.stringify(pannedGeometry.xs)} across ${pannedGeometry.area[2]}`);
-  check('getLabelX() follows a pan of the minimap to where its transition ends, from the start of the transition',
-    panXs.moving[0] === undefined && panXs.moving[1] !== undefined && panXs.moving[2] > pannedGeometry.xs[1]
-    && panXs.moving.every((x, i) => x === panXs.settled[i]),
+  check('getLabelX() keeps each label where the last frame drew it until the frames of a pan of the minimap move it',
+    panXs.moving[0] === undefined && panXs.moving[1] === undefined && panXs.moving[2] === pannedGeometry.xs[1]
+    && panXs.settled[0] === undefined && panXs.settled[1] !== undefined && panXs.settled[2] > pannedGeometry.xs[1],
     JSON.stringify(panXs));
 
   // A zoom into shares from a column the click finds where `getLabelX()` puts it, and back out
@@ -5050,29 +5075,33 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await sharesGeometry.scrollIntoViewIfNeeded();
   const sharesArea = (await readGeometry([])).area;
   await clickProbeLabel(3);
-  const zoomStartReports = await page.evaluate(() => window.probeAreaReports);
+  const zoomStartX = await page.evaluate(() => window.probeChart.getLabelX(3));
   await sleep(2000);
   await page.mouse.move(5, 5);
   await sharesGeometry.locator('.lovely-chart--header-zoom-out-control').first().click();
   await sleep(2000);
   const sharesReports = await readGeometry([]);
   await unmountProbe(page);
-  const [sharesFirst, sharesStart] = sharesReports.areaReports;
+  const [sharesFirst] = sharesReports.areaReports;
   const sharesLast = sharesReports.areaReports[sharesReports.areaReports.length - 1];
   const zoomedReports = sharesReports.areaReports.slice(1, -1);
   const [sharesZoomIn, sharesZoomOut] = sharesReports.zoomReports;
-  check('onPlotAreaChange reports the start of a zoom into shares, from which getLabelX() is undefined',
-    zoomStartReports.length === 2 && isSameReportedArea(sharesStart, sharesArea) && sharesStart.xs[0] === undefined
-    && sharesZoomIn?.value === geometryLabels[3],
-    `${JSON.stringify(zoomStartReports)}, zoomed into ${sharesZoomIn?.value} for ${geometryLabels[3]}`);
+  const [sharesRangeFirst, , sharesRangeLast] = sharesReports.rangeReports;
+  check('onRangeChange reports undefined from the first frame of a zoom into shares, and the labels as the bars return',
+    zoomStartX === undefined && formatRangeReports(sharesReports.rangeReports) === '0-5 none 0-5'
+    && sharesRangeFirst.xs[0] !== undefined && sharesRangeLast.xs[0] === sharesRangeFirst.xs[0]
+    && sharesZoomIn?.value === geometryLabels[3] && sharesZoomIn.rangeCount === 2 && sharesZoomOut?.rangeCount === 2,
+    `${zoomStartX} as the zoom starts, then ${JSON.stringify(sharesReports.rangeReports)}, `
+    + `zoom reports ${JSON.stringify(sharesReports.zoomReports)}`);
   check('getLabelX() stays undefined over the pie and the start of the zoom out, and maps the bars on their return',
     zoomedReports.every(({ xs }) => xs[0] === undefined)
     && zoomedReports.some(({ area }) => Math.abs(area.width - area.height) < 0.01)
     && isSameReportedArea(sharesLast, sharesArea) && sharesLast.xs[0] === sharesFirst.xs[0]
-    && sharesZoomOut?.value === undefined && sharesZoomOut?.xs[0] === sharesFirst.xs[0],
+    && sharesZoomOut?.value === undefined && sharesZoomOut?.xs[0] === undefined,
     `${JSON.stringify(sharesReports.areaReports)}, zoom reports ${JSON.stringify(sharesReports.zoomReports)}`);
 
-  // A zoom into the hours of a day from `onZoom` maps the day alone from its start, and the hours from its report on
+  // A zoom into the hours of a day from `onZoom` narrows the days on the day, and widens the hours from the first frame
+  // that draws them on
   const hoursXArgs = [[0], [4], [5], [6], [12], [23]];
   const hoursGeometry = await mountGeometryProbe({
     type: 'line',
@@ -5086,18 +5115,31 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await page.mouse.move(5, 5);
   const hoursReports = await readGeometry(hoursXArgs);
   await unmountProbe(page);
-  const [, hoursStart] = hoursReports.areaReports;
   const [hoursZoom] = hoursReports.zoomReports;
   const hoursWidth = hoursReports.area[2];
   const [hourFirst, , , , hourMiddle, hourLast] = hoursReports.xs;
-  check('onPlotAreaChange reports the start of a zoom into data as the range narrows on the day, the one label mapped',
-    hoursStart !== undefined && isSameReportedArea(hoursStart, hoursReports.area)
-    && hoursStart.xs.every((x, i) => (i === 2 ? isNearX(x, hoursWidth / 2) : x === undefined)),
-    `${JSON.stringify(hoursReports.areaReports)} across ${hoursWidth}`);
-  check('getLabelX() maps the labels of the data onZoom returns as onZoomChange reports it, where the zoom settles',
-    hoursZoom?.value === geometryLabels[5] && hoursZoom.xs.every((x, i) => x === hoursReports.xs[i])
+  const daysReports = hoursReports.rangeReports.slice(0, hoursZoom?.rangeCount);
+  const hourReports = hoursReports.rangeReports.slice(hoursZoom?.rangeCount);
+  // Whether each range of the reports holds the next, or the next holds it with `isWidening`
+  const isNarrowing = (reports, isWidening = false) => reports.every(({ range }, i) => {
+    const next = reports[i + 1]?.range ?? range;
+    const [outer, inner] = isWidening ? [next, range] : [range, next];
+    return outer.from <= inner.from && inner.to <= outer.to;
+  });
+  const daysLast = daysReports[daysReports.length - 1];
+  check('onRangeChange follows a zoom into data as the range narrows on the day, frame by frame, to the day alone',
+    daysReports.length > 3 && formatRangeReports(daysReports.slice(0, 1)) === '0-9' && isNarrowing(daysReports)
+    && formatRangeReports([daysLast]) === '5-5'
+    && daysLast.xs.every((x, i) => (i === 2 ? isNearX(x, hoursWidth / 2) : x === undefined)),
+    `${JSON.stringify(daysReports)} across ${hoursWidth}`);
+  check('getLabelX() is undefined as onZoomChange reports the hours onZoom returns, reported from their first frame',
+    hoursZoom?.value === geometryLabels[5] && hoursZoom.xs.every((x) => x === undefined)
+    && hourReports.length > 3 && isNarrowing(hourReports, true)
+    && formatRangeReports(hourReports.slice(-1)) === '0-23' && hourReports[0].range.from > 0
+    && hourReports[hourReports.length - 1].xs.every((x, i) => x === hoursReports.xs[i])
     && hourFirst === 0 && isNearX(hourMiddle, hoursWidth * 12 / 23) && isNearX(hourLast, hoursWidth),
-    `${JSON.stringify(hoursReports.zoomReports)}, then ${JSON.stringify(hoursReports.xs)} across ${hoursWidth}`);
+    `${JSON.stringify(hoursReports.zoomReports)}, then ${JSON.stringify(hourReports)}, settled at `
+    + `${JSON.stringify(hoursReports.xs)} across ${hoursWidth}`);
 
   // A sparkline keeps 2px above its Y range, and a pie maps no label
   await mountGeometryProbe({ ...lineGeometryConfig, title: 'Probe — Label x of a sparkline', isSparkline: true });
@@ -5114,10 +5156,385 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('a sparkline keeps 2px above its Y range and maps its first point to the start of the plot area',
     sparklineGeometry.paddingTop === `${SPARKLINE_INSET}px` && sparklineGeometry.xs[0] === 0,
     `${sparklineGeometry.paddingTop}, ${JSON.stringify(sparklineGeometry.xs)}`);
-  check('a pie reports its plot area and maps no label',
+  check('a pie reports its plot area and no range of labels, and maps no label',
     pieGeometry.areaReports.length === 1 && isSameReportedArea(pieGeometry.areaReports[0], pieGeometry.area)
+    && formatRangeReports(pieGeometry.rangeReports) === 'none'
     && pieGeometry.xs[0] === undefined && pieGeometry.areaReports[0].xs[0] === undefined,
-    `${JSON.stringify(pieGeometry.areaReports)}, ${JSON.stringify(pieGeometry.xs)}`);
+    `${JSON.stringify(pieGeometry.areaReports)}, ${JSON.stringify(pieGeometry.rangeReports)}, `
+    + `${JSON.stringify(pieGeometry.xs)}`);
+
+  // --- `onRangeChange` reports the labels of each frame that moves them, where `getLabelX()` places them ---
+  // Runs of three points between gaps, each a red rule from the x of its first label to that of its last, on a Y range
+  // the transparent reference lines hold clear of the Y-axis labels, in a window off either end of the labels
+  const rangeRuns = [[0, 2], [4, 6], [8, 10]];
+  await mountGeometryProbe({
+    type: 'line',
+    title: 'Probe — Labels of each frame of a drag',
+    labels: geometryLabels,
+    // `values` marks a missing value with `null`
+    // eslint-disable-next-line no-null/no-null
+    datasets: [{ name: 'Runs', color: '#FF0000', values: [3.5, 3.5, 3.5, null, 3.5, 3.5, 3.5, null, 3.5, 3.5, 3.5] }],
+    referenceLines: [{ value: 0, color: 'transparent' }, { value: 10, color: 'transparent' }],
+    withMinimap: true,
+    minimapRange: [0.33, 0.73],
+  });
+  // Drags the minimap slider back by `shift` of the minimap in `steps` moves two frames apart, each range report taking
+  // the frame's time, what `getLabelX()` gives for the labels of the range and either one past it, the edges of the
+  // canvas and the runs of red columns the canvas holds across the plot area, all in px from its start, and records
+  // the x where each frame of the plot starts the red runs
+  const rangeDrag = await page.evaluate(async ({ bounds, steps, shift }) => {
+    const host = document.getElementById('probe');
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    const context = canvas.getContext('2d');
+    const minimap = host.querySelector('.lovely-chart--minimap canvas').getBoundingClientRect();
+    const slider = host.querySelector('.lovely-chart--minimap-slider-inner');
+    const fire = (target, type, clientX) => target.dispatchEvent(new MouseEvent(type, {
+      bubbles: true, cancelable: true, buttons: 1, clientX, clientY: minimap.top + minimap.height / 2,
+    }));
+    const readCanvas = () => {
+      const [left, top, width, height] = ['left', 'top', 'width', 'height']
+        .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+      const canvasBox = canvas.getBoundingClientRect();
+      const hostBox = host.getBoundingClientRect();
+      const canvasStart = canvasBox.left - hostBox.left - host.clientLeft - left;
+      const canvasTop = canvasBox.top - hostBox.top - host.clientTop - top;
+      const scale = canvas.width / canvas.clientWidth;
+      const { data } = context.getImageData(
+        Math.round(-canvasStart * scale), Math.round(-canvasTop * scale),
+        Math.round(width * scale), Math.round(height * scale),
+      );
+      const columnCount = Math.round(width * scale);
+      const runs = [];
+      for (let x = 0; x < columnCount; x++) {
+        let isPicked = false;
+        for (let j = x * 4; j < data.length && !isPicked; j += columnCount * 4) {
+          isPicked = Object.values(bounds).every(([min, max], k) => data[j + k] >= min && data[j + k] <= max);
+        }
+        if (!isPicked) continue;
+        const last = runs[runs.length - 1];
+        if (last && last[1] === x) {
+          last[1] = x + 1;
+        } else {
+          runs.push([x, x + 1]);
+        }
+      }
+      return {
+        width,
+        canvasEdges: [canvasStart, canvasStart + canvas.clientWidth],
+        drawnRuns: runs.map((run) => run.map((edge) => edge / scale)),
+      };
+    };
+    window.probeRangeExtras = ({ from, to }) => ({
+      frame: document.timeline.currentTime,
+      pointXs: Array.from({ length: to - from + 1 }, (_, i) => window.probeChart.getLabelX(from + i)),
+      outerXs: [window.probeChart.getLabelX(from - 1), window.probeChart.getLabelX(to + 1)],
+      ...readCanvas(),
+    });
+    const frameXs = new Map();
+    context.moveTo = function (x, y) {
+      if (this.strokeStyle === '#ff0000') {
+        const time = document.timeline.currentTime;
+        frameXs.set(time, [...(frameXs.get(time) ?? []), x]);
+      }
+      return CanvasRenderingContext2D.prototype.moveTo.call(this, x, y);
+    };
+    window.probeRangeReports = [];
+    const { left, width } = slider.getBoundingClientRect();
+    const start = left + width / 2;
+    fire(slider, 'mousedown', start);
+    for (let step = 1; step <= steps; step++) {
+      fire(document, 'mousemove', start - minimap.width * shift * step / steps);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    fire(document, 'mouseup', start - minimap.width * shift);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    delete context.moveTo;
+    window.probeRangeExtras = undefined;
+    return { reports: window.probeRangeReports, frames: [...frameXs] };
+  }, { bounds: getColorBounds('#FF0000', [40, 255], COLOR_TOLERANCE), steps: 10, shift: 0.06 });
+  // The range of the window the drag leaves, passed back as `minimapRange`
+  const draggedRange = rangeDrag.reports[rangeDrag.reports.length - 1]?.range;
+  await page.evaluate(
+    (range) => window.probeChart.update({ ...window.probeParams, minimapRange: range }), draggedRange,
+  );
+  await sleep(600);
+  const reopenedLine = await page.evaluate(() => {
+    const range = window.probeRangeReports[window.probeRangeReports.length - 1]?.range;
+    return { range, xs: range ? [-1, 0, 1].map((i) => window.probeChart.getLabelX(range.from + i)) : [] };
+  });
+  await unmountProbe(page);
+  const rangeReportFrames = rangeDrag.reports.map(({ frame }) => frame);
+  const movedFrames = rangeDrag.frames
+    .filter(([, xs], i) => i === 0 || JSON.stringify(xs) !== JSON.stringify(rangeDrag.frames[i - 1][1]))
+    .map(([frame]) => frame);
+  check('onRangeChange reports each frame of a drag of the minimap window that moves the points, once, and no other',
+    rangeReportFrames.length > 5 && new Set(rangeReportFrames).size === rangeReportFrames.length
+    && JSON.stringify(rangeReportFrames) === JSON.stringify(movedFrames),
+    `reports at ${rangeReportFrames.join()}, the points moved at ${movedFrames.join()} of ${rangeDrag.frames.length} `
+    + 'frames');
+  // Whether the range of a report holds the labels whose points stand on the canvas, and `getLabelX()` maps them alone
+  const isRangeOnCanvas = ({ pointXs, outerXs, canvasEdges: [canvasStart, canvasEnd] }) => {
+    const step = pointXs[1] - pointXs[0];
+    const [first, last] = [pointXs[0], pointXs[pointXs.length - 1]];
+    return pointXs.every((x) => x !== undefined) && outerXs.every((x) => x === undefined)
+      && first >= canvasStart - PLOT_AREA_TOLERANCE && first - step < canvasStart
+      && last <= canvasEnd + PLOT_AREA_TOLERANCE && last + step > canvasEnd;
+  };
+  check('each range onRangeChange reports runs from the first to the last label whose point the canvas holds',
+    formatRangeReports([...rangeDrag.reports.slice(0, 1), ...rangeDrag.reports.slice(-1)]) === '4-7 3-6'
+    && rangeDrag.reports.every(isRangeOnCanvas),
+    JSON.stringify(rangeDrag.reports.map(({ range, pointXs, canvasEdges }) => ({ range, pointXs, canvasEdges }))));
+  // Whether each run of points between gaps that a report maps clear of either edge of the plot area stands where the
+  // frame drew it on the canvas, and each run drawn there where the report maps one
+  const isDrawnAtLabelX = ({ range: { from, to }, pointXs, drawnRuns, width }) => {
+    const isInner = ([start, end]) => start >= INNER_RUN_MARGIN && end <= width - INNER_RUN_MARGIN;
+    const isNear = (run) => (other) => run.every((edge, k) => Math.abs(edge - other[k]) <= PLOT_AREA_TOLERANCE);
+    const mappedRuns = rangeRuns
+      .filter(([first, last]) => first >= from && last <= to)
+      .map(([first, last]) => [pointXs[first - from], pointXs[last - from]]);
+    const innerRuns = mappedRuns.filter(isInner);
+    return innerRuns.length > 0 && innerRuns.every((run) => drawnRuns.some(isNear(run)))
+      && drawnRuns.filter(isInner).every((run) => mappedRuns.some(isNear(run)));
+  };
+  check('getLabelX() in each onRangeChange report puts the points where the frame of the report drew them',
+    rangeDrag.reports.length > 0 && rangeDrag.reports.every(isDrawnAtLabelX),
+    JSON.stringify(rangeDrag.reports.map(({ range, pointXs, drawnRuns }) => ({
+      range, pointXs, drawnRuns: formatRuns(drawnRuns),
+    }))));
+  // A window over points takes half an interval past either end label
+  const reopenedStep = reopenedLine.xs[2] - reopenedLine.xs[1];
+  check('a dragged range passed back as minimapRange reopens a line on the same labels, half an interval past each end',
+    draggedRange !== undefined && formatRangeReports([reopenedLine]) === formatRangeReports([{ range: draggedRange }])
+    && reopenedLine.xs[0] === undefined && Math.abs(reopenedLine.xs[1] + GUTTER - reopenedStep / 2) < 0.01,
+    `${JSON.stringify(draggedRange)} reopens as ${JSON.stringify(reopenedLine)}`);
+
+  // Bars between gaps, in a window whose ends cut columns, as a drag leaves them
+  const rangeBars = await mountGeometryProbe({
+    type: 'bar',
+    title: 'Probe — Labels of a window that cuts columns',
+    labels: geometryLabels,
+    // `values` marks a missing value with `null`
+    // eslint-disable-next-line no-null/no-null
+    datasets: [{ name: 'Bars', color: '#FF0000', values: [6, null, 6, null, 6, null, 6, null, 6, null, 6] }],
+    withMinimap: true,
+    minimapRange: [0.33, 0.76],
+  });
+  await rangeBars.scrollIntoViewIfNeeded();
+  await page.evaluate(() => {
+    const context = document.querySelector('#probe .lovely-chart--container > canvas').getContext('2d');
+    window.probeFrames = 0;
+    context.clearRect = function (...args) {
+      window.probeFrames++;
+      return CanvasRenderingContext2D.prototype.clearRect.apply(this, args);
+    };
+  });
+  const plotBox = await rangeBars.locator('canvas').first().boundingBox();
+  for (const fraction of [0.3, 0.5, 0.7]) {
+    await page.mouse.move(plotBox.x + plotBox.width * fraction, plotBox.y + plotBox.height / 2);
+    await sleep(300);
+  }
+  await page.mouse.move(5, 5);
+  await page.evaluate(() => window.probeChart.selectLabel(6));
+  await sleep(300);
+  await page.evaluate(() => window.probeChart.selectLabel(undefined));
+  await sleep(300);
+  await switchSkinAndBack(page);
+  const stillBars = await page.evaluate(() => ({
+    frames: window.probeFrames,
+    reports: window.probeRangeReports.map(({ range }) => ({ range })),
+  }));
+  await page.evaluate(
+    (range) => window.probeChart.update({ ...window.probeParams, minimapRange: range }), stillBars.reports[0]?.range,
+  );
+  await sleep(600);
+  const reopenedBars = await page.evaluate(() => {
+    const range = window.probeRangeReports[window.probeRangeReports.length - 1]?.range;
+    return {
+      reports: window.probeRangeReports.map((report) => ({ range: report.range })),
+      start: range && window.probeChart.getLabelX(range.from, 0),
+    };
+  });
+  await unmountProbe(page);
+  check('onRangeChange stays uncalled through the frames of a hover, a selection and a change of the skin',
+    stillBars.frames > 10 && formatRangeReports(stillBars.reports) === '4-7',
+    `${stillBars.frames} frames, reports ${formatRangeReports(stillBars.reports)}`);
+  check('a range of bars passed back as minimapRange reopens on the columns of the same labels',
+    formatRangeReports(reopenedBars.reports) === '4-7 4-7' && Math.abs(reopenedBars.start + GUTTER) < 0.01,
+    `${formatRangeReports(reopenedBars.reports)}, the first column from ${reopenedBars.start}`);
+
+  // A line whose `limitDate` locks the first three labels, in a window the minimap moves off them whole
+  await mountGeometryProbe({
+    ...lineGeometryConfig,
+    title: 'Probe — Labels of a window at the locked labels',
+    labels: geometryLabels,
+    datasets: [{ name: 'Line', color: '#FF0000', values: [3, 9, 4, 8, 5, 7, 4, 9, 3, 8, 5] }],
+    withMinimap: true,
+    minimapRange: [0, 0.5],
+    limitDate: geometryLabels[3],
+  });
+  await page.evaluate(() => window.probeChart.update({
+    ...window.probeParams,
+    minimapRange: window.probeRangeReports[0]?.range,
+  }));
+  await sleep(600);
+  const lockedReports = await page.evaluate(() => window.probeRangeReports);
+  await unmountProbe(page);
+  check('a range of a line from the first label limitDate leaves open reopens one label wider at its end',
+    formatRangeReports(lockedReports) === '3-8 3-9', formatRangeReports(lockedReports));
+
+  // Ranges from the first label `limitDate` leaves open as `minimapRange`, at label counts where the limit and the edges
+  // of the window fall off the labels by float error: a line ends a label later short of the last label, bars do not
+  const limitCases = [
+    { type: 'line', count: 26, limit: 7, range: { from: 7, to: 15 }, expected: '7-16' },
+    { type: 'line', count: 11, limit: 1, range: { from: 1, to: 7 }, expected: '1-8' },
+    { type: 'line', count: 11, limit: 3, range: { from: 3, to: 10 }, expected: '3-10' },
+    { type: 'bar', count: 26, limit: 7, range: { from: 7, to: 15 }, expected: '7-15' },
+  ];
+  const limitResults = [];
+  for (const { type, count, limit, range, expected } of limitCases) {
+    const labels = Array.from({ length: count }, (_, i) => Date.UTC(2026, 0, i + 1));
+    await mountGeometryProbe({
+      type,
+      title: `Probe — ${type} labels from the limit at ${limit} of ${count}`,
+      labels,
+      datasets: [{ name: 'Series', color: '#FF0000', values: labels.map((_, i) => 3 + (i % 4)) }],
+      withMinimap: true,
+      minimapRange: range,
+      limitDate: labels[limit],
+    }, [[limit]]);
+    const reports = await page.evaluate(() => window.probeRangeReports);
+    await unmountProbe(page);
+    limitResults.push({ type, count, limit, expected, reported: formatRangeReports(reports), x: reports[0]?.xs[0] });
+  }
+  check('a range from the first label limitDate leaves open reopens on it whatever the float error of the window',
+    limitResults.every(({ expected, reported, x }) => reported === expected && x !== undefined),
+    JSON.stringify(limitResults));
+
+  // A zoom into the hours `onZoom` returns and out again, each way swapping its data in after the transitions the zoom
+  // started have ended, as a busy main thread can leave it, each report taking the time of its frame
+  const lateSwapZoom = await mountGeometryProbe({
+    type: 'line',
+    title: 'Probe — Frames of a zoom whose data swaps in late',
+    labels: geometryLabels.slice(0, 10),
+    datasets: [{ name: 'Days', color: '#FF0000', values: [3, 9, 4, 8, 5, 7, 4, 9, 3, 8] }],
+  }, [[0]], true);
+  await lateSwapZoom.scrollIntoViewIfNeeded();
+  await page.evaluate(({ swapTimeout, delay }) => {
+    window.probeRangeExtras = () => ({ frame: document.timeline.currentTime });
+    window.nativeSetTimeout = window.setTimeout;
+    window.setTimeout = (callback, ms, ...args) => window.nativeSetTimeout(
+      callback, ms === swapTimeout ? ms + delay : ms, ...args,
+    );
+  }, { swapTimeout: ZOOM_SWAP_TIMEOUT, delay: LATE_SWAP_DELAY });
+  await clickProbeLabel(5);
+  await sleep(2000);
+  await page.mouse.move(5, 5);
+  await page.evaluate(() => window.probeChart.zoomOut());
+  await sleep(2000);
+  const lateSwapReports = await page.evaluate(() => {
+    window.setTimeout = window.nativeSetTimeout;
+    delete window.nativeSetTimeout;
+    return { ranges: window.probeRangeReports, zooms: window.probeZoomReports };
+  });
+  await unmountProbe(page);
+  const lateSwapFrames = lateSwapReports.ranges.flatMap(({ frame }) => (frame !== undefined ? [frame] : []));
+  const [lateZoomIn, lateZoomOut] = lateSwapReports.zooms;
+  const lateHours = formatRangeReports(lateSwapReports.ranges.slice(lateZoomIn?.rangeCount, lateZoomOut?.rangeCount));
+  check('onRangeChange reports each frame once as a zoom in or out swaps its data in after the transitions of the zoom',
+    lateSwapReports.zooms.length === 2 && lateSwapFrames.length > 10
+    && new Set(lateSwapFrames).size === lateSwapFrames.length && lateHours.split(' ').includes('0-23')
+    && formatRangeReports(lateSwapReports.ranges.slice(-1)) === '0-9',
+    `${formatRangeReports(lateSwapReports.ranges)} at frames ${lateSwapFrames.join()}, zoom reports after `
+    + `${lateSwapReports.zooms.map(({ rangeCount }) => rangeCount).join()}`);
+
+  // A chart that opens zoomed into hours `onZoom` returns late, rebuilt by `update()` keeping the zoom, and again into
+  // an `onZoom` that fails, recording the reports in order and what `getLabelX()` gives while the zoom waits for data
+  const openedZoomed = await page.evaluate(async ({ config, hourMs, dataMs }) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const events = [];
+    const waitingXs = [];
+    let shouldFail = false;
+    const params = {
+      ...config,
+      initialZoom: 5,
+      onZoom: async (day) => {
+        await wait(dataMs);
+        if (shouldFail) throw new Error('No hours');
+        return {
+          type: 'line',
+          labels: Array.from({ length: 24 }, (_, hour) => day + hour * hourMs),
+          datasets: [{ name: 'Hours', color: '#FF0000', values: Array.from({ length: 24 }, (_, hour) => hour % 5) }],
+        };
+      },
+      onRangeChange: (range) => events.push(range ? `${range.from}-${range.to}` : 'none'),
+      onZoomChange: (value) => events.push(value === undefined ? 'overview' : 'zoom'),
+    };
+    window.probeChart = new LovelyChart(element, params);
+    await wait(dataMs / 2);
+    waitingXs.push(window.probeChart.getLabelX(5));
+    await wait(dataMs * 3);
+    events.push('|');
+    window.probeChart.update(params, { shouldKeepZoom: true });
+    await wait(dataMs / 2);
+    waitingXs.push(window.probeChart.getLabelX(0));
+    await wait(dataMs * 3);
+    events.push('|');
+    shouldFail = true;
+    window.probeChart.update(params, { shouldKeepZoom: true });
+    await wait(dataMs * 3);
+    return { events: events.join(' '), waitingXs };
+  }, {
+    config: {
+      type: 'line',
+      title: 'Probe — Labels of a chart that opens zoomed',
+      labels: geometryLabels.slice(0, 10),
+      datasets: [{ name: 'Days', color: '#FF0000', values: [3, 9, 4, 8, 5, 7, 4, 9, 3, 8] }],
+    },
+    hourMs: HOUR_MS,
+    dataMs: LATE_ZOOM_DATA_MS,
+  });
+  await unmountProbe(page);
+  check('a chart that opens zoomed reports no labels of the overview it hides, and those a failed zoom shows',
+    openedZoomed.events === 'zoom 0-23 | 0-23 | overview 0-9' && openedZoomed.waitingXs.every((x) => x === undefined),
+    JSON.stringify(openedZoomed));
+
+  // A chart that rebuilds itself from its first report and tears itself down from the next
+  const reentrantRanges = await page.evaluate(async (config) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    document.getElementById('container').appendChild(element);
+    const reports = [];
+    const errors = [];
+    const onError = (e) => errors.push(e.message);
+    window.addEventListener('error', onError);
+    const params = {
+      ...config,
+      onRangeChange: (range) => {
+        reports.push({ range });
+        if (reports.length === 1) {
+          window.probeChart.update(params);
+        } else if (reports.length === 2) {
+          window.probeChart.destroy();
+        }
+      },
+    };
+    window.probeChart = new LovelyChart(element, params);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    window.removeEventListener('error', onError);
+    const childCount = element.childElementCount;
+    element.remove();
+    return { reports, errors, childCount };
+  }, lineGeometryConfig);
+  check('an onRangeChange that calls update() or destroy() breaks no frame, and the rebuilt chart reports its labels',
+    formatRangeReports(reentrantRanges.reports) === '0-4 0-4 none' && reentrantRanges.errors.length === 0
+    && reentrantRanges.childCount === 0,
+    `${formatRangeReports(reentrantRanges.reports)}, errors ${JSON.stringify(reentrantRanges.errors)}, `
+    + `${reentrantRanges.childCount} elements left`);
 
   // --- `minimapRange` in labels: the window by chart kind, the minimap slider over it, clamping, a pie and a zoom ---
   // The edges of the minimap slider, as fractions of the minimap

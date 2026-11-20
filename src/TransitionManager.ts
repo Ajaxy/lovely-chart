@@ -95,6 +95,7 @@ export class TransitionManager {
   }
 
   readonly #tick = () => {
+    const frame = this.#nextFrame;
     const isSlow = !this.isFast();
     this.#speedTest();
 
@@ -124,7 +125,8 @@ export class TransitionManager {
       this.#onTick(state);
     }
 
-    if (this.isRunning()) {
+    // A transition that `#onTick` adds once the last one has ended asks for the next frame itself
+    if (this.isRunning() && this.#nextFrame === frame) {
       this.#nextFrame = requestAnimationFrame(this.#tick);
     }
   };

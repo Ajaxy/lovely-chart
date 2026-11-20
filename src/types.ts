@@ -418,10 +418,21 @@ export interface LovelyChartParams {
   onTooltipChange?: (tooltip: TooltipContent | undefined) => void;
   /**
    * Called with the data area of the plot, in px from the inside of the element's border, whenever the chart writes
-   * the `--lovely-chart-plot-area-*` variables, and as a zoom starts to move the labels under the area, once the data
-   * `onZoom` returns arrives; called with `undefined` as `destroy()` removes the variables.
+   * the `--lovely-chart-plot-area-*` variables, and with `undefined` as `destroy()` removes them.
    */
   onPlotAreaChange?: (area: { left: number; top: number; width: number; height: number } | undefined) => void;
+  /**
+   * Called after a frame that draws the labels at new x, at most once a frame, with the inclusive indexes of the labels
+   * of the visible range, those `getLabelX()` maps, which gives where that frame drew each: on the first paint, through
+   * a pan or a resize of the minimap window and the range transition of a zoom, from the first frame of the data
+   * `onZoom` returns, indexing its labels, and on the first paint after `update()` or a resize, which a chart that
+   * opens zoomed makes of its zoomed view. Passed back as `minimapRange`, the range opens a window on the same labels,
+   * or one label wider short of the last label from the first label `limitDate` leaves open on a line or area chart.
+   * Called with `undefined` once no labels are on screen: on a pie or donut chart, from the start of a zoom into
+   * shares, and as `destroy()` tears the chart down. The first frame of `update()` reports again, so a call of
+   * `update()` from each report rebuilds the chart on every frame.
+   */
+  onRangeChange?: (range: { from: number; to: number } | undefined) => void;
   /**
    * Element that holds the legend, in place of the chart container; `setLegendContainer()` moves the legend later. The
    * legend takes its spacing variables, such as `--lovely-chart-legend-gap`, from this element and its ancestors.

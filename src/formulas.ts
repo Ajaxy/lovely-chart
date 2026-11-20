@@ -13,6 +13,8 @@ const EDGE_PIN_DISTANCE = GUTTER * 2;
 const CONSTANT_RANGE_EPSILONS = 4;
 // A value within this fraction of a step from a step multiple counts as on it, so float error never moves it a step
 const STEP_EPSILON = 1e-9;
+// A window edge within this fraction of a label from the label counts as on it, so float error never drops the label
+const LABEL_EPSILON = 1e-9;
 const MIN_LEGIBLE_Y_LABELS = 2;
 // The significant digits to which the one label of a constant window reads its value
 const MAX_CONSTANT_LABEL_DIGITS = 7;
@@ -216,10 +218,12 @@ export function getCircleTextShift(percent: number, radius: number): number {
 }
 
 // The state's label indexes reach one label past each edge for edge drawing, so the window comes from its fractions
-export function getVisibleLabelRange({ lastLabelIndex, begin, end }: ChartState): LabelRange {
+export function getVisibleLabelRange(
+  { lastLabelIndex, begin, end }: Pick<ChartState, 'lastLabelIndex' | 'begin' | 'end'>,
+): LabelRange {
   return {
-    from: Math.max(0, Math.ceil(lastLabelIndex * begin)),
-    to: Math.min(Math.floor(lastLabelIndex * end), lastLabelIndex),
+    from: Math.max(0, Math.ceil(lastLabelIndex * begin - LABEL_EPSILON)),
+    to: Math.min(Math.floor(lastLabelIndex * end + LABEL_EPSILON), lastLabelIndex),
   };
 }
 

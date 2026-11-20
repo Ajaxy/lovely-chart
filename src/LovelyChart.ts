@@ -1,5 +1,5 @@
 import type {
-  AnalyzedData, AnalyzedDataset, ChartColors, ChartState, ChartType, Filter, FocusOn, LovelyChartParams,
+  AnalyzedData, AnalyzedDataset, ChartColors, ChartState, ChartType, Filter, FocusOn, LabelRange, LovelyChartParams,
   LovelyChartUpdateOptions, Pixel, Point, ProjectionParams, Range, Rect, Size, TooltipContent,
 } from './types.js';
 
@@ -55,6 +55,8 @@ const PLOT_AREA_PROPERTIES: [keyof Rect, string][] = [
   ['height', '--lovely-chart-plot-area-height'],
 ];
 const PLOT_PADDING_TOP_PROPERTY = '--lovely-chart-plot-padding-top';
+// The key of the range `onRangeChange` last reported when it reported none
+const NO_RANGE_KEY = 'none';
 const CHART_TYPE_NAMES: Record<ChartType, string> = {
   line: 'Line chart',
   bar: 'Bar chart',
@@ -89,6 +91,12 @@ export default class LovelyChart {
   // The data area in px of the padding box of the element, as last written to it
   #placedPlotArea?: Rect;
   #reportedPlotArea?: Rect;
+  // The projection of the last frame drawn of the data the chart holds, where `getLabelX()` places its labels
+  #drawnProjection?: Projection;
+  // The labels `onRangeChange` last reported, with their version and x, or `NO_RANGE_KEY`
+  #rangeKey?: string;
+  // Counts the data a rebuild or a zoom swaps in, so the labels of new data report even at the last indexes and x
+  #labelsVersion = 0;
 
   #header?: Header;
   #axes?: Axes;
@@ -246,23 +254,18 @@ export default class LovelyChart {
   }
 
   /**
-   * The x of the label at `labelIndex` in px from the left of the plot area, in the range and the zoom the chart shows
-   * or is moving to: where its value draws, at its point or the centre of its bar or step column. `offset`, from 0 to 1,
-   * takes that fraction through the label's interval instead: from its point to the next one on line and area charts,
-   * and across its column from its start on charts with bars or steps among their datasets. `undefined` outside the
-   * visible range, before the first paint, on pie and donut charts and while zoomed into shares.
+   * The x of the label at `labelIndex` in px from the left of the plot area, where the last frame the chart drew put
+   * it: where its value draws, at its point or the centre of its bar or step column. `offset`, from 0 to 1, takes that
+   * fraction through the label's interval instead: from its point to the next one on line and area charts, and across
+   * its column from its start on charts with bars or steps among their datasets. `undefined` outside the labels of that
+   * frame, before the first frame of the data, the data a zoom swaps in and that of a chart that opens zoomed included,
+   * on pie and donut charts and while zoomed into shares.
    */
   getLabelX(labelIndex: number, offset?: number): number | undefined {
-    if (!this.#placedPlotArea || this.#data.isCircle || this.#zoomer?.isZoomedIntoShares()) return undefined;
+    const range = this.#getDrawnLabelRange();
+    if (!range || !Number.isInteger(labelIndex) || labelIndex < range.from || labelIndex > range.to) return undefined;
 
-    // A zoom swaps the data and sets the range it moves to at once, ahead of the frames that draw them
-    const state = this.#stateManager!.getState();
-    const { from, to } = getVisibleLabelRange(state);
-    if (!Number.isInteger(labelIndex) || labelIndex < from || labelIndex > to) return undefined;
-
-    const projection = new Projection(this.#buildProjectionParams(state, this.#axes!.getLabelColumnWidth()));
-
-    return projection.toPixels(getIntervalPosition(this.#data, labelIndex, offset), 0)[0] - projection.getArea().left;
+    return this.#getDrawnX(getIntervalPosition(this.#data, labelIndex, offset));
   }
 
   /**
@@ -315,9 +318,13 @@ export default class LovelyChart {
     if (this.#reportedPlotArea) {
       this.#originalData.onPlotAreaChange?.(undefined);
     }
+    if (this.#rangeKey !== undefined && this.#rangeKey !== NO_RANGE_KEY) {
+      this.#originalData.onRangeChange?.(undefined);
+    }
   }
 
   #setupComponents(nextSiblings?: NextSiblings) {
+    this.#labelsVersion++;
     this.#overviewDatasets = this.#data.datasets;
     this.#overviewLabels = [...this.#originalData.labels];
     this.#setupContainer(nextSiblings?.chart);
@@ -335,7 +342,7 @@ export default class LovelyChart {
     this.#axes = new Axes(this.#context!, this.#data, this.#plotSize!, this.#colors);
     if (this.#data.withMinimap) {
       // Triggers the initial render via the range callback
-      this.#minimap = new Minimap(this.#element!, this.#data, this.#colors, this.#onRangeChange);
+      this.#minimap = new Minimap(this.#element!, this.#data, this.#colors, this.#onMinimapRangeChange);
     } else {
       this.#stateManager.update({ range: this.#data.minimapRange });
     }
@@ -350,8 +357,8 @@ export default class LovelyChart {
     this.#zoomer = this.#data.isZoomable
       ? new Zoomer(
         this.#data, this.#originalData, this.#colors, this.#stateManager,
-        this.#element!, this.#plotSize!, this.#header, this.#minimap, this.#tooltip, this.#tools, this.#onZoomStart,
-        this.#onZoomChange, this.#onZoomDataChange,
+        this.#element!, this.#plotSize!, this.#header, this.#minimap, this.#tooltip, this.#tools, this.#onZoomChange,
+        this.#onZoomDataChange,
       )
       : undefined;
   }
@@ -459,6 +466,7 @@ export default class LovelyChart {
       this.#data, datasets, range, visibilities, boundsAndParams, undefined, circleSums,
     );
     const projection = new Projection(boundsAndParams);
+    this.#drawnProjection = projection;
 
     let secondaryPoints: Point[] | undefined;
     let secondaryProjection: Projection | undefined;
@@ -485,6 +493,7 @@ export default class LovelyChart {
     if (this.#data.isLoading && !this.#data.xLabels.length) {
       drawPlotSkeleton(this.#context!, this.#data, area);
       this.#reportPlotArea();
+      this.#reportRange();
       return;
     }
 
@@ -559,6 +568,7 @@ export default class LovelyChart {
         this.#reportTooltip(undefined);
       }
     }
+    this.#reportRange();
   };
 
   // A panned plot runs past its start, so the column of the Y-axis labels clips it
@@ -624,6 +634,38 @@ export default class LovelyChart {
     this.#originalData.onPlotAreaChange?.({ ...area });
   }
 
+  // The report goes last, as its callback can update or destroy the chart, and one earlier in the frame that did leaves
+  // no frame drawn to report. The overview an instant zoom hides until its data arrives goes unreported.
+  #reportRange() {
+    const { onRangeChange } = this.#originalData;
+    if (!onRangeChange || !this.#drawnProjection || this.#zoomer?.isZoomingInstantly()) return;
+
+    const range = this.#getDrawnLabelRange();
+    const key = range
+      ? JSON.stringify([this.#labelsVersion, range.from, range.to, this.#getDrawnX(0), this.#getDrawnX(1)])
+      : NO_RANGE_KEY;
+    if (key === this.#rangeKey) return;
+
+    this.#rangeKey = key;
+    onRangeChange(range);
+  }
+
+  // The labels of the last frame drawn: none before the first frame of the data, while an instant zoom hides the frame,
+  // on a pie or a donut, from the start of a zoom into shares and with no labels
+  #getDrawnLabelRange(): LabelRange | undefined {
+    if (!this.#drawnProjection || this.#data.isCircle) return undefined;
+    if (this.#zoomer?.isZoomedIntoShares() || this.#zoomer?.isZoomingInstantly()) return undefined;
+
+    const range = getVisibleLabelRange(this.#state!);
+    return range.from <= range.to ? range : undefined;
+  }
+
+  // The x of a position in labels in the last frame drawn, in px from the left of the plot area
+  #getDrawnX(position: number) {
+    const projection = this.#drawnProjection!;
+    return projection.toPixels(position, 0)[0] - projection.getArea().left;
+  }
+
   // The canvas origin in the padding box of the element. The layout offset of the canvas leaves out the transform
   // that turns it in a circle transition, and the scale of a transformed element or ancestor turns the distance
   // between the boxes on the screen back into px of the element.
@@ -643,7 +685,7 @@ export default class LovelyChart {
     ];
   }
 
-  readonly #onRangeChange = (range: Range) => {
+  readonly #onMinimapRangeChange = (range: Range) => {
     this.#stateManager!.update({ range });
   };
 
@@ -755,12 +797,10 @@ export default class LovelyChart {
     this.#zoomer!.zoomOut(this.#state!);
   };
 
-  // A zoom moves the labels under an area it can leave as it is
-  readonly #onZoomStart = () => {
-    this.#originalData.onPlotAreaChange?.({ ...this.#placedPlotArea! });
-  };
-
+  // The labels of the data a zoom swaps in have no x until the frame that draws them
   readonly #onZoomDataChange = () => {
+    this.#drawnProjection = undefined;
+    this.#labelsVersion++;
     this.#labelPlot();
   };
 
@@ -852,6 +892,7 @@ export default class LovelyChart {
     this.#context = undefined;
     this.#plotArea = undefined;
     this.#placedPlotArea = undefined;
+    this.#drawnProjection = undefined;
     this.#header = undefined;
     this.#axes = undefined;
     this.#minimap = undefined;

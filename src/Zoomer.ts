@@ -30,12 +30,13 @@ export class Zoomer {
   readonly #minimap: Minimap | undefined;
   readonly #tooltip: Tooltip | undefined;
   readonly #tools: Tools;
-  readonly #onZoomStart: () => void;
   readonly #onZoomChange: (labelValue: number | undefined, labelIndex: number | undefined) => void;
   readonly #onDataChange: () => void;
 
   #isZoomed = false;
   #isZoomedIntoShares = false;
+  // From an instant zoom in, which hides the overview it starts from, until its data shows or fails to arrive
+  #isZoomingInstantly = false;
   #isDestroyed = false;
   // The label of the zoomed view, while it shows or is on its way in
   #zoomedLabelIndex?: number;
@@ -57,7 +58,6 @@ export class Zoomer {
     minimap: Minimap | undefined,
     tooltip: Tooltip | undefined,
     tools: Tools,
-    onZoomStart: () => void,
     onZoomChange: (labelValue: number | undefined, labelIndex: number | undefined) => void,
     onDataChange: () => void,
   ) {
@@ -71,7 +71,6 @@ export class Zoomer {
     this.#minimap = minimap;
     this.#tooltip = tooltip;
     this.#tools = tools;
-    this.#onZoomStart = onZoomStart;
     this.#onZoomChange = onZoomChange;
     this.#onDataChange = onDataChange;
   }
@@ -99,6 +98,7 @@ export class Zoomer {
     if (isInstant) {
       // Hide the freshly-rendered overview until the zoomed view is drawn so it
       // never paints (matters for async `onZoom`, where the swap lands a frame later)
+      this.#isZoomingInstantly = true;
       this.#container.style.visibility = 'hidden';
     }
 
@@ -149,6 +149,10 @@ export class Zoomer {
     return this.#isZoomedIntoShares;
   }
 
+  isZoomingInstantly(): boolean {
+    return this.#isZoomingInstantly;
+  }
+
   // While a zoomed view shows, or one is on its way in or out, the overview's range lives only in the state saved before
   // the zoom in. So does its filter, unless the zoomed view shares the overview's datasets: the legend drives the live
   // filter while that view shows, and a zoom out on its way saves it as it clears it.
@@ -195,9 +199,12 @@ export class Zoomer {
       this.#tooltip?.toggleLoading(false);
       this.#tooltip?.toggleIsZoomed(false);
       this.#header.toggleIsZooming(false);
-      // Reveal the overview fallback so the chart is not stuck hidden
+      // Reveal the overview fallback so the chart is not stuck hidden, drawing it again for the labels its hidden frame
+      // left unreported
       if (isInstant) {
+        this.#isZoomingInstantly = false;
         this.#container.style.visibility = '';
+        this.#stateManager.update();
       }
 
       // A page that knows the chart as zoomed, after `update()` kept the zoom, learns that the overview stays
@@ -217,6 +224,7 @@ export class Zoomer {
 
     if (isInstant) {
       this.#applyZoomData(newData, shouldZoomToLines, zoomInLabel, labelIndex, true);
+      this.#isZoomingInstantly = false;
       this.#container.style.visibility = '';
 
       return;
@@ -249,10 +257,6 @@ export class Zoomer {
         this.#container.classList.remove('lovely-chart--state-animating');
       }
     }, this.#stateManager.hasAnimations() ? ZOOM_ANIMATING_TIMEOUT : 0);
-
-    // The labels start to move with the range above, and the report goes last, as its callback can update or destroy
-    // the chart
-    this.#onZoomStart();
   }
 
   #applyZoomData(

@@ -86,6 +86,7 @@ const params: LovelyChartParams = {
   isKeyboardSelectable: true,
   onTooltipChange: readTooltip,
   onPlotAreaChange: (area) => (area ? area.left + area.top + area.width + area.height : undefined),
+  onRangeChange: (range) => (range ? range.to - range.from + 1 : undefined),
 };
 
 const chart = new LovelyChart(element, params);
