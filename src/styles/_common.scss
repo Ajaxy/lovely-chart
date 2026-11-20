@@ -15,6 +15,18 @@ $font-stack: '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
   --skeleton-color: #{rgba(#FFFFFF, 0.1)};
 }
 
+// The balloon covers the page's elements in the element holding the chart, and no z-index inside reaches the page
+:has(> .lovely-chart--container) {
+  isolation: isolate;
+}
+
+// A browser without `:has()` keeps the z-indexes of the chart in its own container
+@supports not selector(:has(*)) {
+  .lovely-chart--container {
+    isolation: isolate;
+  }
+}
+
 .lovely-chart--container {
   --background-color: #ffffff;
   --text-color: #222222;
@@ -99,12 +111,10 @@ $font-stack: '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
 }
 
 // Without the band, or with nothing in it to show, the header holds the zoom-out control alone, which floats over the
-// top inline-start corner of the plot while zoomed, on a backdrop over the top label of the main axis. It stacks over
-// the hover layer, which comes after it, and under the balloon, in a stacking context of the chart's own.
+// top inline-start corner of the plot while zoomed, on a backdrop over the top label of the main axis. It takes the
+// z-index of the balloon, so it stacks over the hover layer and under the balloon, which both come after it.
 .lovely-chart--container-no-header,
 .lovely-chart--container-empty-header {
-  isolation: isolate;
-
   .lovely-chart--header {
     pointer-events: none;
 
@@ -126,10 +136,6 @@ $font-stack: '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
     border-radius: 4px;
 
     background: var(--background-color);
-  }
-
-  .lovely-chart--tooltip-balloon {
-    z-index: 2;
   }
 }
 

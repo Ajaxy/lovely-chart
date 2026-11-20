@@ -8,7 +8,6 @@
 - `HatchedRange` type.
 - `--tooltip-muted-text-color`, `--tooltip-separator-color` and `--tooltip-border`: the colour of the tooltip's `comparison` row, a mix of 70% `--text-color` and 30% `--tooltip-background` by default, the colour of the rule under it, `--grid-lines` by default, and a border of the balloon, `none` by default.
 - The README lists the classes of the tooltip that stay stable for the rules of a page: `.lovely-chart--tooltip-balloon`, `-title`, `-title-total`, `-title-note`, `-dataset`, `-dataset-value`, `-dataset-comparison`, `-swatch`, `-change[data-tone]` and `-notes`.
-- `--lovely-chart-balloon-z-index`: the `z-index` of the tooltip balloon, read from the chart's element or an ancestor, `auto` by default. Set above the `z-index` of an overlay added after the chart, it places the overlay over the hover line and under the balloon, as the README shows.
 - `resolveTooltipNotes`: notes of the tooltip at a label, `(labelValue, datasetIndexes, labelIndex) => { titleNote?, notes? } | undefined`, in `--tooltip-muted-text-color`. A `titleNote` follows the date in `.lovely-chart--tooltip-title-note`, before a title total, and `notes` are lines below the rows in `.lovely-chart--tooltip-notes`, under a rule in `--tooltip-separator-color`, wrapped to the width of the rows. They change with the rows, for a pointer, a touch or `selectLabel()`; ignored on pie and donut charts.
 - `hatchedRanges[*].note` and `hatchedRanges[*].titleNote`: notes of the tooltip at each label of a range. Range notes come first, in range order, then the `hint` of each of the `eventLines` at the label, then those of `resolveTooltipNotes`; each splits into lines at `\n`, and a line shown already is left out. The `titleNote` of `resolveTooltipNotes` wins over a range's, and among ranges the first wins.
 - `TooltipNotes` type.
@@ -59,6 +58,7 @@
 - The axis labels take the regular weight of the chart's text, `--lovely-chart-font-weight`, as they take its family, in place of a fixed 300, so a page style that sets the weight of the chart's text reaches them too.
 - A header with nothing to show, with no `title` and no caption because of `noCaption` or text labels, folds to `--lovely-chart-empty-header-height`, 0 by default, in place of its 30px band, and the hover layer follows the plot up. While zoomed, its zoom-out control floats over the top inline-start corner of the plot, on a backdrop of `--background-color` and without a caption.
 - The plot takes `role="img"` and an English summary of the data it shows as its accessible name unless `ariaLabel` gives one: its type, the span of its labels and the names of its datasets, as `Line chart, 1 Nov 2025 — 5 Nov 2025: Desktop, Mobile`. A zoom in or out renews the summary from the data it brings.
+- An element a page places over the plot paints under the tooltip balloon in place of over it, and still over the hover line, when it comes after the chart with no `z-index` or `0`, or before it with `1`: the balloon takes `z-index: 1` in the element that holds the chart, which is a stacking context, `isolation: isolate`, while it holds one. That element paints as one layer among the positioned elements of the page around it, and no `z-index` inside it, as of a menu of the page there, reaches over the page.
 
 ### Fixed
 
@@ -73,6 +73,7 @@
 - A header caption of a range of days whose ends fall in different years gives each end its year, as `1 Jan 2026 — 18 Feb 2027`, in place of leaving out the year of the end in the current year, which read as a span of the other end's year, `1 Jan — 18 Feb 2027`.
 - A `minimapRange` that starts before the first label `limitDate` leaves open starts at that label and keeps its width within the axis, so one that ends before it selects the open labels in place of a window that ends before it starts, with an empty plot and a caption of reversed dates. A `limitDate` after the label before the last locks no label, in place of leaving the window no span of labels to select, past the right end of the minimap.
 - `noCaption` leaves out the caption of the header while zoomed too, into shares or into the data `onZoom` returns, as by a click, `initialZoom` or an `update()` that keeps the zoom, and once zoomed out, in place of naming the zoomed day, as `Friday, 6 Nov`, and keeping that name in the overview. A chart of text labels, which shows no caption, shows none while zoomed into data of dates either.
+- A tooltip balloon tall enough to reach the legend or the minimap paints over the legend buttons, in place of under them, and takes a touch where it covers the widened touch area of a minimap handle, in place of passing it to the handle under it.
 
 ## 2.1.0
 

@@ -306,6 +306,21 @@ const DEFAULT_COMPARISON_COLOR = '#6B7280';
 const LONG_TITLE_LABELS = Array.from({ length: 8 }, (_, i) => `A rather long text label number ${i}`);
 // The least contrast of the muted text of a tooltip on its background, the AA level of body text
 const MIN_MUTED_TOOLTIP_CONTRAST = 4.5;
+// The layers of a probe chart a balloon layering check lists, the balloon and the overlay first, as they overlap
+const BALLOON_LAYER_SELECTORS = {
+  balloon: '#probe .lovely-chart--tooltip-balloon',
+  overlay: '#probe-overlay',
+  'hover line': '#probe .lovely-chart--tooltip canvas',
+};
+// A sticky header of the page, the place it scrolls the balloon to under it, and the room under the chart to scroll
+const PAGE_HEADER_HEIGHT = 120;
+const BALLOON_UNDER_HEADER_TOP = 60;
+const PAGE_SCROLL_ROOM = 2000;
+// A z-index of an overlay above the one of the tooltip balloon and a floating zoom-out control
+const OVER_BALLOON_Z_INDEX = '2';
+// The datasets and the plot height of a chart whose balloon runs past the plot over its legend
+const TALL_BALLOON_DATASETS = 12;
+const SHORT_PLOT_HEIGHT = 110;
 // The notes of a tooltip notes probe of five days: two hatched ranges that overlap and share a line, and the notes its
 // `resolveTooltipNotes` gives by label index, an empty line, a line of the ranges, markup and a line too long for the
 // rows among them. Then the notes and the title note each label shows.
@@ -6475,58 +6490,183 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     dayLook.border.startsWith('0px none') && customLook.border === '2px solid rgb(4, 5, 6)',
     JSON.stringify([dayLook.border, customLook.border]));
 
-  // --- An overlay after the chart paints over the balloon, or between the hover line and the balloon by
-  // `--lovely-chart-balloon-z-index` ---
-  const layeringChart = await mountProbe(page, {
-    config: {
-      type: 'line',
-      title: 'Probe — Balloon layering',
-      labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)),
-      datasets: [{ name: 'A', values: [10, 20, 30] }],
-      noZoom: true,
-    },
-    hostStyle: 'position: relative',
-  });
-  await layeringChart.scrollIntoViewIfNeeded();
-  await addPlotAreaOverlay(page);
-  // The overlay takes the pointer, as a label with a tip does, so that the elements under a point where it meets the
-  // balloon list it, topmost first
-  const readBalloonLayers = (balloonZIndex, overlayZIndex) => page.evaluate(async (zIndexes) => {
+  // --- The tooltip balloon over an overlay added after the chart with no z-index, which paints over the hover line,
+  // and under the page around the element that holds the chart ---
+  // Lists the layers `selectors` pick, topmost first, under the middle of the overlap of the first two. An overlay
+  // takes the pointer, as a label with a tip does, so that the point hits it.
+  const readOverlapLayers = (selectors) => page.evaluate((layerSelectors) => {
+    const layers = Object.entries(layerSelectors).map(([name, selector]) => [name, document.querySelector(selector)]);
+    const [first, second] = layers.map(([, layer]) => layer?.getBoundingClientRect());
+    if (!first || !second) return [];
+    const stack = document.elementsFromPoint(
+      (Math.max(first.left, second.left) + Math.min(first.right, second.right)) / 2,
+      (Math.max(first.top, second.top) + Math.min(first.bottom, second.bottom)) / 2,
+    );
+    return layers
+      .map(([name, layer]) => [name, layer ? stack.findIndex((hit) => layer.contains(hit)) : -1])
+      .filter(([, depth]) => depth !== -1)
+      .sort(([, depth], [, otherDepth]) => depth - otherDepth)
+      .map(([name]) => name);
+  }, selectors);
+  // Shows the balloon of the middle label over the overlay, at a `z-index` of the overlay's own or none, with the
+  // overlay added after the chart or inserted before it
+  const selectOverOverlay = (zIndex, isBeforeChart = false) => page.evaluate(async ({ overlayZIndex, isBefore }) => {
     const host = document.getElementById('probe');
     const overlay = document.getElementById('probe-overlay');
-    host.style.setProperty('--lovely-chart-balloon-z-index', zIndexes.balloon);
     overlay.style.pointerEvents = 'auto';
-    overlay.style.zIndex = zIndexes.overlay;
+    overlay.style.zIndex = overlayZIndex;
+    host.insertBefore(overlay, isBefore ? host.firstChild : undefined);
     window.probeChart.selectLabel(1);
     await new Promise((resolve) => setTimeout(resolve, 300));
-    const balloon = host.querySelector('.lovely-chart--tooltip-balloon');
-    const hoverCanvas = host.querySelector('.lovely-chart--tooltip canvas');
-    const balloonBox = balloon.getBoundingClientRect();
-    const overlayBox = overlay.getBoundingClientRect();
-    const stack = document.elementsFromPoint(
-      (Math.max(balloonBox.left, overlayBox.left) + Math.min(balloonBox.right, overlayBox.right)) / 2,
-      (Math.max(balloonBox.top, overlayBox.top) + Math.min(balloonBox.bottom, overlayBox.bottom)) / 2,
-    );
-    const layers = {
-      balloon: stack.findIndex((element) => balloon.contains(element)),
-      overlay: stack.indexOf(overlay),
-      'hover line': stack.indexOf(hoverCanvas),
-    };
-    return {
-      order: Object.keys(layers).filter((name) => layers[name] !== -1).sort((a, b) => layers[a] - layers[b]),
-      zIndex: getComputedStyle(balloon).zIndex,
-    };
-  }, { balloon: balloonZIndex, overlay: overlayZIndex });
-  const defaultLayers = await readBalloonLayers('', '');
-  const raisedLayers = await readBalloonLayers('2', '1');
+  }, { overlayZIndex: zIndex, isBefore: isBeforeChart });
+  // Scrolls the page until the balloon stands under the page header, in the probe's element or the one `selector` names
+  const scrollBalloonUnderHeader = (selector = BALLOON_LAYER_SELECTORS.balloon) => page.evaluate(async (spec) => {
+    const balloon = document.querySelector(spec.selector);
+    window.scrollBy(0, balloon.getBoundingClientRect().top - spec.balloonTop);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }, { selector, balloonTop: BALLOON_UNDER_HEADER_TOP });
+  const readHostIsolation = () => page.evaluate(() => {
+    const host = document.getElementById('probe');
+    return { computed: getComputedStyle(host).isolation, inline: host.style.isolation };
+  });
+  const layeringConfig = {
+    type: 'line',
+    title: 'Probe — Balloon layering',
+    labels: [1, 2, 3].map((day) => Date.UTC(2026, 10, day)),
+    datasets: [{ name: 'A', values: [10, 20, 30] }],
+    noZoom: true,
+  };
+  const layeringChart = await mountProbe(page, { config: layeringConfig, hostStyle: 'position: relative' });
+  await layeringChart.scrollIntoViewIfNeeded();
+  await addPlotAreaOverlay(page);
+  await selectOverOverlay('');
+  const defaultLayers = await readOverlapLayers(BALLOON_LAYER_SELECTORS);
+  const hostIsolation = await readHostIsolation();
+  await selectOverOverlay(OVER_BALLOON_Z_INDEX);
+  const raisedAfterLayers = await readOverlapLayers(BALLOON_LAYER_SELECTORS);
+  await selectOverOverlay(OVER_BALLOON_Z_INDEX, true);
+  const raisedBeforeLayers = await readOverlapLayers(BALLOON_LAYER_SELECTORS);
+  await selectOverOverlay('');
+  // A sticky header of the page before the element that holds the chart, scrolled over the balloon, and an element of
+  // the page after that element, placed over the balloon with no z-index
+  await page.mouse.move(0, 0);
+  await page.evaluate(({ headerHeight, scrollRoom }) => {
+    const container = document.getElementById('container');
+    const header = document.createElement('div');
+    header.id = 'page-header';
+    header.style.cssText = `position: sticky; top: 0; z-index: 1; height: ${headerHeight}px; background: #808080`;
+    container.prepend(header);
+    const spacer = document.createElement('div');
+    spacer.id = 'page-spacer';
+    spacer.style.height = `${scrollRoom}px`;
+    container.append(spacer);
+  }, { headerHeight: PAGE_HEADER_HEIGHT, scrollRoom: PAGE_SCROLL_ROOM });
+  await scrollBalloonUnderHeader();
+  await page.evaluate(async () => {
+    const box = document.querySelector('#probe .lovely-chart--tooltip-balloon').getBoundingClientRect();
+    const after = document.createElement('div');
+    after.id = 'page-after';
+    after.style.cssText = `position: absolute; left: ${box.left + window.scrollX}px; `
+      + `top: ${box.top + window.scrollY}px; width: ${box.width / 2}px; height: ${box.height / 2}px`;
+    document.getElementById('container').append(after);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  });
+  const pageLayers = {
+    header: await readOverlapLayers({ header: '#page-header', balloon: BALLOON_LAYER_SELECTORS.balloon }),
+    after: await readOverlapLayers({ after: '#page-after', balloon: BALLOON_LAYER_SELECTORS.balloon }),
+  };
+  // The page builds the next chart in the element before it destroys the one there
+  await page.evaluate(async (config) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const next = new LovelyChart(document.getElementById('probe'), config);
+    window.probeChart.destroy();
+    window.probeChart = next;
+  }, layeringConfig);
+  await sleep(1800);
+  await page.evaluate(async () => {
+    window.probeChart.selectLabel(1);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  });
+  await scrollBalloonUnderHeader();
+  pageLayers.nextChart = await readOverlapLayers({ header: '#page-header', balloon: BALLOON_LAYER_SELECTORS.balloon });
+  const nextChartIsolation = await readHostIsolation();
+  await page.evaluate(() => {
+    ['page-header', 'page-spacer', 'page-after'].forEach((id) => document.getElementById(id).remove());
+    window.probeChart.destroy();
+  });
+  const destroyedIsolation = await readHostIsolation();
   await unmountProbe(page);
-  check('an overlay added after the chart paints over the tooltip balloon by default',
-    defaultLayers.zIndex === 'auto'
-    && defaultLayers.order.join() === ['overlay', 'balloon', 'hover line'].join(),
-    JSON.stringify(defaultLayers));
-  check('--lovely-chart-balloon-z-index over the z-index of an overlay puts it over the hover line, under the balloon',
-    raisedLayers.zIndex === '2' && raisedLayers.order.join() === ['balloon', 'overlay', 'hover line'].join(),
-    JSON.stringify(raisedLayers));
+  // A chart whose header floats, and a sparkline, keep the balloon over the overlay, and the zoom-out control of the
+  // first paints over an overlay of the whole element
+  const floatingLayers = {};
+  for (const [name, config] of Object.entries({ noHeader: { noHeader: true }, sparkline: { isSparkline: true } })) {
+    await mountProbe(page, { config: { ...layeringConfig, ...config }, hostStyle: 'position: relative' });
+    await addPlotAreaOverlay(page);
+    await selectOverOverlay('');
+    floatingLayers[name] = await readOverlapLayers(BALLOON_LAYER_SELECTORS);
+    await unmountProbe(page);
+  }
+  const zoomedFloatingChart = await mountProbe(page, {
+    dataUrl: './data/areas.json',
+    config: { title: 'Probe — Zoom-out control over an overlay', noHeader: true, initialZoom: 'last' },
+    hostStyle: 'position: relative',
+  });
+  await zoomedFloatingChart.scrollIntoViewIfNeeded();
+  await page.evaluate(() => {
+    const overlay = document.createElement('div');
+    overlay.id = 'probe-overlay';
+    overlay.style.cssText = 'position: absolute; inset: 0';
+    document.getElementById('probe').appendChild(overlay);
+  });
+  const controlLayers = await readOverlapLayers({
+    control: '#probe .lovely-chart--header-zoom-out-control:not(.lovely-chart--state-hidden)',
+    overlay: BALLOON_LAYER_SELECTORS.overlay,
+  });
+  await unmountProbe(page);
+  // A balloon of more rows than a short plot holds runs over the legend
+  await mountProbe(page, {
+    config: {
+      ...layeringConfig,
+      title: 'Probe — Tall balloon',
+      datasets: Array.from({ length: TALL_BALLOON_DATASETS }, (_, i) => (
+        { name: `Series ${i}`, values: [10 + i, 20 + i, 30 + i] }
+      )),
+      plotHeight: SHORT_PLOT_HEIGHT,
+    },
+  });
+  await page.evaluate(async () => {
+    window.probeChart.selectLabel(1);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const balloonBox = document.querySelector('#probe .lovely-chart--tooltip-balloon').getBoundingClientRect();
+    const button = [...document.querySelectorAll('#probe .lovely-chart--button')].find((candidate) => {
+      const box = candidate.getBoundingClientRect();
+      return box.top < balloonBox.bottom && box.bottom > balloonBox.top
+        && box.left < balloonBox.right && box.right > balloonBox.left;
+    });
+    if (button) button.id = 'probe-legend-button';
+  });
+  const legendLayers = await readOverlapLayers({
+    balloon: BALLOON_LAYER_SELECTORS.balloon, button: '#probe-legend-button',
+  });
+  await unmountProbe(page);
+  const balloonOverOverlay = ['balloon', 'overlay', 'hover line'].join();
+  const overlayOverBalloon = ['overlay', 'balloon', 'hover line'].join();
+  check('an overlay added after the chart with no z-index paints over the hover line and under the balloon',
+    defaultLayers.join() === balloonOverOverlay
+    && Object.values(floatingLayers).every((layers) => layers.join() === balloonOverOverlay),
+    JSON.stringify({ defaultLayers, floatingLayers }));
+  check('an overlay with a z-index above the balloon\'s paints over it, inserted before the chart or added after it',
+    [raisedAfterLayers, raisedBeforeLayers].every((layers) => layers.join() === overlayOverBalloon),
+    JSON.stringify({ raisedAfterLayers, raisedBeforeLayers }));
+  check('the element holding a chart, or the next one built there, stacks its balloon under the page around it',
+    hostIsolation.computed === 'isolate' && hostIsolation.inline === ''
+    && nextChartIsolation.computed === 'isolate' && destroyedIsolation.computed === 'auto'
+    && Object.values(pageLayers).every(([top, under]) => top !== 'balloon' && under === 'balloon'),
+    JSON.stringify({ hostIsolation, nextChartIsolation, destroyedIsolation, pageLayers }));
+  check('the floating zoom-out control paints over an overlay added after the chart with no z-index',
+    controlLayers.join() === ['control', 'overlay'].join(), JSON.stringify(controlLayers));
+  check('a balloon tall enough to reach the legend paints over its buttons',
+    legendLayers.join() === ['balloon', 'button'].join(), JSON.stringify(legendLayers));
 
   // --- Tooltip notes: those of hatched ranges and `resolveTooltipNotes`, beside the title and under the rows ---
   // A function cannot cross into the page, so the page builds the resolver from the notes it is given, and logs its calls

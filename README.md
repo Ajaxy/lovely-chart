@@ -46,7 +46,7 @@ chart.destroy();
 ```
 
 #### Constructor arguments
-- `element` — DOM node in which the chart is rendered. The chart layout resizes automatically to occupy the entire available width. The chart sets the `--lovely-chart-plot-area-*` and `--lovely-chart-plot-padding-top` CSS variables on it; of several charts in one element, they describe the one that wrote them last.
+- `element` — DOM node in which the chart is rendered. The chart layout resizes automatically to occupy the entire available width. The chart sets the `--lovely-chart-plot-area-*` and `--lovely-chart-plot-padding-top` CSS variables on it; of several charts in one element, they describe the one that wrote them last. While it holds a chart, the chart's stylesheet makes it a stacking context: see [Placing elements over the plot](#placing-elements-over-the-plot).
 - `data` — Parameters for a chart.
 
 #### Instance methods
@@ -388,7 +388,6 @@ Variable | Description |
 `--tooltip-muted-text-color`| Colour of the `comparison` row and the notes of the tooltip. Defaults to a mix of 70% `--text-color` and 30% `--tooltip-background`, which follows a skin of your own and reaches a contrast of 4.5:1 on the tooltip background in the day and the night skin. A colour of your own goes per skin, as the colours above.
 `--tooltip-separator-color`| Colour of the rule under the `comparison` row of the tooltip and of the rule over its notes. Defaults to `--grid-lines`.
 `--tooltip-border`| Border of the tooltip balloon, as `1px solid #D2D5D7`. Default `none`.
-`--lovely-chart-balloon-z-index`| The `z-index` of the tooltip balloon, read from the chart element or an ancestor. Default `auto`, so an overlay added after the chart paints over the balloon. A value above the `z-index` of such an overlay places the overlay between the hover line and the balloon: see [Placing elements over the plot](#placing-elements-over-the-plot). A chart whose header floats, with `noHeader` or a header with nothing to show, keeps its balloon over the zoom-out control in a stacking context of its own, so an overlay added after it paints over the balloon whatever the value.
 `--lovely-chart-balloon-display`| The `display` of the tooltip balloon, read from the chart element or an ancestor: `block` by default. `none` hides the balloon alone and keeps the rest of a selection, the hover line and dots, the focus of a bar and the calls of `onSelectedIndexChange` and `onTooltipChange`, so a media query can swap the balloon for a readout of the page. A touch screen zooms by a tap on the balloon, so there `none` takes that zoom away too.
 `--skeleton-color`| Colour of the skeleton a loading chart draws in place of data with no labels, `isLoading`, one in each skin as the colours above. A legend in `legendContainer` reads it from that element or an ancestor, and takes a translucent grey while it is unset.
 `--lovely-chart-plot-area-left`, `--lovely-chart-plot-area-top`, `--lovely-chart-plot-area-width`, `--lovely-chart-plot-area-height`| Set by the chart on `element`, as px lengths from the inside of its border: the data area of the plot, where a window over every label and the Y range draw. It runs from the start of the plot, after an `isYAxisOutward` column, to its end, and from the top of the Y range to the X-axis baseline. A pie or donut sets the square around its circle, and a sparkline its plot inset by 2px. The chart sets them from its first paint, the frame after it is created, and rewrites them when the area changes: on `update()`, a resize or an orientation change, a zoom into data of another label column or into a pie, when a web font of the page changes the axis font, and when a style of the page moves the plot by resizing the chart's layout or its header, as a header folded while its caption is empty. `destroy()` removes them.
@@ -456,20 +455,7 @@ overlay.className = 'chart-overlay';
 element.appendChild(overlay);
 ```
 
-The chart keeps its place among the children of `element` through updates and resizes, so an overlay added after it paints over the plot and the tooltip balloon, and one inserted before it paints under them. A band over a run of labels needs no element: `hatchedRanges` draws it with the data, as `eventLines` draws a rule or a pin at a moment with its label and a note in the tooltip.
-
-An overlay added after the chart can sit over the hover line and under the balloon instead, as a label with a tip the pointer can reach: give it a `z-index`, and the balloon a higher one through `--lovely-chart-balloon-z-index` on `element`. `isolation: isolate` keeps both values inside `element`, away from the z-indexes of the rest of the page.
-
-```css
-.chart {
-  --lovely-chart-balloon-z-index: 2;
-  isolation: isolate;
-}
-
-.chart-overlay {
-  z-index: 1;
-}
-```
+The chart keeps its place among the children of `element` through updates and resizes, so an overlay added after it paints over the plot and the hover line, and one inserted before it under them; the tooltip balloon and a floating zoom-out control cover either with `z-index: 1`, and an overlay with a higher `z-index` covers them. While it holds a chart, `element` is a stacking context, `isolation: isolate`, so no `z-index` inside it reaches over the page around it. A band over a run of labels needs no element: `hatchedRanges` draws it with the data, as `eventLines` draws a rule or a pin at a moment with its label and a note in the tooltip.
 
 An element at a label that the canvas does not draw, such as a link to the notes of a release, takes its x from `getLabelX()` whenever `onPlotAreaChange` or `onZoomChange` fires, and hides where the label has no x: outside the visible range, and from the start of a zoom into shares. The data `onZoom` returns brings labels of its own once the zoom settles, as `onZoomChange` reports, so a link at a label of the overview hides from then until the zoom out settles. A pan of the minimap moves the labels with no call, as the area holds still.
 
