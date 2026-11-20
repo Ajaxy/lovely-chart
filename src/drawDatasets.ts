@@ -1,11 +1,12 @@
 import type { Projection } from './Projection.js';
 import type {
-  AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, LabelRange, LinePattern, Pixel, Point,
+  AnalyzedData, ChartColors, ChartState, ChartType, DrawPoint, LabelRange, Pixel, Point,
 } from './types.js';
 
 import { getComparisonValues } from './comparison.js';
 import {
-  CIRCLE_MINIMUM_VISIBLE_PERCENT, DONUT_INNER_RADIUS_FACTOR, GAP, NO_FOCUS, PLOT_BARS_WIDTH_SHIFT, PLOT_CIRCLE_SHIFT,
+  CIRCLE_MINIMUM_VISIBLE_PERCENT, DONUT_INNER_RADIUS_FACTOR, GAP, LINE_DASHES, NO_FOCUS, PLOT_BARS_WIDTH_SHIFT,
+  PLOT_CIRCLE_SHIFT,
 } from './constants.js';
 import { drawHatchedRanges } from './drawHatchedRanges.js';
 import {
@@ -20,7 +21,6 @@ const AREA_BORDER_WIDTH = 1;
 const MARK_RADIUS_FACTOR = 1.5;
 const COMPARISON_LINE_WIDTH_FACTOR = 0.75;
 const COMPARISON_DASH = [5, 4];
-const DATASET_DASHES: Record<LinePattern, number[]> = { dashed: [6, 4], dotted: [2, 3] };
 // The chords that measure each curve of a smooth line
 const SMOOTH_LENGTH_SAMPLES = 64;
 
@@ -82,7 +82,7 @@ export function drawDatasets(
       lineWidth,
       opacity: isInStack ? 1 : visibilities[i],
       simplification,
-      dash: pattern && DATASET_DASHES[pattern],
+      dash: pattern && LINE_DASHES[pattern],
       areLinesSmooth: data.areLinesSmooth,
       // A stack draws its sums, which the values alone do not give
       seriesValues: isInStack ? undefined : values,

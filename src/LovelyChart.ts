@@ -18,7 +18,7 @@ import {
 } from './constants.js';
 import { analyzeData } from './data.js';
 import { drawDatasets } from './drawDatasets.js';
-import { drawEventLineLabels, drawEventLines } from './drawEventLines.js';
+import { drawEventLineHeads, drawEventLineLabels, drawEventLines } from './drawEventLines.js';
 import { drawHatchedRangeLabels } from './drawHatchedRanges.js';
 import { drawReferenceLines } from './drawReferenceLines.js';
 import { getRangeCaption, getZoomCaption } from './format.js';
@@ -491,13 +491,8 @@ export default class LovelyChart {
     const totalPoints = points.reduce((a, p) => a + p.length, 0);
     const simplification = getSimplificationDelta(totalPoints) * SIMPLIFIER_PLOT_FACTOR;
 
-    // A panned plot runs past its start, so the column of the Y-axis labels clips it
     if (labelColumnWidth !== undefined) {
-      const labelColumnEnd = GUTTER + labelColumnWidth;
-      this.#context!.save();
-      this.#context!.beginPath();
-      this.#context!.rect(labelColumnEnd, 0, this.#plotSize!.width - labelColumnEnd, this.#plotSize!.height);
-      this.#context!.clip();
+      this.#clipLabelColumn(labelColumnWidth);
     }
     drawDatasets(
       this.#context!, state, this.#data,
@@ -525,6 +520,16 @@ export default class LovelyChart {
       this.#axes!.drawYAxis(state, projection, secondaryProjection);
       // TODO check isChanged
       this.#axes!.drawXAxis(state, projection);
+    }
+    // A pin head rests among the top Y-axis labels, over them
+    if (this.#data.eventLines.length) {
+      if (labelColumnWidth !== undefined) {
+        this.#clipLabelColumn(labelColumnWidth);
+      }
+      drawEventLineHeads(this.#context!, this.#data, projection, this.#colors);
+      if (labelColumnWidth !== undefined) {
+        this.#context!.restore();
+      }
     }
     this.#minimap?.update(state);
     this.#tooltip?.update(state, points, projection, secondaryPoints, secondaryProjection);
@@ -555,6 +560,15 @@ export default class LovelyChart {
       }
     }
   };
+
+  // A panned plot runs past its start, so the column of the Y-axis labels clips it
+  #clipLabelColumn(labelColumnWidth: number) {
+    const labelColumnEnd = GUTTER + labelColumnWidth;
+    this.#context!.save();
+    this.#context!.beginPath();
+    this.#context!.rect(labelColumnEnd, 0, this.#plotSize!.width - labelColumnEnd, this.#plotSize!.height);
+    this.#context!.clip();
+  }
 
   #buildProjectionParams(state: ChartState, labelColumnWidth: number | undefined): ProjectionParams {
     return {

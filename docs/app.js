@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         note: 'Forecast',
       }],
       // A promotion that started halfway through a day
-      eventLines: [{ labelIndex: forecastPromoDay, offset: 0.5, label: 'Promo' }],
+      eventLines: [{ labelIndex: forecastPromoDay, offset: 0.5, label: 'Promo', isDashed: true }],
     });
 
     // The last week of the bars as a list whose rows select their day in the chart on hover and focus, and buttons

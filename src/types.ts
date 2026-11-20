@@ -114,8 +114,8 @@ export interface HatchedRange {
   /** Marks a range whose values are still filling: a line or area chart starts its hatch halfway from the point before. */
   isAccruing?: boolean;
   /**
-   * A note under the tooltip rows at each label of the range, split into lines at `\n`, before the notes of
-   * `resolveTooltipNotes`.
+   * A note under the tooltip rows at each label of the range, split into lines at `\n`, before the hints of
+   * `eventLines` and the notes of `resolveTooltipNotes`.
    */
   note?: string;
   /**
@@ -134,8 +134,8 @@ export interface TooltipNotes {
 }
 
 /**
- * A dashed vertical rule at a moment of the labels, such as a launch or a change in how the data is collected, from the
- * bottom of the Y range through the room above it, labelled beside its top.
+ * A vertical rule at a moment of the labels, such as a launch or a change in how the data is collected, from the bottom
+ * of the Y range through the room above it, labelled beside its top; solid unless dashed or dotted.
  */
 export interface EventLine {
   /** Index of the label the rule stands at. */
@@ -149,8 +149,22 @@ export interface EventLine {
   offset?: number;
   /** Text reading bottom to top beside the top of the rule, in its colour; dropped where it has no room. */
   label?: string;
-  /** Any CSS colour of the rule and the label, or one per skin; defaults to the axis text colour. */
+  /** Any CSS colour of the rule, its head and the label, or one per skin; defaults to the axis text colour. */
   color?: ThemedColor;
+  /** Draws the rule in 6px dashes 4px apart, as a dashed dataset. */
+  isDashed?: boolean;
+  /** Draws the rule in 2px dots 3px apart, `isDashed` or not, as a dotted dataset. */
+  isDotted?: boolean;
+  /**
+   * Draws a pin head at the top of the rule, a disc of its colour 8px across ringed in the background colour, over the
+   * axis labels, and starts the label under it.
+   */
+  withHead?: boolean;
+  /**
+   * A note under the tooltip rows at the label of `labelIndex`, split into lines at `\n`, after the notes of
+   * `hatchedRanges` and before those of `resolveTooltipNotes`.
+   */
+  hint?: string;
 }
 
 /** The values of a previous period, drawn as one dashed line under the name of its legend entry. */
@@ -296,8 +310,8 @@ export interface LovelyChartParams {
   axisTextColor?: ThemedColor;
   /**
    * Colour of the surface behind the chart. The chart paints it inside the hover dots, in the mask over
-   * unfocused bars and as a halo around the Y-axis labels and the labels of reference lines, hatched ranges and event
-   * lines; defaults to the skin's own background.
+   * unfocused bars, as a ring around the heads of event lines and as a halo around the Y-axis labels and the labels of
+   * reference lines, hatched ranges and event lines; defaults to the skin's own background.
    */
   backgroundColor?: ThemedColor;
   /**
@@ -319,7 +333,7 @@ export interface LovelyChartParams {
   referenceLines?: ReferenceLine[];
   /** Runs of labels to hatch, such as estimated or forecast ones; ignored on pie and donut charts. */
   hatchedRanges?: HatchedRange[];
-  /** Dashed vertical rules at moments of the labels, drawn over the datasets; ignored on pie and donut charts. */
+  /** Vertical rules at moments of the labels, drawn over the datasets; ignored on pie and donut charts. */
   eventLines?: EventLine[];
   /**
    * Lists the tooltip rows in the order of the legend, after the comparison row, rather than from the largest
@@ -349,8 +363,9 @@ export interface LovelyChartParams {
   resolveTooltipTotal?: (labelValue: number, datasetIndexes: number[], labelIndex: number) => number | null | undefined;
   /**
    * The notes of a tooltip, for the label's value (its timestamp, or the index of a text label), the indexes of the
-   * datasets on screen and the label's index. Its notes follow those of the `hatchedRanges` that hold the label, and
-   * its `titleNote` wins over theirs; ignored on pie and donut charts.
+   * datasets on screen and the label's index. Its notes follow those of the `hatchedRanges` that hold the label and the
+   * hints of the `eventLines` at it, and its `titleNote` wins over those of the ranges; ignored on pie and donut
+   * charts.
    */
   resolveTooltipNotes?: (labelValue: number, datasetIndexes: number[], labelIndex: number) => TooltipNotes | undefined;
   /** Draws line datasets as monotone curves through their values, never overshooting a value. */

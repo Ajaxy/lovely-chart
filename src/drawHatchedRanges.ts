@@ -1,7 +1,8 @@
 import type { Projection } from './Projection.js';
 import type { AnalyzedData, ChartColors, HatchedRange } from './types.js';
 
-import { drawDashedRule, drawHalo } from './canvas.js';
+import { drawHalo, drawRule } from './canvas.js';
+import { REFERENCE_LINE_DASH } from './constants.js';
 import { getCssColor, pickSkinColor } from './skin.js';
 
 const STRIPE_WIDTH = 2;
@@ -77,7 +78,9 @@ function drawEdges(
     const [start] = getSpan(range, projection);
     if (!range.hasEdge || start <= firstStart) return;
 
-    drawDashedRule(context, projection.toPixels(start, 0)[0], top, bottom, getRangeColor(colors, range));
+    drawRule(
+      context, projection.toPixels(start, 0)[0], top, bottom, getRangeColor(colors, range), REFERENCE_LINE_DASH,
+    );
   });
 }
 

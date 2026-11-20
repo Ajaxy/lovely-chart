@@ -1,3 +1,5 @@
+import type { LinePattern } from './types.js';
+
 // Guarded so that merely importing the library does not touch `window` (e.g. in SSR)
 export const DPR = typeof window !== 'undefined' ? window.devicePixelRatio ?? 1 : 1;
 
@@ -24,6 +26,7 @@ export const PLOT_LINE_WIDTH = 2;
 export const HALO_WIDTH = 3;
 export const REFERENCE_LINE_WIDTH = 1.5;
 export const REFERENCE_LINE_DASH = [6, 4];
+export const LINE_DASHES: Record<LinePattern, number[]> = { dashed: [6, 4], dotted: [2, 3] };
 export const REFERENCE_LABEL_FONT_STYLE = '500 11px';
 export const PLOT_CIRCLE_RADIUS_FACTOR = 0.9 / 2;
 export const PLOT_CIRCLE_SHIFT = 10;

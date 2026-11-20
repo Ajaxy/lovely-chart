@@ -131,7 +131,7 @@ Parameter | Description |
 `areLabelsContrast`| `true` to center each Y-axis label on its grid line, over the line, inside a halo of the background colour, 2px in from its side of the chart so the grid line still shows at the plot edge. Default `false`.
 `axisFontSize`| Font size of the axis labels in px, which take the family and the regular weight of the chart's text: see `--lovely-chart-font-family` and `--lovely-chart-font-weight`. Default `10`.
 `axisTextColor`| Colour of the axis labels, in any of the forms under [Colours](#colours).
-`backgroundColor`| Colour of the surface behind the chart, in any of the forms under [Colours](#colours). The chart paints it inside the hover dots, in the mask over unfocused bars and as a halo around the Y-axis labels and the labels of reference lines, hatched ranges and event lines. Defaults to the skin's own background; without it, of the Y-axis labels only `areLabelsContrast` ones get a halo.
+`backgroundColor`| Colour of the surface behind the chart, in any of the forms under [Colours](#colours). The chart paints it inside the hover dots, in the mask over unfocused bars, as a ring around the heads of event lines and as a halo around the Y-axis labels and the labels of reference lines, hatched ranges and event lines. Defaults to the skin's own background; without it, of the Y-axis labels only `areLabelsContrast` ones get a halo.
 `colorScheme`| `'htmlClassName'` follows the `theme-dark` class on the `<html>` element; `'system'` follows the system's `prefers-color-scheme`, live. Default `'htmlClassName'`.
 `areLinesSmooth`| `true` to draw `line` datasets, and the `comparison` line beside them, as monotone curves through their values, never overshooting a value. Default `false`.
 `areaOpacity`| Opacity of an `area` fill, from 0 to 1; the outline and dots keep full opacity. Default `1`.
@@ -189,12 +189,12 @@ Parameter | Description |
 ---------|----|
 `referenceLines`| Dashed rules at fixed values of the main Y axis: `[{ value, label?, color? }]`. The Y range always reaches each value, stacked charts included, so a line with `color: 'transparent'` draws nothing and only pins the range. `label` is drawn above the right end of the line, none when empty. `color` is any CSS colour or `{ light, dark }`, and defaults to the Y-axis text colour. `label` reads in the direction of the page, so on a right-to-left page a sign before a number moves after it; a number wrapped in U+2066 and U+2069, as `'\u2066-1.2K\u2069'`, keeps its sign first. On a percentage chart `value` is a percentage from 0 to 100 and the range stays 0–100%. Ignored on pie and donut charts.
 `hatchedRanges`| Runs of labels whose values are estimated, partial, still accruing or forecast, hatched across the plot and the minimap: `[{ from, to, label?, color?, hasEdge?, isAccruing?, note?, titleNote? }]`, `from` and `to` inclusive label indexes, rounded and clamped to the labels. A `bar` or `step` chart hatches the columns of the range. A `line` or `area` chart starts the hatch at the point before the range, as the segment into an estimated value is estimated too, or halfway from it with `isAccruing`, for a period still filling, and ends it halfway to the label after the range. The hatch goes under the lines of a `line` or `step` chart and over the fills of a `bar` or `area` chart, under the comparison line, the mask over unfocused bars and the reference lines; ranges of one colour that touch hatch as one band. Each range keeps its own label and edge: `label` is drawn at the bottom left of the range's hatch, in the axis font size, clear of the Y-axis labels and of the next label, and dropped where it has no room. `hasEdge` draws a dashed rule where the range's hatch starts, none at the first label. `color` is any CSS colour or `{ light, dark }` for the hatch, the edge and the label, and defaults to the Y-axis text colour. `note` and `titleNote` are notes of the tooltip at each label of the range, under the rows and beside the title, as `resolveTooltipNotes` gives them. The minimap draws the hatch alone, and a sparkline the hatch and the edges. Ignored on pie and donut charts, a zoom into shares included; the data `onZoom` returns sets ranges of its own.
-`eventLines`| Dashed vertical rules at moments of the labels, such as a launch or a change in how the data is collected: `[{ labelIndex, offset?, label?, color? }]`, `labelIndex` rounded, and a rule outside the labels dropped. `offset`, clamped to 0–1, places the rule that fraction through the label's interval, as `getLabelX()` maps it: from its point to the next one on a `line` or `area` chart, where `0`, the default, is the point, and across its column on a `bar` or `step` chart, or one with bars or steps among its datasets, where `0` is its start and `0.5`, the default, its centre. The last point of a `line` or `area` chart has no next one and keeps its rule at the point. Each rule runs from the bottom of the Y range through the room above it, over the datasets, the hatches and the comparison line and under the reference lines and the axis labels, and follows the range and the zoom. `label` reads bottom to top from the top of its rule, in the axis font size: before the rule, or after it where it would cover the Y-axis labels, those of an `isYAxisOutward` column included, or leave the plot area. It is dropped where it fits on neither side or runs longer than its rule, and where the label of a later rule crowds it. `color` is any CSS colour or `{ light, dark }` for the rule and the label, and defaults to the Y-axis text colour. A sparkline draws the rules without their labels, and the minimap draws none. Ignored on pie and donut charts, a zoom into shares included; the data `onZoom` returns sets rules of its own.
+`eventLines`| Vertical rules at moments of the labels, such as a launch or a change in how the data is collected, and pins that carry a note: `[{ labelIndex, offset?, label?, color?, isDashed?, isDotted?, withHead?, hint? }]`, `labelIndex` rounded, and a rule outside the labels dropped. `offset`, clamped to 0–1, places the rule that fraction through the label's interval, as `getLabelX()` maps it: from its point to the next one on a `line` or `area` chart, where `0`, the default, is the point, and across its column on a `bar` or `step` chart, or one with bars or steps among its datasets, where `0` is its start and `0.5`, the default, its centre. The last point of a `line` or `area` chart has no next one and keeps its rule at the point. Each rule runs from the bottom of the Y range through the room above it, over the datasets, the hatches and the comparison line and under the reference lines and the axis labels, and follows the range and the zoom. A rule is a solid 1px line, which `isDashed` draws in 6px dashes 4px apart and `isDotted` in 2px dots 3px apart, `isDashed` or not, as those of a dataset. `withHead` makes the rule a pin, topped by a head at the top of the canvas: a disc of its colour 8px across, ringed in the background colour, over the data and the axis labels. `label` reads bottom to top from the top of its rule, or from under its head, in the axis font size: before the rule, or after it where it would cover the Y-axis labels, those of an `isYAxisOutward` column included, or leave the plot area. It is dropped where it fits on neither side or runs longer than its rule, and where the label of a later rule crowds it. `color` is any CSS colour or `{ light, dark }` for the rule, its head and the label, and defaults to the Y-axis text colour. `hint` is a note of the tooltip at the label of `labelIndex`, under the rows, as a `note` of `hatchedRanges` is: after the notes of the ranges and before those of `resolveTooltipNotes`, split into lines at `\n`, a line shown already left out. A sparkline draws the rules and their heads without their labels, and the minimap draws none. Ignored on pie and donut charts, a zoom into shares included; the data `onZoom` returns sets rules and hints of its own.
 `comparison`| A previous period, drawn as a dashed line: `{ name, color?, values }`. `values` holds the previous values per dataset, in the order of `datasets`, each aligned with `labels`; the line draws their sum over the datasets on screen, and a `null` leaves a gap. `color` takes any of the forms under [Colours](#colours), `DEFAULT_COMPARISON_COLOR`, `#6B7280`, by default. The legend names it beside a dashed swatch, and the tooltip lists it first with the change of the current total in percent. Ignored on percentage, pie and donut charts.
 
 #### Tooltip parameters
 
-The tooltip lists each dataset on screen with a non-zero value at the label: a swatch of its colour, its name and its value in the text colour, from the largest value down. The swatch of a dashed or dotted line is a dashed or dotted outline. A `comparison` row comes first, beside a dashed swatch of its colour, in `--tooltip-muted-text-color` with its value in the normal weight, and set apart from the rest by a rule in `--tooltip-separator-color`. Its change is bold and tinted by `--tooltip-change-positive` or `--tooltip-change-negative`, unless it rounds to 0%, which keeps the colour and weight of its value. Stacked and percentage `bar`, `step` and `area` charts add a Total row. Notes of `hatchedRanges` and `resolveTooltipNotes` stand beside the title and under the rows, in `--tooltip-muted-text-color`. A pie or donut lists the sector under the pointer alone.
+The tooltip lists each dataset on screen with a non-zero value at the label: a swatch of its colour, its name and its value in the text colour, from the largest value down. The swatch of a dashed or dotted line is a dashed or dotted outline. A `comparison` row comes first, beside a dashed swatch of its colour, in `--tooltip-muted-text-color` with its value in the normal weight, and set apart from the rest by a rule in `--tooltip-separator-color`. Its change is bold and tinted by `--tooltip-change-positive` or `--tooltip-change-negative`, unless it rounds to 0%, which keeps the colour and weight of its value. Stacked and percentage `bar`, `step` and `area` charts add a Total row. Notes of `hatchedRanges` and `resolveTooltipNotes` stand beside the title and under the rows, and the hints of `eventLines` under the rows, in `--tooltip-muted-text-color`. A pie or donut lists the sector under the pointer alone.
 
 Parameter | Description |
 ---------|----|
@@ -203,7 +203,7 @@ Parameter | Description |
 `isTooltipTotalInTitle`| `true` to put the total of a stacked or percentage `bar`, `step` or `area` chart beside the tooltip title, in place of the Total row. Default `false`.
 `formatTooltipValue`| Optional function formatting a number of the tooltip; `valuePrefix` and `valueSuffix` still wrap the result. It formats the total on the `secondaryYAxis` scale too, which the `prefix` and `suffix` of that scale wrap instead.
 `resolveTooltipTotal`| Optional function `(labelValue, datasetIndexes, labelIndex) => number \| null \| undefined` giving the total of a stacked chart's tooltip, for the label's value (its timestamp, or the index of a text label), the indexes of the datasets on screen and the label's index in `labels`. `undefined` keeps the sum of the rows, `null` shows `—`. The comparison change and the total on the `secondaryYAxis` scale read this total too.
-`resolveTooltipNotes`| Optional function `(labelValue, datasetIndexes, labelIndex) => { titleNote?, notes? } \| undefined` giving the notes of the tooltip at a label, for its value and the indexes of the datasets on screen, as `resolveTooltipTotal` takes them, and its index. `titleNote` stands after the date, before the total of `isTooltipTotalInTitle`. `notes` are lines below the rows, under a rule in `--tooltip-separator-color`, as wide as the rows and wrapped to them. The notes of the `hatchedRanges` that hold the label come first, in their order, then these; each note splits into lines at `\n`, a line shown already is left out, and the text shows as it is, never as HTML. This `titleNote` wins over those of the ranges, of which the first one wins. The notes change with the rows, for a pointer, a touch or `selectLabel()`. Ignored on pie and donut charts.
+`resolveTooltipNotes`| Optional function `(labelValue, datasetIndexes, labelIndex) => { titleNote?, notes? } \| undefined` giving the notes of the tooltip at a label, for its value and the indexes of the datasets on screen, as `resolveTooltipTotal` takes them, and its index. `titleNote` stands after the date, before the total of `isTooltipTotalInTitle`. `notes` are lines below the rows, under a rule in `--tooltip-separator-color`, as wide as the rows and wrapped to them. The notes of the `hatchedRanges` that hold the label come first, in their order, then the hints of the `eventLines` at the label, in theirs, then these; each note splits into lines at `\n`, a line shown already is left out, and the text shows as it is, never as HTML. This `titleNote` wins over those of the ranges, of which the first one wins. The notes change with the rows, for a pointer, a touch or `selectLabel()`. Ignored on pie and donut charts.
 `onSelectedIndexChange`| Optional function called when the selected label changes, by pointer, touch, keyboard or `selectLabel()`, with its index, not its value, and with `undefined` once nothing is selected: the pointer leaves the chart, `selectLabel(undefined)`, `update()` unless it keeps the selection, a resize, or the selected label leaving the visible range.
 `isKeyboardSelectable`| `true` to make the plot focusable, in the tab order of the page. Arrow Left and Arrow Right then step the selection to the previous or the next label, and Home and End to the first or the last label of the visible range, as `selectLabel()` does; with nothing selected, an arrow selects the last label. A key pressed with Alt, Ctrl or Meta stays the browser's. The plot keeps the focus through `update()` and a resize, which rebuild it. Ignored on pie and donut charts, and the pie or donut a zoom opens leaves the tab order while it shows. Default `false`.
 `onTooltipChange`| Optional function called when what the tooltip shows changes, as another label is selected or a dataset is shown or hidden, with `{ labelIndex, title, rows, total?, comparison? }`, after `onSelectedIndexChange`, and with `undefined` once it shows nothing, as when nothing is selected. `title` is the title of the tooltip. `rows` holds each dataset on screen, in the order of `datasets`, as `{ datasetIndex, name, value }`, its value at the label, zero included and `null` for a gap. `total` comes with a stacked or percentage `bar`, `step` or `area` chart, as its Total row or title shows it: what `resolveTooltipTotal` gives, or else the sum of the rows. `comparison` comes with a `comparison`, as `{ name, value, change? }`: the previous value at the label and the change of the total against it in percent, unrounded, where the tooltip shows one. A pie or donut reports none. It goes on reporting with the balloon hidden by `--lovely-chart-balloon-display`, for a readout of the page.
@@ -248,7 +248,7 @@ new LovelyChart(element, {
 });
 ```
 
-Moments marked on daily bars, a launch at the start of its day's column and an outage in the middle of its day:
+Moments marked on daily bars, a launch at the start of its day's column and an outage in the middle of its day, pinned by a dashed rule with a note in the tooltip of its day:
 
 ```js
 new LovelyChart(element, {
@@ -257,7 +257,14 @@ new LovelyChart(element, {
   datasets: [{ name: 'Signups', color: '#5FB641', values: signups }],
   eventLines: [
     { labelIndex: launchIndex, offset: 0, label: 'Launch' },
-    { labelIndex: outageIndex, label: 'Outage', color: { light: '#E65850', dark: '#F07068' } },
+    {
+      labelIndex: outageIndex,
+      label: 'Outage',
+      color: { light: '#E65850', dark: '#F07068' },
+      isDashed: true,
+      withHead: true,
+      hint: 'Sign-ups were down for 40 minutes',
+    },
   ],
 });
 ```
@@ -449,7 +456,7 @@ overlay.className = 'chart-overlay';
 element.appendChild(overlay);
 ```
 
-The chart keeps its place among the children of `element` through updates and resizes, so an overlay added after it paints over the plot and the tooltip balloon, and one inserted before it paints under them. A band over a run of labels needs no element: `hatchedRanges` draws it with the data, as `eventLines` draws a rule at a moment with its label.
+The chart keeps its place among the children of `element` through updates and resizes, so an overlay added after it paints over the plot and the tooltip balloon, and one inserted before it paints under them. A band over a run of labels needs no element: `hatchedRanges` draws it with the data, as `eventLines` draws a rule or a pin at a moment with its label and a note in the tooltip.
 
 An overlay added after the chart can sit over the hover line and under the balloon instead, as a label with a tip the pointer can reach: give it a `z-index`, and the balloon a higher one through `--lovely-chart-balloon-z-index` on `element`. `isolation: isolate` keeps both values inside `element`, away from the z-indexes of the rest of the page.
 
@@ -464,32 +471,32 @@ An overlay added after the chart can sit over the hover line and under the ballo
 }
 ```
 
-An element at a label, such as a marker or an annotation, takes its x from `getLabelX()` whenever `onPlotAreaChange` or `onZoomChange` fires, and hides where the label has no x: outside the visible range, and from the start of a zoom into shares. The data `onZoom` returns brings labels of its own once the zoom settles, as `onZoomChange` reports, so a marker at a label of the overview hides from then until the zoom out settles. A pan of the minimap moves the labels with no call, as the area holds still.
+An element at a label that the canvas does not draw, such as a link to the notes of a release, takes its x from `getLabelX()` whenever `onPlotAreaChange` or `onZoomChange` fires, and hides where the label has no x: outside the visible range, and from the start of a zoom into shares. The data `onZoom` returns brings labels of its own once the zoom settles, as `onZoomChange` reports, so a link at a label of the overview hides from then until the zoom out settles. A pan of the minimap moves the labels with no call, as the area holds still.
 
 ```css
-.chart-marker {
+.chart-link {
   position: absolute;
-  /* Rises over the data into the room above the Y range */
+  /* Stands in the room above the Y range, centred on its label */
   top: calc(var(--lovely-chart-plot-area-top) - var(--lovely-chart-plot-padding-top));
-  height: calc(var(--lovely-chart-plot-area-height) + var(--lovely-chart-plot-padding-top));
-  border-left: 1px dashed currentColor;
-  pointer-events: none;
+  transform: translateX(-50%);
 }
 ```
 
 ```js
-const marker = document.createElement('div');
-marker.className = 'chart-marker';
-marker.hidden = true;
-element.appendChild(marker);
+const link = document.createElement('a');
+link.className = 'chart-link';
+link.href = releaseNotesUrl;
+link.textContent = 'v2.0';
+link.hidden = true;
+element.appendChild(link);
 
 let plotArea;
 let isZoomedIn = false;
-const placeMarker = () => {
-  const x = plotArea && !isZoomedIn ? chart.getLabelX(markerIndex) : undefined;
-  marker.hidden = x === undefined;
+const placeLink = () => {
+  const x = plotArea && !isZoomedIn ? chart.getLabelX(releaseIndex) : undefined;
+  link.hidden = x === undefined;
   if (x !== undefined) {
-    marker.style.left = `${plotArea.left + x}px`;
+    link.style.left = `${plotArea.left + x}px`;
   }
 };
 
@@ -497,11 +504,11 @@ const chart = new LovelyChart(element, {
   ...params,
   onPlotAreaChange: (area) => {
     plotArea = area;
-    placeMarker();
+    placeLink();
   },
   onZoomChange: (labelValue) => {
     isZoomedIn = labelValue !== undefined;
-    placeMarker();
+    placeLink();
   },
 });
 ```

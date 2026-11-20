@@ -21,6 +21,7 @@ const forecast: HatchedRange = { from: 1, to: 2, label: 'Forecast', hasEdge: tru
 const estimate: HatchedRange = { from: 0, to: 0, note: 'Estimated\nFrom partial data', titleNote: 'est.' };
 const notes: TooltipNotes = { titleNote: 'upd. 14:05 UTC', notes: ['Today is still in progress'] };
 const launch: EventLine = { labelIndex: 1, offset: 0.5, label: 'Launch', color: surface };
+const outage: EventLine = { labelIndex: 2, isDashed: true, isDotted: false, withHead: true, hint: 'API down\n40 min' };
 const dateLocale: DateLocale = { weekOf: 'Semana de' };
 const secondaryYAxis: SecondaryYAxisConfig = { label: 'x', multiplier: 1 };
 const type: ChartType = 'area';
@@ -43,7 +44,7 @@ const params: LovelyChartParams = {
   comparison,
   referenceLines: [reference, { value: 1200, label: 'Stall', color: surface }],
   hatchedRanges: [forecast, { from: 0, to: 0, color: 'rgba(0, 0, 0, 0.5)' }, estimate],
-  eventLines: [launch, { labelIndex: 0, color: 'rgba(0, 0, 0, 0.5)' }],
+  eventLines: [launch, outage, { labelIndex: 0, color: 'rgba(0, 0, 0, 0.5)', isDotted: true }],
   isTooltipOrderFixed: true,
   isTooltipTotalInTitle: true,
   formatTooltipValue: (value) => value.toFixed(1),

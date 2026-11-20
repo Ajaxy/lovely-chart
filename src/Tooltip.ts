@@ -840,12 +840,13 @@ export class Tooltip {
   }
 
   #resolveNotes(datasetStatistics: StatisticsItem[], labelIndex: number): TooltipNotes {
-    const { hatchedRanges, resolveTooltipNotes, xLabels } = this.#data;
+    const { hatchedRanges, eventLines, resolveTooltipNotes, xLabels } = this.#data;
     const ranges = hatchedRanges.filter(({ from, to }) => labelIndex >= from && labelIndex <= to);
+    const hints = eventLines.filter((line) => line.labelIndex === labelIndex).map(({ hint }) => hint ?? '');
     const resolved = resolveTooltipNotes?.(
       xLabels[labelIndex].value, datasetStatistics.map(({ originalIndex }) => originalIndex), labelIndex,
     );
-    const lines = [...ranges.map(({ note }) => note ?? ''), ...(resolved?.notes ?? [])]
+    const lines = [...ranges.map(({ note }) => note ?? ''), ...hints, ...(resolved?.notes ?? [])]
       .flatMap((note) => note.split('\n'))
       .filter(Boolean);
 

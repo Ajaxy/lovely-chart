@@ -90,11 +90,24 @@ const FORECAST_PROMO_DAY = 9;
 const FORECAST_PROMO_OFFSET = 0.5;
 const AXIS_TEXT_COLORS = { day: '#252529', night: '#A3B1C2' };
 const AXIS_TEXT_ALPHA = [100, 210];
-// The length of a dash and a gap of a dashed rule, the space between an event label and its rule, and the columns
-// beside a rule that hold its label
-const RULE_DASH_PERIOD = 10;
+// The space between an event label and its rule, and the columns beside a rule that hold its label
 const EVENT_LABEL_GAP = 4;
 const EVENT_LABEL_COLUMNS = 30;
+// A dash and a gap of a dashed event rule and of a dotted one, as those of a dataset, and how far a run down a rule may
+// stand from them, in px
+const RULE_DASH = [6, 4];
+const RULE_DOT = [2, 3];
+const RULE_RUN_TOLERANCE = 1;
+// The radius of the head of a pinned event rule and the width of the ring of the background colour around it, which
+// rests on the top of the canvas, how far an edge of the head may stand from where it belongs, its antialiased edge
+// included, and the columns either side of a rule that a row through a head is read across
+const PIN_HEAD_RADIUS = 4;
+const PIN_RING_WIDTH = 1.5;
+const PIN_HEAD_TOLERANCE = 1;
+const PIN_ROW_REACH = 10;
+// A pixel of the probes' magenta with nothing over it, and any pixel the canvas paints, a faded label's included
+const PURE_MAGENTA_PIXEL = { red: [245, 255], green: [0, 10], blue: [245, 255], alpha: [250, 255] };
+const PAINTED_PIXEL = { red: [0, 255], green: [0, 255], blue: [0, 255], alpha: [10, 255] };
 // The width of a small phone, which the demo page fits
 const PHONE_WIDTH = 375;
 
@@ -1480,6 +1493,65 @@ function readPickedBox(page, hostSelector, bounds, [start, end]) {
     }
     return box;
   }, [hostSelector, bounds, [start, end]]);
+}
+
+// The runs of pixels that `bounds` pick down the column of the plot canvas of the chart in the element `hostSelector`
+// names at `x`, from the top of the canvas to the bottom of the plot area, as `[start, end]`, with the area's height,
+// all in px from the top left of the plot area
+function readColumnRuns(page, hostSelector, bounds, x) {
+  return page.evaluate(([selector, { red, green, blue, alpha }, columnX]) => {
+    const host = document.querySelector(selector);
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    const canvasBox = canvas.getBoundingClientRect();
+    const hostBox = host.getBoundingClientRect();
+    const [left, top, height] = ['left', 'top', 'height']
+      .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+    const areaX = left - (canvasBox.left - hostBox.left - host.clientLeft);
+    const areaY = top - (canvasBox.top - hostBox.top - host.clientTop);
+    const scale = canvas.width / canvas.clientWidth;
+    const rows = Math.round((areaY + height) * scale);
+    const { data } = canvas.getContext('2d').getImageData(Math.floor((areaX + columnX) * scale), 0, 1, rows);
+    const runs = [];
+    for (let y = 0; y < rows; y++) {
+      const j = y * 4;
+      if (![red, green, blue, alpha].every(([min, max], k) => data[j + k] >= min && data[j + k] <= max)) continue;
+      const last = runs[runs.length - 1];
+      if (last && last[1] === y) {
+        last[1] = y + 1;
+      } else {
+        runs.push([y, y + 1]);
+      }
+    }
+    return { runs: runs.map((run) => run.map((edge) => edge / scale - areaY)), height };
+  }, [hostSelector, bounds, x]);
+}
+
+// The pixels of the plot canvas of the chart in the element `hostSelector` names along the row at `y`, in the columns
+// from `start` to `end`, as `{ left, right, rgba }`, all in px from the top left of the plot area
+function readCanvasRow(page, hostSelector, y, [start, end]) {
+  return page.evaluate(([selector, rowY, [from, to]]) => {
+    const host = document.querySelector(selector);
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    const canvasBox = canvas.getBoundingClientRect();
+    const hostBox = host.getBoundingClientRect();
+    const [left, top] = ['left', 'top']
+      .map((key) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${key}`)));
+    const areaX = left - (canvasBox.left - hostBox.left - host.clientLeft);
+    const areaY = top - (canvasBox.top - hostBox.top - host.clientTop);
+    const scale = canvas.width / canvas.clientWidth;
+    const startX = Math.max(0, Math.round((areaX + from) * scale));
+    const endX = Math.min(canvas.width, Math.round((areaX + to) * scale));
+    const { data } = canvas.getContext('2d').getImageData(startX, Math.floor((areaY + rowY) * scale), endX - startX, 1);
+    return Array.from({ length: endX - startX }, (_, i) => ({
+      left: (startX + i) / scale - areaX,
+      right: (startX + i + 1) / scale - areaX,
+      rgba: Array.from(data.slice(i * 4, i * 4 + 4)),
+    }));
+  }, [hostSelector, y, [start, end]]);
+}
+
+function isPickedPixel(rgba, { red, green, blue, alpha }) {
+  return [red, green, blue, alpha].every(([min, max], k) => rgba[k] >= min && rgba[k] <= max);
 }
 
 // Reads the dataset colour of each legend button, as its `lovely-chart--color-*` class names it, the contrast of its
@@ -7188,9 +7260,70 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   check('the pointer over the demo forecast badge reaches the tooltip', forecastBalloon.isShown,
     JSON.stringify(forecastBalloon));
 
-  // --- Event lines: their place by chart kind and offset, the room above the Y range, their labels, a pan and shares ---
+  // --- Event lines: their place by chart kind and offset, the room above the Y range, their labels, their dashes,
+  // their heads and hints, a pan and zooms ---
   const isRuleAt = (run, x) => Math.abs((run[0] + run[1]) / 2 - x) <= PLOT_AREA_TOLERANCE;
   const findRules = (columns) => findColumnRuns(columns, columns.height * columns.scale * MIN_EDGE_COVER);
+  // The middle of the 1px rule the probe's canvas draws at `x`, in px from the left of the plot area
+  const snapRuleX = async (x) => {
+    const areaLeft = await readPlotAreaLeft(page);
+    return Math.round(areaLeft + x) + 0.5 - areaLeft;
+  };
+  // The row through the middle of the head of the probe's rule at `x`: the middle of the rule, the span of the pixels
+  // `bounds` pick, whether the ring around the head is opaque and clear of them, and whether the row past the ring is
+  // clear, with whether `bounds` pick every pixel of the head clear of its antialiased edge
+  const readPinHead = async (x, bounds) => {
+    const centerX = await snapRuleX(x);
+    const headY = PIN_HEAD_RADIUS + PIN_RING_WIDTH - PLOT_TOP;
+    const row = await readCanvasRow(page, '#probe', headY, [centerX - PIN_ROW_REACH, centerX + PIN_ROW_REACH]);
+    const innerReach = PIN_HEAD_RADIUS - PIN_HEAD_TOLERANCE;
+    const innerRows = [];
+    for (let rowShift = -innerReach; rowShift <= innerReach; rowShift++) {
+      innerRows.push(await readCanvasRow(page, '#probe', headY + rowShift, [
+        centerX - innerReach - PIN_HEAD_TOLERANCE / 2, centerX + innerReach + PIN_HEAD_TOLERANCE / 2,
+      ]));
+    }
+    const isDiscWhole = innerRows.every((pixels, i) => pixels
+      .filter(({ left, right }) => Math.hypot((left + right) / 2 - centerX, i - innerReach) <= innerReach)
+      .every(({ rgba }) => isPickedPixel(rgba, bounds)));
+    const picked = row.filter(({ rgba }) => isPickedPixel(rgba, bounds));
+    const findReach = ({ left, right }) => [left, right].map((edge) => Math.abs(edge - centerX)).sort((a, b) => a - b);
+    const ring = row.filter((pixel) => {
+      const [near, far] = findReach(pixel);
+      return near >= PIN_HEAD_RADIUS && far <= PIN_HEAD_RADIUS + PIN_RING_WIDTH;
+    });
+    const outside = row.filter((pixel) => findReach(pixel)[0] >= PIN_HEAD_RADIUS + PIN_RING_WIDTH + PIN_HEAD_TOLERANCE);
+    return {
+      centerX,
+      left: Math.min(...picked.map(({ left }) => left)),
+      right: Math.max(...picked.map(({ right }) => right)),
+      isDiscWhole,
+      isRingOpaque: ring.length > 0 && ring.every(({ rgba }) => rgba[3] >= 200 && !isPickedPixel(rgba, bounds)),
+      isOutsideClear: outside.length > 0 && outside.every(({ rgba }) => rgba[3] === 0),
+    };
+  };
+  const isPinHead = ({
+    centerX, left, right, isDiscWhole, isRingOpaque, isOutsideClear,
+  }) => isDiscWhole && isRingOpaque && isOutsideClear
+    && Math.abs(left - (centerX - PIN_HEAD_RADIUS)) <= PIN_HEAD_TOLERANCE
+    && Math.abs(right - (centerX + PIN_HEAD_RADIUS)) <= PIN_HEAD_TOLERANCE;
+  const formatPinHead = ({
+    centerX, left, right, isDiscWhole, isRingOpaque, isOutsideClear,
+  }) => `${left.toFixed(1)} to ${right.toFixed(1)} about ${centerX.toFixed(1)}, disc `
+    + `${isDiscWhole ? 'whole' : 'broken'}, ring ${isRingOpaque ? 'opaque' : 'missing'}, `
+    + `${isOutsideClear ? 'clear' : 'painted'} past it`;
+  // The notes the probe's tooltip shows, for the label `selectLabel()` selects, or for the one it shows
+  const readHints = (labelIndex) => page.evaluate(async (index) => {
+    if (index !== undefined) {
+      window.probeChart.selectLabel(index);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+    const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
+    return {
+      isShown: balloon.classList.contains('lovely-chart--state-shown'),
+      notes: [...balloon.querySelector('.lovely-chart--tooltip-notes').children].map((line) => line.textContent),
+    };
+  }, labelIndex);
   const promoColumns = await readAreaColumns(page, '.forecast-chart',
     getColorBounds(AXIS_TEXT_COLORS[forecastFit.skin], AXIS_TEXT_ALPHA, COLOR_TOLERANCE));
   const promoRuns = findRules(promoColumns);
@@ -7247,7 +7380,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     `${formatRuns(eventRuns)} for ${launchX.toFixed(1)} and ${halfwayX.toFixed(1)}`);
   const launchRule = await readPickedBox(page, '#probe', OPAQUE_MAGENTA_PIXEL, [launchX - 1, launchX + 2]);
   check('an event rule runs from the bottom of the Y range through the room above it',
-    launchRule.top <= 1 - PLOT_TOP && launchRule.bottom >= eventColumns.height - RULE_DASH_PERIOD,
+    launchRule.top <= 1 - PLOT_TOP && launchRule.bottom >= eventColumns.height - 1,
     `${formatBox(launchRule)} over an area ${eventColumns.height}px high`);
   const launchLabel = await readPickedBox(
     page, '#probe', OPAQUE_MAGENTA_PIXEL, [launchX - EVENT_LABEL_COLUMNS, launchX - 1],
@@ -7266,6 +7399,88 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && !eventTextSet.has('Past the labels') && otherRuns.length === 2,
     `rules ${formatRuns(otherRuns)}, labels ${JSON.stringify([...eventTextSet].filter((text) => /[a-z]/.test(text)))}`);
   await unmountProbe(page);
+
+  await mountNotesProbe({
+    type: 'line',
+    title: 'Probe — Event pins',
+    labels: eventDays,
+    // The top Y-axis label, 80, runs past the head at the start of the plot
+    datasets: [{ name: 'Line', color: '#0000FF', values: eventValues.map((value) => value * 10) }],
+    isKeyboardSelectable: true,
+    hatchedRanges: [{ from: 7, to: 8, note: 'Estimated' }],
+    eventLines: [
+      { labelIndex: 0, color: PROBE_MAGENTA, withHead: true },
+      { labelIndex: 1, color: PROBE_MAGENTA },
+      { labelIndex: 2, color: PROBE_MAGENTA, isDashed: true },
+      { labelIndex: 3, color: PROBE_MAGENTA, isDashed: true, isDotted: true },
+      { labelIndex: 7, offset: 0.5, label: 'Pin', color: PROBE_CYAN, withHead: true, hint: 'Promo starts\nEstimated' },
+      { labelIndex: 7, hint: 'Ends Sunday' },
+    ],
+  }, { 7: { notes: ['Resolved', 'Ends Sunday'] } });
+  const [startPinX, solidX, dashedX, dottedX, pinX] = await readLabelXs([[0], [1], [2], [3], [7, 0.5]]);
+  const ruleRuns = [];
+  for (const x of [solidX, dashedX, dottedX]) {
+    ruleRuns.push(await readColumnRuns(page, '#probe', OPAQUE_MAGENTA_PIXEL, await snapRuleX(x)));
+  }
+  const [solidRuns, dashedRuns, dottedRuns] = ruleRuns;
+  // The runs down a rule repeat a dash and a gap, aside from the last, which the end of the rule cuts
+  const isRunPattern = ({ runs }, [dash, gap]) => runs.length > 2 && runs.slice(0, -1).every(([start, end], i) => (
+    Math.abs(end - start - dash) <= RULE_RUN_TOLERANCE && Math.abs(runs[i + 1][0] - end - gap) <= RULE_RUN_TOLERANCE
+  ));
+  check('an event rule is solid by default, from the top of the canvas to the bottom of the Y range',
+    solidRuns.runs.length === 1 && solidRuns.runs[0][0] <= 1 - PLOT_TOP
+    && solidRuns.runs[0][1] >= solidRuns.height - 1,
+    `${formatRuns(solidRuns.runs.slice(0, 4))} over an area ${solidRuns.height}px high`);
+  check('`isDashed` draws an event rule in the dashes of a dataset, and `isDotted` in its dots, `isDashed` or not',
+    isRunPattern(dashedRuns, RULE_DASH) && isRunPattern(dottedRuns, RULE_DOT),
+    `dashed ${formatRuns(dashedRuns.runs.slice(0, 4))}, dotted ${formatRuns(dottedRuns.runs.slice(0, 4))}`);
+  const pinHead = await readPinHead(pinX, OPAQUE_CYAN_PIXEL);
+  const solidHead = await readPinHead(solidX, OPAQUE_MAGENTA_PIXEL);
+  check('`withHead` tops an event rule with a disc of its colour in a ring of the background colour, and none without',
+    isPinHead(pinHead) && solidHead.right - solidHead.left <= 1,
+    `pin ${formatPinHead(pinHead)}, rule ${formatPinHead(solidHead)}`);
+  const headBottom = (PIN_HEAD_RADIUS + PIN_RING_WIDTH) * 2 - PLOT_TOP;
+  const startPinHead = await readPinHead(startPinX, PURE_MAGENTA_PIXEL);
+  const headRight = startPinHead.centerX + PIN_HEAD_RADIUS + PIN_RING_WIDTH + PIN_HEAD_TOLERANCE;
+  const topYLabel = await readPickedBox(page, '#probe', PAINTED_PIXEL, [headRight, headRight + PIN_ROW_REACH]);
+  // The top Y-axis label runs on past the ring of the head at the start of the plot, in its rows
+  check('the head of an event rule at the start of the plot stands whole over the top Y-axis label',
+    isPinHead({ ...startPinHead, isOutsideClear: true }) && topYLabel.count > 0 && topYLabel.top < headBottom,
+    `${formatPinHead(startPinHead)}, the label beside it ${formatBox(topYLabel)}`);
+  const pinLabel = await readPickedBox(
+    page, '#probe', OPAQUE_CYAN_PIXEL, [pinX - EVENT_LABEL_COLUMNS, pinHead.centerX - PIN_HEAD_RADIUS - PIN_RING_WIDTH],
+  );
+  const pinTexts = (await readEventTexts()).filter(({ text }) => text === 'Pin');
+  check('the label of a pinned event rule reads bottom to top beside it from under its head',
+    pinTexts.length > 0 && pinTexts.every(({ color, isRising }) => isRising && isTextColor(color, PROBE_CYAN))
+    && pinLabel.count > 0 && pinLabel.top >= headBottom && pinLabel.top <= headBottom + EVENT_LABEL_GAP
+    && pinLabel.right <= pinHead.centerX - EVENT_LABEL_GAP / 2,
+    `${formatBox(pinLabel)} beside ${pinHead.centerX.toFixed(1)}, under a head ending at ${headBottom}`);
+  const pinNotes = [];
+  for (const labelIndex of [2, 6, 7, 8]) {
+    pinNotes.push(await readHints(labelIndex));
+  }
+  await page.evaluate(() => window.probeChart.selectLabel(undefined));
+  const pinLayer = page.locator('#probe .lovely-chart--tooltip');
+  await pinLayer.scrollIntoViewIfNeeded();
+  await pinLayer.focus();
+  for (const key of ['End', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft']) {
+    await page.keyboard.press(key);
+    await sleep(150);
+  }
+  await sleep(300);
+  const keyedPinNotes = await readHints();
+  await unmountProbe(page);
+  const pinLabelNotes = ['Estimated', 'Promo starts', 'Ends Sunday', 'Resolved'];
+  const shownPinNotes = JSON.stringify(pinNotes.map(({ notes }) => notes));
+  // At labels 2, 6, 7 and 8: a dashed rule with no hint, the label before the range, the pin's label and the range
+  check('an event hint notes its label alone, after range notes, before resolved ones, a line shown already left out',
+    pinNotes.every(({ isShown }) => isShown)
+    && shownPinNotes === JSON.stringify([[], [], pinLabelNotes, ['Estimated']]),
+    JSON.stringify(pinNotes));
+  check('the keys select the hint of an event rule with its label',
+    keyedPinNotes.isShown && JSON.stringify(keyedPinNotes.notes) === JSON.stringify(pinLabelNotes),
+    JSON.stringify(keyedPinNotes));
 
   const eventBarValues = [4, 10, 6, 10, 8, 10, 6, 10];
   await mountProbe(page, {
@@ -7310,7 +7525,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       isYAxisOutward: true,
       withMinimap: true,
       minimapRange: [0.25, 0.75],
-      eventLines: [{ labelIndex: 2, offset: 0.3, color: PROBE_MAGENTA }, { labelIndex: 4, color: PROBE_CYAN }],
+      eventLines: [
+        { labelIndex: 2, offset: 0.3, color: PROBE_MAGENTA, withHead: true },
+        { labelIndex: 4, color: PROBE_CYAN, withHead: true },
+      ],
     },
   });
   const [hiddenEventX, shownEventX, nextLabelX] = await readLabelXs([[2, 0.3], [4], [5]]);
@@ -7324,7 +7542,21 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && columnEventX < -Y_AXIS_LABEL_GAP && columnEventX >= -pannedAreaLeft && pannedHidden === 0,
     `${formatRuns(pannedRuns)} for ${shownEventX.toFixed(1)}, ${pannedHidden}px of the rule at `
     + `${columnEventX.toFixed(1)}`);
+  const pannedHead = await readPinHead(shownEventX, OPAQUE_CYAN_PIXEL);
+  await pannedEvents.scrollIntoViewIfNeeded();
+  const eventSlider = await pannedEvents.locator('.lovely-chart--minimap-slider-inner').boundingBox();
+  await drag(page, eventSlider.x + eventSlider.width / 2, eventSlider.y + eventSlider.height / 2, 40, 0);
+  await sleep(600);
+  const [draggedEventX] = await readLabelXs([[4]]);
+  const draggedHead = await readPinHead(draggedEventX, OPAQUE_CYAN_PIXEL);
+  const minimapHeads = await countPickedPixels(pannedEvents.locator('.lovely-chart--minimap'), OPAQUE_CYAN_PIXEL);
   await unmountProbe(page);
+  check('the head of an event rule moves with it as the window pans, and the minimap draws none',
+    isPinHead(pannedHead) && Math.abs(pannedHead.centerX - shownEventX) <= PLOT_AREA_TOLERANCE
+    && isPinHead(draggedHead) && Math.abs(draggedHead.centerX - draggedEventX) <= PLOT_AREA_TOLERANCE
+    && shownEventX - draggedEventX > PIN_ROW_REACH && minimapHeads === 0,
+    `${formatPinHead(pannedHead)} for ${shownEventX.toFixed(1)}, then ${formatPinHead(draggedHead)} for `
+    + `${draggedEventX.toFixed(1)}, ${minimapHeads}px on the minimap`);
 
   const sparkEvents = await mountProbe(page, {
     config: {
@@ -7367,17 +7599,45 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       zoomToShares: true,
       circleLabelsAround: 0,
       initialZoom: 'last',
-      eventLines: [{ labelIndex: 2, label: 'Launch', color: PROBE_MAGENTA }],
+      eventLines: [{ labelIndex: 2, label: 'Launch', color: PROBE_MAGENTA, withHead: true }],
     },
   });
   const zoomedEvents = await countPickedPixels(sharesEvents, OPAQUE_MAGENTA_PIXEL);
   await sharesEvents.locator('.lovely-chart--header-zoom-out-control').first().click();
   await sleep(2000);
   const overviewEvents = await countPickedPixels(sharesEvents, OPAQUE_MAGENTA_PIXEL);
+  const [overviewEventX] = await readLabelXs([[2]]);
+  const overviewHead = await readPinHead(overviewEventX, OPAQUE_MAGENTA_PIXEL);
   await unmountProbe(page);
   await page.evaluate(() => window.stopEventTextRecording());
-  check('a zoom into shares draws no event rule, and its overview draws it again',
-    zoomedEvents === 0 && overviewEvents > 0, `${zoomedEvents}px zoomed, ${overviewEvents}px in the overview`);
+  check('a zoom into shares draws no event rule or head, and its overview draws them again',
+    zoomedEvents === 0 && overviewEvents > 0 && isPinHead(overviewHead),
+    `${zoomedEvents}px zoomed, ${overviewEvents}px in the overview, head ${formatPinHead(overviewHead)}`);
+
+  // The data `onZoom` returns notes the tooltip by hints of its own
+  const hintZoom = await mountLinesZoom(page, {
+    overview: [{ name: 'Red', color: '#FF0000' }],
+    zoomed: [{ name: 'Blue', color: '#0000FF' }],
+    config: { eventLines: [{ labelIndex: LINES_ZOOM_LAST_LABEL_INDEX, hint: 'Launch day' }] },
+    zoomConfig: { eventLines: [{ labelIndex: 12, hint: 'Launch hour' }] },
+  });
+  await hintZoom.scrollIntoViewIfNeeded();
+  const hintZoomPlot = await hintZoom.locator('.lovely-chart--tooltip').boundingBox();
+  await hoverWiggle(page, hintZoomPlot, 0.5, 0.5);
+  await page.mouse.click(hintZoomPlot.x + hintZoomPlot.width / 2, hintZoomPlot.y + hintZoomPlot.height / 2);
+  await sleep(2000);
+  await page.mouse.move(5, 5);
+  const zoomedHints = [await readHints(LINES_ZOOM_LAST_LABEL_INDEX), await readHints(12)];
+  await page.evaluate(() => window.probeChart.selectLabel(undefined));
+  await hintZoom.locator('.lovely-chart--header-zoom-out-control').first().click();
+  await sleep(2000);
+  const overviewHints = [await readHints(LINES_ZOOM_LAST_LABEL_INDEX)];
+  await unmountProbe(page);
+  const zoomHints = [...zoomedHints, ...overviewHints];
+  check('the hints of the data `onZoom` returns note its labels in place of those of the overview, which come back',
+    zoomHints.every(({ isShown }) => isShown)
+    && JSON.stringify(zoomHints.map(({ notes }) => notes)) === JSON.stringify([[], ['Launch hour'], ['Launch day']]),
+    JSON.stringify({ zoomedHints, overviewHints }));
 
   // --- `selectLabel()` from the page and `onSelectedIndexChange` (demo chart) ---
   const pickerChart = charts.nth(DAY_PICKER_CHART);
