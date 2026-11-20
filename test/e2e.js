@@ -6,8 +6,10 @@
  * callbacks, the plot-area variables, a late web font, colour schemes, theme
  * switch, resize redraw, and `update()` and `destroy()` mid-interaction.
  *
- * Run via `npm test` (builds first). Requires Google Chrome, or a Playwright
- * chromium (`npx playwright install chromium`) as fallback.
+ * Run via `npm test` (builds first). Runs in the headless shell of the Chromium
+ * the locked playwright-core pins (`npx playwright-core install --only-shell
+ * chromium`), or in an installed browser such as Google Chrome with
+ * `E2E_CHANNEL=chrome`. `E2E_TIMINGS=1` lists the slowest checks at the end.
  */
 
 import fs from 'node:fs';
@@ -172,6 +174,9 @@ const MIME = {
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// How many of the checks that took the longest `E2E_TIMINGS` lists
+const SLOWEST_CHECKS = 20;
 
 // A web font the server holds back until `releaseWideFont()`, so it loads after the chart that uses it is built
 const WIDE_FONT_PATH = '/wide-font.ttf';
@@ -599,25 +604,45 @@ function releaseWideFont() {
   });
 }
 
+// The browser of the run: the headless shell the lockfile pins, the same here and in CI, or the channel `E2E_CHANNEL`
+// names, whose version is that of the browser installed
 async function launchBrowser() {
+  const channel = process.env.E2E_CHANNEL;
   try {
-    return await chromium.launch({ channel: 'chrome', headless: true });
-  } catch {
-    try {
-      return await chromium.launch({ headless: true });
-    } catch (err) {
-      console.error('Could not launch a browser. Install Google Chrome or run: npx playwright install chromium');
-      throw err;
-    }
+    return await chromium.launch({ headless: true, ...(channel && { channel }) });
+  } catch (err) {
+    // Last, as Playwright's own hint installs the browsers of its latest version, which the locked one cannot launch
+    console.error(err.message);
+    throw new Error(channel
+      ? `Could not launch the ${channel} channel: install it, or leave E2E_CHANNEL unset`
+      : 'Could not launch the headless shell: run npx playwright-core install --only-shell chromium');
   }
 }
 
 let failures = 0;
+// The checks made, each with the time the run took since the one before, which `E2E_TIMINGS` lists
+const checkTimes = [];
+let lastCheckAt = performance.now();
 
 function check(name, condition, details = '') {
   const mark = condition ? 'ok' : 'FAIL';
   console.log(`${mark.padEnd(4)} - ${name}${details ? ` (${details})` : ''}`);
   if (!condition) failures++;
+  const now = performance.now();
+  checkTimes.push({ name, ms: now - lastCheckAt });
+  lastCheckAt = now;
+}
+
+// The time of the run and the browser it ran in, with `E2E_TIMINGS` the checks that took the longest after the one
+// before them too
+function printTimings(browserName, startedAt) {
+  const seconds = (performance.now() - startedAt) / 1000;
+  console.log(`\n${checkTimes.length} checks in ${seconds.toFixed(1)} s, in ${browserName}`);
+  if (!process.env.E2E_TIMINGS) return;
+
+  [...checkTimes].sort((a, b) => b.ms - a.ms).slice(0, SLOWEST_CHECKS).forEach(({ name, ms }) => {
+    console.log(`${(ms / 1000).toFixed(1).padStart(6)} s  ${name}`);
+  });
 }
 
 // Counts the pixels of the plot canvas close to `rgb`, thin antialiased strokes included, and averages their height.
@@ -1901,9 +1926,12 @@ async function drag(page, x, y, dx, dy, steps = 10) {
 }
 
 (async () => {
+  const startedAt = performance.now();
   const server = await startServer();
   const url = `http://127.0.0.1:${server.address().port}/`;
   const browser = await launchBrowser();
+  const browserName = `${process.env.E2E_CHANNEL || 'chromium-headless-shell'} ${browser.version()}`;
+  console.log(`Browser: ${browserName}`);
   const page = await browser.newPage({ viewport: { width: 900, height: 1200 } });
 
   const errors = [];
@@ -12003,6 +12031,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   await browser.close();
   server.close();
 
+  printTimings(browserName, startedAt);
   console.log(failures ? `\n${failures} check(s) FAILED` : '\nAll checks passed');
   process.exit(failures ? 1 : 0);
 })().catch((err) => {

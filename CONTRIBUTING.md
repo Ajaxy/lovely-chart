@@ -13,7 +13,13 @@ npm run dev     # builds the library and serves the demo page at the printed URL
 npm test
 ```
 
-Runs the full suite: typecheck, ESLint, Stylelint, build and an end-to-end smoke test in headless Chrome. The e2e test requires Google Chrome, or a Playwright Chromium as fallback (`npx playwright install chromium`).
+Runs the full suite: typecheck, ESLint, Stylelint, build and an end-to-end smoke test in the headless shell of Chromium. The e2e test runs in the version the locked `playwright-core` pins, as CI does; install it, and again after a bump of `playwright-core`, with:
+
+```sh
+npx playwright-core install --only-shell chromium
+```
+
+`E2E_CHANNEL=chrome npm test` runs the e2e test in the installed Google Chrome instead, and `E2E_TIMINGS=1` lists the checks that took the longest.
 
 A pre-commit hook runs `eslint --fix` and `stylelint --fix` on staged files automatically.
 
