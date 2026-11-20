@@ -177,6 +177,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // How many of the checks that took the longest `E2E_TIMINGS` lists
 const SLOWEST_CHECKS = 20;
+// The frames in a row with nothing pending that make a page idle, and the longest a chart takes to settle after it is
+// built and after it is destroyed, which a wait cuts short once the page is idle
+const IDLE_QUIET_FRAMES = 3;
+const MOUNT_SETTLE_TIME = 1800;
+const UNMOUNT_SETTLE_TIME = 200;
 
 // A web font the server holds back until `releaseWideFont()`, so it loads after the chart that uses it is built
 const WIDE_FONT_PATH = '/wide-font.ttf';
@@ -619,6 +624,149 @@ async function launchBrowser() {
   }
 }
 
+/**
+ * Runs in each page before its own scripts, as `window.idleTracker`: it holds each frame, timer and fetch the page asks
+ * for until it is done, and `wait(maxMs)` resolves once none is pending, nor a CSS animation with an end running, for
+ * `quietFrames` frames in a row, or at `maxMs` with what kept the page busy, and with the count of frames, timers and
+ * fetches the page asked for since the wait before. `requestFrame` asks for a frame it leaves out, for loops that never
+ * end.
+ */
+function trackIdle(quietFrames) {
+  if (window.idleTracker) return;
+
+  const requestFrame = window.requestAnimationFrame.bind(window);
+  const cancelFrame = window.cancelAnimationFrame.bind(window);
+  const setTimer = window.setTimeout.bind(window);
+  const clearTimer = window.clearTimeout.bind(window);
+  const setRepeat = window.setInterval.bind(window);
+  const clearRepeat = window.clearInterval.bind(window);
+  const fetchResource = window.fetch.bind(window);
+  const frames = new Set();
+  const timers = new Set();
+  let fetches = 0;
+  let requested = 0;
+
+  window.requestAnimationFrame = (callback) => {
+    const id = requestFrame((time) => {
+      frames.delete(id);
+      callback(time);
+    });
+    frames.add(id);
+    requested++;
+    return id;
+  };
+  window.cancelAnimationFrame = (id) => {
+    frames.delete(id);
+    cancelFrame(id);
+  };
+  window.setTimeout = (callback, ms, ...args) => {
+    if (typeof callback !== 'function') return setTimer(callback, ms, ...args);
+    const id = setTimer((...callbackArgs) => {
+      timers.delete(id);
+      callback(...callbackArgs);
+    }, ms, ...args);
+    timers.add(id);
+    requested++;
+    return id;
+  };
+  window.setInterval = (callback, ms, ...args) => {
+    const id = setRepeat(callback, ms, ...args);
+    timers.add(id);
+    requested++;
+    return id;
+  };
+  // A timeout and an interval share their ids, so either call clears either
+  window.clearTimeout = (id) => {
+    timers.delete(id);
+    clearTimer(id);
+  };
+  window.clearInterval = (id) => {
+    timers.delete(id);
+    clearRepeat(id);
+  };
+
+  // A fetch is pending until its response arrives, and the read of its body until the body has arrived
+  const holdUntilSettled = (promise) => {
+    fetches++;
+    requested++;
+    const release = () => fetches--;
+    promise.then(release, release);
+    return promise;
+  };
+  window.fetch = (...args) => holdUntilSettled(fetchResource(...args));
+  ['json', 'text', 'arrayBuffer', 'blob'].forEach((name) => {
+    const read = Response.prototype[name];
+    Response.prototype[name] = function (...args) {
+      return holdUntilSettled(read.apply(this, args));
+    };
+  });
+
+  const describeBusy = () => {
+    const animations = document.getAnimations().filter((animation) => (
+      animation.playState === 'running' && Number.isFinite(animation.effect?.getComputedTiming().endTime)
+    )).length;
+    return Object.entries({ frames: frames.size, timers: timers.size, fetches, animations })
+      .filter(([, count]) => count)
+      .map(([name, count]) => `${name}: ${count}`)
+      .join(', ');
+  };
+
+  const wait = (maxMs) => new Promise((resolve) => {
+    const startedAt = performance.now();
+    let quiet = 0;
+    let ticks = 0;
+    let isDone = false;
+    let guard;
+    const finish = (busy) => {
+      isDone = true;
+      clearTimer(guard);
+      resolve({ ms: performance.now() - startedAt, busy, requested });
+      requested = 0;
+    };
+    const tick = () => {
+      if (isDone) return;
+      ticks++;
+      quiet = describeBusy() ? 0 : quiet + 1;
+      if (quiet >= quietFrames) finish('');
+      else requestFrame(tick);
+    };
+    // A page that draws no frames, as one in the background, still ends its wait
+    guard = setTimer(() => finish(describeBusy() || (ticks ? 'quiet too briefly' : 'no frames')), maxMs);
+    requestFrame(tick);
+  });
+
+  window.idleTracker = { wait, requestFrame };
+}
+
+// A page of the run, its idle tracker in place before any script of its own
+async function newTestPage(owner, options) {
+  const page = await owner.newPage(options);
+  await page.addInitScript(trackIdle, IDLE_QUIET_FRAMES);
+  return page;
+}
+
+// The waits for an idle page, the time they took, what kept the page busy in each that ran to its cap, and the
+// charts built while the page asked for nothing
+const idleWaits = { count: 0, ms: 0, capped: [], unseenMounts: 0 };
+
+// Waits until the page is idle, at most `maxMs`, and returns the frames, timers and fetches it asked for since the wait
+// before
+async function waitForIdle(page, maxMs) {
+  const { ms, busy, requested } = await page.evaluate((cap) => {
+    if (!window.idleTracker) throw new Error('The page has no idle tracker: open it with newTestPage()');
+    return window.idleTracker.wait(cap);
+  }, maxMs);
+  idleWaits.count++;
+  idleWaits.ms += ms;
+  if (busy) idleWaits.capped.push(busy);
+  return requested;
+}
+
+// Waits until a chart just built settles, counting one that asked for no frame, timer or fetch against the tracker
+async function settleMount(page) {
+  if (!await waitForIdle(page, MOUNT_SETTLE_TIME)) idleWaits.unseenMounts++;
+}
+
 let failures = 0;
 // The checks made, each with the time the run took since the one before, which `E2E_TIMINGS` lists
 const checkTimes = [];
@@ -638,6 +786,11 @@ function check(name, condition, details = '') {
 function printTimings(browserName, startedAt) {
   const seconds = (performance.now() - startedAt) / 1000;
   console.log(`\n${checkTimes.length} checks in ${seconds.toFixed(1)} s, in ${browserName}`);
+  const cappedCounts = new Map();
+  idleWaits.capped.forEach((busy) => cappedCounts.set(busy, (cappedCounts.get(busy) ?? 0) + 1));
+  const capped = [...cappedCounts].map(([busy, count]) => `${busy} (${count}×)`).join('; ');
+  console.log(`${idleWaits.count} waits for an idle page in ${(idleWaits.ms / 1000).toFixed(1)} s, `
+    + `${idleWaits.capped.length} of them cut at their cap${capped ? `: ${capped}` : ''}`);
   if (!process.env.E2E_TIMINGS) return;
 
   [...checkTimes].sort((a, b) => b.ms - a.ms).slice(0, SLOWEST_CHECKS).forEach(({ name, ms }) => {
@@ -970,7 +1123,7 @@ async function mountProbe(page, {
     document.getElementById('container').appendChild(element);
     window.probeChart = new LovelyChart(element, params);
   }, { dataUrl, config, zoomDataSource, zoomConfig, hostStyle, width });
-  await sleep(1800);
+  await settleMount(page);
 
   return page.locator('#probe .lovely-chart--container');
 }
@@ -988,9 +1141,9 @@ async function recordProbeNumbers(page) {
     window.probePass = 0;
     const countFrame = () => {
       window.probeFrame++;
-      requestAnimationFrame(countFrame);
+      window.idleTracker.requestFrame(countFrame);
     };
-    requestAnimationFrame(countFrame);
+    window.idleTracker.requestFrame(countFrame);
     const textAlign = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'textAlign');
     Object.defineProperty(CanvasRenderingContext2D.prototype, 'textAlign', {
       ...textAlign,
@@ -1208,7 +1361,7 @@ async function mountLinesZoom(page, { overview, zoomed, config = {}, zoomConfig 
       ...spec.config,
     });
   }, { overview, zoomed, config, zoomConfig, hourMs: HOUR_MS });
-  await sleep(1800);
+  await settleMount(page);
 
   return page.locator('#probe .lovely-chart--container');
 }
@@ -1441,7 +1594,7 @@ async function unmountProbe(page) {
     window.probeChart.destroy();
     document.getElementById('probe').remove();
   });
-  await sleep(200);
+  await waitForIdle(page, UNMOUNT_SETTLE_TIME);
 }
 
 // The pixels of the plot area of the chart in the element `hostSelector` names that `bounds` pick, counted per column
@@ -1932,7 +2085,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
   const browser = await launchBrowser();
   const browserName = `${process.env.E2E_CHANNEL || 'chromium-headless-shell'} ${browser.version()}`;
   console.log(`Browser: ${browserName}`);
-  const page = await browser.newPage({ viewport: { width: 900, height: 1200 } });
+  const page = await newTestPage(browser, { viewport: { width: 900, height: 1200 } });
 
   const errors = [];
   page.on('pageerror', (err) => errors.push(`[pageerror] ${err.message}`));
@@ -2391,7 +2544,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     rebuildFromCallbackErrors.join('; '));
 
   // A page of its own counts every frame and timer, which the demo charts would add to
-  const isolatedPage = await browser.newPage({ viewport: { width: 900, height: 1200 } });
+  const isolatedPage = await newTestPage(browser, { viewport: { width: 900, height: 1200 } });
   const isolatedErrors = [];
   isolatedPage.on('pageerror', (err) => isolatedErrors.push(err.message));
   await isolatedPage.goto(`${url}isolated`);
@@ -2943,7 +3096,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     reducedMotionUpdate === 'lovely-chart--container', reducedMotionUpdate);
 
   // A page of its own counts every frame and timer, which the demo charts would add to
-  const fadePage = await browser.newPage({ viewport: { width: 900, height: 1200 } });
+  const fadePage = await newTestPage(browser, { viewport: { width: 900, height: 1200 } });
   await fadePage.goto(`${url}isolated`);
   await fadePage.addStyleTag({ url: `${url}LovelyChart.css` });
   await countLateCallbacks(fadePage);
@@ -3916,7 +4069,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
 
   // --- A single label in the trillions labels its value instead of freezing the page ---
   // A page of its own, so a freeze holds up none of the checks after it
-  const trillionPage = await browser.newPage({ viewport: { width: 900, height: 1200 } });
+  const trillionPage = await newTestPage(browser, { viewport: { width: 900, height: 1200 } });
   await trillionPage.goto(`${url}isolated`);
   const trillionTexts = await Promise.race([
     trillionPage.evaluate(async ({ types, value }) => {
@@ -5045,7 +5198,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       window.probeChart = new LovelyChart(element, window.probeParams);
       window.probeEarlyX = window.probeChart.getLabelX(...spec.xArgs[0]);
     }, { config, xArgs, isZoomable, hostStyle: PADDED_HOST_STYLE, hourMs: HOUR_MS });
-    await sleep(1800);
+    await settleMount(page);
 
     return page.locator('#probe .lovely-chart--container');
   };
@@ -7318,7 +7471,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       onZoom: () => new Promise(() => {}),
     });
   }, LONG_TITLE_LABELS);
-  await sleep(1800);
+  await settleMount(page);
   const readLongTitle = () => page.evaluate(() => {
     const balloon = document.querySelector('#probe .lovely-chart--tooltip-balloon');
     const title = balloon.querySelector('.lovely-chart--tooltip-title');
@@ -7642,7 +7795,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     window.probeChart.destroy();
     window.probeChart = next;
   }, layeringConfig);
-  await sleep(1800);
+  await settleMount(page);
   await page.evaluate(async () => {
     window.probeChart.selectLabel(1);
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -9769,7 +9922,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     JSON.stringify({ ignoredIndexErrors, isKeptBalloonShown, ignoredIndexSelection }));
 
   // A page of its own, which a touch screen gives touch events in place of mouse ones
-  const touchPage = await browser.newPage({ viewport: { width: 900, height: 1200 }, hasTouch: true });
+  const touchPage = await newTestPage(browser, { viewport: { width: 900, height: 1200 }, hasTouch: true });
   touchPage.on('pageerror', (err) => errors.push(`[touch pageerror] ${err.message}`));
   await touchPage.goto(`${url}isolated`);
   await touchPage.addStyleTag({ url: `${url}LovelyChart.css` });
@@ -11554,7 +11707,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
       onHiddenSeriesChange: (names) => window.colorRefreshLog.push(`hidden ${names}`),
     });
   });
-  await sleep(1800);
+  await settleMount(page);
   const refreshChart = page.locator('#probe .lovely-chart--container');
   await refreshChart.evaluate((el) => {
     el.querySelectorAll('.lovely-chart--button')[1].click();
@@ -11654,7 +11807,7 @@ async function drag(page, x, y, dx, dy, steps = 10) {
 
   // --- UTC labels, west of UTC ---
   const westContext = await browser.newContext({ timezoneId: 'America/Los_Angeles' });
-  const westPage = await westContext.newPage();
+  const westPage = await newTestPage(westContext);
   await westPage.goto(url);
   const westTitles = await westPage.evaluate(async () => {
     const { default: LovelyChart } = await import('./LovelyChart.js');
@@ -12024,6 +12177,10 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     )) && isPhoneBadgeInside,
     `labels ${JSON.stringify(phoneForecastLabels)} from ${phoneForecastStart.toFixed(1)}, `
     + `badge ${formatBox(phoneForecastBadge)}, area ${formatBox(phoneForecastArea)}`);
+
+  // --- Idle waits ---
+  check('each chart built asked the page for a frame, a timer or a fetch before its wait for an idle page ended',
+    !idleWaits.unseenMounts, `${idleWaits.unseenMounts} built asking for none`);
 
   // --- Console hygiene ---
   check('no page or console errors', errors.length === 0, errors.join('; ').slice(0, 200));
