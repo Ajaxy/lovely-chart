@@ -397,6 +397,13 @@ const LIMIT_LABEL_INDEX = 10;
 const LIMIT_MASK_TOLERANCE = 0.02;
 // The last label of a `minimapRange` that a limit probe asks of the labels its `limitDate` locks
 const LOCKED_RANGE_LAST_INDEX = 4;
+// How far past or short of the centre of a column a drag of a minimap ear sets an edge of the window, in px, and the
+// label from which the `limitDate` of a probe of 11 bars opens them, past the middle of the labels
+const COLUMN_CENTRE_NUDGE = 2;
+const BAR_LIMIT_INDEX = 6;
+// How far from the centre of a column the outer and the inner edge of a window inside half of it stand, in columns
+const HALF_COLUMN_OUTER_EDGE = 0.4;
+const HALF_COLUMN_INNER_EDGE = 0.05;
 // The opacity a loading chart dims its data to, and the width of the elements the loading probes are built in
 const LOADING_OPACITY = 0.4;
 const LOADING_PROBE_WIDTH = 600;
@@ -5384,12 +5391,16 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     formatRangeReports(lockedReports) === '3-8 3-9', formatRangeReports(lockedReports));
 
   // Ranges from the first label `limitDate` leaves open as `minimapRange`, at label counts where the limit and the edges
-  // of the window fall off the labels by float error: a line ends a label later short of the last label, bars do not
+  // of the window fall off the labels by float error: a line ends a label later short of the last label, bars do not.
+  // Bars locked up to a label past their middle open on the same columns, and a range before the limit on as many from
+  // the limit.
   const limitCases = [
     { type: 'line', count: 26, limit: 7, range: { from: 7, to: 15 }, expected: '7-16' },
     { type: 'line', count: 11, limit: 1, range: { from: 1, to: 7 }, expected: '1-8' },
     { type: 'line', count: 11, limit: 3, range: { from: 3, to: 10 }, expected: '3-10' },
     { type: 'bar', count: 26, limit: 7, range: { from: 7, to: 15 }, expected: '7-15' },
+    { type: 'bar', count: 11, limit: BAR_LIMIT_INDEX, range: { from: BAR_LIMIT_INDEX, to: 9 }, expected: '6-9' },
+    { type: 'bar', count: 11, limit: BAR_LIMIT_INDEX, range: { from: 2, to: 5 }, expected: '6-9' },
   ];
   const limitResults = [];
   for (const { type, count, limit, range, expected } of limitCases) {
@@ -5535,6 +5546,221 @@ async function drag(page, x, y, dx, dy, steps = 10) {
     && reentrantRanges.childCount === 0,
     `${formatRangeReports(reentrantRanges.reports)}, errors ${JSON.stringify(reentrantRanges.errors)}, `
     + `${reentrantRanges.childCount} elements left`);
+
+  // --- The visible range of columns: the labels whose column centre the window holds, at the edges and by a limit ---
+  // Mounts bars of the days of `geometryLabels`, unless `config` gives other labels, that record each range
+  // `onRangeChange` reports and each selection
+  const mountColumnProbe = (config) => page.evaluate(async ([probeConfig, labels]) => {
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    document.getElementById('container').appendChild(element);
+    window.probeRanges = [];
+    window.probeSelections = [];
+    window.probeChart = new LovelyChart(element, {
+      type: 'bar',
+      labels,
+      isUtc: true,
+      withMinimap: true,
+      isKeyboardSelectable: true,
+      onRangeChange: (range) => window.probeRanges.push(range),
+      onSelectedIndexChange: (index) => window.probeSelections.push(index),
+      ...probeConfig,
+    });
+    element.scrollIntoView({ block: 'center' });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }, [config, geometryLabels]);
+  // The range the last frame reported, the caption, the labels Home and End select and whether `selectLabel()` selects
+  // the label of `labelIndex`, each from no selection
+  const readColumnWindow = (labelIndex) => page.evaluate((index) => {
+    const host = document.getElementById('probe');
+    const plot = host.querySelector('.lovely-chart--tooltip');
+    const readSelection = (select) => {
+      window.probeChart.selectLabel(undefined);
+      window.probeSelections.length = 0;
+      select();
+      return window.probeSelections.at(-1);
+    };
+    const pressKey = (key) => readSelection(() => (
+      plot.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+    ));
+    const [home, end] = [pressKey('Home'), pressKey('End')];
+    const isTaken = readSelection(() => window.probeChart.selectLabel(index)) === index;
+    window.probeChart.selectLabel(undefined);
+    const range = window.probeRanges.at(-1);
+    return {
+      range: range ? `${range.from}-${range.to}` : 'none',
+      caption: host.querySelector('.lovely-chart--header-caption').textContent,
+      home,
+      end,
+      isTaken,
+    };
+  }, labelIndex);
+  // Drags an ear of the minimap so that the edge of the window it moves stands `nudge` px right of the centre of the
+  // column of `labelIndex` among `count`, and reads the window
+  const readColumnEdge = async (edge, labelIndex, nudge, count = geometryLabels.length) => {
+    await page.evaluate(async ({ isBegin, centre, offset }) => {
+      const host = document.getElementById('probe');
+      const minimap = host.querySelector('.lovely-chart--minimap');
+      const [leftEar, , rightEar] = host.querySelector('.lovely-chart--minimap-slider').children;
+      const ear = isBegin ? leftEar : rightEar;
+      // An ear moves the edge from where it stands as it is pressed, the right one from its outer side
+      const edgeX = ear.offsetLeft + (isBegin ? 0 : ear.offsetWidth);
+      const earBox = ear.getBoundingClientRect();
+      const startX = earBox.left + earBox.width / 2;
+      const shift = centre * minimap.clientWidth + offset - edgeX;
+      const fire = (target, type, clientX) => target.dispatchEvent(new MouseEvent(type, {
+        bubbles: true, cancelable: true, buttons: 1, clientX, clientY: earBox.top + earBox.height / 2,
+      }));
+      fire(ear, 'mousedown', startX);
+      fire(document, 'mousemove', startX + shift);
+      fire(document, 'mouseup', startX + shift);
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }, { isBegin: edge === 'begin', centre: (labelIndex + 0.5) / count, offset: nudge });
+    return readColumnWindow(labelIndex);
+  };
+  // Whether a window reads the labels from `from` to `to` of `geometryLabels` in each way, and takes the label it moved
+  const isColumnWindow = ({ range, caption, home, end, isTaken }, from, to, isLabelTaken) => (
+    range === `${from}-${to}` && new RegExp(`^${from + 1} Jan( 2026)? — ${to + 1} Jan( 2026)?$`).test(caption)
+    && home === from && end === to && isTaken === isLabelTaken
+  );
+
+  // Columns of 11 days in a window of the labels 3 to 7, whose minimap ears move the start of the window either side of
+  // the centre of the column of label 3, and the end either side of that of label 7
+  await mountColumnProbe({
+    title: 'Probe — Columns whose centre the window holds',
+    datasets: [{ name: 'Bars', color: '#FF0000', values: geometryLabels.map((_, i) => 3 + (i % 4)) }],
+    minimapRange: { from: 3, to: 7 },
+  });
+  const columnEdges = {
+    beginAfter: await readColumnEdge('begin', 3, COLUMN_CENTRE_NUDGE),
+    beginBefore: await readColumnEdge('begin', 3, -COLUMN_CENTRE_NUDGE),
+    endAfter: await readColumnEdge('end', 7, COLUMN_CENTRE_NUDGE),
+    endBefore: await readColumnEdge('end', 7, -COLUMN_CENTRE_NUDGE),
+  };
+  await unmountProbe(page);
+  check('a window of bars holds the label of the column at its start until its edge passes the centre of the column',
+    isColumnWindow(columnEdges.beginBefore, 3, 7, true) && isColumnWindow(columnEdges.beginAfter, 4, 7, false),
+    JSON.stringify(columnEdges));
+  check('a window of bars holds the label of the column at its end once its edge passes the centre of the column',
+    isColumnWindow(columnEdges.endAfter, 3, 7, true) && isColumnWindow(columnEdges.endBefore, 3, 6, false),
+    JSON.stringify(columnEdges));
+
+  // Steps of 11 days in a window of the labels 3 to 7, whose start moves either side of the centre of the column of 3
+  await mountColumnProbe({
+    title: 'Probe — Steps whose centre the window holds',
+    type: 'step',
+    datasets: [{ name: 'Steps', color: '#FF0000', values: geometryLabels.map((_, i) => 3 + (i % 4)) }],
+    minimapRange: { from: 3, to: 7 },
+  });
+  const stepEdges = {
+    beginAfter: await readColumnEdge('begin', 3, COLUMN_CENTRE_NUDGE),
+    beginBefore: await readColumnEdge('begin', 3, -COLUMN_CENTRE_NUDGE),
+  };
+  await unmountProbe(page);
+  check('a window of steps holds the label of the column at its start until its edge passes the centre of the column',
+    isColumnWindow(stepEdges.beginBefore, 3, 7, true) && isColumnWindow(stepEdges.beginAfter, 4, 7, false),
+    JSON.stringify(stepEdges));
+
+  // Columns of 12 months in a window from right of the centre of May to left of that of June, which holds neither
+  const monthLabels = Array.from({ length: 12 }, (_, i) => Date.UTC(2026, i, 1));
+  await mountColumnProbe({
+    title: 'Probe — A window between the centres of two columns',
+    labels: monthLabels,
+    datasets: [{ name: 'Bars', color: '#FF0000', values: monthLabels.map((_, i) => 3 + (i % 4)) }],
+    minimapRange: 'full',
+  });
+  await readColumnEdge('begin', 4, COLUMN_CENTRE_NUDGE, monthLabels.length);
+  const columnGap = await readColumnEdge('end', 5, -COLUMN_CENTRE_NUDGE, monthLabels.length);
+  await unmountProbe(page);
+  check('a window of bars between the centres of two columns takes the labels of both',
+    columnGap.range === '4-5' && columnGap.caption === 'May — June 2026' && columnGap.home === 4
+    && columnGap.end === 5 && columnGap.isTaken,
+    JSON.stringify(columnGap));
+
+  // Columns of 6 months, wide enough on the minimap for a window inside half a column, in a window narrowed to the left
+  // half of the column of May, then moved to its right half
+  const halfColumnLabels = monthLabels.slice(0, 6);
+  await mountColumnProbe({
+    title: 'Probe — A window inside half a column',
+    labels: halfColumnLabels,
+    datasets: [{ name: 'Bars', color: '#FF0000', values: halfColumnLabels.map((_, i) => 3 + (i % 4)) }],
+    minimapRange: 'full',
+  });
+  const halfColumnWidth = await page.evaluate(() => (
+    document.querySelector('#probe .lovely-chart--minimap').clientWidth
+  )) / halfColumnLabels.length;
+  const readMayEdge = (edge, offset) => readColumnEdge(edge, 4, offset * halfColumnWidth, halfColumnLabels.length);
+  await readMayEdge('begin', -HALF_COLUMN_OUTER_EDGE);
+  const leftHalf = await readMayEdge('end', -HALF_COLUMN_INNER_EDGE);
+  await readMayEdge('end', HALF_COLUMN_OUTER_EDGE);
+  const rightHalf = await readMayEdge('begin', HALF_COLUMN_INNER_EDGE);
+  await unmountProbe(page);
+  const isMayAlone = ({ range, caption, home, end, isTaken }) => (
+    range === '4-4' && caption === 'May 2026' && home === 4 && end === 4 && isTaken
+  );
+  check('a window of bars inside half a column takes the label of that column alone',
+    isMayAlone(leftHalf) && isMayAlone(rightHalf), JSON.stringify({ leftHalf, rightHalf }));
+
+  // Two columns in the default window, the last 20% of the minimap, short of the centre of the last column
+  await mountColumnProbe({
+    title: 'Probe — Two columns in the default window',
+    labels: geometryLabels.slice(0, 2),
+    datasets: [{ name: 'Bars', color: '#FF0000', values: [3, 6] }],
+  });
+  const twoColumns = {
+    ...await readColumnWindow(1),
+    plot: await findColor(page.locator('#probe .lovely-chart--container'), [255, 0, 0]),
+  };
+  await unmountProbe(page);
+  check('a window of bars at the end of the axis short of the centre of the last column takes its label and its bar',
+    twoColumns.range === '1-1' && twoColumns.home === 1 && twoColumns.end === 1 && twoColumns.isTaken
+    && twoColumns.plot.count > MIN_DATASET_PIXELS,
+    JSON.stringify({ ...twoColumns, plot: twoColumns.plot.count }));
+
+  // Columns of 11 days, every other one drawn, which `limitDate` locks up to the column of a label past their middle
+  // in a window that `minimapRange: 'full'` asks to start before it
+  await mountColumnProbe({
+    title: 'Probe — Columns a limit locks',
+    // `values` marks a missing value with `null`
+    // eslint-disable-next-line no-null/no-null
+    datasets: [{ name: 'Bars', color: '#FF0000', values: [6, null, 6, null, 6, null, 6, null, 6, null, 6] }],
+    minimapRange: 'full',
+    limitDate: geometryLabels[BAR_LIMIT_INDEX],
+  });
+  const limitedColumns = await page.evaluate(({ red, green, blue, alpha }) => {
+    const host = document.getElementById('probe');
+    const canvas = host.querySelector('.lovely-chart--minimap canvas');
+    const canvasLeft = canvas.getBoundingClientRect().left;
+    const scale = canvas.width / canvas.clientWidth;
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const columns = Array.from({ length: canvas.width }, (_, x) => {
+      let count = 0;
+      for (let y = 0; y < canvas.height; y++) {
+        const j = (y * canvas.width + x) * 4;
+        count += [red, green, blue, alpha].every(([min, max], k) => data[j + k] >= min && data[j + k] <= max) ? 1 : 0;
+      }
+      return count;
+    });
+    const mask = host.querySelector('.lovely-chart--minimap-limit-mask');
+    return {
+      columns,
+      scale,
+      // The dashed edge of the mask stands right of the labels it locks
+      maskEnd: mask.getBoundingClientRect().right - parseFloat(getComputedStyle(mask).borderRightWidth) - canvasLeft,
+      windowStart: host.querySelector('.lovely-chart--minimap-slider').getBoundingClientRect().left - canvasLeft,
+    };
+  }, getColorBounds('#FF0000', [40, 255], COLOR_TOLERANCE));
+  const limitedWindow = await readColumnWindow(BAR_LIMIT_INDEX);
+  await unmountProbe(page);
+  const limitedRuns = findColumnRuns(limitedColumns, 1);
+  const { maskEnd, windowStart } = limitedColumns;
+  check('limitDate on bars masks the minimap up to the column of the first open label, where the window starts',
+    limitedRuns.length === 6 && Math.abs(limitedRuns[BAR_LIMIT_INDEX / 2][0] - maskEnd) <= 1
+    && Math.abs(windowStart - maskEnd) <= 1,
+    `mask to ${maskEnd}, window from ${windowStart}, columns ${formatRuns(limitedRuns)}`);
+  check('a window of bars from the first label limitDate leaves open holds that label',
+    isColumnWindow(limitedWindow, BAR_LIMIT_INDEX, 10, true), JSON.stringify(limitedWindow));
 
   // --- `minimapRange` in labels: the window by chart kind, the minimap slider over it, clamping, a pie and a zoom ---
   // The edges of the minimap slider, as fractions of the minimap

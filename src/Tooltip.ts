@@ -8,7 +8,7 @@ import { clearCanvas, setupCanvas } from './canvas.js';
 import { getComparisonValues } from './comparison.js';
 import { BALLOON_OFFSET, GAP, MAX_TOOLTIP_ITEMS, NO_FOCUS, SPARKLINE_PADDING, X_AXIS_HEIGHT } from './constants.js';
 import { formatDayHourFull, formatInteger, getLabelDate, getLabelTime } from './format.js';
-import { getCircleRadius, getDrawnPattern, getVisibleLabelRange, isInTotal } from './formulas.js';
+import { getCircleRadius, getDrawnPattern, getVisibleLabelRange, hasLabelColumns, isInTotal } from './formulas.js';
 import { addEventListener, createElement, removeEventListener } from './minifiers.js';
 import { getCssColor } from './skin.js';
 import { throttle, throttleWithRaf } from './utils.js';
@@ -276,9 +276,7 @@ export class Tooltip {
       return;
     }
 
-    const labelIndex = getKeyLabelIndex(
-      e.key, this.#getSelectedLabelIndex(), getVisibleLabelRange(this.#state.static ?? this.#state),
-    );
+    const labelIndex = getKeyLabelIndex(e.key, this.#getSelectedLabelIndex(), this.#getVisibleLabelRange());
     if (labelIndex === undefined) {
       return;
     }
@@ -346,8 +344,12 @@ export class Tooltip {
   }
 
   #isLabelVisible(labelIndex: number): boolean {
-    const { from, to } = getVisibleLabelRange(this.#state!.static ?? this.#state!);
+    const { from, to } = this.#getVisibleLabelRange();
     return labelIndex >= from && labelIndex <= to;
+  }
+
+  #getVisibleLabelRange(): LabelRange {
+    return getVisibleLabelRange(this.#state!.static ?? this.#state!, hasLabelColumns(this.#data));
   }
 
   #getSelectedLabelIndex(): number | undefined {
@@ -362,7 +364,7 @@ export class Tooltip {
     const labelIndex = this.#projection!.findClosestLabelIndex(this.#offsetX!);
     // A Y-axis label column hides the labels left of the window, which begins at its inset
     const firstLabelIndex = this.#projection!.getParams().xInsetStart !== undefined
-      ? getVisibleLabelRange(this.#state!.static ?? this.#state!).from
+      ? this.#getVisibleLabelRange().from
       : this.#state!.labelFromIndex;
     // `NaN` (e.g. from an `#offsetX` cleared mid-interaction) fails both comparisons
     return Number.isNaN(labelIndex) || labelIndex < firstLabelIndex || labelIndex > this.#state!.labelToIndex
@@ -418,7 +420,7 @@ export class Tooltip {
       statistics.filter(({ originalIndex }) => this.#data.datasets[originalIndex].type === 'line'), labelIndex,
     );
     // Bars and steps mask the columns around the focused one in place of the tail
-    if (!this.#data.hasBars && !this.#data.hasSteps && !this.#data.isCircle) {
+    if (!hasLabelColumns(this.#data)) {
       const plotBottom = this.#plotSize.height - (this.#data.isSparkline ? SPARKLINE_PADDING : X_AXIS_HEIGHT);
       this.#drawTail(xPx, plotBottom, getCssColor(this.#colors, 'grid-lines'));
     }

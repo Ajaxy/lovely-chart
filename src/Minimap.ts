@@ -16,7 +16,7 @@ import {
   SIMPLIFIER_MINIMAP_FACTOR,
 } from './constants.js';
 import { drawDatasets } from './drawDatasets.js';
-import { getSimplificationDelta } from './formulas.js';
+import { getSimplificationDelta, hasLabelColumns } from './formulas.js';
 import { createElement } from './minifiers.js';
 import { preparePoints } from './preparePoints.js';
 import { Projection } from './Projection.js';
@@ -235,7 +235,7 @@ export class Minimap {
       availableWidth: this.#canvasSize.width,
       availableHeight: this.#canvasSize.height,
       yPadding: 1,
-      withColumns: this.#data.hasBars || this.#data.hasSteps || this.#data.isCircle,
+      withColumns: hasLabelColumns(this.#data),
     };
     const visibilities = datasets.map(({ key }) => this.#state![`opacity#${key}`] as number);
     const points = preparePoints(this.#data, datasets, range, visibilities, boundsAndParams, true);

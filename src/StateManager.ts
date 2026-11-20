@@ -11,8 +11,8 @@ import {
   TRANSITION_DEFAULT_DURATION,
 } from './constants.js';
 import {
-  calculateYAxisScale, floorToStep, getPlotCircle, getVisibleLabelRange, getYRangeBottom, isConstantRange, isInTotal,
-  isZeroBasedAxis, xStepToScaleLevel, yScaleLevelToStep,
+  calculateYAxisScale, floorToStep, getPlotCircle, getVisibleLabelRange, getYRangeBottom, hasLabelColumns,
+  isConstantRange, isInTotal, isZeroBasedAxis, xStepToScaleLevel, yScaleLevelToStep,
 } from './formulas.js';
 import { TransitionManager } from './TransitionManager.js';
 import { getMaxMin, mergeProxied, throttleWithRaf } from './utils.js';
@@ -194,7 +194,9 @@ function calculateState(
   // A single label takes a column centered in the plot, which a window over a part of the axis leaves out
   const { begin, end } = lastLabelIndex === 0 ? { begin: 0, end: 1 } : range;
 
-  const { from: labelFromIndex, to: labelToIndex } = getVisibleLabelRange({ lastLabelIndex, begin, end });
+  const { from: labelFromIndex, to: labelToIndex } = getVisibleLabelRange(
+    { lastLabelIndex, begin, end }, hasLabelColumns(data),
+  );
 
   const xAxisScale = calculateXAxisScale(viewportSize.width, labelFromIndex, labelToIndex);
 

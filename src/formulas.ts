@@ -217,14 +217,48 @@ export function getCircleTextShift(percent: number, radius: number): number {
   return percent >= 0.99 ? 0 : Math.min(1 - Math.log(percent * 30) / 5, 4 / 5) * radius;
 }
 
-// The state's label indexes reach one label past each edge for edge drawing, so the window comes from its fractions
+// Bars and steps give each label a column, as does a pie or donut minimap, whose window picks the labels it sums
+export function hasLabelColumns(
+  { hasBars, hasSteps, isCircle }: Pick<AnalyzedData, 'hasBars' | 'hasSteps' | 'isCircle'>,
+): boolean {
+  return hasBars || hasSteps || isCircle;
+}
+
+// The labels whose point, or the centre of whose column, the window holds, taken from its fractions, as the state's
+// label indexes reach one label past each edge for edge drawing
 export function getVisibleLabelRange(
-  { lastLabelIndex, begin, end }: Pick<ChartState, 'lastLabelIndex' | 'begin' | 'end'>,
+  { lastLabelIndex, begin, end }: Pick<ChartState, 'lastLabelIndex' | 'begin' | 'end'>, hasColumns: boolean,
 ): LabelRange {
+  const from = Math.max(0, Math.ceil(getAxisPosition(begin, lastLabelIndex, hasColumns) - LABEL_EPSILON));
+  const to = Math.min(Math.floor(getAxisPosition(end, lastLabelIndex, hasColumns) + LABEL_EPSILON), lastLabelIndex);
+  if (from <= to || lastLabelIndex < 0) return { from, to };
+
+  // A window too narrow to hold a point takes those either side of it, the ends of the line it shows
+  if (!hasColumns) return { from: Math.max(0, to), to: Math.min(from, lastLabelIndex) };
+
+  // A window too narrow to hold the centre of a column takes the columns it shows, or with no width at a column edge
+  // those either side of it
+  const columnCount = lastLabelIndex + 1;
+  const firstColumn = Math.floor(begin * columnCount + LABEL_EPSILON);
+  const lastColumn = Math.ceil(end * columnCount - LABEL_EPSILON) - 1;
   return {
-    from: Math.max(0, Math.ceil(lastLabelIndex * begin - LABEL_EPSILON)),
-    to: Math.min(Math.floor(lastLabelIndex * end + LABEL_EPSILON), lastLabelIndex),
+    from: Math.max(0, Math.min(firstColumn, lastColumn)),
+    to: Math.min(Math.max(firstColumn, lastColumn), lastLabelIndex),
   };
+}
+
+// The label whose point stands nearest the middle of the window, or whose column holds it
+export function getMiddleLabelIndex(
+  { lastLabelIndex, begin, end }: Pick<ChartState, 'lastLabelIndex' | 'begin' | 'end'>, hasColumns: boolean,
+): number {
+  const position = getAxisPosition((begin + end) / 2, lastLabelIndex, hasColumns);
+  return Math.max(0, Math.min(Math.round(position), lastLabelIndex));
+}
+
+// The position in labels of a fraction of the axis, where a label's point or the centre of its column stands at the
+// label's index
+function getAxisPosition(fraction: number, lastLabelIndex: number, hasColumns: boolean): number {
+  return hasColumns ? fraction * (lastLabelIndex + 1) - PLOT_BARS_WIDTH_SHIFT : fraction * lastLabelIndex;
 }
 
 // The position in labels `offset` through the interval of a label, from its point to the next one or across its column,

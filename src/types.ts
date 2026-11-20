@@ -426,11 +426,13 @@ export interface LovelyChartParams {
    * of the visible range, those `getLabelX()` maps, which gives where that frame drew each: on the first paint, through
    * a pan or a resize of the minimap window and the range transition of a zoom, from the first frame of the data
    * `onZoom` returns, indexing its labels, and on the first paint after `update()` or a resize, which a chart that
-   * opens zoomed makes of its zoomed view. Passed back as `minimapRange`, the range opens a window on the same labels,
-   * or one label wider short of the last label from the first label `limitDate` leaves open on a line or area chart.
-   * Called with `undefined` once no labels are on screen: on a pie or donut chart, from the start of a zoom into
-   * shares, and as `destroy()` tears the chart down. The first frame of `update()` reports again, so a call of
-   * `update()` from each report rebuilds the chart on every frame.
+   * opens zoomed makes of its zoomed view. The visible range holds the labels whose point, or the centre of whose
+   * column, lies in the window, or in a window too narrow to hold one, the labels of the points either side of it or
+   * of the columns it shows. Passed back as `minimapRange`, the range opens a window on the same labels, or one label
+   * wider short of the last label from the first label `limitDate` leaves open on a line or area chart. Called with
+   * `undefined` once no labels are on screen: on a pie or donut chart, from the start of a zoom into shares, and as
+   * `destroy()` tears the chart down. The first frame of `update()` reports again, so a call of `update()` from each
+   * report rebuilds the chart on every frame.
    */
   onRangeChange?: (range: { from: number; to: number } | undefined) => void;
   /**
@@ -485,9 +487,9 @@ export interface LovelyChartParams {
   isCurrencyPrefix?: boolean;
   /**
    * A timestamp that locks the labels before it: the minimap covers them with a mask, and its window starts no earlier
-   * than the first label at or after it, wherever the reader drags. A `minimapRange` that starts before that label
-   * starts there and keeps its width within the axis. Ignored without `withMinimap`, and when it falls at or before the
-   * first label or after the label before the last.
+   * than the first label at or after it, at its point or at the start of its column, wherever the reader drags. A
+   * `minimapRange` that starts before that label starts there and keeps its width within the axis. Ignored without
+   * `withMinimap`, and when it falls at or before the first label or after the label before the last.
    */
   limitDate?: number;
   /** Called when the reader clicks the mask of `limitDate`, which lets the pointer through without it. */

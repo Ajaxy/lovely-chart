@@ -8,7 +8,7 @@ import {
   formatDay, formatDayHour, formatMin, formatMonth,
   formatText, formatWeek, formatYear,
 } from './format.js';
-import { getLabelFraction } from './formulas.js';
+import { getLabelFraction, hasLabelColumns } from './formulas.js';
 import { getMaxMin } from './utils.js';
 
 /** The colour of the `comparison` line, and of its swatches in the legend and the tooltip, when it sets none. */
@@ -72,8 +72,9 @@ export function analyzeData(
   const labelType = data.labelType || inferLabelType(data.labels) || fallbackLabelType;
   const labelFormatter = labelFormatterRaw || (labelType ? LABEL_TYPE_TO_FORMATTER[labelType] : undefined);
   const { datasets, labels } = prepareDatasets(data, datasetColors, fallbackColors);
-  // Bars or steps among the datasets give every label a column
-  const hasColumns = datasets.some(({ type }) => type === 'bar' || type === 'step');
+  const hasBars = datasets.some(({ type }) => type === 'bar');
+  const hasSteps = datasets.some(({ type }) => type === 'step');
+  const hasColumns = hasLabelColumns({ hasBars, hasSteps, isCircle });
 
   const isShares = Boolean(isPercentage) || isCircle;
   const analyzedComparison = comparison && !isShares
@@ -126,9 +127,9 @@ export function analyzeData(
   let limitBegin: number | undefined;
   if (limitDate !== undefined) {
     const index = labels.findIndex((label) => (label as number) >= limitDate);
-    // A limit at the last label leaves the window no span of labels to select
+    // A limit at the last label leaves the window only that label
     if (index > 0 && index < labels.length - 1) {
-      limitBegin = getLabelFraction(index, labels.length - 1);
+      limitBegin = hasColumns ? index / labels.length : getLabelFraction(index, labels.length - 1);
     }
   }
 
@@ -184,8 +185,8 @@ export function analyzeData(
     isBars: data.type === 'bar',
     isSteps: data.type === 'step',
     isAreas: data.type === 'area',
-    hasBars: datasets.some(({ type }) => type === 'bar'),
-    hasSteps: datasets.some(({ type }) => type === 'step'),
+    hasBars,
+    hasSteps,
     isPie,
     isDonut,
     isCircle,
@@ -194,7 +195,7 @@ export function analyzeData(
     yMax: totalYMax,
     colors,
     withMinimap: Boolean(withMinimap),
-    minimapRange: buildMinimapRange(minimapRange, xLabels.length, hasColumns || isCircle),
+    minimapRange: buildMinimapRange(minimapRange, xLabels.length, hasColumns),
     noCaption,
     zoomOutLabel,
     noZoomOutControl,

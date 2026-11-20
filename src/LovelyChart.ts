@@ -23,7 +23,8 @@ import { drawHatchedRangeLabels } from './drawHatchedRanges.js';
 import { drawReferenceLines } from './drawReferenceLines.js';
 import { getRangeCaption, getZoomCaption } from './format.js';
 import {
-  getCircleArea, getIntervalPosition, getPlotStart, getSimplificationDelta, getVisibleLabelRange, isDataRange,
+  getCircleArea, getIntervalPosition, getMiddleLabelIndex, getPlotStart, getSimplificationDelta, getVisibleLabelRange,
+  hasLabelColumns, isDataRange,
 } from './formulas.js';
 import { Header } from './Header.js';
 import { applyLoading, drawPlotSkeleton } from './loading.js';
@@ -592,7 +593,7 @@ export default class LovelyChart {
       xPadding: this.#data.isSparkline ? SPARKLINE_PADDING : GUTTER,
       xInsetStart: labelColumnWidth !== undefined ? getPlotStart(labelColumnWidth) : undefined,
       yPadding: this.#data.isSparkline ? SPARKLINE_PADDING : PLOT_TOP_PADDING,
-      withColumns: this.#data.hasBars || this.#data.hasSteps || this.#data.isCircle,
+      withColumns: hasLabelColumns(this.#data),
     };
   }
 
@@ -656,7 +657,7 @@ export default class LovelyChart {
     if (!this.#drawnProjection || this.#data.isCircle) return undefined;
     if (this.#zoomer?.isZoomedIntoShares() || this.#zoomer?.isZoomingInstantly()) return undefined;
 
-    const range = getVisibleLabelRange(this.#state!);
+    const range = getVisibleLabelRange(this.#state!, hasLabelColumns(this.#data));
     return range.from <= range.to ? range : undefined;
   }
 
@@ -781,7 +782,7 @@ export default class LovelyChart {
 
   // The report goes last, as its callback can update or destroy the chart
   readonly #onFocus = (focusOn: FocusOn) => {
-    if (this.#data.hasBars || this.#data.isCircle || this.#data.hasSteps) {
+    if (hasLabelColumns(this.#data)) {
       // TODO animate
       this.#stateManager!.update({ focusOn });
     }
@@ -985,7 +986,8 @@ export default class LovelyChart {
     // reflects the transition target instead
     const state = renderedState.static ?? renderedState;
 
-    const { from: startIndex, to: endIndex } = getVisibleLabelRange(state);
+    const hasColumns = hasLabelColumns(this.#data);
+    const { from: startIndex, to: endIndex } = getVisibleLabelRange(state, hasColumns);
 
     const { dateLocale } = this.#data;
 
@@ -1000,7 +1002,7 @@ export default class LovelyChart {
     // `startIndex` may belong to the previous day when it straddles midnight.
     // The name follows the chart's own granularity, so a month chart zoomed to
     // one label reads "April 2029" rather than naming a single day inside it.
-    const middleIndex = Math.round(state.lastLabelIndex * (state.begin + state.end) / 2);
+    const middleIndex = getMiddleLabelIndex(state, hasColumns);
     return getZoomCaption(this.#data.xLabels[middleIndex], this.#data.labelType, dateLocale);
   }
 }
