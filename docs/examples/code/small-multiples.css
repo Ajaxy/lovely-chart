@@ -1,0 +1,48 @@
+.multiples {
+  margin: 0 4px 8px;
+}
+
+.multiples-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 0 6px 12px;
+  font-size: 13px;
+}
+
+.multiples-head b {
+  margin-right: auto;
+  font-size: 15px;
+}
+
+.key::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  margin: 0 6px 3px 0;
+  border-top: 2px solid #3497ED;
+  vertical-align: middle;
+}
+
+.key-dashed::before {
+  border-top-style: dashed;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.cell-head {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 10px 4px;
+  font-size: 13px;
+}
+
+.cell-head span {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

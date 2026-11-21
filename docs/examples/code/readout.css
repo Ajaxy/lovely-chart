@@ -1,0 +1,72 @@
+/* The balloon stays hidden; the hover line, the dots and the reports remain */
+#chart {
+  --lovely-chart-balloon-display: none;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
+  align-items: start;
+}
+
+.readout {
+  min-height: 150px;
+  margin: 46px 10px 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--frame-line);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.readout-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.readout-line b {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout-title {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.readout-comparison {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--frame-line);
+  color: var(--frame-muted);
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.change[data-tone='positive'] {
+  color: var(--frame-accent);
+}
+
+.change[data-tone='negative'] {
+  color: #E65850;
+}
+
+.hint {
+  margin: 0;
+  color: var(--frame-muted);
+}
+
+@media (max-width: 600px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .readout {
+    margin: 0 10px 16px;
+  }
+}

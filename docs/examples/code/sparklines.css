@@ -1,0 +1,41 @@
+.metrics {
+  width: calc(100% - 20px);
+  margin: 0 10px 12px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.metrics th {
+  padding: 0 12px 8px 0;
+  color: var(--frame-muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: start;
+}
+
+.metrics td {
+  padding: 10px 12px 10px 0;
+  border-top: 1px solid var(--frame-line);
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics td:nth-child(2) {
+  width: 45%;
+}
+
+.metrics td:first-child {
+  font-weight: 500;
+}
+
+.up {
+  color: #1A7F37;
+}
+
+.down {
+  color: #E65850;
+}
+
+html.theme-dark .up {
+  color: #56D364;
+}

@@ -1,0 +1,48 @@
+.days {
+  margin: 0 10px 16px;
+}
+
+.days .controls {
+  margin: 0 0 10px;
+}
+
+.days-list {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.days-list button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--frame-line);
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.days-list button[aria-current] {
+  border-color: var(--frame-accent);
+  background: var(--frame-accent-soft);
+}
+
+.days-list b {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 520px) {
+  .days-list {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

@@ -1,0 +1,48 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  align-items: start;
+}
+
+.panel {
+  margin: 40px 10px 16px 4px;
+  padding: 12px;
+  border: 1px solid var(--frame-line);
+  border-radius: 12px;
+}
+
+.panel h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* The legend takes its spacing from the element that holds it */
+#legend {
+  --lovely-chart-inset: 0;
+  --lovely-chart-legend-padding-bottom: 0;
+  --lovely-chart-legend-gap: 6px;
+  --lovely-chart-button-padding: 5px;
+  --lovely-chart-button-radius: 8px;
+  --lovely-chart-button-font-size: 12px;
+}
+
+.hidden-note {
+  margin: 10px 0 0;
+  color: var(--frame-muted);
+  font-size: 12px;
+}
+
+.hidden-note:empty {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel {
+    margin: 0 10px 16px;
+  }
+}

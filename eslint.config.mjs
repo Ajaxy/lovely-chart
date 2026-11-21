@@ -130,7 +130,7 @@ export default tseslint.config(
   },
   {
     name: 'lovely-chart/node-scripts',
-    files: ['test/**', 'vite.config.js'],
+    files: ['test/**', 'scripts/**', 'vite.config.js'],
     rules: {
       'no-console': 'off',
     },
@@ -157,5 +157,6 @@ export default tseslint.config(
     'dist',
     'docs',
     'node_modules',
+    'test/demo',
   ]),
 );

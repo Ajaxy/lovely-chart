@@ -1,10 +1,15 @@
 node_modules
 dist
-# Built by `npm run demo`; the published demo is deployed from CI
+# Built by `npm run demo`, as CI builds them for the published site: the library, the pages of the guide and the files
+# for language models
 /docs/LovelyChart.js
 /docs/LovelyChart.css
+/docs/CHANGELOG.md
+/docs/guide/*.html
+/docs/llms.txt
+/docs/llms-full.txt
+/docs/sitemap.xml
 .cache
 .editorconfig
 
 src/lovely-chart/styles/lovely-chart.css
-

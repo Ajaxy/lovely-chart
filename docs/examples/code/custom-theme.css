@@ -1,0 +1,96 @@
+/* The page's own tokens, a palette per `data-palette` */
+.card {
+  --brand-1: #0EA5E9;
+  --brand-2: #6366F1;
+  --card-surface: #F1F5F9;
+  --card-text: #0F172A;
+  --card-muted: #64748B;
+
+  margin: 0 8px 12px;
+  padding: 18px 18px 14px;
+  border-radius: 18px;
+  background: var(--card-surface);
+  color: var(--card-text);
+
+  /* Font and spacing of the chart inside the card */
+  --lovely-chart-font-family: ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+  --lovely-chart-font-weight: 400;
+  --lovely-chart-inset: 0;
+  --lovely-chart-legend-padding-bottom: 0;
+  --lovely-chart-button-radius: 8px;
+  --lovely-chart-button-padding: 5px;
+  --lovely-chart-button-font-size: 12px;
+  --lovely-chart-plot-height: 240;
+}
+
+html.theme-dark .card {
+  --card-surface: #1E293B;
+  --card-text: #F1F5F9;
+  --card-muted: #94A3B8;
+}
+
+.card[data-palette='sunset'] {
+  --brand-1: #F97316;
+  --brand-2: #E11D48;
+}
+
+.card[data-palette='forest'] {
+  --brand-1: #16A34A;
+  --brand-2: #CA8A04;
+}
+
+/* The skin of the chart in the card, by day and by night */
+.card .lovely-chart--container {
+  --text-color: var(--card-text);
+  --tooltip-background: #FFFFFF;
+  --minimap-mask: rgba(241, 245, 249, 0.7);
+}
+
+html.theme-dark .card .lovely-chart--container:not(.lovely-chart--container-scheme-system) {
+  --tooltip-background: #0F172A;
+  --minimap-mask: rgba(30, 41, 59, 0.7);
+}
+
+.card .lovely-chart--tooltip-balloon {
+  border-radius: 12px;
+}
+
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.card-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--card-muted) 18%, transparent);
+}
+
+.segmented button {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--card-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--card-surface);
+  color: var(--card-text);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15);
+}

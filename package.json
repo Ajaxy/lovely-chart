@@ -22,7 +22,7 @@
     "*.scss"
   ],
   "scripts": {
-    "dev": "npm run demo && vite docs",
+    "dev": "npm run demo && vite docs --config vite.config.js",
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "typecheck:consumer": "tsc -p test/nodenext",
@@ -30,7 +30,8 @@
     "lint:css": "stylelint \"src/**/*.scss\"",
     "test": "npm run typecheck && npm run lint && npm run lint:css && npm run build && npm run typecheck:consumer && node test/e2e.js",
     "prepublishOnly": "npm run build",
-    "demo": "npm run build && cp ./dist/LovelyChart.js ./dist/LovelyChart.css docs/",
+    "demo": "npm run build && cp ./dist/LovelyChart.js ./dist/LovelyChart.css ./CHANGELOG.md docs/ && node scripts/site.js",
+    "thumbnails": "npm run build && node scripts/thumbnails.js",
     "prepare": "(husky || true) && npm run build"
   },
   "lint-staged": {
@@ -80,5 +81,5 @@
   "bugs": {
     "url": "https://github.com/Ajaxy/lovely-chart/issues"
   },
-  "homepage": "https://github.com/Ajaxy/lovely-chart#readme"
+  "homepage": "https://ajaxy.github.io/lovely-chart/"
 }

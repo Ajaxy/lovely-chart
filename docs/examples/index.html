@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Examples · LovelyChart</title>
+  <meta name="description"
+        content="Live, editable examples of LovelyChart: line, area, bar, step, pie and donut charts with minimaps, drill-down zoom, tooltips and annotations.">
+  <link rel="canonical" href="https://ajaxy.github.io/lovely-chart/examples/">
+  <link rel="alternate" type="text/plain" href="../llms.txt" title="llms.txt">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="LovelyChart">
+  <meta property="og:title" content="Examples">
+  <meta property="og:description"
+        content="Live, editable examples of LovelyChart: line, area, bar, step, pie and donut charts with minimaps, drill-down zoom, tooltips and annotations.">
+  <meta property="og:url" content="https://ajaxy.github.io/lovely-chart/examples/">
+  <meta property="og:image" content="https://ajaxy.github.io/lovely-chart/preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../site/logo.svg" type="image/svg+xml">
+  <script>
+    // The skin goes on before the first paint: the reader's choice, or the system's
+    (() => {
+      let theme;
+      try {
+        theme = localStorage.getItem('lovely-chart-docs-theme');
+      } catch {
+        theme = undefined;
+      }
+      const isDark = theme ? theme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.classList.toggle('theme-dark', isDark);
+    })();
+  </script>
+  <link rel="stylesheet" href="../site/site.css">
+  <script type="module" src="../site/gallery.js"></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-logo" href="../guide/">
+      <img src="../site/logo.svg" alt="" width="28" height="28">
+      <span>LovelyChart</span>
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="../guide/">Docs</a>
+      <a href="../guide/api" class="nav-optional">API</a>
+      <a href="./" aria-current="page">Examples</a>
+    </nav>
+    <div class="site-header-actions">
+      <button class="search-button" type="button" data-search-open aria-label="Search">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.25 4.24-1.42 1.42-4.24-4.25A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg>
+        <span>Search</span><kbd>/</kbd>
+      </button>
+      <a class="icon-button" href="https://github.com/Ajaxy/lovely-chart" aria-label="GitHub" title="GitHub">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      </a>
+      <button class="icon-button" type="button" data-theme-toggle>
+        <svg class="theme-icon-night" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.35 14.36A8.5 8.5 0 0 1 9.64 3.65a.75.75 0 0 0-.98-.94A9.5 9.5 0 1 0 21.29 15.34a.75.75 0 0 0-.94-.98Z"/></svg>
+        <svg class="theme-icon-day" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0-5a1 1 0 0 1 1 1v1.5a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1Zm0 17.5a1 1 0 0 1 1 1V21a1 1 0 1 1-2 0v-.5a1 1 0 0 1 1-1ZM3 11h1.5a1 1 0 1 1 0 2H3a1 1 0 1 1 0-2Zm16.5 0H21a1 1 0 1 1 0 2h-1.5a1 1 0 1 1 0-2ZM5.64 4.22l1.06 1.06a1 1 0 0 1-1.42 1.42L4.22 5.64a1 1 0 0 1 1.42-1.42Zm12.72 12.72 1.06 1.06a1 1 0 0 1-1.42 1.42l-1.06-1.06a1 1 0 0 1 1.42-1.42ZM4.22 18.36l1.06-1.06a1 1 0 1 1 1.42 1.42l-1.06 1.06a1 1 0 0 1-1.42-1.42ZM16.94 5.64 18 4.58A1 1 0 1 1 19.42 6l-1.06 1.06a1 1 0 0 1-1.42-1.42Z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="app" class="examples-app"></main>
+
+<noscript>
+  <p class="gallery">The examples run in JavaScript. The code of each is listed in <a href="../llms.txt">llms.txt</a>,
+    and is on <a href="https://github.com/Ajaxy/lovely-chart/tree/master/docs/examples/code">GitHub</a>.</p>
+</noscript>
+</body>
+</html>

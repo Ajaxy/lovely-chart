@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- The documentation site, https://ajaxy.github.io/lovely-chart/guide/: guides to every feature with live examples that the reader can edit in place, the reference of the class, its options and its CSS variables, with a search across them, and a gallery of 43 live, editable examples with a playground. The reference moves from the README to `docs/guide`, and the README keeps an overview. https://ajaxy.github.io/lovely-chart/ leads to the guide in place of the demo page, which the end-to-end test keeps driving in `test/demo`. Every page is static HTML and Markdown at its own URL, with `llms.txt` and `llms-full.txt` for language models, and the type declarations document every option.
+
 ## 2.3.1
 
 ### Fixed

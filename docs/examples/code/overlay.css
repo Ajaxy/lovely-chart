@@ -1,0 +1,33 @@
+#chart {
+  position: relative;
+}
+
+/* The plot-area variables pin the badge to the bottom start of the data area, through resizes and updates */
+.badge {
+  position: absolute;
+  top: calc(var(--lovely-chart-plot-area-top) + var(--lovely-chart-plot-area-height) - 8px);
+  left: calc(var(--lovely-chart-plot-area-left) + 8px);
+  transform: translateY(-100%);
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--frame-accent-soft);
+  color: var(--frame-accent);
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* Stands in the room above the Y range, centred on its label */
+.release {
+  position: absolute;
+  top: calc(var(--lovely-chart-plot-area-top) - var(--lovely-chart-plot-padding-top) - 4px);
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #E65850;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-decoration: none;
+  transform: translateX(-50%);
+}

@@ -1,6 +1,7 @@
 /**
- * End-to-end smoke test: serves the demo page (docs/) with the freshly built
- * library (dist/) overlaid, drives it in headless Chrome and asserts that
+ * End-to-end smoke test: serves the demo page (test/demo/) with the freshly
+ * built library (dist/) and the data of the site (docs/data/), drives it in
+ * headless Chrome and asserts that
  * rendering and every interaction work: tooltips, minimap dragging, legend
  * toggling, zoom in/out, pie hover, reference lines, comparison, selection
  * callbacks, the plot-area variables, a late web font, colour schemes, theme
@@ -22,7 +23,7 @@ import { chromium } from 'playwright-core';
 
 import { buildWideFont, WIDE_FONT_FAMILY } from './wideFont.js';
 
-// Demo charts rendered by docs/app.js
+// Demo charts rendered by test/demo/app.js
 const EXPECTED_CHARTS = 24;
 const COMPARISON_CHART = 9;
 const LIMIT_CHART = 10;
@@ -164,6 +165,7 @@ const MIN_PHONE_MULTIPLE_WIDTH = 140;
 
 const ROOT = path.join(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
+const DEMO = path.join(import.meta.dirname, 'demo');
 const DOCS = path.join(ROOT, 'docs');
 
 const MIME = {
@@ -614,9 +616,9 @@ function startServer() {
       return;
     }
     const rel = urlPath === '/' ? 'index.html' : urlPath.slice(1);
-    // dist/ takes precedence so the test exercises the current build,
-    // not the published copies committed in docs/
-    const file = [path.join(DIST, rel), path.join(DOCS, rel)]
+    // dist/ takes precedence so the test exercises the current build, not a
+    // copy `npm run demo` left in docs/, whose data/ the demo loads
+    const file = [path.join(DIST, rel), path.join(DEMO, rel), path.join(DOCS, rel)]
       .find((f) => fs.existsSync(f) && fs.statSync(f).isFile());
     if (!file) {
       res.writeHead(404);

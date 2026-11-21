@@ -1,0 +1,140 @@
+/* The page an example runs in: the background of the chart's skin, and the controls an example puts beside its chart */
+
+:root {
+  --frame-background: #FFFFFF;
+  --frame-text: #222222;
+  --frame-muted: #6B7785;
+  --frame-line: rgba(24, 45, 59, 0.12);
+  --frame-hover: rgba(24, 45, 59, 0.05);
+  --frame-accent: #108BE3;
+  --frame-accent-text: #FFFFFF;
+  --frame-accent-soft: rgba(16, 139, 227, 0.1);
+
+  color-scheme: light;
+}
+
+html.theme-dark {
+  --frame-background: #242F3E;
+  --frame-text: #FFFFFF;
+  --frame-muted: #93A1B0;
+  --frame-line: rgba(255, 255, 255, 0.12);
+  --frame-hover: rgba(255, 255, 255, 0.06);
+  --frame-accent: #48AAF0;
+  --frame-accent-text: #10202E;
+  --frame-accent-soft: rgba(72, 170, 240, 0.16);
+
+  color-scheme: dark;
+}
+
+html {
+  background: var(--frame-background);
+  color: var(--frame-text);
+  font: 300 14px/1.45 -apple-system, BlinkMacSystemFont, 'HelveticaNeue', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 300ms ease;
+}
+
+body {
+  margin: 0;
+  padding: 14px 6px 2px;
+}
+
+html.frame-thumbnail {
+  overflow: hidden;
+}
+
+html.frame-thumbnail body {
+  pointer-events: none;
+}
+
+/* Controls */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 10px 16px;
+}
+
+.controls .label {
+  margin-right: 4px;
+  color: var(--frame-muted);
+  font-size: 13px;
+}
+
+.controls button,
+.controls select {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--frame-line);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.controls button:hover {
+  background: var(--frame-hover);
+}
+
+.controls button[aria-pressed='true'] {
+  border-color: var(--frame-accent);
+  background: var(--frame-accent);
+  color: var(--frame-accent-text);
+}
+
+.controls button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.controls button:focus-visible,
+.controls select:focus-visible {
+  outline: 2px solid var(--frame-accent);
+  outline-offset: 1px;
+}
+
+.controls .segmented {
+  display: inline-flex;
+}
+
+.controls .segmented button {
+  border-radius: 0;
+}
+
+.controls .segmented button + button {
+  margin-left: -1px;
+}
+
+.controls .segmented button:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.controls .segmented button:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.note {
+  margin: 4px 10px 12px;
+  color: var(--frame-muted);
+  font-size: 13px;
+}
+
+.note:empty {
+  display: none;
+}
+
+kbd {
+  padding: 0 5px;
+  border: 1px solid var(--frame-line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
