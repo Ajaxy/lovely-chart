@@ -173,6 +173,7 @@ export class Minimap {
         onDrag: this.#onSliderDrag,
         onRelease: this.#onDragRelease,
         draggingCursor: 'grabbing',
+        shouldYieldVerticalTouch: true,
       },
     ));
 
@@ -183,6 +184,7 @@ export class Minimap {
         onDrag: this.#onLeftEarDrag,
         onRelease: this.#onDragRelease,
         draggingCursor: 'ew-resize',
+        shouldYieldVerticalTouch: true,
       },
     ));
 
@@ -193,6 +195,7 @@ export class Minimap {
         onDrag: this.#onRightEarDrag,
         onRelease: this.#onDragRelease,
         draggingCursor: 'ew-resize',
+        shouldYieldVerticalTouch: true,
       },
     ));
 
@@ -275,7 +278,10 @@ export class Minimap {
   }
 
   readonly #onDragCapture = (e: CaptureEvent) => {
-    e.preventDefault();
+    // A touch keeps its default, so that a swipe of the page that starts on the window scrolls it
+    if (e.type === 'mousedown') {
+      e.preventDefault();
+    }
     this.#capturedOffset = (e.target as HTMLElement).offsetLeft;
     // Read once per drag: a discrete drag maps the pointer onto the label grid
     this.#capturedCanvasLeft = this.#canvas.getBoundingClientRect().left + window.scrollX;

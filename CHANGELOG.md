@@ -5,6 +5,7 @@
 ### Fixed
 
 - The two ends of the window keep in step through each frame of their transition, as a drag of the minimap window or a zoom moves them: the transitions one change starts share one start, and a frame reads the clock once for all of them, in place of a millisecond turning between two reads and putting one end ahead of the other, which changed the scale of the X axis of a pan by about a ten-thousandth for a frame or two and shifted the dashes and dots of a panned line by up to a seventh of a pixel.
+- A swipe down or up the minimap window or one of its ears scrolls the page, a swipe across the window drags it, and one across an ear resizes it. The window and its ears take `touch-action: pan-y` and leave a touch its default. A touch that moves more down or up than across before it moves 6px, or that the browser scrolls the page with, leaves the window where it was, and one across holds the swipe, so the page stays still under it.
 
 ## 2.3.0
 

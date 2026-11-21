@@ -489,6 +489,20 @@ const MINIMAP_EARS_WIDTH = 16;
 const LINE_LIMIT_INDEX = 4;
 // The pointer id of a touch dispatched across the plot
 const TOUCH_POINTER_ID = 7;
+// A phone page whose chart, of `SWIPE_LABEL_COUNT` labels and `SWIPE_CHART_WIDTH` px, has `SWIPE_PAGE_ROOM` px of the
+// page after it; a swipe of `SWIPE_DISTANCE` px down, drifting `SWIPE_DRIFT` px across, or of `SWIPE_ACROSS` px across,
+// at `SWIPE_SPEED` px a second; the least scroll of a swipe down, and how far in px an edge of the window may move
+// while it stays
+const SWIPE_VIEWPORT = { width: 390, height: 700 };
+const SWIPE_LABEL_COUNT = 60;
+const SWIPE_CHART_WIDTH = 380;
+const SWIPE_PAGE_ROOM = 2000;
+const SWIPE_DISTANCE = 200;
+const SWIPE_DRIFT = 25;
+const SWIPE_ACROSS = 80;
+const SWIPE_SPEED = 600;
+const SWIPE_MIN_SCROLL = 100;
+const SWIPE_EDGE_TOLERANCE = 0.5;
 // The default `--range-selection-color` of the day skin and of the night skin
 const RANGE_SELECTION_COLORS = ['rgb(16, 139, 227)', 'rgb(72, 170, 240)'];
 // How far from the centre of a column the outer and the inner edge of a window inside half of it stand, in columns
@@ -3523,6 +3537,92 @@ section('Minimap: a drag holds its cursor over the page until the release', asyn
 
   check('month chart captions its zoom by month, not day',
     monthZoomCaption.trim() === 'March 2029', JSON.stringify(monthZoomCaption));
+});
+
+section('Minimap: a swipe down or up its window or an ear scrolls the page, and one across drags the window or '
+  + 'resizes it', async ({
+  browser, url, errors,
+}) => {
+  const swipePage = await newTestPage(browser, { viewport: SWIPE_VIEWPORT, hasTouch: true, isMobile: true });
+  swipePage.on('pageerror', (err) => errors.push(`[swipe pageerror] ${err.message}`));
+  await swipePage.goto(`${url}isolated`);
+  await swipePage.addStyleTag({ url: `${url}LovelyChart.css` });
+  // A chart at the top of a page laid out at the width of the phone, as a page for phones is, with room after it to
+  // scroll the page through
+  await swipePage.evaluate(async ({ count, width, room }) => {
+    document.head.insertAdjacentHTML('beforeend', '<meta name="viewport" content="width=device-width">');
+    const { default: LovelyChart } = await import('./LovelyChart.js');
+    const element = document.createElement('div');
+    element.id = 'probe';
+    element.style.width = `${width}px`;
+    const after = document.createElement('div');
+    after.style.height = `${room}px`;
+    document.body.prepend(element, after);
+    const labels = Array.from({ length: count }, (_, i) => Date.UTC(2026, 0, i + 1));
+    window.probeChart = new LovelyChart(element, {
+      type: 'line',
+      title: 'Probe — Swipes on the minimap',
+      labels,
+      withMinimap: true,
+      minimapRange: [0.3, 0.7],
+      datasets: [{ name: 'Values', values: labels.map((_, i) => (i * 7) % 11) }],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }, { count: SWIPE_LABEL_COUNT, width: SWIPE_CHART_WIDTH, room: SWIPE_PAGE_ROOM });
+  const cdp = await swipePage.context().newCDPSession(swipePage);
+  // The scroll of the page and the edges of the minimap window, in px of the ruler
+  const readSwipe = () => swipePage.evaluate(() => {
+    const ruler = document.querySelector('#probe .lovely-chart--minimap-ruler').getBoundingClientRect();
+    const slider = document.querySelector('#probe .lovely-chart--minimap-slider').getBoundingClientRect();
+    return { scrollY: window.scrollY, edges: [slider.left - ruler.left, slider.right - ruler.left] };
+  });
+  // Swipes by a touch from the middle of a part of the window, the page scrolled to `startScrollY`, and reads what the
+  // swipe moved
+  const swipe = async (partIndex, xDistance, yDistance, startScrollY = 0) => {
+    await swipePage.evaluate((scrollY) => window.scrollTo(0, scrollY), startScrollY);
+    await sleep(200);
+    const box = await swipePage.locator('#probe .lovely-chart--minimap-slider > *').nth(partIndex).boundingBox();
+    const before = await readSwipe();
+    await cdp.send('Input.synthesizeScrollGesture', {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+      xDistance,
+      yDistance,
+      gestureSourceType: 'touch',
+      speed: SWIPE_SPEED,
+      repeatCount: 0,
+    });
+    await sleep(500);
+    return { before, after: await readSwipe() };
+  };
+  const isSameEdge = (first, second) => Math.abs(first - second) <= SWIPE_EDGE_TOLERANCE;
+  const isScrolledOnly = ({ before, after }) => Math.abs(after.scrollY - before.scrollY) >= SWIPE_MIN_SCROLL
+    && isSameEdge(before.edges[0], after.edges[0]) && isSameEdge(before.edges[1], after.edges[1]);
+  const [leftEar, windowMiddle, rightEar] = [0, 1, 2];
+  const swipes = {
+    downWindow: await swipe(windowMiddle, 0, -SWIPE_DISTANCE),
+    downWindowDrifting: await swipe(windowMiddle, SWIPE_DRIFT, -SWIPE_DISTANCE),
+    upWindow: await swipe(windowMiddle, 0, SWIPE_DISTANCE, SWIPE_DISTANCE),
+    downLeftEar: await swipe(leftEar, SWIPE_DRIFT, -SWIPE_DISTANCE),
+    downRightEar: await swipe(rightEar, -SWIPE_DRIFT, -SWIPE_DISTANCE),
+    acrossWindow: await swipe(windowMiddle, -SWIPE_ACROSS, 0),
+    acrossWindowDrifting: await swipe(windowMiddle, SWIPE_ACROSS, -SWIPE_DRIFT),
+    acrossEar: await swipe(rightEar, SWIPE_ACROSS, -SWIPE_DRIFT),
+  };
+  const verticalSwipes = ['downWindow', 'downWindowDrifting', 'upWindow', 'downLeftEar', 'downRightEar']
+    .map((name) => swipes[name]);
+  await swipePage.close();
+  const { acrossWindow, acrossWindowDrifting, acrossEar } = swipes;
+  const isPannedBy = ({ before, after }, sign) => after.scrollY === before.scrollY
+    && Math.sign(after.edges[0] - before.edges[0]) === sign
+    && isSameEdge(after.edges[1] - after.edges[0], before.edges[1] - before.edges[0]);
+  check('a swipe down or up the minimap window or an ear scrolls the page and leaves the window, a drift across too',
+    verticalSwipes.every(isScrolledOnly), JSON.stringify(verticalSwipes));
+  check('a swipe across the minimap window pans it, a drift down too, and one across an ear resizes it, with no scroll',
+    isPannedBy(acrossWindow, -1) && isPannedBy(acrossWindowDrifting, 1)
+    && acrossEar.after.scrollY === 0 && isSameEdge(acrossEar.after.edges[0], acrossEar.before.edges[0])
+    && acrossEar.after.edges[1] > acrossEar.before.edges[1],
+    JSON.stringify([acrossWindow, acrossWindowDrifting, acrossEar]));
 });
 
 section('Start-zoomed init: async `onZoom`, opened already on the zoomed day', async ({ page }) => {

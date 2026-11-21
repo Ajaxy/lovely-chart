@@ -94,7 +94,10 @@
   }
 }
 
+// A swipe down or up the window or an ear scrolls the page, and one across drags the window or resizes it
 .lovely-chart--minimap-slider {
+  touch-action: pan-y;
+
   display: inline-block;
 
   box-sizing: border-box;

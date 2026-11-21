@@ -17,6 +17,8 @@ export const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
 export const GAP = null;
 export const TRANSITION_DEFAULT_DURATION = 400;
 export const LONG_PRESS_TIMEOUT = 500;
+// How far in px a touch moves before its way, across a drag or along a scroll of the page, is known
+export const TOUCH_DIRECTION_THRESHOLD = 6;
 
 export const GUTTER = 10;
 export const Y_AXIS_LABEL_GAP = 6;
