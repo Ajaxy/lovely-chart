@@ -503,6 +503,8 @@ const SWIPE_ACROSS = 80;
 const SWIPE_SPEED = 600;
 const SWIPE_MIN_SCROLL = 100;
 const SWIPE_EDGE_TOLERANCE = 0.5;
+// The longest a swipe page takes to settle after a scroll or a swipe
+const SWIPE_SETTLE_MS = 700;
 // The default `--range-selection-color` of the day skin and of the night skin
 const RANGE_SELECTION_COLORS = ['rgb(16, 139, 227)', 'rgb(72, 170, 240)'];
 // How far from the centre of a column the outer and the inner edge of a window inside half of it stand, in columns
@@ -1164,6 +1166,22 @@ async function mountProbe(page, {
 // Collects the numbers the probe chart prints on its canvas, its Y-axis labels among them, with their heights, and
 // every text it prints, with its position, alignment, width, direction, the animation frame that drew it and its
 // pass: a pass of axis labels sets their alignment once before it prints them
+// Counts in `window.plotAreaWrites`, from 0, each write of a plot-area property on the element of the probe
+async function countPlotAreaWrites(page) {
+  await page.evaluate(() => {
+    window.plotAreaWrites = 0;
+    if (window.arePlotAreaWritesCounted) return;
+    window.arePlotAreaWritesCounted = true;
+    const { setProperty } = CSSStyleDeclaration.prototype;
+    CSSStyleDeclaration.prototype.setProperty = function (property, ...args) {
+      if (property.startsWith('--lovely-chart-plot-area-') && this === document.getElementById('probe')?.style) {
+        window.plotAreaWrites++;
+      }
+      return setProperty.call(this, property, ...args);
+    };
+  });
+}
+
 async function recordProbeNumbers(page) {
   await page.evaluate(() => {
     window.probeNumbers = [];
@@ -3247,6 +3265,8 @@ section('Minimap: a drag holds its cursor over the page until the release', asyn
   await page.mouse.move(-20, -20, { steps: 5 });
   await page.mouse.up();
   dragCursor.releasedOutsideWindow = await readDragCursor();
+  // The minimap moves the window, and its ears, on the frame after the drag
+  await waitForIdle(page, RANGE_SETTLE_MS);
   const cursorEar = await cursorProbe.locator('.lovely-chart--minimap-slider-handle').first().boundingBox();
   await page.mouse.move(cursorEar.x + cursorEar.width / 2, cursorEar.y + cursorEar.height / 2);
   await page.mouse.down();
@@ -3549,7 +3569,7 @@ section('Minimap: a swipe down or up its window or an ear scrolls the page, and 
   await swipePage.addStyleTag({ url: `${url}LovelyChart.css` });
   // A chart at the top of a page laid out at the width of the phone, as a page for phones is, with room after it to
   // scroll the page through
-  await swipePage.evaluate(async ({ count, width, room }) => {
+  await swipePage.evaluate(async ({ count, width, room, settle }) => {
     document.head.insertAdjacentHTML('beforeend', '<meta name="viewport" content="width=device-width">');
     const { default: LovelyChart } = await import('./LovelyChart.js');
     const element = document.createElement('div');
@@ -3567,8 +3587,8 @@ section('Minimap: a swipe down or up its window or an ear scrolls the page, and 
       minimapRange: [0.3, 0.7],
       datasets: [{ name: 'Values', values: labels.map((_, i) => (i * 7) % 11) }],
     });
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-  }, { count: SWIPE_LABEL_COUNT, width: SWIPE_CHART_WIDTH, room: SWIPE_PAGE_ROOM });
+    await window.idleTracker.wait(settle);
+  }, { count: SWIPE_LABEL_COUNT, width: SWIPE_CHART_WIDTH, room: SWIPE_PAGE_ROOM, settle: MOUNT_SETTLE_TIME });
   const cdp = await swipePage.context().newCDPSession(swipePage);
   // The scroll of the page and the edges of the minimap window, in px of the ruler
   const readSwipe = () => swipePage.evaluate(() => {
@@ -3580,7 +3600,7 @@ section('Minimap: a swipe down or up its window or an ear scrolls the page, and 
   // swipe moved
   const swipe = async (partIndex, xDistance, yDistance, startScrollY = 0) => {
     await swipePage.evaluate((scrollY) => window.scrollTo(0, scrollY), startScrollY);
-    await sleep(200);
+    await waitForIdle(swipePage, SWIPE_SETTLE_MS);
     const box = await swipePage.locator('#probe .lovely-chart--minimap-slider > *').nth(partIndex).boundingBox();
     const before = await readSwipe();
     await cdp.send('Input.synthesizeScrollGesture', {
@@ -3592,7 +3612,7 @@ section('Minimap: a swipe down or up its window or an ear scrolls the page, and 
       speed: SWIPE_SPEED,
       repeatCount: 0,
     });
-    await sleep(500);
+    await waitForIdle(swipePage, SWIPE_SETTLE_MS);
     return { before, after: await readSwipe() };
   };
   const isSameEdge = (first, second) => Math.abs(first - second) <= SWIPE_EDGE_TOLERANCE;
@@ -5354,16 +5374,7 @@ section('The plot-area properties place an overlay over the data area, inside a 
     `${JSON.stringify(scaledArea)} scaled, ${JSON.stringify(unscaledArea)} at full size`);
 
   // Panning and narrowing the window repaints every frame, and leaves the area as it is
-  await page.evaluate(() => {
-    window.plotAreaWrites = 0;
-    const { setProperty } = CSSStyleDeclaration.prototype;
-    CSSStyleDeclaration.prototype.setProperty = function (property, ...args) {
-      if (property.startsWith('--lovely-chart-plot-area-') && this === document.getElementById('probe')?.style) {
-        window.plotAreaWrites++;
-      }
-      return setProperty.call(this, property, ...args);
-    };
-  });
+  await countPlotAreaWrites(page);
   await recordProbeNumbers(page);
   const pannedAreaChart = await mountProbe(page, {
     config: { ...columnConfig, title: 'Probe — Plot area while panning' },
@@ -6835,6 +6846,7 @@ section('A web font that loads after the build widens the outward column to fit,
       #probe .lovely-chart--container { font-family: ${family}, sans-serif; }`;
     document.head.appendChild(style);
   }, { family: WIDE_FONT_FAMILY, fontPath: WIDE_FONT_PATH });
+  await countPlotAreaWrites(page);
   await recordProbeNumbers(page);
   const lateFontChart = await mountProbe(page, { config: { ...columnConfig, title: 'Probe — Late web font' } });
   await lateFontChart.scrollIntoViewIfNeeded();
