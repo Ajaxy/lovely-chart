@@ -1,7 +1,7 @@
 {
   "name": "lovely-chart",
   "version": "2.3.1",
-  "description": "A tiny, dependency-free library for beautiful interactive charts: line, area, bar, step, pie and donut, with smooth animations, a draggable minimap and drill-down zooming",
+  "description": "Telegram-style interactive charts for the web: a tiny, dependency-free library of line, area, bar, step, pie and donut charts with smooth animations, a draggable minimap and drill-down zooming",
   "type": "module",
   "main": "./dist/LovelyChart.js",
   "types": "./dist/LovelyChart.d.ts",
@@ -74,7 +74,12 @@
     "bar",
     "pie",
     "donut",
-    "telegram"
+    "minimap",
+    "zoom",
+    "time-series",
+    "telegram",
+    "telegram-style",
+    "telegram-charts"
   ],
   "author": "Alexander Zinchuk",
   "license": "MIT",

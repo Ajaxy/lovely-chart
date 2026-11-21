@@ -1,6 +1,6 @@
 # Introduction
 
-LovelyChart is a small, dependency-free library of interactive charts for the web. Give it an element and your data, and it draws a line, area, bar, step, pie or donut chart on canvas, with a tooltip, a legend, a draggable minimap and drill-down zooming built in.
+LovelyChart is a small, dependency-free library of Telegram-style interactive charts for the web. Give it an element and your data, and it draws a line, area, bar, step, pie or donut chart on canvas, with a tooltip, a legend, a draggable minimap and drill-down zooming built in.
 
 ```js live
 import LovelyChart from 'lovely-chart';
@@ -24,7 +24,7 @@ Try it out:
 - Click a fruit in the legend to hide or show it. Press and hold one to show it alone.
 - Click a day to drill into its shares, then use **Zoom out** to go back. On a touch screen, tap the tooltip instead.
 
-LovelyChart is an award winner of the [Telegram Chart Contest](https://contest.dev/chart-js).
+LovelyChart draws the statistics of [Telegram Web](https://web.telegram.org/a/) and the portfolio charts of [My Wallet](https://mywallet.io). It is an award winner of the [Telegram Chart Contest](https://contest.dev/chart-js).
 
 ## Why LovelyChart
 

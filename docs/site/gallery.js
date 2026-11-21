@@ -64,7 +64,7 @@ async function fetchSource(example) {
 /* Gallery */
 
 function renderGallery() {
-  document.title = 'Examples · LovelyChart';
+  document.title = 'LovelyChart: Telegram-style charts for the web';
   const counts = Object.fromEntries(CATEGORIES.map((category) => [
     category, EXAMPLES.filter((example) => example.category === category).length,
   ]));
@@ -73,9 +73,9 @@ function renderGallery() {
     <div class="gallery">
       <header class="gallery-hero">
         <h1>Examples</h1>
-        <p class="gallery-intro">LovelyChart is a small, dependency-free library of interactive charts for the web. Give
-          it an element and your data, and it draws a line, area, bar, step, pie or donut chart on canvas, with a
-          tooltip, a legend, a draggable minimap and drill-down zooming built in.</p>
+        <p class="gallery-intro">LovelyChart is a small, dependency-free library of Telegram-style interactive charts
+          for the web. Give it an element and your data, and it draws a line, area, bar, step, pie or donut chart on
+          canvas, with a tooltip, a legend, a draggable minimap and drill-down zooming built in.</p>
         <p>${EXAMPLES.length} live examples of every chart type and feature. Hover them, drag their minimaps, click to
           zoom, then open one to edit its code and watch the chart follow as you type.</p>
         <div class="gallery-tools">

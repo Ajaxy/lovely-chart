@@ -36,9 +36,9 @@ const TYPES = {
 };
 
 // What a language model most needs to know before it reads a page, at the top of `llms.txt` and `llms-full.txt`
-const SUMMARY = 'LovelyChart is a dependency-free JavaScript library of interactive charts for the web, written in '
-  + 'TypeScript: line, area, bar, step, pie and donut charts drawn on canvas, with a tooltip, a legend, a draggable '
-  + 'minimap, drill-down zooming, annotations, day and night skins and colours from CSS variables.';
+const SUMMARY = 'LovelyChart is a dependency-free JavaScript library of Telegram-style interactive charts for the '
+  + 'web, written in TypeScript: line, area, bar, step, pie and donut charts drawn on canvas, with a tooltip, a '
+  + 'legend, a draggable minimap, drill-down zooming, annotations, day and night skins and colours from CSS variables.';
 const FACTS = [
   'Key facts:',
   '',
