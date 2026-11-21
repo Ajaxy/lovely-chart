@@ -1,7 +1,6 @@
 import eslint from '@eslint/js';
 import stylisticJs from '@stylistic/eslint-plugin';
 import { globalIgnores } from 'eslint/config';
-import importsPlugin from 'eslint-plugin-import';
 import noNullPlugin from 'eslint-plugin-no-null';
 import simpleImportSortPlugin from 'eslint-plugin-simple-import-sort';
 import unusedImports from 'eslint-plugin-unused-imports';
@@ -46,6 +45,8 @@ export default tseslint.config(
         flatTernaryExpressions: false,
       }],
       '@stylistic/multiline-ternary': 'off',
+      // New in @stylistic 6: the code wraps a list where it runs past `max-len`, not one item a line
+      '@stylistic/list-style': 'off',
       '@typescript-eslint/consistent-type-imports': [
         'error',
         {
@@ -119,7 +120,6 @@ export default tseslint.config(
     plugins: {
       'no-null': noNullPlugin,
       'simple-import-sort': simpleImportSortPlugin,
-      import: importsPlugin,
       'unused-imports': unusedImports,
     },
     languageOptions: {

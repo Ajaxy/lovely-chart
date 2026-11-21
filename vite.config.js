@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { transformWithEsbuild } from 'vite';
+import { minify } from 'vite';
 
 // The demo page the e2e test drives, which the site leaves out: the dev server of `npm run dev` serves it at `/demo/`,
 // with the library and the data of the site, as the test does
@@ -35,9 +35,9 @@ export default {
       fileName: () => 'LovelyChart.js',
       cssFileName: 'LovelyChart',
     },
-    // `minifyLibrary()` minifies the code whole, as `minify` leaves the whitespace of an ES library
+    // `minifyLibrary()` minifies the code whole, as `minify` leaves the whitespace of an ES library. The stylesheet stays
+    // as written, as a minifier rewrites the values of its custom properties, which a page reads as text.
     minify: false,
-    cssMinify: 'esbuild',
   },
 };
 
@@ -50,8 +50,18 @@ function minifyLibrary() {
   return {
     name: 'lovely-chart:minify',
     apply: 'build',
-    renderChunk(code, chunk) {
-      return transformWithEsbuild(code, chunk.fileName, { minify: true, format: 'esm', target: 'esnext' });
+    // In place of `renderChunk`, as Vite prints the chunk again after those hooks
+    async generateBundle(options, bundle) {
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type !== 'chunk') {
+          continue;
+        }
+        const { code, errors } = await minify(chunk.fileName, chunk.code, { module: true });
+        if (errors.length) {
+          throw new Error(errors.map(({ message }) => message).join('\n'));
+        }
+        chunk.code = code;
+      }
     },
   };
 }

@@ -653,7 +653,7 @@ async function launchBrowser() {
     console.error(err.message);
     throw new Error(channel
       ? `Could not launch the ${channel} channel: install it, or leave E2E_CHANNEL unset`
-      : 'Could not launch the headless shell: run npx playwright-core install --only-shell chromium');
+      : 'Could not launch the headless shell: run npx playwright-core install --only-shell chromium', { cause: err });
   }
 }
 

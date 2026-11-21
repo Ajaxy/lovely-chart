@@ -62,7 +62,7 @@ If your build doesn't handle CSS imports, copy `node_modules/lovely-chart/dist/L
 
 - **ES module only.** There's no CommonJS or UMD build. Load the package with `import`, or with a dynamic `import()` from CommonJS code.
 - **Free of side effects.** `package.json` marks only the stylesheets as side effects, so `import 'lovely-chart/LovelyChart.css'` stays in your bundle, and the JavaScript you don't use can be dropped.
-- **Minified.** The build is minified, 33 KB gzipped, so a page that loads it from a CDN downloads no more than a bundle would hold.
+- **Minified.** The build is minified, 32 KB gzipped, so a page that loads it from a CDN downloads no more than a bundle would hold.
 
 ## Use it from a CDN
 

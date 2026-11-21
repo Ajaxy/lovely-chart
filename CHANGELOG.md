@@ -8,7 +8,7 @@
 
 ### Changed
 
-- The build is minified: `dist/LovelyChart.js`, the file a page loads from a CDN, weighs 33 KB gzipped in place of 56 KB.
+- The build is minified: `dist/LovelyChart.js`, the file a page loads from a CDN, weighs 32 KB gzipped in place of 56 KB.
 
 ## 2.3.1
 
