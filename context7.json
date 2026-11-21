@@ -1,0 +1,14 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "LovelyChart",
+  "description": "Dependency-free JavaScript library of interactive canvas charts for the web: line, area, bar, step, pie and donut charts with a tooltip, a legend, a draggable minimap range selector, drill-down zoom, annotations, and day and night skins themed through CSS variables.",
+  "folders": ["docs/guide"],
+  "rules": [
+    "Import the stylesheet once next to the class: `import LovelyChart from 'lovely-chart'` and `import 'lovely-chart/LovelyChart.css'`. A chart needs the stylesheet.",
+    "Create a chart with `new LovelyChart(element, { type, labels, datasets })`. `LovelyChart.create()` was the API of version 1 and no longer exists.",
+    "`labels` are UNIX timestamps in milliseconds, or strings. Each dataset is `{ name, values }`, with `values[i]` at `labels[i]`.",
+    "Give a chart new data with `chart.update(newData, options?)` rather than building a new one, and call `chart.destroy()` when its element leaves the page or its component unmounts.",
+    "The package is an ES module only, with no CommonJS or UMD build: load it with `import`, or with a dynamic `import()` from CommonJS.",
+    "The night skin follows the `theme-dark` class on `<html>`. Pass `colorScheme: 'system'` to follow the system setting instead."
+  ]
+}
