@@ -491,8 +491,8 @@ const LINE_LIMIT_INDEX = 4;
 const TOUCH_POINTER_ID = 7;
 // A phone page whose chart, of `SWIPE_LABEL_COUNT` labels and `SWIPE_CHART_WIDTH` px, has `SWIPE_PAGE_ROOM` px of the
 // page after it; a swipe of `SWIPE_DISTANCE` px down, drifting `SWIPE_DRIFT` px across, or of `SWIPE_ACROSS` px across,
-// at `SWIPE_SPEED` px a second; the least scroll of a swipe down, and how far in px an edge of the window may move
-// while it stays
+// in `SWIPE_STEPS` moves `SWIPE_STEP_MS` apart; the least scroll of a swipe down, and how far in px an edge of the
+// window may move while it stays
 const SWIPE_VIEWPORT = { width: 390, height: 700 };
 const SWIPE_LABEL_COUNT = 60;
 const SWIPE_CHART_WIDTH = 380;
@@ -500,7 +500,10 @@ const SWIPE_PAGE_ROOM = 2000;
 const SWIPE_DISTANCE = 200;
 const SWIPE_DRIFT = 25;
 const SWIPE_ACROSS = 80;
-const SWIPE_SPEED = 600;
+const SWIPE_STEPS = 12;
+const SWIPE_STEP_MS = 16;
+// How long a swipe holds still before it lifts, so that the page it scrolls stops with it
+const SWIPE_HOLD_MS = 150;
 const SWIPE_MIN_SCROLL = 100;
 const SWIPE_EDGE_TOLERANCE = 0.5;
 // The longest a swipe page takes to settle after a scroll or a swipe
@@ -3603,15 +3606,20 @@ section('Minimap: a swipe down or up its window or an ear scrolls the page, and 
     await waitForIdle(swipePage, SWIPE_SETTLE_MS);
     const box = await swipePage.locator('#probe .lovely-chart--minimap-slider > *').nth(partIndex).boundingBox();
     const before = await readSwipe();
-    await cdp.send('Input.synthesizeScrollGesture', {
-      x: box.x + box.width / 2,
-      y: box.y + box.height / 2,
-      xDistance,
-      yDistance,
-      gestureSourceType: 'touch',
-      speed: SWIPE_SPEED,
-      repeatCount: 0,
-    });
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: startX, y: startY }] });
+    for (let step = 1; step <= SWIPE_STEPS; step++) {
+      const share = step / SWIPE_STEPS;
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove', touchPoints: [{ x: startX + xDistance * share, y: startY + yDistance * share }],
+      });
+      // eslint-disable-next-line no-restricted-syntax -- the time between the moves gives the swipe its speed
+      await sleep(SWIPE_STEP_MS);
+    }
+    // eslint-disable-next-line no-restricted-syntax -- a finger held still before it lifts leaves the page no fling
+    await sleep(SWIPE_HOLD_MS);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await waitForIdle(swipePage, SWIPE_SETTLE_MS);
     return { before, after: await readSwipe() };
   };
