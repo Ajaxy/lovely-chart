@@ -1,7 +1,7 @@
 {
   "name": "lovely-chart",
   "version": "2.3.2",
-  "description": "Telegram-style interactive charts for the web: a tiny, dependency-free library of line, area, bar, step, pie and donut charts with smooth animations, a draggable minimap and drill-down zooming",
+  "description": "Telegram-style charts for the web that look lovely out of the box: a minimalist design, a refined day and night palette and smooth, touch-friendly interactions. Tiny and dependency-free, with a minimap and drill-down zoom",
   "type": "module",
   "main": "./dist/LovelyChart.js",
   "types": "./dist/LovelyChart.d.ts",
@@ -77,6 +77,11 @@
     "minimap",
     "zoom",
     "time-series",
+    "beautiful",
+    "minimalist",
+    "animated",
+    "dark-mode",
+    "touch",
     "telegram",
     "telegram-style",
     "telegram-charts"

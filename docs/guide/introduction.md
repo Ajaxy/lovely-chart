@@ -1,6 +1,6 @@
 # Introduction
 
-LovelyChart is a small, dependency-free library of Telegram-style interactive charts for the web. Give it an element and your data, and it draws a line, area, bar, step, pie or donut chart on canvas, with a tooltip, a legend, a draggable minimap and drill-down zooming built in.
+LovelyChart is a small, dependency-free library of Telegram-style interactive charts for the web, minimalist and lovely out of the box. Give it an element and your data, and it draws a line, area, bar, step, pie or donut chart on canvas, with a tooltip, a legend, a draggable minimap and drill-down zooming built in.
 
 ```js live
 import LovelyChart from 'lovely-chart';

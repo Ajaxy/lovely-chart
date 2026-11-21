@@ -4,7 +4,7 @@
 <a href="https://bundlephobia.com/package/lovely-chart" target="_blank"><img alt="minzipped size" src="https://badgen.net/bundlephobia/minzip/lovely-chart"/></a>
 <a href="https://github.com/Ajaxy/lovely-chart/actions/workflows/ci.yml" target="_blank"><img alt="CI status" src="https://github.com/Ajaxy/lovely-chart/actions/workflows/ci.yml/badge.svg"/></a>
 
-**LovelyChart** is a tiny, dependency-free library of Telegram-style interactive charts for the web.
+**LovelyChart** is a tiny, dependency-free library of Telegram-style charts that look lovely out of the box: a minimalist design, a refined palette for day and night, and polished interactions.
 
 It draws line, area, bar, step, pie and donut charts with smooth animated transitions, a draggable minimap and a drag across the plot for range selection, tooltips, dataset toggling, drill-down zooming and a built-in day/night theme. Everything is touch-friendly and fast enough for low-end mobile devices.
 
