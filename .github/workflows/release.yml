@@ -6,14 +6,16 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   publish:
     # The newest Ubuntu the locked playwright-core installs its headless shell on, to move with a bump of it
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # A hung run ends the job in place of the default of six hours
     timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,3 +29,26 @@ jobs:
       # Authenticates via Trusted Publishing (the workflow OIDC identity — no token),
       # which also attaches provenance automatically
       - run: npm publish --access public
+
+  release:
+    # The GitHub release of the tag, with its section of the changelog for notes. A job of its own, so the token that
+    # writes to the repository never meets the dependencies the publish job installs and runs
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v heading="## $version" '$0 == heading { found = 1; next } /^## / { found = 0 } found' CHANGELOG.md \
+            > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "CHANGELOG.md has no section \"## $version\"" >&2
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file release-notes.md
