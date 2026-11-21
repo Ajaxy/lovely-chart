@@ -27,7 +27,7 @@ const ICONS = {
   copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h10a3 3 0 0 1 3 3v10a1 1 0 1 1-2 0V6a1 1 0 0 0-1-1H8a1 1 0 0 1 0-2Zm-2 4h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3Zm0 2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H6Z"/></svg>',
   download: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V4a1 1 0 0 1 1-1ZM4 19a1 1 0 0 1 1 1h14a1 1 0 1 1 2 0 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 1 1 0 0 1 1-1Z"/></svg>',
   open: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h6a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0V6.41l-8.3 8.3a1 1 0 0 1-1.4-1.42L17.58 5H14a1 1 0 1 1 0-2ZM5 7a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-5a1 1 0 1 1 2 0v5a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3h5a1 1 0 1 1 0 2H5Z"/></svg>',
-  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l11.02-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14Z"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5.14v13.72a1 1 0 0 0 1.52.85l11.02-6.86a1 1 0 0 0 0-1.7L7.52 4.29A1 1 0 0 0 6 5.14Z"/></svg>',
   search: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.25 4.24-1.42 1.42-4.24-4.25A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg>',
 };
 
@@ -73,6 +73,9 @@ function renderGallery() {
     <div class="gallery">
       <header class="gallery-hero">
         <h1>Examples</h1>
+        <p class="gallery-intro">LovelyChart is a small, dependency-free library of interactive charts for the web. Give
+          it an element and your data, and it draws a line, area, bar, step, pie or donut chart on canvas, with a
+          tooltip, a legend, a draggable minimap and drill-down zooming built in.</p>
         <p>${EXAMPLES.length} live examples of every chart type and feature. Hover them, drag their minimaps, click to
           zoom, then open one to edit its code and watch the chart follow as you type.</p>
         <div class="gallery-tools">

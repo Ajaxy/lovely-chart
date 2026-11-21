@@ -208,8 +208,8 @@ function absolutizeLinks(markdown) {
 
 function buildSitemap() {
   const urls = [
-    ...PAGES.map(({ slug }) => new URL(getGuidePath(slug), PUBLIC_URL).href),
     new URL('examples/', PUBLIC_URL).href,
+    ...PAGES.map(({ slug }) => new URL(getGuidePath(slug), PUBLIC_URL).href),
     ...EXAMPLES.map(({ id }) => getExampleUrl(id).replace(SITE_ROOT, PUBLIC_URL)),
   ];
   return [

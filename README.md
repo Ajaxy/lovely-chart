@@ -10,7 +10,7 @@ It draws line, area, bar, step, pie and donut charts with smooth animated transi
 
 🏆 A [Telegram Chart Contest](https://contest.dev/chart-js) award winning library.
 
-**[Documentation](https://ajaxy.github.io/lovely-chart/guide/)** · **[Examples](https://ajaxy.github.io/lovely-chart/examples/)** · [API reference](https://ajaxy.github.io/lovely-chart/guide/?page=api) · [Changelog](CHANGELOG.md)
+**[Examples](https://ajaxy.github.io/lovely-chart/examples/)** · **[Documentation](https://ajaxy.github.io/lovely-chart/guide/)** · [API reference](https://ajaxy.github.io/lovely-chart/guide/api) · [Changelog](CHANGELOG.md)
 
 <img alt="LovelyChart demo" src="https://raw.githubusercontent.com/Ajaxy/lovely-chart/master/docs/preview.png" width="840"/>
 
@@ -31,7 +31,7 @@ It draws line, area, bar, step, pie and donut charts with smooth animated transi
 npm install lovely-chart
 ```
 
-Or, without a bundler, from a CDN: see [Installation](https://ajaxy.github.io/lovely-chart/guide/?page=installation#use-it-from-a-cdn).
+Or, without a bundler, from a CDN: see [Installation](https://ajaxy.github.io/lovely-chart/guide/installation#use-it-from-a-cdn).
 
 ## Quick start
 

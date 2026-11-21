@@ -7,7 +7,7 @@ npm install
 npm run dev     # builds the library and serves the site at the printed URL
 ```
 
-The site in `docs/` is what GitHub Pages publishes: the guide at `/guide/`, which `/` leads to, and the examples at `/examples/`. `npm run demo` builds the library and copies it and `CHANGELOG.md` next to the pages, then builds the files the site makes of its sources with `scripts/site.js`, as CI does before it publishes and `npm run dev` does first. The demo page the e2e test drives, `test/demo/`, is not published: `npm run dev` serves it at `/demo/`, with the library and the files of `docs/data` it loads.
+The site in `docs/` is what GitHub Pages publishes: the examples at `/examples/`, which `/` leads to, and the guide at `/guide/`. `npm run demo` builds the library and copies it and `CHANGELOG.md` next to the pages, then builds the files the site makes of its sources with `scripts/site.js`, as CI does before it publishes and `npm run dev` does first. The demo page the e2e test drives, `test/demo/`, is not published: `npm run dev` serves it at `/demo/`, with the library and the files of `docs/data` it loads.
 
 ## Checks
 

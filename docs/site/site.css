@@ -1459,6 +1459,12 @@ html.theme-dark .button-primary {
   line-height: 1.6;
 }
 
+/* What the library is, for a reader who opens the site on the gallery */
+.gallery-hero > .gallery-intro {
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
 .gallery-tools {
   display: flex;
   flex-wrap: wrap;
@@ -1466,9 +1472,12 @@ html.theme-dark .button-primary {
   margin-bottom: 20px;
 }
 
+/* As tall and as round as the filter beside it, the icon as far from the edge as the text is on the other side */
 .gallery-tools .button {
+  gap: 8px;
   height: 40px;
-  padding: 0 16px;
+  padding: 0 18px 0 14px;
+  border-radius: 10px;
   font-size: 14px;
 }
 
