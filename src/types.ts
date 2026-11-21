@@ -311,8 +311,9 @@ export interface LovelyChartParams {
    */
   noHeader?: boolean;
   /**
-   * Centers each Y-axis label on its grid line, over the line, instead of above it, inside a halo of the background
-   * colour, and moves the labels of either axis 2px in from their side of the chart.
+   * Draws each Y-axis label, of either axis, inside a halo of the background colour, 2px in from its side of the chart,
+   * which keeps the halo of a label inside the plot whole at the plot edge. An `isYAxisOutward` column grows by those
+   * 2px.
    */
   areLabelsContrast?: boolean;
   /**

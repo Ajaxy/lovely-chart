@@ -187,7 +187,7 @@ new LovelyChart(document.getElementById('chart'), {
 | Option | Does |
 |---|---|
 | [`isYAxisOutward`](api.md#isYAxisOutward) | Moves the main Y-axis labels into a column left of the plot, right-aligned, so the data never runs under them |
-| [`areLabelsContrast`](api.md#areLabelsContrast) | Centres each Y-axis label on its grid line, in a halo of the background colour |
+| [`areLabelsContrast`](api.md#areLabelsContrast) | Draws each Y-axis label in a halo of the background colour, 2px in from its side of the chart |
 | [`axisFontSize`](api.md#axisFontSize) | Font size of the labels of both axes in px, `10` by default |
 | [`axisTextColor`](api.md#axisTextColor) | Colour of the labels of both axes: a CSS colour, or `{ light, dark }` for each skin |
 
@@ -215,6 +215,8 @@ new LovelyChart(document.getElementById('chart'), {
 ```
 
 The column of `isYAxisOutward` fits the widest label the chart can show for its data, at any window and with any datasets hidden, so the plot holds still while the reader pans. The chart measures it when it builds, on `update()` and on a zoom, and again once a web font of the page changes the axis font. A second Y axis keeps its labels inside the plot.
+
+Each Y-axis label stands on the row above its grid line. With `areLabelsContrast`, the labels of both axes stand 2px in from their side of the chart, which keeps the halo of a label inside the plot whole at the plot edge, and the column of `isYAxisOutward` grows by those 2px. The labels of [hatched ranges](annotations.md#labels-and-edges) and [event lines](annotations.md#labels-and-hints) keep clear of the Y-axis labels, that inset included.
 
 The labels take the font family and the regular weight of the chart's text, from the [`--lovely-chart-font-family`](css.md#--lovely-chart-font-family) and [`--lovely-chart-font-weight`](css.md#--lovely-chart-font-weight) CSS variables: see [Theming](theming.md).
 

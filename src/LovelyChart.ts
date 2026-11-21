@@ -532,7 +532,7 @@ export default class LovelyChart {
       drawEventLines(this.#context!, this.#data, projection, this.#colors);
       if (!this.#data.isSparkline) {
         drawEventLineLabels(
-          this.#context!, this.#data, projection, this.#colors, this.#axes!.getInnerLabelWidths(true),
+          this.#context!, this.#data, projection, this.#colors, this.#axes!.getInnerLabelWidths(),
         );
       }
     }

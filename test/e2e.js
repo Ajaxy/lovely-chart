@@ -349,19 +349,18 @@ const WEEK_NUMBER_LABELS = Array.from({ length: 13 }, (_, i) => String(34 + i));
 const WEEK_NUMBERS_PROBE_WIDTH = 348;
 const FITTING_DIGITS_FONT_SIZE = 12;
 const CROWDING_DIGITS_FONT_SIZE = 13;
-// A compact chart of percentages, its plot height, axis font size and width, and the fewest pixels of its zero label
-// that a contrast label shows below its grid line, over the X-axis band. The halo of a label reaches half its 3px
+// A compact chart of percentages, its plot height, axis font size and width. The halo of a label reaches half its 3px
 // stroke past the text.
 const COMPACT_PLOT_HEIGHT = 130;
 const COMPACT_AXIS_FONT_SIZE = 11.5;
 const COMPACT_PROBE_WIDTH = 320;
-const MIN_ZERO_LABEL_HALF_PIXELS = 4;
 const HALO_REACH = 1.5;
-// How far a 1px grid line reaches past its y
-const GRID_LINE_REACH = 0.5;
-// The pixels of a label in the magenta probe colour over its halo, antialiased edges and the grey of a GPU-less canvas
-// included
-const MAGENTA_TEXT_PIXEL = { red: [150, 255], green: [0, 110], blue: [150, 255], alpha: [60, 255] };
+// How far under the plot bottom the X-axis band clears the canvas from, past the half pixel its grid line reaches
+const X_AXIS_BAND_OFFSET = 1;
+// The opacity at most of a Y-axis label whose grid line stands at the plot top, where the labels fade out towards the
+// top of the canvas, and how long the Y range of a probe takes to settle on a new scale
+const PLOT_TOP_LABEL_OPACITY = 0.25;
+const RESCALE_SETTLE_MS = 600;
 
 // A sloped series that a window of a fifth of its labels pans across, the steps of the pan, the first of which settle
 // the window, and how far the pattern may move at one point of the series as the window pans, a smooth line's curves
@@ -1168,9 +1167,6 @@ async function mountProbe(page, {
   return page.locator('#probe .lovely-chart--container');
 }
 
-// Collects the numbers the probe chart prints on its canvas, its Y-axis labels among them, with their heights, and
-// every text it prints, with its position, alignment, width, direction, the animation frame that drew it and its
-// pass: a pass of axis labels sets their alignment once before it prints them
 // Counts in `window.plotAreaWrites`, from 0, each write of a plot-area property on the element of the probe
 async function countPlotAreaWrites(page) {
   await page.evaluate(() => {
@@ -1187,6 +1183,10 @@ async function countPlotAreaWrites(page) {
   });
 }
 
+// Collects the numbers the probe chart prints on its canvas, its Y-axis labels among them, with their heights,
+// baselines, colours and the colour of the halo stroked at their place just before, and every text it prints, with its
+// position, alignment, width, direction, the animation frame that drew it and its pass: a pass of axis labels sets
+// their alignment once before it prints them
 async function recordProbeNumbers(page) {
   await page.evaluate(() => {
     window.probeNumbers = [];
@@ -1208,8 +1208,14 @@ async function recordProbeNumbers(page) {
         textAlign.set.call(this, value);
       },
     });
-    const { fillText } = CanvasRenderingContext2D.prototype;
+    const { fillText, strokeText } = CanvasRenderingContext2D.prototype;
+    CanvasRenderingContext2D.prototype.strokeText = function (text, x, y, ...args) {
+      window.probeHalo = { text: String(text), x, y, color: this.strokeStyle };
+      return strokeText.call(this, text, x, y, ...args);
+    };
     CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...args) {
+      const halo = window.probeHalo;
+      window.probeHalo = undefined;
       if (this.canvas.closest('#probe')) {
         window.probeTexts.push({
           text: String(text),
@@ -1222,7 +1228,14 @@ async function recordProbeNumbers(page) {
           direction: this.direction,
         });
         if (/^-?\d+(\.\d+)?$/.test(String(text))) {
-          window.probeNumbers.push({ value: Number(text), y, baseline: this.textBaseline });
+          const isHaloed = halo?.text === String(text) && halo.x === x && halo.y === y;
+          window.probeNumbers.push({
+            value: Number(text),
+            y,
+            baseline: this.textBaseline,
+            color: typeof this.fillStyle === 'string' ? this.fillStyle : '',
+            halo: isHaloed && typeof halo.color === 'string' ? halo.color : undefined,
+          });
         }
       }
       return fillText.call(this, text, x, y, ...args);
@@ -1248,6 +1261,11 @@ function getLastFrameTexts({ texts }) {
 // Whether a canvas fill style is a hex colour, at any opacity
 function isTextColor(fillStyle, hex) {
   return fillStyle === hex.toLowerCase() || fillStyle.startsWith(`rgba(${parseHex(hex).join(', ')}, `);
+}
+
+// The opacity of a canvas fill style, which reads a colour of full opacity as hex
+function readFillOpacity(fillStyle) {
+  return fillStyle.startsWith('rgba(') ? Number(fillStyle.slice(fillStyle.lastIndexOf(',') + 1, -1)) : 1;
 }
 
 // The main Y-axis labels of an outward column, right-aligned left of the canvas middle, of every frame or the last
@@ -4902,7 +4920,8 @@ section('The outward column fits the labels a previous period, a gap, a referenc
   }
 });
 
-section('Contrast labels stand in from either side of the chart, the second axis\'s too', async ({ page }) => {
+section('Contrast labels stand above their lines as standard ones, in a halo and in from either side of the chart, the '
+  + 'second axis\'s too', async ({ page }) => {
   const twoAxesLabels = Array.from({ length: 30 }, (_, i) => Date.UTC(2026, 0, 1 + i));
   const twoAxesConfig = {
     type: 'line',
@@ -4932,15 +4951,20 @@ section('Contrast labels stand in from either side of the chart, the second axis
   await mountProbe(page, { config: { ...twoAxesConfig, title: 'Probe — Contrast labels', areLabelsContrast: true } });
   const contrastInsets = await readYLabelInsets();
   const contrastNumbers = await readProbeNumberLabels(page);
+  const skin = await page.evaluate(() => (document.documentElement.classList.contains('theme-dark') ? 'night' : 'day'));
   await unmountProbe(page);
-  // A standard label stands half a gutter above its tick, its bottom on the line, and a contrast one on the tick
-  const isCenteredOnTick = defaultNumbers.length > 1 && defaultNumbers.every(({ value, y, baseline }) => {
-    const contrastLabel = contrastNumbers.find((label) => label.value === value);
-    return baseline === 'bottom' && contrastLabel?.baseline === 'middle'
-      && Math.abs(contrastLabel.y - (y + GUTTER / 2)) < 0.01;
-  });
-  check('areLabelsContrast centers each label on its grid line', isCenteredOnTick,
+  // A label of either kind stands on the row above its tick, the bottom of its text half a gutter over the line
+  const areAboveTicks = defaultNumbers.length > 1 && contrastNumbers.length === defaultNumbers.length
+    && defaultNumbers.every(({ value, y, baseline }) => {
+      const contrastLabel = contrastNumbers.find((label) => label.value === value);
+      return baseline === 'bottom' && contrastLabel?.baseline === 'bottom' && contrastLabel.y === y;
+    });
+  check('a contrast label stands on the row above its grid line, as a standard one does', areAboveTicks,
     `default ${JSON.stringify(defaultNumbers)}, contrast ${JSON.stringify(contrastNumbers)}`);
+  check('areLabelsContrast haloes each label in the chart background with no `backgroundColor`, a standard one bare',
+    defaultNumbers.every(({ halo }) => halo === undefined)
+    && contrastNumbers.every(({ halo }) => halo !== undefined && isTextColor(halo, CHART_BACKGROUNDS[skin])),
+    `${skin} skin, default ${JSON.stringify(defaultNumbers)}, contrast ${JSON.stringify(contrastNumbers)}`);
   const contrastInset = GUTTER + CONTRAST_LABEL_PADDING;
   check('areLabelsContrast moves the labels of either axis 2px in from their side',
     JSON.stringify(defaultInsets) === JSON.stringify({ main: [GUTTER], second: [GUTTER] })
@@ -4970,8 +4994,58 @@ section('Contrast labels stand in from either side of the chart, the second axis
     + `second axis ${JSON.stringify(outwardSecondInsets)} in from the right`);
 });
 
+section('As the Y scale changes, a Y-axis label above the plot top fades there, a contrast one '
+  + 'as a standard one', async ({ page }) => {
+  const rescaleDays = Array.from({ length: 20 }, (_, i) => Date.UTC(2026, 2, 1 + i));
+  // The Y-axis labels each frame prints as the larger dataset is hidden, the labels of its scale running up past the
+  // plot top as the range shrinks, and shown again, those coming down from above it as the range grows back, each with
+  // the y of its grid line and its opacity
+  const readRescaledLabels = async (areLabelsContrast) => {
+    await recordProbeNumbers(page);
+    const rescaledChart = await mountProbe(page, {
+      config: {
+        type: 'line',
+        title: `Probe — Rescaled ${areLabelsContrast ? 'contrast' : 'standard'} labels`,
+        labels: rescaleDays,
+        datasets: [
+          { name: 'Small', values: rescaleDays.map((_, i) => 20 + (i % 5)) },
+          { name: 'Large', values: rescaleDays.map((_, i) => 200 + (i % 7) * 10) },
+        ],
+        areLabelsContrast,
+      },
+    });
+    await rescaledChart.scrollIntoViewIfNeeded();
+    await page.evaluate(() => {
+      window.probeNumbers = [];
+    });
+    const largeButton = rescaledChart.locator('.lovely-chart--button').nth(1);
+    await largeButton.click();
+    await waitForIdle(page, RESCALE_SETTLE_MS);
+    await largeButton.click();
+    await waitForIdle(page, RESCALE_SETTLE_MS);
+    const labels = await page.evaluate(() => window.probeNumbers);
+    await unmountProbe(page);
+    return labels.map(({ value, y, color }) => ({ value, lineY: y + GUTTER / 2, opacity: readFillOpacity(color) }));
+  };
+  const rescaledLabels = {
+    standard: await readRescaledLabels(false),
+    contrast: await readRescaledLabels(true),
+  };
+  const aboveTop = Object.fromEntries(Object.entries(rescaledLabels).map(([kind, labels]) => (
+    [kind, labels.filter(({ lineY }) => lineY < PLOT_TOP)]
+  )));
+  check('as the Y scale changes, every Y-axis label above the plot top fades there, a contrast one as a standard one',
+    Object.values(aboveTop).every((labels) => (
+      labels.length > 0 && labels.every(({ opacity }) => opacity <= PLOT_TOP_LABEL_OPACITY)
+    )),
+    Object.entries(aboveTop).map(([kind, labels]) => (
+      `${kind}: ${labels.length} above the plot top, the most opaque `
+      + `${JSON.stringify([...labels].sort((a, b) => b.opacity - a.opacity).slice(0, 3))}`
+    )).join('; '));
+});
+
 section('The X-axis grid counts from the newest label and steps coarser where labels would crowd, and the X-axis band '
-  + 'clears around a contrast zero label', async ({ page }) => {
+  + 'clears from under the plot bottom, under a zero label of either kind', async ({ page }) => {
   // The X-axis labels the last frame of the probe printed, left to right, whether each stays inside the plot area, and
   // whether each stands clear of the one before it
   const readXAxisLabels = async () => {
@@ -5088,8 +5162,8 @@ section('The X-axis grid counts from the newest label and steps coarser where la
     });
     // What a redraw of the plot draws after it clears the canvas: the points of each path it strokes, each text with
     // its place, baseline, font, colour and depth under its baseline, each halo and each clear of a part of the canvas,
-    // in order. Then the pixels of the zero label from under its grid line to the clear of the X-axis band.
-    const redraw = await page.evaluate(async ({ bounds, lineReach }) => {
+    // in order
+    const redraw = await page.evaluate(async () => {
       const canvas = document.querySelector('#probe .lovely-chart--container > canvas');
       const context = canvas.getContext('2d');
       const calls = [];
@@ -5130,22 +5204,7 @@ section('The X-axis grid counts from the newest label and steps coarser where la
       Object.keys(methods).forEach((name) => delete context[name]);
 
       const frame = calls.slice(calls.findLastIndex(({ kind, y }) => kind === 'clear' && y === 0) + 1);
-      const zeroLabel = frame.find(({ kind, text }) => kind === 'text' && text === '0%');
-      const band = frame.find(({ kind, y }) => kind === 'clear' && y > 0);
-      const zeroLineY = frame.filter(({ kind }) => kind === 'path').at(-1).points[0][1];
-      const scale = canvas.width / canvas.clientWidth;
-      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
-      let zeroLabelPixelsBelow = 0;
-      for (let y = Math.ceil((zeroLineY + lineReach) * scale); y < band.y * scale; y++) {
-        for (let x = Math.floor(zeroLabel.x * scale); x < (zeroLabel.x + zeroLabel.width) * scale; x++) {
-          const j = (y * canvas.width + x) * 4;
-          if (bounds.every(([min, max], k) => data[j + k] >= min && data[j + k] <= max)) zeroLabelPixelsBelow++;
-        }
-      }
-      return { frame, canvasWidth: canvas.clientWidth, canvasHeight: canvas.clientHeight, zeroLabelPixelsBelow };
-    }, {
-      bounds: ['red', 'green', 'blue', 'alpha'].map((channel) => MAGENTA_TEXT_PIXEL[channel]),
-      lineReach: GRID_LINE_REACH,
+      return { frame, canvasWidth: canvas.clientWidth, canvasHeight: canvas.clientHeight };
     });
     await unmountProbe(page);
 
@@ -5161,9 +5220,7 @@ section('The X-axis grid counts from the newest label and steps coarser where la
     const band = frame.find(({ kind, y }) => kind === 'clear' && y > 0);
     return {
       areOnGridLines: labels.length > 1 && labels.every(({ y, baseline }) => (
-        areLabelsContrast
-          ? baseline === 'middle' && gridYs.includes(y)
-          : baseline === 'bottom' && gridYs.includes(y + GUTTER / 2)
+        baseline === 'bottom' && gridYs.includes(y + GUTTER / 2)
       )),
       areHaloed: labels.every((label) => {
         const halo = frame[frame.indexOf(label) - 1];
@@ -5172,32 +5229,39 @@ section('The X-axis grid counts from the newest label and steps coarser where la
       isInAxisFont: labels.every(({ font }) => font.includes(`${COMPACT_AXIS_FONT_SIZE}px`)),
       // The first dataset runs from 0 to 100
       areValuesOnLabels: datasetPath.points[0][1] === gridYs[0] && datasetPath.points.at(-1)[1] === gridYs.at(-1)
-        && gridYs[0] === zeroLabel.y + (areLabelsContrast ? 0 : GUTTER / 2)
-        && gridYs.at(-1) === topLabel.y + (areLabelsContrast ? 0 : GUTTER / 2),
+        && gridYs[0] === zeroLabel.y + GUTTER / 2 && gridYs.at(-1) === topLabel.y + GUTTER / 2,
+      labels: labels.map(({ text, x, y }) => ({ text, x, y })),
       topLabel: { y: topLabel.y, color: topLabel.color },
       zeroLabelBottom: zeroLabel.y + zeroLabel.descent + HALO_REACH,
       zeroLineY: gridYs[0],
       band,
       isBandToCanvasEnd: band.x === 0 && band.width >= redraw.canvasWidth
         && band.y + band.height >= redraw.canvasHeight,
-      zeroLabelPixelsBelow: redraw.zeroLabelPixelsBelow,
     };
   };
   const contrastCompactAxis = await readCompactAxis(true);
   const standardCompactAxis = await readCompactAxis(false);
   const compactAxes = [contrastCompactAxis, standardCompactAxis];
-  check('a compact axis prints its labels after the grid, in the axis font and halos, a contrast one on its line',
-    compactAxes.every(({ areOnGridLines, areHaloed, isInAxisFont }) => areOnGridLines && areHaloed && isInAxisFont),
+  // A contrast label stands where a standard one does, aside from its inset from the side of the chart
+  const areContrastLabelsInset = contrastCompactAxis.labels.length === standardCompactAxis.labels.length
+    && contrastCompactAxis.labels.every(({ text, x, y }) => standardCompactAxis.labels.some((label) => (
+      label.text === text && label.y === y && label.x + CONTRAST_LABEL_PADDING === x
+    )));
+  check('a compact axis prints labels after the grid above their lines, in its font and halos, contrast ones 2px in',
+    compactAxes.every(({ areOnGridLines, areHaloed, isInAxisFont }) => areOnGridLines && areHaloed && isInAxisFont)
+    && areContrastLabelsInset,
     JSON.stringify(compactAxes));
-  check('a compact axis plots 0 and 100 on the lines of their labels, the top contrast label whole at the plot top',
-    compactAxes.every(({ areValuesOnLabels }) => areValuesOnLabels) && contrastCompactAxis.topLabel.y === PLOT_TOP
-    && contrastCompactAxis.topLabel.color === PROBE_MAGENTA.toLowerCase(),
-    JSON.stringify(compactAxes));
-  check('the X-axis band clears below the zero label, its halo and its line, a contrast one showing under the line',
-    compactAxes.every(({ zeroLabelBottom, zeroLineY, band, isBandToCanvasEnd }) => (
-      band.y >= zeroLabelBottom && band.y >= zeroLineY + GRID_LINE_REACH && isBandToCanvasEnd
+  check('a compact axis plots 0 and 100 on the lines of its labels, the top one faded at the plot top, contrast or not',
+    compactAxes.every(({ areValuesOnLabels, topLabel }) => (
+      areValuesOnLabels && topLabel.y === PLOT_TOP - GUTTER / 2 && isTextColor(topLabel.color, PROBE_MAGENTA)
+      && readFillOpacity(topLabel.color) <= PLOT_TOP_LABEL_OPACITY
     ))
-    && contrastCompactAxis.zeroLabelPixelsBelow >= MIN_ZERO_LABEL_HALF_PIXELS,
+    && contrastCompactAxis.topLabel.color === standardCompactAxis.topLabel.color,
+    JSON.stringify(compactAxes));
+  check('the X-axis band clears from under the plot bottom, below the zero label, its halo and line, contrast or not',
+    compactAxes.every(({ zeroLabelBottom, zeroLineY, band, isBandToCanvasEnd }) => (
+      band.y >= zeroLabelBottom && band.y === zeroLineY + X_AXIS_BAND_OFFSET && isBandToCanvasEnd
+    )),
     JSON.stringify(compactAxes));
 });
 
@@ -8770,6 +8834,29 @@ section('Hatched ranges: their span by chart kind, merging, edges, labels, the m
     nightMinimapHatch.night > 0 && nightMinimapHatch.day === 0
     && dayMinimapHatch.day > 0 && dayMinimapHatch.night === 0,
     JSON.stringify({ nightMinimapHatch, dayMinimapHatch }));
+
+  // The label of a range at the first label shares the bottom row with the lowest contrast Y-axis label
+  await recordProbeNumbers(page);
+  await mountProbe(page, {
+    config: {
+      type: 'line',
+      title: 'Probe — Hatch label beside contrast labels',
+      labels: hatchLabels.slice(0, 4),
+      datasets: [{ name: 'Line', color: '#0000FF', values: [12, 18, 15, 20] }],
+      areLabelsContrast: true,
+      hatchedRanges: [{ from: 0, to: 0, label: 'First' }],
+    },
+  });
+  const { texts: contrastHatchTexts } = await readProbeTexts(page);
+  await unmountProbe(page);
+  const contrastYLabels = contrastHatchTexts.filter(({ text }) => /^\d+$/.test(text));
+  const contrastYLabelEnd = Math.max(...contrastYLabels.map(({ x, width }) => x + width));
+  const contrastFirstLabels = contrastHatchTexts.filter(({ text }) => text === 'First');
+  check('a range label at the first label stands clear of contrast Y-axis labels on its row, past their inset',
+    contrastYLabels.length > 0 && contrastFirstLabels.length > 0
+    && contrastFirstLabels.every(({ x }) => x >= contrastYLabelEnd + HATCH_LABEL_INSET),
+    `at ${JSON.stringify(contrastFirstLabels.map(({ x }) => x))}, the Y-axis labels from `
+    + `${JSON.stringify([...new Set(contrastYLabels.map(({ x }) => x))])} ending at ${contrastYLabelEnd}`);
 
   await recordProbeNumbers(page);
   const hatchSparkline = await mountProbe(page, {

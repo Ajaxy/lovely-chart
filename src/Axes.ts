@@ -13,6 +13,8 @@ import { listYAxisValues } from './yAxisValues.js';
 
 const X_AXIS_LABEL_GAP = 8;
 const CONTRAST_LABEL_PADDING = 2;
+// The X-axis band clears from past the half pixel the lowest grid line reaches under the plot bottom
+const X_AXIS_CLEAR_OFFSET = 1;
 const PERCENT_VALUES = [0, 0.25, 0.5, 0.75, 1];
 const DIGITS = '0123456789';
 // A text in the axis font that a font of other digits or units measures apart
@@ -73,19 +75,16 @@ export class Axes {
     return this.#labelColumnWidth;
   }
 
-  // The widths the Y-axis labels take inside the plot at its start and at its end, on the row above each grid line,
-  // which text drawn there keeps clear of. A contrast label sits on its line and leaves that row free, so only text that
-  // runs `isAcrossRows` keeps clear of it.
-  getInnerLabelWidths(isAcrossRows = false): [number, number] {
-    const { areLabelsContrast, datasets } = this.#data;
-    if (areLabelsContrast && !isAcrossRows) return [0, 0];
-
+  // The widths the Y-axis labels take inside the plot at its start and at its end, their inset included, on the row
+  // above each grid line, which text drawn there keeps clear of
+  getInnerLabelWidths(): [number, number] {
+    const { datasets } = this.#data;
     if (datasets !== this.#innerMeasuredDatasets) {
       this.#innerMeasuredDatasets = datasets;
-      this.#innerLabelWidths = [
-        this.getLabelColumnWidth() === undefined ? this.#measureWidestYLabel() : 0,
-        this.#measureWidest(this.#listSecondaryLabelTexts()),
-      ];
+      const padding = this.#getLabelPadding();
+      const startWidth = this.getLabelColumnWidth() === undefined ? this.#measureWidestYLabel() : 0;
+      const endWidth = this.#measureWidest(this.#listSecondaryLabelTexts());
+      this.#innerLabelWidths = [startWidth && padding + startWidth, endWidth && padding + endWidth];
     }
 
     return this.#innerLabelWidths;
@@ -113,8 +112,7 @@ export class Axes {
     const context = this.#context;
     const plotSize = this.#plotSize;
 
-    // A contrast zero label is centered on the plot bottom, so its lower half stays uncleared
-    const clearTop = plotSize.height - X_AXIS_HEIGHT + (this.#data.areLabelsContrast ? GUTTER : 1);
+    const clearTop = plotSize.height - X_AXIS_HEIGHT + X_AXIS_CLEAR_OFFSET;
     context.clearRect(0, clearTop, plotSize.width, plotSize.height - clearTop + 2);
 
     const topOffset = plotSize.height - X_AXIS_HEIGHT / 2;
@@ -304,15 +302,13 @@ export class Axes {
 
     ticks.forEach((value) => {
       const [, yPx] = projection.toPixels(0, value);
-      // A contrast label is centered on its tick, so it stays whole under the top edge and needs no fade there
-      const textOpacity = this.#data.areLabelsContrast ? opacity : applyXEdgeOpacity(opacity, yPx);
 
       labels.push({
         text: isSecondary ? humanize(value, labelStep) : this.#formatAxisLabel(value, labelStep),
         x: labelX,
-        y: this.#getLabelY(yPx),
+        y: getLabelY(yPx),
         colorKey: colorKey ?? 'y-axis-text',
-        opacity: textOpacity,
+        opacity: applyXEdgeOpacity(opacity, yPx),
       });
 
       if (isSecondary) {
@@ -349,7 +345,7 @@ export class Axes {
       labels.push({
         text: formatPercentLabel(value),
         x: this.#getMainLabelX(labelColumnWidth),
-        y: this.#data.areLabelsContrast ? yPx : yPx - GUTTER / 4,
+        y: yPx - GUTTER / 4,
         colorKey: 'y-axis-text',
         opacity: 1,
       });
@@ -385,7 +381,7 @@ export class Axes {
       labels.push({
         text: this.#formatAxisLabel(value * multiplier, labelStep, prefix, suffix),
         x: this.#getSecondaryLabelX(),
-        y: this.#getLabelY(yPx),
+        y: getLabelY(yPx),
         colorKey: 'y-axis-text',
         opacity: applyXEdgeOpacity(opacity, yPx),
       });
@@ -418,23 +414,19 @@ export class Axes {
     return this.#plotSize.width - GUTTER - this.#getLabelPadding();
   }
 
-  // A contrast label masks the grid line under it, which keeps showing at the plot edge
+  // A contrast label stands in from its side of the chart, so a halo inside the plot stays whole at its edge
   #getLabelPadding(): number {
     return this.#data.areLabelsContrast ? CONTRAST_LABEL_PADDING : 0;
   }
 
-  #getLabelY(tickY: number): number {
-    return this.#data.areLabelsContrast ? tickY : tickY - GUTTER / 2;
-  }
-
-  // Drawn after the grid, so a label centered on its tick sits over the line, its halo masking it
+  // Drawn after the datasets and the grid, so a halo masks the lines under its label
   #fillAxisLabels(labels: AxisLabel[], textAlign: CanvasTextAlign) {
     const context = this.#context;
     const shouldDrawHalo = this.#data.areLabelsContrast || this.#data.backgroundColor !== undefined;
 
     context.font = getAxesFont(context, this.#data.axisFontSize);
     context.textAlign = textAlign;
-    context.textBaseline = this.#data.areLabelsContrast ? 'middle' : 'bottom';
+    context.textBaseline = 'bottom';
     // Numbers read left to right, signs first, on a right-to-left page too, while the labels of reference lines and
     // hatched ranges follow the page
     context.direction = 'ltr';
@@ -539,4 +531,9 @@ function shiftIntoView(
 function getAxesFont(context: CanvasRenderingContext2D, fontSize: number): string {
   const { fontFamily, fontWeight } = getComputedStyle(context.canvas);
   return `${fontWeight} ${fontSize}px ${fontFamily || 'sans-serif'}`;
+}
+
+// The bottom of a Y-axis label, which `#fillAxisLabels` draws on its baseline, stands half a gutter over its grid line
+function getLabelY(tickY: number): number {
+  return tickY - GUTTER / 2;
 }

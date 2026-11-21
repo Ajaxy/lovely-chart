@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `areLabelsContrast` labels stand on the row above their grid lines, as the other Y-axis labels do, in place of standing centred on them, and keep their halo of the background colour and their 2px inset from their side of the chart. The label of the lowest grid line stands inside the plot, clear of the band of the X-axis labels, and the labels of hatched ranges and event lines keep clear of contrast labels, their inset included.
+
+### Fixed
+
+- `areLabelsContrast` labels fade toward the top of the plot as the other Y-axis labels do, at rest and while the Y scale changes, as on a dataset hidden or shown in the legend, a zoom or a pan that rescales the axis, in place of running unfaded through the room above the Y range, where the top of the canvas cut off the labels of the outgoing or incoming scale.
+
 ## 2.3.3
 
 ### Changed
