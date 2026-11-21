@@ -42,14 +42,20 @@ export interface PointerVector {
 // previous value.
 export type FocusOn = number | PointerVector | typeof NO_FOCUS;
 
+/** A scale of the main Y axis in another unit, at the right of the plot and in a row of the tooltip */
 export interface SecondaryYAxisConfig {
+  /** The name of the row of the scale in the tooltip */
   label: string;
+  /** The factor that turns a value of the main Y axis into one of the scale */
   multiplier: number;
+  /** Text before each value of the scale */
   prefix?: string;
+  /** Text after each value of the scale */
   suffix?: string;
 }
 
 export interface LovelyChartDatasetParams {
+  /** The name of the dataset in the tooltip and the legend */
   name: string;
   /**
    * Colour of the dataset. In the chart's own data, the datasets with none take the colours of
@@ -58,6 +64,7 @@ export interface LovelyChartDatasetParams {
    * place, and one past the chart's datasets takes a default colour.
    */
   color?: ThemedColor;
+  /** A value per label, or `null` for a gap */
   values: (number | null)[];
   /** Starts the dataset hidden, its legend button unchecked, so a reader can show it from the legend. */
   isInitiallyHidden?: boolean;
@@ -211,22 +218,34 @@ export interface TooltipContent {
  * reads in the direction of its first letter, so one in Hebrew or Arabic words reads right to left on any page.
  */
 export interface DateLocale {
-  months?: readonly string[]; // Short month names, 12 entries (Jan..Dec)
-  monthsFull?: readonly string[]; // Full month names, 12 entries (January..December)
-  weekDays?: readonly string[]; // Full weekday names, 7 entries starting Sunday
-  weekDaysShort?: readonly string[]; // Short weekday names, 7 entries starting Sunday
-  weekOf?: string; // Words before the start date of a week in a tooltip title, as in "Week of 21 Oct"
+  /** Short month names, 12 entries (Jan..Dec) */
+  months?: readonly string[];
+  /** Full month names, 12 entries (January..December) */
+  monthsFull?: readonly string[];
+  /** Full weekday names, 7 entries starting Sunday */
+  weekDays?: readonly string[];
+  /** Short weekday names, 7 entries starting Sunday */
+  weekDaysShort?: readonly string[];
+  /** Words before the start date of a week in a tooltip title, as in "Week of 21 Oct" */
+  weekOf?: string;
 }
 
-/** Raw data accepted by the `LovelyChart` constructor and `onZoom` callbacks. */
+/**
+ * Raw data accepted by the `LovelyChart` constructor and `onZoom` callbacks.
+ *
+ * @see https://ajaxy.github.io/lovely-chart/guide/api#chart-options
+ */
 export interface LovelyChartParams {
+  /** The kind of chart: `line`, `area`, `bar`, `step`, `pie` or `donut` */
   type: ChartType;
   /**
    * UNIX timestamps in milliseconds, or strings for text labels. A pie or donut of one total per dataset takes a single
    * text label, as `['Total']`, each dataset's `values` holding its total, so the header shows no caption of dates.
    */
   labels: (number | string)[];
+  /** The series to draw, each with a value per label */
   datasets: LovelyChartDatasetParams[];
+  /** The headline in the header of the chart */
   title?: string;
   /**
    * The accessible name of the plot, which takes the `img` role while the chart element takes none, so the legend
@@ -237,6 +256,10 @@ export interface LovelyChartParams {
   ariaLabel?: string;
   /** In data that `onZoom` returns, dataset colours by key (`y0` for the first) over each dataset's `color`. */
   colors?: Record<string, ThemedColor>;
+  /**
+   * The kind of the X-axis labels: by default `text` for strings, and for timestamps the kind the step between
+   * the first two fits
+   */
   labelType?: LabelType;
   /**
    * The format of the X-axis labels of timestamps, over the one of `labelType`: `'statsFormatYear'`,
@@ -247,9 +270,13 @@ export interface LovelyChartParams {
    * `"statsFormat('day')"` labels weekly data by the date each week starts on.
    */
   labelFormatter?: string;
+  /** The format of the tooltip title, which is the X-axis label by default */
   tooltipFormatter?: string;
+  /** The names of the months and the weekdays in the labels, the header caption and the tooltip, English by default */
   dateLocale?: DateLocale;
+  /** Stacks the values of the datasets on top of each other */
   isStacked?: boolean;
+  /** Shows each label's values as shares of their total, stacked to 100% */
   isPercentage?: boolean;
   /**
    * Digits after the point on the share a percentage tooltip prints beside each
@@ -390,6 +417,10 @@ export interface LovelyChartParams {
    * `prefix` and `suffix`.
    */
   secondaryYAxis?: SecondaryYAxisConfig;
+  /**
+   * Takes the value of the label a click zooms into, its timestamp or the index of a text label, and returns the
+   * params of the zoomed view. The chart stays on its overview when the promise rejects or resolves to `undefined`.
+   */
   onZoom?: (value: number) => Promise<LovelyChartParams | undefined>;
   /**
    * Called once a zoom settles, with the value of the zoomed-in label (its timestamp, or the index of a text label)
@@ -442,7 +473,9 @@ export interface LovelyChartParams {
    * legend takes its spacing variables, such as `--lovely-chart-legend-gap`, from this element and its ancestors.
    */
   legendContainer?: HTMLElement;
+  /** Turns zooming off */
   noZoom?: boolean;
+  /** The chart a zoom into the shares of a label shows, `pie` by default */
   zoomType?: 'pie' | 'donut';
   /**
    * Opt a non-percentage chart into zoom-to-shares, so clicking a label drills
@@ -457,7 +490,9 @@ export interface LovelyChartParams {
    * Defaults to 3, which suits daily data; use 0 to drill into a single label.
    */
   circleLabelsAround?: number;
+  /** Opens the chart zoomed into a label, by its index or `'last'`, with no overview shown first */
   initialZoom?: number | 'last';
+  /** Draws the minimap under the plot, with a window the reader drags to show another range of labels */
   withMinimap?: boolean;
   /**
    * The window the chart opens on: a `[begin, end]` tuple of fractions of the axis from 0 to 1, `'full'`, or
@@ -480,7 +515,9 @@ export interface LovelyChartParams {
   zoomOutLabel?: string;
   /** Leaves out the zoom-out control, for a page that zooms out with `zoomOut()` from a control of its own. */
   noZoomOutControl?: boolean;
+  /** Text before every formatted value, as `$` */
   valuePrefix?: string;
+  /** Text after every formatted value, as `%` */
   valueSuffix?: string;
   /**
    * Puts the minus sign of a negative value in front of `valuePrefix`, `-$9.1` rather than `$-9.1`, and in front of

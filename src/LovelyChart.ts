@@ -79,6 +79,11 @@ interface NextSiblings {
   legend: Node | undefined;
 }
 
+/**
+ * An interactive chart in an element of the page
+ *
+ * @see https://ajaxy.github.io/lovely-chart/guide/api
+ */
 export default class LovelyChart {
   readonly #container: HTMLElement;
 
@@ -147,6 +152,9 @@ export default class LovelyChart {
   #colors!: ChartColors;
   readonly #redrawDebounced = debounce(() => this.#redraw(), REDRAW_DEBOUNCE_MS, false, true);
 
+  /**
+   * Builds a chart of `originalData` in `container`, which it fills the width of, and paints it on the next frame
+   */
   constructor(container: HTMLElement, originalData: LovelyChartParams) {
     this.#container = container;
     this.#originalData = originalData;
@@ -296,6 +304,10 @@ export default class LovelyChart {
     this.#stateManager!.update();
   }
 
+  /**
+   * Removes the chart from its element and detaches its listeners and observers, after which it calls back nothing
+   * and its methods do nothing. Call it when the element leaves the page, as in the cleanup of a component.
+   */
   destroy() {
     if (this.#isDestroyed) return;
     this.#isDestroyed = true;
