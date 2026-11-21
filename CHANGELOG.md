@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.3
+
+### Changed
+
+- The description and keywords of the package and the opening of the README present LovelyChart as Telegram-style charts that look lovely out of the box: a minimalist design, a refined palette for day and night and polished interactions.
+
 ## 2.3.2
 
 ### Added
