@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The share on a pie or donut sector takes the dark label of a checked legend button, `#222222`, on a sector too pale for white, where white reaches less than 2:1 on the sector's colour, as on the light green and the amber of the default colours, and stays white on every other sector, in place of white on every sector.
+
 ## 2.3.4
 
 ### Changed

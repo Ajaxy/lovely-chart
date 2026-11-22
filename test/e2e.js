@@ -254,6 +254,13 @@ const MIN_LEGEND_LABEL_CONTRAST = 2;
 // The eight colours of the default palette in order, and the pale ones of them, whose legend buttons take dark labels
 const DEFAULT_PALETTE = ['#3497ED', '#2373DB', '#9ED448', '#5FB641', '#F5BD25', '#F79E39', '#E65850', '#5D5CDC'];
 const DARK_LABEL_DEFAULT_COLORS = ['#9ED448', '#F5BD25'];
+// The dark label of a pale fill, `#222222`, in channels
+const DARK_LABEL_RGB = [0x22, 0x22, 0x22];
+// A donut's share stands halfway across its ring, which runs from half the radius to the radius
+const DONUT_SHARE_RADIUS_FACTOR = 0.75;
+// Half the width and half the height, in px, of the box around the middle of a sector that its share's pixels fall in
+const SHARE_BOX_HALF_WIDTH = 12;
+const SHARE_BOX_HALF_HEIGHT = 6;
 // Dataset counts from one to past the eight default colours, which a chart of more datasets takes again from the first,
 // and a colour of a dataset's own, past which the next datasets take the default colours
 const PALETTE_DATASET_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -1913,6 +1920,47 @@ function readCanvasRow(page, hostSelector, y, [start, end]) {
 
 function isPickedPixel(rgba, { red, green, blue, alpha }) {
   return [red, green, blue, alpha].every(([min, max], k) => rgba[k] >= min && rgba[k] <= max);
+}
+
+// Whether the pixels around the share of each of `count` equal sectors of the probe's donut hold the dark label and
+// whether they hold the white one, the sectors in the order of the datasets
+function readShareLabels(page, count) {
+  return page.evaluate(({ count, darkRgb, tolerance, radiusFactor, halfWidth, halfHeight }) => {
+    const host = document.getElementById('probe');
+    const canvas = host.querySelector('.lovely-chart--container > canvas');
+    const scale = canvas.width / canvas.clientWidth;
+    const hostBox = host.getBoundingClientRect();
+    const canvasBox = canvas.getBoundingClientRect();
+    const readArea = (side) => parseFloat(host.style.getPropertyValue(`--lovely-chart-plot-area-${side}`));
+    // The plot area of a pie or donut is the square around its circle
+    const radius = readArea('width') / 2;
+    const centerX = readArea('left') + radius - (canvasBox.left - hostBox.left - host.clientLeft);
+    const centerY = readArea('top') + radius - (canvasBox.top - hostBox.top - host.clientTop);
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    return Array.from({ length: count }, (_, i) => {
+      const angle = -Math.PI / 2 + ((i + 0.5) / count) * Math.PI * 2;
+      const x = centerX + Math.cos(angle) * radius * radiusFactor;
+      const y = centerY + Math.sin(angle) * radius * radiusFactor;
+      let darkPixels = 0;
+      let whitePixels = 0;
+      for (let dy = -halfHeight; dy <= halfHeight; dy++) {
+        for (let dx = -halfWidth; dx <= halfWidth; dx++) {
+          const j = (Math.round((y + dy) * scale) * canvas.width + Math.round((x + dx) * scale)) * 4;
+          const rgb = [data[j], data[j + 1], data[j + 2]];
+          if (rgb.every((channel, k) => Math.abs(channel - darkRgb[k]) <= tolerance)) darkPixels++;
+          if (rgb.every((channel) => channel >= 255 - tolerance)) whitePixels++;
+        }
+      }
+      return { isDark: darkPixels > 0, isWhite: whitePixels > 0 };
+    });
+  }, {
+    count,
+    darkRgb: DARK_LABEL_RGB,
+    tolerance: COLOR_TOLERANCE,
+    radiusFactor: DONUT_SHARE_RADIUS_FACTOR,
+    halfWidth: SHARE_BOX_HALF_WIDTH,
+    halfHeight: SHARE_BOX_HALF_HEIGHT,
+  });
 }
 
 // Reads the dataset colour of each legend button, as its `lovely-chart--color-*` class names it, the contrast of its
@@ -7189,6 +7237,31 @@ section('Legend labels contrast with their fills', async ({ page }) => {
     && JSON.stringify(darkLabelColors) === JSON.stringify(DARK_LABEL_DEFAULT_COLORS),
     JSON.stringify(defaultPaletteLabels
       .map(({ color, isLabelWhite }) => `${color} ${isLabelWhite ? 'white' : 'dark'}`)));
+  await unmountProbe(page);
+});
+
+section('Pie and donut shares contrast with their sectors', async ({ page }) => {
+  const names = Object.keys(LEGEND_FILLS);
+  const donut = await mountProbe(page, {
+    config: {
+      type: 'donut',
+      title: 'Probe — Donut shares',
+      labels: ['Total'],
+      datasets: Object.entries(LEGEND_FILLS).map(([name, color]) => ({ name, color, values: [1] })),
+    },
+  });
+  const legendLabels = await readLegendLabels(donut);
+  const shares = await readShareLabels(page, names.length);
+  const mismatches = shares.flatMap(({ isDark, isWhite }, i) => {
+    const { isLabelWhite } = legendLabels[i];
+    if (isWhite === isLabelWhite && isDark !== isLabelWhite) return [];
+    const share = `${isDark ? 'dark ' : ''}${isWhite ? 'white ' : ''}share`;
+    return [`${names[i]}: ${share}, ${isLabelWhite ? 'white' : 'dark'} legend`];
+  });
+  check('a donut share takes the label its legend button takes, dark on a pale sector and white on the others',
+    shares.length === names.length && shares.some(({ isDark }) => isDark) && shares.some(({ isWhite }) => isWhite)
+    && !mismatches.length,
+    JSON.stringify(mismatches.length ? mismatches : shares));
   await unmountProbe(page);
 });
 

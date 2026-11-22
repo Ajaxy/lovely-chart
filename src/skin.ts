@@ -6,7 +6,7 @@ import { createElement } from './minifiers.js';
 type ColorParams = Pick<LovelyChartParams, 'axisTextColor' | 'backgroundColor' | 'colorScheme'>;
 
 const MASK_OPACITY = 0.5;
-// The label colours of a checked legend button, as `_buttons.scss` sets them
+// The label colours of a checked legend button, as `_buttons.scss` sets them, and of the share on a pie or donut sector
 const DARK_CONTENT_COLOR = '#222222';
 const LIGHT_CONTENT_COLOR = '#FFFFFF';
 // The least contrast of a light label on its fill, below which the dark one takes over: pale fills, such as the light
@@ -199,6 +199,11 @@ function hexToChannels(hexWithAlpha: string): ColorChannels {
 
 function buildCssColor([r, g, b, a = 1]: ColorChannels, opacity = 1): string {
   return `rgba(${r}, ${g}, ${b}, ${a * opacity})`;
+}
+
+// The colour of a label on a fill of `key`: the light one, or the dark one where the light one is too faint
+export function getContentColor(colors: ChartColors, key: string): string {
+  return isLightContentTooFaint(colors, key) ? DARK_CONTENT_COLOR : LIGHT_CONTENT_COLOR;
 }
 
 // A checked legend button keeps its light label while that reaches `MIN_LIGHT_CONTENT_CONTRAST` on the fill

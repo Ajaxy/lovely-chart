@@ -14,7 +14,7 @@ import {
 } from './formulas.js';
 import { preparePoints } from './preparePoints.js';
 import { simplify } from './simplify.js';
-import { getCssColor, pickSkinColor } from './skin.js';
+import { getContentColor, getCssColor, pickSkinColor } from './skin.js';
 
 const MARKED_SEGMENT_POINTS = 3;
 const AREA_BORDER_WIDTH = 1;
@@ -44,6 +44,8 @@ interface DrawOptions {
   shift?: number;
   isDonut?: boolean;
   withGradient?: boolean;
+  // The colour of a pie or donut sector's share, which reads on the sector as a checked legend button's label on its fill
+  labelColor?: string;
   focusOn?: number;
 }
 
@@ -118,6 +120,7 @@ export function drawDatasets(
       options.shift = (state[`circleShift#${key}`] || 0) * PLOT_CIRCLE_SHIFT;
       options.isDonut = data.isDonut;
       options.withGradient = data.withGradient;
+      options.labelColor = getContentColor(colors, `dataset#${key}`);
     }
 
     if (datasetType === 'bar') {
@@ -611,7 +614,7 @@ function drawDatasetCircle(
     context.font = `700 ${getCircleTextSize(percent, radius)}px ${fontFamily}`;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillStyle = 'white';
+    context.fillStyle = options.labelColor!;
     const textShift = isDonut ? (radius + innerRadius) / 2 : getCircleTextShift(percent, radius);
     context.fillText(
       `${Math.round(percent * 100)}%`, x + directionX * textShift + shiftX, y + directionY * textShift + shiftY,

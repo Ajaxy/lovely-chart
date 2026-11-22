@@ -198,7 +198,7 @@ new LovelyChart(document.getElementById('chart'), {
 ```
 
 - Drag the minimap window to sum another period; the sectors animate to their new sizes.
-- Each sector large enough shows its share as a percentage. Point at a sector to pull it out, and the tooltip shows that sector alone.
+- Each sector large enough shows its share as a percentage, in white, or in a dark grey on a sector too pale for white, as a checked legend button labels its colour. Point at a sector to pull it out, and the tooltip shows that sector alone.
 - For one total per dataset, use a single text label: see [Pie and donut of totals](data.md#pie-and-donut-of-totals).
 - Reference lines, hatched ranges, event lines and the `comparison` line don't apply to pies and donuts.
 
