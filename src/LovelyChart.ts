@@ -82,7 +82,7 @@ interface NextSiblings {
 /**
  * An interactive chart in an element of the page
  *
- * @see https://ajaxy.github.io/lovely-chart/guide/api
+ * @see https://lovelychart.io/guide/api
  */
 export default class LovelyChart {
   readonly #container: HTMLElement;

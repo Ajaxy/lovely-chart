@@ -5,7 +5,7 @@
 export const SITE_ROOT = import.meta.url.replace(/[^/]+\/[^/]*$/, '');
 
 // Where the site is published, for the links that leave it: the canonical URL of a page, a page for an assistant to read
-export const PUBLIC_URL = 'https://ajaxy.github.io/lovely-chart/';
+export const PUBLIC_URL = 'https://lovelychart.io/';
 
 export const REPOSITORY_URL = 'https://github.com/Ajaxy/lovely-chart';
 

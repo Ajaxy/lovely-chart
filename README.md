@@ -12,7 +12,7 @@ It draws the statistics of [Telegram Web](https://web.telegram.org/a/) and the p
 
 🏆 A [Telegram Chart Contest](https://contest.dev/chart-js) award winning library.
 
-**[Examples](https://ajaxy.github.io/lovely-chart/examples/)** · **[Documentation](https://ajaxy.github.io/lovely-chart/guide/)** · [API reference](https://ajaxy.github.io/lovely-chart/guide/api) · [Changelog](CHANGELOG.md)
+**[Examples](https://lovelychart.io/examples/)** · **[Documentation](https://lovelychart.io/guide/)** · [API reference](https://lovelychart.io/guide/api) · [Changelog](CHANGELOG.md)
 
 <img alt="LovelyChart demo" src="https://raw.githubusercontent.com/Ajaxy/lovely-chart/master/docs/preview.png" width="840"/>
 
@@ -33,7 +33,7 @@ It draws the statistics of [Telegram Web](https://web.telegram.org/a/) and the p
 npm install lovely-chart
 ```
 
-Or, without a bundler, from a CDN: see [Installation](https://ajaxy.github.io/lovely-chart/guide/installation#use-it-from-a-cdn).
+Or, without a bundler, from a CDN: see [Installation](https://lovelychart.io/guide/installation#use-it-from-a-cdn).
 
 ## Quick start
 
@@ -59,11 +59,11 @@ chart.update(newData);
 chart.destroy();
 ```
 
-Try it in the [playground](https://ajaxy.github.io/lovely-chart/examples/?id=playground), or open the project on [StackBlitz](https://stackblitz.com/github/Ajaxy/lovely-chart).
+Try it in the [playground](https://lovelychart.io/examples/?id=playground), or open the project on [StackBlitz](https://stackblitz.com/github/Ajaxy/lovely-chart).
 
 ## Documentation
 
-The [documentation site](https://ajaxy.github.io/lovely-chart/guide/) runs every example live. Its pages are Markdown in [`docs/guide`](docs/guide), which GitHub shows too.
+The [documentation site](https://lovelychart.io/guide/) runs every example live. Its pages are Markdown in [`docs/guide`](docs/guide), which GitHub shows too.
 
 | | |
 |---|---|
@@ -73,14 +73,14 @@ The [documentation site](https://ajaxy.github.io/lovely-chart/guide/) runs every
 | **Styling** | [Theming and colours](docs/guide/theming.md) · [Layout, sizing and fonts](docs/guide/layout.md) · [Overlays and custom marks](docs/guide/overlays.md) |
 | **Reference** | [API reference](docs/guide/api.md) · [CSS variables and classes](docs/guide/css.md) |
 
-The [examples](https://ajaxy.github.io/lovely-chart/examples/) gallery has a live, editable example of every chart type and feature; their code is in [`docs/examples/code`](docs/examples/code).
+The [examples](https://lovelychart.io/examples/) gallery has a live, editable example of every chart type and feature; their code is in [`docs/examples/code`](docs/examples/code).
 
 ### For AI assistants
 
 The docs are written to be read by language models as well as by people:
 
-- [`llms.txt`](https://ajaxy.github.io/lovely-chart/llms.txt) indexes every page and example, and [`llms-full.txt`](https://ajaxy.github.io/lovely-chart/llms-full.txt) holds the whole guide in one file.
-- Each page is Markdown at its own URL with `.md` added, as [`guide/tooltip.md`](https://ajaxy.github.io/lovely-chart/guide/tooltip.md), and its "Copy page" menu copies it or opens it in Claude or ChatGPT.
+- [`llms.txt`](https://lovelychart.io/llms.txt) indexes every page and example, and [`llms-full.txt`](https://lovelychart.io/llms-full.txt) holds the whole guide in one file.
+- Each page is Markdown at its own URL with `.md` added, as [`guide/tooltip.md`](https://lovelychart.io/guide/tooltip.md), and its "Copy page" menu copies it or opens it in Claude or ChatGPT.
 - The type declarations of the package document every option, so an editor or a coding agent shows them as the code is written.
 
 ## Contributing

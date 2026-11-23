@@ -233,7 +233,7 @@ export interface DateLocale {
 /**
  * Raw data accepted by the `LovelyChart` constructor and `onZoom` callbacks.
  *
- * @see https://ajaxy.github.io/lovely-chart/guide/api#chart-options
+ * @see https://lovelychart.io/guide/api#chart-options
  */
 export interface LovelyChartParams {
   /** The kind of chart: `line`, `area`, `bar`, `step`, `pie` or `donut` */
