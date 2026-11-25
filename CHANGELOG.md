@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The element that holds a chart takes the `lovely-chart--host` class while it holds one, which makes it a stacking context, `isolation: isolate`, in place of a `:has(> .lovely-chart--container)` rule of the stylesheet, which the browser tested on every element of the page in each full recalculation of its styles, at a cost of several milliseconds on a page of tens of thousands of elements. A rebuild of the chart gives the class back if the page took it away, and the `destroy()` of the last chart in the element takes it away.
+
 ## 2.3.5
 
 ### Changed

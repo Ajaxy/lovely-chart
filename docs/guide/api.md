@@ -22,7 +22,7 @@ Builds a chart in `element` and paints it on the next frame. The chart takes the
 
 Argument | Type | Description |
 ---------|----|----|
-`element`| `HTMLElement` | DOM node in which the chart is rendered, taking its whole width. The chart sets the `--lovely-chart-plot-area-*` and `--lovely-chart-plot-padding-top` CSS variables on it; of several charts in one element, they describe the one that wrote them last. While it holds a chart, the chart's stylesheet makes it a stacking context: see [Placing elements over the plot](overlays.md).
+`element`| `HTMLElement` | DOM node in which the chart is rendered, taking its whole width. The chart sets the `--lovely-chart-plot-area-*` and `--lovely-chart-plot-padding-top` CSS variables on it; of several charts in one element, they describe the one that wrote them last. While it holds a chart, it has the `lovely-chart--host` class, which makes it a stacking context: see [Placing elements over the plot](overlays.md).
 `data`| [`LovelyChartParams`](#chart-options) | Parameters for a chart.
 
 ## Chart options

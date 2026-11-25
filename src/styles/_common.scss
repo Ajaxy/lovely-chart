@@ -16,16 +16,9 @@ $font-stack: '-apple-system', 'HelveticaNeue', Helvetica, Arial, sans-serif;
   --range-selection-color: #48AAF0;
 }
 
-// The balloon covers the page's elements in the element holding the chart, and no z-index inside reaches the page
-:has(> .lovely-chart--container) {
+// The element holding a chart, in which the balloon covers the page's elements and no z-index inside reaches the page
+.lovely-chart--host {
   isolation: isolate;
-}
-
-// A browser without `:has()` keeps the z-indexes of the chart in its own container
-@supports not selector(:has(*)) {
-  .lovely-chart--container {
-    isolation: isolate;
-  }
 }
 
 .lovely-chart--container {

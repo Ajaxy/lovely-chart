@@ -57,6 +57,7 @@ const PLOT_AREA_PROPERTIES: [keyof Rect, string][] = [
   ['height', '--lovely-chart-plot-area-height'],
 ];
 const PLOT_PADDING_TOP_PROPERTY = '--lovely-chart-plot-padding-top';
+const HOST_CLASS = 'lovely-chart--host';
 // The key of the range `onRangeChange` last reported when it reported none
 const NO_RANGE_KEY = 'none';
 const CHART_TYPE_NAMES: Record<ChartType, string> = {
@@ -329,6 +330,10 @@ export default class LovelyChart {
     this.#destroyComponents();
     PLOT_AREA_PROPERTIES.forEach(([, property]) => this.#container.style.removeProperty(property));
     this.#container.style.removeProperty(PLOT_PADDING_TOP_PROPERTY);
+    // Another chart in the element keeps it a host
+    if (!this.#container.querySelector(':scope > .lovely-chart--container')) {
+      this.#container.classList.remove(HOST_CLASS);
+    }
     if (this.#reportedPlotArea) {
       this.#originalData.onPlotAreaChange?.(undefined);
     }
@@ -398,6 +403,7 @@ export default class LovelyChart {
     }
     applyLoading(this.#element, this.#data);
 
+    this.#container.classList.add(HOST_CLASS);
     if (nextSibling?.parentNode === this.#container) {
       this.#container.insertBefore(this.#element, nextSibling);
     } else {

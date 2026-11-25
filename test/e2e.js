@@ -8139,7 +8139,7 @@ section('The tooltip balloon over an overlay added after the chart with no z-ind
   }, { selector, balloonTop: BALLOON_UNDER_HEADER_TOP });
   const readHostIsolation = () => page.evaluate(() => {
     const host = document.getElementById('probe');
-    return { computed: getComputedStyle(host).isolation, inline: host.style.isolation };
+    return { computed: getComputedStyle(host).isolation, isHost: host.classList.contains('lovely-chart--host') };
   });
   const layeringConfig = {
     type: 'line',
@@ -8271,8 +8271,9 @@ section('The tooltip balloon over an overlay added after the chart with no z-ind
     [raisedAfterLayers, raisedBeforeLayers].every((layers) => layers.join() === overlayOverBalloon),
     JSON.stringify({ raisedAfterLayers, raisedBeforeLayers }));
   check('the element holding a chart, or the next one built there, stacks its balloon under the page around it',
-    hostIsolation.computed === 'isolate' && hostIsolation.inline === ''
-    && nextChartIsolation.computed === 'isolate' && destroyedIsolation.computed === 'auto'
+    hostIsolation.computed === 'isolate' && hostIsolation.isHost
+    && nextChartIsolation.computed === 'isolate' && nextChartIsolation.isHost
+    && destroyedIsolation.computed === 'auto' && !destroyedIsolation.isHost
     && Object.values(pageLayers).every(([top, under]) => top !== 'balloon' && under === 'balloon'),
     JSON.stringify({ hostIsolation, nextChartIsolation, destroyedIsolation, pageLayers }));
   check('the floating zoom-out control paints over an overlay added after the chart with no z-index',
