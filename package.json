@@ -1,6 +1,6 @@
 {
   "name": "lovely-chart",
-  "version": "2.3.5",
+  "version": "2.3.6",
   "description": "Telegram-style charts for the web that look lovely out of the box: a minimalist design, a refined day and night palette and smooth, touch-friendly interactions. Tiny and dependency-free, with a minimap and drill-down zoom",
   "type": "module",
   "main": "./dist/LovelyChart.js",
