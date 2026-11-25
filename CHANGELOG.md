@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- The element that holds a chart takes its `lovely-chart--host` class back at once when the page sets its `className`, as a framework that renders the element does, in place of losing it, and with it the stacking context in which the tooltip balloon stays under the page around the element, until the chart was rebuilt.
+
 ## 2.3.6
 
 ### Changed

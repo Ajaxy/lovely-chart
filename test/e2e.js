@@ -8141,6 +8141,13 @@ section('The tooltip balloon over an overlay added after the chart with no z-ind
     const host = document.getElementById('probe');
     return { computed: getComputedStyle(host).isolation, isHost: host.classList.contains('lovely-chart--host') };
   });
+  // Sets the `className` of the element, as a framework rendering it does, and reads the classes the next frame finds
+  const rewriteHostClassName = () => page.evaluate(async () => {
+    const host = document.getElementById('probe');
+    host.className = 'page-host';
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return host.className;
+  });
   const layeringConfig = {
     type: 'line',
     title: 'Probe — Balloon layering',
@@ -8154,6 +8161,7 @@ section('The tooltip balloon over an overlay added after the chart with no z-ind
   await selectOverOverlay('');
   const defaultLayers = await readOverlapLayers(BALLOON_LAYER_SELECTORS);
   const hostIsolation = await readHostIsolation();
+  const rewrittenClassName = await rewriteHostClassName();
   await selectOverOverlay(OVER_BALLOON_Z_INDEX);
   const raisedAfterLayers = await readOverlapLayers(BALLOON_LAYER_SELECTORS);
   await selectOverOverlay(OVER_BALLOON_Z_INDEX, true);
@@ -8207,6 +8215,7 @@ section('The tooltip balloon over an overlay added after the chart with no z-ind
     window.probeChart.destroy();
   });
   const destroyedIsolation = await readHostIsolation();
+  const destroyedClassName = await rewriteHostClassName();
   await unmountProbe(page);
   // A chart whose header floats, and a sparkline, keep the balloon over the overlay, and the zoom-out control of the
   // first paints over an overlay of the whole element
@@ -8276,6 +8285,9 @@ section('The tooltip balloon over an overlay added after the chart with no z-ind
     && destroyedIsolation.computed === 'auto' && !destroyedIsolation.isHost
     && Object.values(pageLayers).every(([top, under]) => top !== 'balloon' && under === 'balloon'),
     JSON.stringify({ hostIsolation, nextChartIsolation, destroyedIsolation, pageLayers }));
+  check('the element holding a chart takes its host class back from a page that sets its className, until destroy()',
+    rewrittenClassName === 'page-host lovely-chart--host' && destroyedClassName === 'page-host',
+    JSON.stringify({ rewrittenClassName, destroyedClassName }));
   check('the floating zoom-out control paints over an overlay added after the chart with no z-index',
     controlLayers.join() === ['control', 'overlay'].join(), JSON.stringify(controlLayers));
   check('a balloon tall enough to reach the legend paints over its buttons',

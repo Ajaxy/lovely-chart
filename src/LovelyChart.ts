@@ -138,6 +138,7 @@ export default class LovelyChart {
   #fadeInTimeout?: number;
 
   #themeObserver?: MutationObserver;
+  #hostObserver?: MutationObserver;
   #layoutObserver?: ResizeObserver;
   #systemSchemeQuery?: MediaQueryList;
   #fontFaces?: FontFaceSet;
@@ -315,6 +316,8 @@ export default class LovelyChart {
 
     this.#themeObserver!.disconnect();
     this.#themeObserver = undefined;
+    this.#hostObserver!.disconnect();
+    this.#hostObserver = undefined;
     this.#layoutObserver?.disconnect();
     this.#layoutObserver = undefined;
     this.#systemSchemeQuery?.removeEventListener('change', this.#onSystemSchemeChange);
@@ -869,6 +872,14 @@ export default class LovelyChart {
   #setupGlobalListeners() {
     this.#themeObserver = new MutationObserver(() => this.refreshColors());
     this.#themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    // A page that sets the `className` of the element, as a framework rendering it does, takes the class of the host
+    // away. The check keeps the observer from answering its own write.
+    this.#hostObserver = new MutationObserver(() => {
+      if (!this.#container.classList.contains(HOST_CLASS)) {
+        this.#container.classList.add(HOST_CLASS);
+      }
+    });
+    this.#hostObserver.observe(this.#container, { attributes: true, attributeFilter: ['class'] });
 
     if (typeof matchMedia === 'function') {
       this.#systemSchemeQuery = matchMedia(SYSTEM_DARK_QUERY);

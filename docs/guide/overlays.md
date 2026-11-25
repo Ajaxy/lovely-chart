@@ -238,7 +238,7 @@ The chart keeps its place among the children of `element` through updates and re
 
 The tooltip balloon, and the zoom-out control where it floats over the plot, take `z-index: 1`. An element after the chart takes the pointer over its own box, so give a decorative one `pointer-events: none`, or the reader can't hover the data under it; one before the chart lies under the chart and gets no clicks where the chart covers it.
 
-While it holds a chart, `element` is a stacking context: the chart gives it the `lovely-chart--host` class, with `isolation: isolate`, and takes the class away when the last chart there is destroyed. No `z-index` inside it reaches over the page around it, so a menu of your page placed inside `element` can't cover the content after the chart. Put such menus outside the element.
+While it holds a chart, `element` is a stacking context: the chart gives it the `lovely-chart--host` class, with `isolation: isolate`, keeps the class through a `className` your page or framework sets, and takes it away when the last chart there is destroyed. No `z-index` inside it reaches over the page around it, so a menu of your page placed inside `element` can't cover the content after the chart. Put such menus outside the element.
 
 > [!NOTE]
 > During the cross-fade of [`update()` with `isAnimated`](updating.md#cross-fading), positioned elements after the chart in `element` paint over both the old and the new chart, and those before it under both.
